@@ -17,7 +17,8 @@ import {
   X,
   Layers,
   ArrowUpDown,
-  CheckCircle2
+  AlertTriangle,
+  BarChart3
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { removeAccents } from '../utils';
@@ -59,82 +60,58 @@ interface DayColumn {
 }
 
 // Brand standardizer
-const standardizeBrand = (raw: string, prodName?: string): string => {
-  let str = (raw || '').toUpperCase().trim();
-  
-  if (!str && prodName) {
-    const p = prodName.toUpperCase();
-    if (p.includes('PANASONIC')) return 'PANASONIC';
-    if (p.includes('SAMSUNG')) return 'SAMSUNG';
-    if (p.includes('APPLE') || p.includes('IPHONE') || p.includes('IPAD')) return 'APPLE';
-    if (p.includes('DAIKIN')) return 'DAIKIN';
-    if (p.includes('CASPER')) return 'CASPER';
-    if (p.includes('SONY')) return 'SONY';
-    if (p.includes('TOSHIBA')) return 'TOSHIBA';
-    if (p.includes('SHARP')) return 'SHARP';
-    if (p.includes('AQUA')) return 'AQUA';
-    if (p.includes('LG')) return 'LG';
-    if (p.includes('TCL')) return 'TCL';
-    if (p.includes('XIAOMI')) return 'XIAOMI';
-    if (p.includes('OPPO')) return 'OPPO';
-    if (p.includes('VIVO')) return 'VIVO';
-    if (p.includes('REALME')) return 'REALME';
-    if (p.includes('SUNHOUSE')) return 'SUNHOUSE';
-    if (p.includes('KANGAROO')) return 'KANGAROO';
-    if (p.includes('SANAKY')) return 'SANAKY';
-    if (p.includes('ELECTROLUX')) return 'ELECTROLUX';
-    if (p.includes('PHILIPS')) return 'PHILIPS';
-    if (p.includes('TEFAL')) return 'TEFAL';
-    if (p.includes('COMFEE')) return 'COMFEE';
-    if (p.includes('NAGAKAWA')) return 'NAGAKAWA';
-    if (p.includes('FUNIKI')) return 'FUNIKI';
-    if (p.includes('HAIER')) return 'HAIER';
-    if (p.includes('BEKO')) return 'BEKO';
-    if (p.includes('MIDEA')) return 'MIDEA';
-    if (p.includes('HISENSE')) return 'HISENSE';
-    if (p.includes('COOCAA')) return 'COOCAA';
-    if (p.includes('CARRIER')) return 'CARRIER';
-    if (p.includes('GREE')) return 'GREE';
-    if (p.includes('HITACHI')) return 'HITACHI';
-    if (p.includes('MITSUBISHI')) return 'MITSUBISHI';
+const standardizeBrand = (brandCell?: string, prodName?: string): string => {
+  const b = (brandCell || '').toUpperCase().trim();
+  const p = (prodName || '').toUpperCase().trim();
+
+  // 1. Direct keywords
+  if (b.includes('PANASONIC') || p.includes('PANASONIC')) return 'PANASONIC';
+  if (b.includes('SAMSUNG') || p.includes('SAMSUNG')) return 'SAMSUNG';
+  if (b.includes('APPLE') || p.includes('APPLE') || p.includes('IPHONE') || p.includes('IPAD') || p.includes('MACBOOK')) return 'APPLE';
+  if (b.includes('DAIKIN') || p.includes('DAIKIN')) return 'DAIKIN';
+  if (b.includes('CASPER') || p.includes('CASPER')) return 'CASPER';
+  if (b.includes('SONY') || p.includes('SONY')) return 'SONY';
+  if (b.includes('AQUA') || p.includes('AQUA')) return 'AQUA';
+  if (b.includes('TOSHIBA') || p.includes('TOSHIBA')) return 'TOSHIBA';
+  if (b.includes('SHARP') || p.includes('SHARP')) return 'SHARP';
+  if (b === 'LG' || b.includes(' LG ') || b.startsWith('LG ') || b.endsWith(' LG') || p.startsWith('LG ') || p.includes(' LG ')) return 'LG';
+  if (b.includes('TCL') || p.includes('TCL')) return 'TCL';
+  if (b.includes('XIAOMI') || p.includes('XIAOMI') || p.includes('REDMI')) return 'XIAOMI';
+  if (b.includes('OPPO') || p.includes('OPPO')) return 'OPPO';
+  if (b.includes('VIVO') || p.includes('VIVO')) return 'VIVO';
+  if (b.includes('REALME') || p.includes('REALME')) return 'REALME';
+  if (b.includes('SUNHOUSE') || p.includes('SUNHOUSE')) return 'SUNHOUSE';
+  if (b.includes('KANGAROO') || p.includes('KANGAROO')) return 'KANGAROO';
+  if (b.includes('SANAKY') || p.includes('SANAKY')) return 'SANAKY';
+  if (b.includes('ELECTROLUX') || p.includes('ELECTROLUX')) return 'ELECTROLUX';
+  if (b.includes('PHILIPS') || p.includes('PHILIPS')) return 'PHILIPS';
+  if (b.includes('TEFAL') || p.includes('TEFAL')) return 'TEFAL';
+  if (b.includes('COMFEE') || p.includes('COMFEE')) return 'COMFEE';
+  if (b.includes('NAGAKAWA') || p.includes('NAGAKAWA')) return 'NAGAKAWA';
+  if (b.includes('FUNIKI') || p.includes('FUNIKI')) return 'FUNIKI';
+  if (b.includes('HAIER') || p.includes('HAIER')) return 'HAIER';
+  if (b.includes('BEKO') || p.includes('BEKO')) return 'BEKO';
+  if (b.includes('MIDEA') || p.includes('MIDEA')) return 'MIDEA';
+  if (b.includes('HISENSE') || p.includes('HISENSE')) return 'HISENSE';
+  if (b.includes('COOCAA') || p.includes('COOCAA')) return 'COOCAA';
+  if (b.includes('CARRIER') || p.includes('CARRIER')) return 'CARRIER';
+  if (b.includes('GREE') || p.includes('GREE')) return 'GREE';
+  if (b.includes('HITACHI') || p.includes('HITACHI')) return 'HITACHI';
+  if (b.includes('MITSUBISHI') || p.includes('MITSUBISHI')) return 'MITSUBISHI';
+  if (b.includes('ASANZO') || p.includes('ASANZO')) return 'ASANZO';
+  if (b.includes('HONOR') || p.includes('HONOR')) return 'HONOR';
+  if (b.includes('DELL') || p.includes('DELL')) return 'DELL';
+  if (b.includes('ASUS') || p.includes('ASUS')) return 'ASUS';
+  if (b.includes('HP') || p.includes('HP ')) return 'HP';
+  if (b.includes('LENOVO') || p.includes('LENOVO')) return 'LENOVO';
+  if (b.includes('ACER') || p.includes('ACER')) return 'ACER';
+
+  // 2. If clean brand string in cell
+  if (b && b !== 'KHÁC' && b !== 'KHONG RO' && b !== 'NULL' && b !== 'UNDEFINED') {
+    return b.replace(/^(CONG TY|CTY|TNHH|CP)\s+/i, '').trim();
   }
 
-  // Canonicalize common brand names
-  if (str.includes('PANASONIC')) return 'PANASONIC';
-  if (str.includes('SAMSUNG')) return 'SAMSUNG';
-  if (str.includes('APPLE') || str.includes('IPHONE')) return 'APPLE';
-  if (str.includes('DAIKIN')) return 'DAIKIN';
-  if (str.includes('CASPER')) return 'CASPER';
-  if (str.includes('SONY')) return 'SONY';
-  if (str.includes('TOSHIBA')) return 'TOSHIBA';
-  if (str.includes('SHARP')) return 'SHARP';
-  if (str.includes('AQUA')) return 'AQUA';
-  if (str === 'LG' || str.includes(' LG ') || str.startsWith('LG ') || str.endsWith(' LG') || str.includes('LIFE\'S GOOD')) return 'LG';
-  if (str.includes('TCL')) return 'TCL';
-  if (str.includes('XIAOMI')) return 'XIAOMI';
-  if (str.includes('OPPO')) return 'OPPO';
-  if (str.includes('VIVO')) return 'VIVO';
-  if (str.includes('REALME')) return 'REALME';
-  if (str.includes('SUNHOUSE')) return 'SUNHOUSE';
-  if (str.includes('KANGAROO')) return 'KANGAROO';
-  if (str.includes('SANAKY')) return 'SANAKY';
-  if (str.includes('ELECTROLUX')) return 'ELECTROLUX';
-  if (str.includes('PHILIPS')) return 'PHILIPS';
-  if (str.includes('TEFAL')) return 'TEFAL';
-  if (str.includes('COMFEE')) return 'COMFEE';
-  if (str.includes('NAGAKAWA')) return 'NAGAKAWA';
-  if (str.includes('FUNIKI')) return 'FUNIKI';
-  if (str.includes('HAIER')) return 'HAIER';
-  if (str.includes('BEKO')) return 'BEKO';
-  if (str.includes('MIDEA')) return 'MIDEA';
-  if (str.includes('HISENSE')) return 'HISENSE';
-  if (str.includes('COOCAA')) return 'COOCAA';
-  if (str.includes('CARRIER')) return 'CARRIER';
-  if (str.includes('GREE')) return 'GREE';
-  if (str.includes('HITACHI')) return 'HITACHI';
-  if (str.includes('MITSUBISHI')) return 'MITSUBISHI';
-
-  return str || 'KHÁC';
+  return 'KHÁC';
 };
 
 // Safe date parser: avoids timezone offset issues & sequentially calling setDate/setMonth
@@ -179,17 +156,21 @@ const parseRowDateSafe = (rawVal: string): { dateKey: string; dayNum: number; di
   };
 };
 
+const extractName = (raw: string): string => {
+  if (!raw) return raw;
+  const match = raw.match(/^\s*\d+\s*[-–]\s*(.+)$/);
+  return match ? match[1].trim() : raw.trim();
+};
+
 export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps> = ({
   rawYcxRows,
   filteredRawYcxRows,
-  marketFilter,
   onCapture,
   selectedStaffs = [],
   drillFilterStaff = []
 }) => {
   const [selectedBrand, setSelectedBrand] = useState<string>('PANASONIC');
   const [hasUserSelectedBrand, setHasUserSelectedBrand] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(true);
   const [viewMetric, setViewMetric] = useState<'qty' | 'revenue'>('qty');
   const [showOnlyWithSales, setShowOnlyWithSales] = useState(false);
   const [showAllDaysInMonth, setShowAllDaysInMonth] = useState(true);
@@ -222,25 +203,25 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
       return defaultIdx;
     };
 
-    // Staff index
+    // Staff index (Priority to creator / sales staff, strictly exclude delivery)
     const idxStaff = (() => {
       const priorityList = [
-        'ten nguoi tao', 'nguoi tao', 'ma/ten nguoi tao', 'user tao',
+        'nguoi tao', 'user tao', 'ten nguoi tao', 'ma/ten nguoi tao',
         'ten nhan vien ban hang', 'nhan vien ban hang', 'user ban hang', 'nv ban hang',
         'ten nhan vien', 'ten nv', 'nhan vien', 'nguoi ban', 'nguoi lap', 'user lap', 'nv tao'
       ];
       for (const kw of priorityList) {
-        const exact = norm.findIndex(h => h === kw);
+        const exact = norm.findIndex(h => h === kw && !h.includes('giao'));
         if (exact !== -1) return exact;
       }
       for (const kw of priorityList) {
-        const partial = norm.findIndex(h => h.includes(kw));
+        const partial = norm.findIndex(h => h.includes(kw) && !h.includes('giao'));
         if (partial !== -1) return partial;
       }
       return 4;
     })();
 
-    const idxDate = findIdx(['ngay tao', 'ngay lap', 'ngay xuat', 'ngay giao', 'ngay hoan', 'ngay'], -1);
+    const idxDate = findIdx(['ngay tao', 'ngay lap', 'ngay xuat', 'ngay giao', 'ngay hoan', 'ngay', 'thoi gian tao', 'thoi gian', 'date'], -1);
     const idxBrand = findIdx(['nha san xuat', 'hang san xuat', 'hang sx', 'nha sx', 'brand', 'nsx', 'hang', 'thuong hieu'], -1);
     const idxProduct = findIdx(['ten san pham', 'ten hang', 'san pham'], -1);
     const idxQty = findIdx(['so luong xuat', 'so luong ban', 'so luong', 'sl xuat', 'sl ban', 'sl'], -1);
@@ -256,12 +237,11 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
     })();
 
     const idxOrder = findIdx(['so ycx', 'so phieu', 'ma ycx', 'ma don', 'ma phieu', 'so'], -1);
-    const idxMarket = findIdx(['ma kho tao', 'ma kho', 'sieu thi', 'ten kho', 'dia diem', 'kho', 'cua hang'], -1);
 
-    return { idxStaff, idxDate, idxBrand, idxProduct, idxQty, idxRevenue, idxOrder, idxMarket };
+    return { idxStaff, idxDate, idxBrand, idxProduct, idxQty, idxRevenue, idxOrder };
   }, [rawYcxRows]);
 
-  // Rows to process: prioritize filteredRawYcxRows if provided, else rawYcxRows.slice(1)
+  // Rows to process
   const sourceRows = useMemo(() => {
     if (filteredRawYcxRows && filteredRawYcxRows.length > 0) return filteredRawYcxRows;
     if (rawYcxRows && rawYcxRows.length > 1) return rawYcxRows.slice(1);
@@ -281,7 +261,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
       };
     }
 
-    const { idxStaff, idxDate, idxBrand, idxProduct, idxQty, idxRevenue, idxOrder, idxMarket } = indices;
+    const { idxStaff, idxDate, idxBrand, idxProduct, idxQty, idxRevenue, idxOrder } = indices;
 
     const brandStats = new Map<string, { totalQty: number; totalRev: number }>();
     const staffMasterMap = new Map<string, { staffKey: string; staffId: string; staffName: string }>();
@@ -294,40 +274,64 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
       !n || n.toLowerCase().includes('người tạo') || n.toLowerCase() === 'admin' || n.toLowerCase() === 'administrator';
 
     for (const row of sourceRows) {
-      // Optional market filter
-      if (marketFilter && idxMarket !== -1) {
-        const rowMarket = String(row[idxMarket] || '').trim();
-        if (rowMarket && !rowMarket.includes(marketFilter)) continue;
-      }
-
-      // Staff info
+      // 1. Staff info
       const rawStaff = idxStaff !== -1 ? String(row[idxStaff] || '').trim() : '';
       if (!rawStaff) continue;
-      const staffMatch = rawStaff.match(/^\s*(\d+)\s*[-–]\s*(.+)$/);
-      const staffId = staffMatch ? staffMatch[1].trim() : '';
-      const staffName = staffMatch ? staffMatch[2].trim() : rawStaff;
+      const staffName = extractName(rawStaff);
       if (isSystemName(staffName)) continue;
 
-      const staffKey = staffId ? `${staffId} - ${staffName}` : staffName;
+      const staffMatch = rawStaff.match(/^\s*(\d+)/);
+      const staffId = staffMatch ? staffMatch[1].trim() : '';
+      const staffKey = staffName;
+
       if (!staffMasterMap.has(staffKey)) {
         staffMasterMap.set(staffKey, { staffKey, staffId, staffName });
       }
 
-      // Product & Brand info
+      // 2. Product & Brand info
       const rawProdName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() : '';
       const rawBrandVal = idxBrand !== -1 ? String(row[idxBrand] || '').trim() : '';
       const brand = standardizeBrand(rawBrandVal, rawProdName);
 
-      // Qty & Revenue
+      // 3. Qty & Revenue
       const rawQty = idxQty !== -1 ? Math.round(parseFloat(String(row[idxQty] || '1').replace(/,/g, '')) || 0) : 1;
       const qty = rawQty > 0 ? rawQty : 1;
       const rawRev = idxRevenue !== -1 ? parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0 : 0;
       const rev = rawRev >= 0 ? rawRev : 0;
 
-      // Date info
-      const rawDate = idxDate !== -1 ? String(row[idxDate] || '').trim() : '';
-      const parsedDate = parseRowDateSafe(rawDate);
-      if (!parsedDate) continue;
+      // 4. Date info: robust extraction with fallbacks
+      let parsedDate: { dateKey: string; dayNum: number; displayDate: string; fullDate: Date } | null = null;
+
+      if (idxDate !== -1 && row[idxDate]) {
+        parsedDate = parseRowDateSafe(String(row[idxDate]).trim());
+      }
+
+      // Fallback: scan row for date if idxDate failed
+      if (!parsedDate) {
+        for (let c = 0; c < Math.min(row.length, 30); c++) {
+          const val = String(row[c] || '').trim();
+          if (!val) continue;
+          if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}/.test(val) || /^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/.test(val) || (/^\d{5}(\.\d+)?$/.test(val) && parseFloat(val) > 40000 && parseFloat(val) < 60000)) {
+            parsedDate = parseRowDateSafe(val);
+            if (parsedDate) break;
+          }
+        }
+      }
+
+      // Ultimate fallback date if completely missing: use current date
+      if (!parsedDate) {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = now.getMonth() + 1;
+        const day = now.getDate();
+        const pad = (n: number) => String(n).padStart(2, '0');
+        parsedDate = {
+          dateKey: `${y}-${pad(m)}-${pad(day)}`,
+          dayNum: day,
+          displayDate: `${pad(day)}/${pad(m)}`,
+          fullDate: now
+        };
+      }
 
       const { dateKey, dayNum, displayDate, fullDate } = parsedDate;
 
@@ -346,7 +350,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
         });
       }
 
-      // Update brand general totals
+      // 5. Update brand totals
       if (!brandStats.has(brand)) {
         brandStats.set(brand, { totalQty: 0, totalRev: 0 });
       }
@@ -354,7 +358,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
       bStat.totalQty += qty;
       bStat.totalRev += rev;
 
-      // Update brand-specific staff matrix
+      // 6. Update staff matrix for this brand
       if (!brandSalesMap.has(brand)) {
         brandSalesMap.set(brand, new Map<string, StaffBrandSales>());
       }
@@ -404,14 +408,14 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
       minDate,
       maxDate,
     };
-  }, [indices, sourceRows, marketFilter]);
+  }, [indices, sourceRows]);
 
-  // Auto-select brand if user hasn't explicitly clicked a brand
+  // Auto-select initial brand
   useMemo(() => {
     if (hasUserSelectedBrand) return;
     if (parsedData.brandList.length === 0) return;
-    const hasPana = parsedData.brandList.some(b => b.brand === 'PANASONIC');
-    if (hasPana) {
+    const hasPana = parsedData.brandList.find(b => b.brand === 'PANASONIC');
+    if (hasPana && hasPana.totalQty > 0) {
       setSelectedBrand('PANASONIC');
     } else {
       setSelectedBrand(parsedData.brandList[0].brand);
@@ -523,7 +527,6 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
     // Specific Brand Mode: Each row is an employee
     const staffSalesMap = parsedData.brandSalesMap.get(selectedBrand) || new Map<string, StaffBrandSales>();
 
-    // Build complete staff list
     let staffRows: StaffBrandSales[] = parsedData.staffMasterList.map(m => {
       const existing = staffSalesMap.get(m.staffKey);
       if (existing) return existing;
@@ -539,7 +542,6 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
       };
     });
 
-    // Parent filter for selected staffs
     if (selectedStaffs.length > 0) {
       staffRows = staffRows.filter(s => selectedStaffs.some(sel => s.staffName.toLowerCase().includes(sel.toLowerCase())));
     }
@@ -547,12 +549,10 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
       staffRows = staffRows.filter(s => drillFilterStaff.includes(s.staffName));
     }
 
-    // Filter: show only staff with sales
     if (showOnlyWithSales) {
       staffRows = staffRows.filter(s => s.totalQty > 0);
     }
 
-    // Filter by staff search query
     if (staffSearchQuery.trim()) {
       const q = removeAccents(staffSearchQuery.trim());
       staffRows = staffRows.filter(s => 
@@ -561,10 +561,9 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
       );
     }
 
-    // Sort by sales descending
+    // Sort: Staff with sales at top (descending), staff with 0 at bottom
     staffRows.sort((a, b) => b.totalQty - a.totalQty || b.totalRev - a.totalRev || a.staffName.localeCompare(b.staffName));
 
-    // Store total row for this brand
     const storeDailyQty: Record<string, number> = {};
     const storeDailyRev: Record<string, number> = {};
     let grandTotalQty = 0;
@@ -599,54 +598,6 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
     brandSearchQuery
   ]);
 
-  // KPI Quick Stats
-  const kpiStats = useMemo(() => {
-    const isAll = selectedBrand === 'ALL';
-    const totalQty = tableData.grandTotalQty;
-    const totalRev = tableData.grandTotalRev;
-
-    let topStaffName = '-';
-    let topStaffQty = 0;
-    let activeStaffCount = 0;
-    const totalStaffCount = parsedData.staffMasterList.length;
-
-    if (!isAll && 'staffRows' in tableData) {
-      const activeStaff = tableData.staffRows.filter(s => s.totalQty > 0);
-      activeStaffCount = activeStaff.length;
-      if (activeStaff.length > 0) {
-        topStaffName = activeStaff[0].staffName;
-        topStaffQty = activeStaff[0].totalQty;
-      }
-    } else if (isAll && 'brandRows' in tableData) {
-      if (tableData.brandRows.length > 0) {
-        topStaffName = tableData.brandRows[0].brandName;
-        topStaffQty = tableData.brandRows[0].totalQty;
-      }
-    }
-
-    // Peak sales day
-    let peakDay = '-';
-    let peakDayQty = 0;
-    Object.entries(tableData.storeDailyQty).forEach(([dk, q]) => {
-      if (q > peakDayQty) {
-        peakDayQty = q;
-        const col = dayColumns.find(c => c.dateKey === dk);
-        peakDay = col ? col.displayDate : dk;
-      }
-    });
-
-    return {
-      totalQty,
-      totalRev,
-      topStaffName,
-      topStaffQty,
-      activeStaffCount,
-      totalStaffCount,
-      peakDay,
-      peakDayQty,
-    };
-  }, [selectedBrand, tableData, parsedData.staffMasterList.length, dayColumns]);
-
   // Export Excel handler
   const handleExportExcel = () => {
     try {
@@ -667,19 +618,6 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
       headerRow1.push(viewMetric === 'qty' ? 'TỔNG SL' : 'TỔNG DOANH THU');
       headerRow1.push('% TỔNG');
       aoa.push(headerRow1);
-
-      // Store Total Row
-      const storeRow: (string | number)[] = ['-', 'TỔNG TOÀN SIÊU THỊ'];
-      if (selectedBrand !== 'ALL') storeRow.push('-');
-      dayColumns.forEach(c => {
-        const val = viewMetric === 'qty'
-          ? (tableData.storeDailyQty[c.dateKey] || 0)
-          : (tableData.storeDailyRev[c.dateKey] || 0);
-        storeRow.push(val);
-      });
-      storeRow.push(viewMetric === 'qty' ? tableData.grandTotalQty : tableData.grandTotalRev);
-      storeRow.push('100%');
-      aoa.push(storeRow);
 
       // Data Rows
       if (!tableData.isAllMode && 'staffRows' in tableData) {
@@ -716,6 +654,19 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
         });
       }
 
+      // Store Total Row at bottom
+      const storeRow: (string | number)[] = ['-', 'TỔNG CỘNG'];
+      if (selectedBrand !== 'ALL') storeRow.push('-');
+      dayColumns.forEach(c => {
+        const val = viewMetric === 'qty'
+          ? (tableData.storeDailyQty[c.dateKey] || 0)
+          : (tableData.storeDailyRev[c.dateKey] || 0);
+        storeRow.push(val);
+      });
+      storeRow.push(viewMetric === 'qty' ? tableData.grandTotalQty : tableData.grandTotalRev);
+      storeRow.push('100%');
+      aoa.push(storeRow);
+
       const ws = XLSX.utils.aoa_to_sheet(aoa);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'TheoDoi_Hang_Ngay');
@@ -730,655 +681,531 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
     return null;
   }
 
-  // Top 8 brands for quick pills
-  const topPillBrands = parsedData.brandList.slice(0, 8);
+  // Top brands for pills
+  const topPillBrands = parsedData.brandList.slice(0, 9);
+
+  // Render rank medal or warning icon matching Image 1
+  const renderRank = (idx: number, qty: number) => {
+    if (qty === 0) {
+      return (
+        <span className="text-[14px] text-amber-500 font-bold shrink-0" title="Chưa bán">
+          ⚠️
+        </span>
+      );
+    }
+    if (idx === 0) return <span className="text-[15px] shrink-0" title="Hạng 1">🥇</span>;
+    if (idx === 1) return <span className="text-[15px] shrink-0" title="Hạng 2">🥈</span>;
+    if (idx === 2) return <span className="text-[15px] shrink-0" title="Hạng 3">🥉</span>;
+    return <span className="text-[11px] font-black text-slate-500 shrink-0 w-4">#{idx + 1}</span>;
+  };
 
   return (
     <div 
       className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6 mb-8"
       id="brand-daily-staff-sales-container"
     >
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 sm:p-5 border-b border-indigo-950/40 relative">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Header - EXACT SAME STYLE AS HÌNH 1 (PHÂN TÍCH KHAI THÁC) */}
+      <div className="px-4 sm:px-6 pt-5 pb-4 border-b border-slate-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 to-amber-500 text-slate-950 flex items-center justify-center flex-shrink-0 font-black shadow-md shadow-amber-500/20">
-              <Building2 size={20} />
+            <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center flex-shrink-0 font-bold border border-red-100">
+              <BarChart3 size={20} />
             </div>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-[15px] sm:text-[17px] font-black uppercase tracking-wider text-amber-300">
-                  THEO DÕI BÁN HÀNG THEO HÃNG THEO NGÀY
-                </h3>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-800/80 text-indigo-200 border border-indigo-700/60 uppercase">
-                  Từng nhân viên
-                </span>
-              </div>
-              <p className="text-[10.5px] sm:text-[11px] text-slate-300 mt-0.5 font-medium">
-                Ma trận tiến độ sản lượng theo ngày của từng nhân viên theo hãng sản xuất ({selectedBrand === 'ALL' ? 'Tất cả hãng' : `Hãng ${selectedBrand}`})
+              <h3 className="text-[16px] sm:text-[18px] font-black text-red-600 tracking-tight uppercase">
+                THEO DÕI BÁN HÀNG THEO HÃNG THEO NGÀY
+              </h3>
+              <p className="text-[10.5px] sm:text-[11px] text-slate-400 mt-0.5">
+                Chi tiết số lượng bán ra theo từng ngày của từng nhân viên theo hãng ({selectedBrand === 'ALL' ? 'TẤT CẢ HÃNG' : `HÃNG ${selectedBrand}`})
               </p>
             </div>
           </div>
 
-          {/* Action Toolbar Buttons */}
+          {/* Action buttons matching Hình 1 */}
           <div className="flex items-center gap-2 self-end sm:self-auto no-capture">
             <button
               onClick={handleExportExcel}
-              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-all text-[11px] font-black flex items-center gap-1.5 shadow-sm active:scale-95"
+              className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-emerald-600 hover:border-emerald-200 transition-all text-[11px] font-bold flex items-center gap-1.5 shadow-sm"
               title="Xuất bảng này ra file Excel (.xlsx)"
             >
-              <Download size={13} />
-              <span className="hidden sm:inline">Xuất Excel</span>
+              <Download size={13} className="text-slate-500 hover:text-emerald-600" />
+              <span>Xuất Excel</span>
             </button>
 
             {onCapture && (
               <button
                 onClick={onCapture}
-                className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all text-[11px] font-black flex items-center gap-1.5 shadow-sm active:scale-95"
-                title="Chụp ảnh toàn bộ bảng này để gửi Zalo / báo cáo"
+                className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all text-[11px] font-bold flex items-center gap-1.5 shadow-sm"
+                title="Chụp ảnh bảng này"
               >
-                <Camera size={13} />
+                <Camera size={13} className="text-slate-500 hover:text-indigo-600" />
                 <span>Chụp ảnh</span>
               </button>
             )}
+          </div>
+        </div>
 
+        {/* Filter bar - EXACT SAME STYLE AS HÌNH 1 */}
+        <div className="flex flex-col gap-3 bg-slate-50 rounded-xl p-3 sm:px-5 sm:py-4 no-capture">
+          {/* Row 1: Brand buttons list */}
+          <div className="flex flex-wrap sm:flex-nowrap sm:overflow-x-auto no-scrollbar items-center gap-1.5 sm:gap-2.5 pb-1">
+            <span className="text-[11px] sm:text-[12px] font-black text-slate-500 uppercase tracking-wider whitespace-nowrap mr-1 flex items-center gap-1.5 w-full sm:w-auto mb-1 sm:mb-0">
+              <Filter size={13} />
+              CHỌN HÃNG:
+            </span>
+
+            {/* ALL BRANDS Button */}
             <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors flex items-center justify-center shrink-0"
-              title={isExpanded ? 'Thu gọn bảng' : 'Mở rộng bảng'}
+              onClick={() => {
+                setSelectedBrand('ALL');
+                setHasUserSelectedBrand(true);
+              }}
+              className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[10.5px] sm:text-[12px] font-black transition-all border whitespace-nowrap flex items-center gap-1.5 ${
+                selectedBrand === 'ALL'
+                  ? 'bg-emerald-50 text-[#047857] border-emerald-300 shadow-sm'
+                  : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+              }`}
             >
-              {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              <span>🏷️</span>
+              <span>TẤT CẢ HÃNG ({parsedData.brandList.length})</span>
             </button>
+
+            {/* Individual Brands Pills */}
+            {topPillBrands.map(b => {
+              const isActive = selectedBrand === b.brand;
+              return (
+                <button
+                  key={b.brand}
+                  onClick={() => {
+                    setSelectedBrand(b.brand);
+                    setHasUserSelectedBrand(true);
+                  }}
+                  className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[10.5px] sm:text-[12px] font-black transition-all border whitespace-nowrap flex items-center gap-1.5 ${
+                    isActive
+                      ? 'bg-emerald-50 text-[#047857] border-emerald-300 shadow-sm'
+                      : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  <span>❄️</span>
+                  <span>{b.brand}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
+                    isActive ? 'bg-emerald-200/80 text-emerald-900' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    {b.totalQty}
+                  </span>
+                </button>
+              );
+            })}
+
+            {/* Dropdown for other brands */}
+            {parsedData.brandList.length > 9 && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowBrandDropdown(!showBrandDropdown)}
+                  className={`px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-[10.5px] sm:text-[12px] font-black border transition-all flex items-center gap-1 whitespace-nowrap ${
+                    !topPillBrands.some(b => b.brand === selectedBrand) && selectedBrand !== 'ALL'
+                      ? 'bg-emerald-50 text-[#047857] border-emerald-300 shadow-sm'
+                      : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600'
+                  }`}
+                >
+                  <span>
+                    {!topPillBrands.some(b => b.brand === selectedBrand) && selectedBrand !== 'ALL'
+                      ? selectedBrand
+                      : `Khác (${parsedData.brandList.length - 9})`}
+                  </span>
+                  <ChevronDown size={12} />
+                </button>
+
+                {showBrandDropdown && (
+                  <div className="absolute left-0 top-full mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 p-2 z-50 max-h-72 overflow-y-auto">
+                    <div className="p-1 mb-1 border-b border-slate-100">
+                      <input
+                        type="text"
+                        placeholder="Tìm hãng..."
+                        value={brandSearchQuery}
+                        onChange={e => setBrandSearchQuery(e.target.value)}
+                        className="w-full px-2.5 py-1 text-[11px] bg-slate-50 border border-slate-200 rounded-lg focus:outline-none"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      {parsedData.brandList
+                        .filter(b => removeAccents(b.brand).includes(removeAccents(brandSearchQuery)))
+                        .map(b => (
+                          <button
+                            key={b.brand}
+                            onClick={() => {
+                              setSelectedBrand(b.brand);
+                              setHasUserSelectedBrand(true);
+                              setShowBrandDropdown(false);
+                            }}
+                            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-between transition-colors ${
+                              selectedBrand === b.brand ? 'bg-emerald-50 text-[#047857]' : 'hover:bg-slate-50 text-slate-700'
+                            }`}
+                          >
+                            <span>{b.brand}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">({b.totalQty})</span>
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Row 2: Sub-options (like sub-category buttons in Hình 1) */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-slate-200/60 pt-2.5">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span className="text-[10px] font-black text-[#047857] flex items-center gap-1">
+                ⚙️ TÙY CHỌN:
+              </span>
+
+              {/* Qty vs Revenue */}
+              <button
+                onClick={() => setViewMetric('qty')}
+                className={`px-2.5 sm:px-3 py-1 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${
+                  viewMetric === 'qty'
+                    ? 'bg-emerald-50 text-[#047857] border-emerald-200 shadow-sm'
+                    : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600'
+                }`}
+              >
+                SL BÁN
+              </button>
+              <button
+                onClick={() => setViewMetric('revenue')}
+                className={`px-2.5 sm:px-3 py-1 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${
+                  viewMetric === 'revenue'
+                    ? 'bg-emerald-50 text-[#047857] border-emerald-200 shadow-sm'
+                    : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600'
+                }`}
+              >
+                DOANH THU
+              </button>
+
+              {/* Show only active staff */}
+              {selectedBrand !== 'ALL' && (
+                <button
+                  onClick={() => setShowOnlyWithSales(!showOnlyWithSales)}
+                  className={`px-2.5 sm:px-3 py-1 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${
+                    showOnlyWithSales
+                      ? 'bg-amber-50 text-amber-800 border-amber-200 shadow-sm'
+                      : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600'
+                  }`}
+                >
+                  {showOnlyWithSales ? '✓ Đang lọc: NV đã bán' : 'Hiện tất cả NV'}
+                </button>
+              )}
+
+              {/* Show all days in month */}
+              <button
+                onClick={() => setShowAllDaysInMonth(!showAllDaysInMonth)}
+                className={`px-2.5 sm:px-3 py-1 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${
+                  showAllDaysInMonth
+                    ? 'bg-blue-50 text-[#1d4ed8] border-blue-200 shadow-sm'
+                    : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600'
+                }`}
+              >
+                {showAllDaysInMonth ? 'Đủ ngày 1→N' : 'Chỉ ngày có đơn'}
+              </button>
+            </div>
+
+            {/* Search staff */}
+            {selectedBrand !== 'ALL' && (
+              <div className="relative">
+                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm nhân viên..."
+                  value={staffSearchQuery}
+                  onChange={e => setStaffSearchQuery(e.target.value)}
+                  className="pl-7 pr-2.5 py-1 text-[11px] bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400 w-36 sm:w-48"
+                />
+                {staffSearchQuery && (
+                  <button
+                    onClick={() => setStaffSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X size={11} />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {isExpanded && (
-        <div className="p-3.5 sm:p-5 space-y-4">
-          {/* Quick KPI Stat Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-            <div className="bg-gradient-to-br from-indigo-50/80 to-indigo-100/40 rounded-xl p-3 border border-indigo-100/80 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm">
-                <ShoppingBag size={17} />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[10px] font-black text-indigo-700 uppercase block truncate">
-                  {selectedBrand === 'ALL' ? 'TỔNG TẤT CẢ HÃNG' : `HÃNG ${selectedBrand}`}
-                </span>
-                <div className="text-[17px] font-black text-slate-900 leading-tight">
-                  {kpiStats.totalQty} <span className="text-[11px] font-bold text-slate-500">sp</span>
-                </div>
-              </div>
-            </div>
+      {/* Main Table - EXACT SAME STYLE & COLORS AS HÌNH 1 */}
+      <div className="overflow-x-auto relative">
+        <table 
+          className="w-full text-center border-collapse text-[12px]" 
+          style={{ tableLayout: 'fixed', borderSpacing: 0 }}
+        >
+          <colgroup>
+            <col style={{ width: selectedBrand === 'ALL' ? '220px' : '200px' }} />
+            {dayColumns.map(c => (
+              <col key={c.dateKey} style={{ width: '46px' }} />
+            ))}
+            <col style={{ width: viewMetric === 'qty' ? '70px' : '95px' }} />
+            <col style={{ width: '65px' }} />
+          </colgroup>
 
-            <div className="bg-gradient-to-br from-amber-50/80 to-amber-100/40 rounded-xl p-3 border border-amber-200/60 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shrink-0 shadow-sm">
-                <Award size={17} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <span className="text-[10px] font-black text-amber-800 uppercase block truncate">
-                  {selectedBrand === 'ALL' ? 'HÃNG TOP 1' : 'QUÁN QUÂN BÁN CHẠY'}
-                </span>
-                <div className="text-[14px] font-black text-slate-900 truncate leading-tight" title={kpiStats.topStaffName}>
-                  {kpiStats.topStaffName}
-                </div>
-                <div className="text-[10.5px] font-bold text-amber-700">
-                  {kpiStats.topStaffQty > 0 ? `Đã bán: ${kpiStats.topStaffQty} sp` : 'Chưa có đơn'}
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-emerald-50/80 to-emerald-100/40 rounded-xl p-3 border border-emerald-200/60 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm">
-                <Users size={17} />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[10px] font-black text-emerald-800 uppercase block truncate">
-                  NV ĐÃ MỞ BÁT
-                </span>
-                <div className="text-[17px] font-black text-slate-900 leading-tight">
-                  {selectedBrand === 'ALL' ? parsedData.brandList.length : kpiStats.activeStaffCount}
-                  <span className="text-[11px] font-bold text-slate-500">
-                    /{selectedBrand === 'ALL' ? ' tổng hãng' : ` ${kpiStats.totalStaffCount} NV`}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-purple-50/80 to-purple-100/40 rounded-xl p-3 border border-purple-200/60 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm">
-                <Calendar size={17} />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[10px] font-black text-purple-800 uppercase block truncate">
-                  NGÀY ĐỈNH ĐIỂM
-                </span>
-                <div className="text-[16px] font-black text-slate-900 leading-tight">
-                  {kpiStats.peakDay}
-                </div>
-                <div className="text-[10.5px] font-bold text-purple-700">
-                  {kpiStats.peakDayQty > 0 ? `Bán ${kpiStats.peakDayQty} sp` : '-'}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Brand Selection Pills & Dropdown */}
-          <div className="space-y-2 no-capture">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider mr-1 flex items-center gap-1">
-                  <Filter size={12} className="text-indigo-600" />
-                  CHỌN HÃNG:
-                </span>
-
-                {/* ALL BRANDS Button */}
-                <button
-                  onClick={() => {
-                    setSelectedBrand('ALL');
-                    setHasUserSelectedBrand(true);
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border whitespace-nowrap flex items-center gap-1.5 ${
-                    selectedBrand === 'ALL'
-                      ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-slate-200'
-                  }`}
-                >
-                  <Layers size={13} />
-                  <span>TẤT CẢ HÃNG ({parsedData.brandList.length})</span>
-                </button>
-
-                {/* Top Brands Pills */}
-                {topPillBrands.map(b => {
-                  const isActive = selectedBrand === b.brand;
-                  return (
-                    <button
-                      key={b.brand}
-                      onClick={() => {
-                        setSelectedBrand(b.brand);
-                        setHasUserSelectedBrand(true);
-                      }}
-                      className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border whitespace-nowrap flex items-center gap-1.5 ${
-                        isActive
-                          ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-sm font-black'
-                          : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200'
-                      }`}
-                    >
-                      <span>{b.brand}</span>
-                      <span className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-bold ${
-                        isActive ? 'bg-slate-950 text-amber-300' : 'bg-slate-100 text-slate-500'
-                      }`}>
-                        {b.totalQty}
-                      </span>
-                    </button>
-                  );
-                })}
-
-                {/* Dropdown for other brands */}
-                {parsedData.brandList.length > 8 && (
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowBrandDropdown(!showBrandDropdown)}
-                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-black border transition-all flex items-center gap-1 ${
-                        !topPillBrands.some(b => b.brand === selectedBrand) && selectedBrand !== 'ALL'
-                          ? 'bg-indigo-600 text-white border-indigo-700'
-                          : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-200'
-                      }`}
-                    >
-                      <span>
-                        {!topPillBrands.some(b => b.brand === selectedBrand) && selectedBrand !== 'ALL'
-                          ? selectedBrand
-                          : `Xem thêm (${parsedData.brandList.length - 8} hãng)`}
-                      </span>
-                      <ChevronDown size={12} />
-                    </button>
-
-                    {showBrandDropdown && (
-                      <div className="absolute left-0 sm:right-0 top-full mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 p-2 z-50 max-h-72 overflow-y-auto">
-                        <div className="p-1 mb-1 border-b border-slate-100">
-                          <input
-                            type="text"
-                            placeholder="Tìm kiếm hãng..."
-                            value={brandSearchQuery}
-                            onChange={e => setBrandSearchQuery(e.target.value)}
-                            className="w-full px-2.5 py-1 text-[11px] bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            autoFocus
-                          />
-                        </div>
-                        <div className="space-y-0.5">
-                          {parsedData.brandList
-                            .filter(b => removeAccents(b.brand).includes(removeAccents(brandSearchQuery)))
-                            .map(b => (
-                              <button
-                                key={b.brand}
-                                onClick={() => {
-                                  setSelectedBrand(b.brand);
-                                  setHasUserSelectedBrand(true);
-                                  setShowBrandDropdown(false);
-                                }}
-                                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-between transition-colors ${
-                                  selectedBrand === b.brand ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-50 text-slate-700'
-                                }`}
-                              >
-                                <span>{b.brand}</span>
-                                <span className="text-[10px] text-slate-400 font-mono">({b.totalQty})</span>
-                              </button>
-                            ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* View options & Search */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {/* Search staff */}
-                {selectedBrand !== 'ALL' && (
-                  <div className="relative">
-                    <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="Tìm nhân viên..."
-                      value={staffSearchQuery}
-                      onChange={e => setStaffSearchQuery(e.target.value)}
-                      className="pl-7 pr-2.5 py-1 text-[11px] bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 w-36 sm:w-44"
-                    />
-                    {staffSearchQuery && (
-                      <button
-                        onClick={() => setStaffSearchQuery('')}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      >
-                        <X size={11} />
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* Metric toggle: Qty vs Rev */}
-                <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
-                  <button
-                    onClick={() => setViewMetric('qty')}
-                    className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all ${
-                      viewMetric === 'qty' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    SL BÁN
-                  </button>
-                  <button
-                    onClick={() => setViewMetric('revenue')}
-                    className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all ${
-                      viewMetric === 'revenue' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    DOANH THU
-                  </button>
-                </div>
-
-                {/* Show only active staff toggle */}
-                {selectedBrand !== 'ALL' && (
-                  <button
-                    onClick={() => setShowOnlyWithSales(!showOnlyWithSales)}
-                    className={`px-2.5 py-1.5 rounded-xl text-[10.5px] font-black border transition-all ${
-                      showOnlyWithSales
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                        : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-200'
-                    }`}
-                    title="Ẩn những nhân viên chưa bán được sản phẩm nào của hãng này"
-                  >
-                    {showOnlyWithSales ? '✓ Đang lọc: NV đã bán' : 'Hiện tất cả NV'}
-                  </button>
-                )}
-
-                {/* Day column mode toggle */}
-                <button
-                  onClick={() => setShowAllDaysInMonth(!showAllDaysInMonth)}
-                  className={`px-2 py-1.5 rounded-xl text-[10.5px] font-bold border transition-all ${
-                    showAllDaysInMonth
-                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                      : 'bg-white text-slate-500 border-slate-200'
-                  }`}
-                  title="Hiện đủ ngày từ Ngày 1 đến ngày hiện tại"
-                >
-                  {showAllDaysInMonth ? 'Đủ ngày 1→N' : 'Chỉ ngày có đơn'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Main Matrix Table */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
-            <div className="overflow-x-auto relative">
-              <table 
-                className="w-full text-center border-collapse text-[12px]" 
-                style={{ tableLayout: 'fixed', borderSpacing: 0 }}
+          <thead>
+            {/* Group Header - Light mint/emerald background like SP CHÍNH in Hình 1 */}
+            <tr className="border-b border-slate-200">
+              <th 
+                rowSpan={2} 
+                className="py-2.5 px-4 text-left font-black text-slate-800 text-[12px] border-r border-slate-200/60 sticky left-0 z-20 bg-white"
               >
-                <colgroup>
-                  <col style={{ width: '44px' }} />
-                  <col style={{ width: selectedBrand === 'ALL' ? '200px' : '190px' }} />
-                  {dayColumns.map(c => (
-                    <col key={c.dateKey} style={{ width: '46px' }} />
-                  ))}
-                  <col style={{ width: viewMetric === 'qty' ? '82px' : '105px' }} />
-                  <col style={{ width: '68px' }} />
-                </colgroup>
+                <div className="flex items-center gap-1.5">
+                  <span>NHÂN VIÊN</span>
+                  <span className="text-slate-400 text-[11px]">⇅</span>
+                </div>
+              </th>
 
-                <thead>
-                  {/* Super Header */}
-                  <tr className="bg-slate-800 text-white text-[11px] font-black uppercase tracking-wider border-b border-slate-700">
-                    <th rowSpan={2} className="py-2.5 px-1 border-r border-slate-700 text-center sticky left-0 z-20 bg-slate-800">
-                      STT
-                    </th>
-                    <th rowSpan={2} className="py-2.5 px-3 border-r border-slate-700 text-left sticky left-[44px] z-20 bg-slate-800">
-                      {selectedBrand === 'ALL' ? 'HÃNG SẢN XUẤT' : 'NHÂN VIÊN BÁN HÀNG'}
-                    </th>
-                    <th 
-                      colSpan={dayColumns.length} 
-                      className="py-1.5 px-2 border-r border-slate-700 text-center bg-indigo-950 text-amber-300"
-                    >
-                      📅 CÁC NGÀY BÁN TRONG KỲ ({dayColumns.length} ngày)
-                    </th>
-                    <th rowSpan={2} className="py-2.5 px-2 border-r border-slate-700 text-center bg-amber-500 text-slate-950 font-black">
-                      {viewMetric === 'qty' ? 'TỔNG SL' : 'TỔNG DT'}
-                    </th>
-                    <th rowSpan={2} className="py-2.5 px-1 text-center bg-slate-900 text-slate-300">
-                      % ĐÓNG GÓP
-                    </th>
-                  </tr>
+              <th 
+                colSpan={dayColumns.length} 
+                className="py-2 px-3 text-center bg-[#d1fae5] text-[#047857] font-black uppercase text-[12px] border-r border-slate-200/60 tracking-wider"
+              >
+                {selectedBrand === 'ALL' ? 'TẤT CẢ HÃNG - SẢN LƯỢNG THEO NGÀY' : `HÃNG ${selectedBrand} - SẢN LƯỢNG THEO NGÀY`}
+              </th>
 
-                  {/* Day Sub Header */}
-                  <tr className="bg-slate-100 text-slate-700 text-[10.5px] font-bold border-b border-slate-200">
-                    {dayColumns.map(c => (
-                      <th
-                        key={c.dateKey}
-                        className={`py-1.5 px-0.5 border-r border-slate-200 text-center truncate ${
-                          c.isWeekend ? 'bg-amber-50/70 text-amber-900 font-black' : ''
-                        }`}
-                        title={`${c.displayDate} (${c.dayOfWeek || ''})`}
-                      >
-                        <div className="leading-tight">
-                          <span className="block font-black">{c.dayNum < 10 ? `0${c.dayNum}` : c.dayNum}</span>
-                          <span className="block text-[8.5px] text-slate-400 font-medium">{c.dayOfWeek}</span>
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
+              <th 
+                rowSpan={2} 
+                className="py-2.5 px-3 text-center bg-[#bbf7d0] text-[#065f46] font-black uppercase text-[12px] border-r border-slate-200/60"
+              >
+                <div className="flex items-center justify-center gap-1">
+                  <span>TỔNG</span>
+                  <span className="text-[11px]">⇅</span>
+                </div>
+              </th>
 
-                <tbody>
-                  {/* STORE TOTAL ROW */}
-                  <tr className="bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 font-black border-b-2 border-amber-300 text-slate-900">
-                    <td className="py-2.5 px-1 border-r border-amber-200 text-center text-amber-800 sticky left-0 z-10 bg-amber-50">
-                      ∑
-                    </td>
-                    <td className="py-2.5 px-3 border-r border-amber-200 text-left sticky left-[44px] z-10 bg-amber-50">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[12px] font-black text-amber-900 tracking-wide uppercase">TỔNG TOÀN SIÊU THỊ</span>
+              <th 
+                rowSpan={2} 
+                className="py-2.5 px-2 text-center bg-slate-50 text-slate-600 font-bold uppercase text-[11px]"
+              >
+                % TỔNG
+              </th>
+            </tr>
+
+            {/* Sub-header for days */}
+            <tr className="border-b border-slate-200 bg-[#e6f4ea]/70">
+              {dayColumns.map(c => (
+                <th
+                  key={c.dateKey}
+                  className="py-1.5 px-1 border-r border-slate-200/60 text-center text-[#047857] font-bold text-[10.5px] truncate"
+                  title={`${c.displayDate} (${c.dayOfWeek || ''})`}
+                >
+                  <div className="leading-tight">
+                    <span>{c.dayNum < 10 ? `0${c.dayNum}` : c.dayNum}</span>
+                    <span className="text-[9px] text-slate-400 ml-0.5">⇅</span>
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+
+          <tbody>
+            {/* EMPLOYEES ROWS (When specific brand selected) */}
+            {!tableData.isAllMode && 'staffRows' in tableData && (
+              tableData.staffRows.map((staff, idx) => {
+                const grand = viewMetric === 'qty' ? tableData.grandTotalQty : tableData.grandTotalRev;
+                const rowVal = viewMetric === 'qty' ? staff.totalQty : staff.totalRev;
+                const pct = grand > 0 ? ((rowVal / grand) * 100).toFixed(1) : '0';
+
+                return (
+                  <tr 
+                    key={staff.staffKey}
+                    className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors bg-white"
+                  >
+                    {/* Staff Name with medal / warning icon */}
+                    <td className="py-2 px-4 text-left font-bold text-[13px] text-slate-800 border-r border-slate-200/50 sticky left-0 z-10 bg-white">
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        {renderRank(idx, staff.totalQty)}
+                        <span className="truncate" title={staff.staffName}>
+                          {staff.staffName}
+                        </span>
                       </div>
                     </td>
+
+                    {/* Day Columns */}
                     {dayColumns.map(c => {
-                      const val = viewMetric === 'qty'
-                        ? (tableData.storeDailyQty[c.dateKey] || 0)
-                        : (tableData.storeDailyRev[c.dateKey] || 0);
+                      const qty = staff.dailyQty[c.dateKey] || 0;
+                      const rev = staff.dailyRev[c.dateKey] || 0;
+                      const items = staff.dailyItems[c.dateKey] || [];
 
                       return (
-                        <td 
-                          key={c.dateKey} 
-                          className={`py-2 px-0.5 border-r border-amber-200/80 text-center font-black ${
-                            val > 0 ? 'text-amber-950 bg-amber-100/50' : 'text-slate-300'
+                        <td
+                          key={c.dateKey}
+                          onClick={() => {
+                            if (items.length > 0) {
+                              setSelectedDetailCell({
+                                staffName: staff.staffName,
+                                dateDisplay: `${c.displayDate} (${c.dayOfWeek || ''})`,
+                                items,
+                                totalQty: qty,
+                                totalRev: rev,
+                              });
+                            }
+                          }}
+                          className={`py-2 px-1 text-center border-r border-slate-200/50 text-[13px] ${
+                            items.length > 0 ? 'cursor-pointer hover:bg-emerald-50/80 transition-colors' : ''
                           }`}
+                          title={items.length > 0 ? `Nhấp để xem chi tiết (${items.length} sp)` : undefined}
                         >
                           {viewMetric === 'qty' ? (
-                            val > 0 ? (
-                              <span className="inline-block px-1 py-0.5 bg-amber-200/80 text-amber-950 rounded text-[11px] font-black min-w-[22px]">
-                                {val}
-                              </span>
+                            qty > 0 ? (
+                              <span className="font-black text-[#047857]">{qty}</span>
                             ) : (
-                              '0'
+                              <span className="text-slate-300 font-normal">-</span>
                             )
                           ) : (
-                            val > 0 ? `${Math.round(val / 1000000)}tr` : '0'
+                            rev > 0 ? (
+                              <span className="font-black text-[#1d4ed8]">{(rev / 1000000).toFixed(1)}</span>
+                            ) : (
+                              <span className="text-slate-300 font-normal">-</span>
+                            )
                           )}
                         </td>
                       );
                     })}
-                    <td className="py-2.5 px-2 border-r border-amber-300 text-center text-[13px] font-black text-red-600 bg-amber-100">
-                      {viewMetric === 'qty' 
-                        ? tableData.grandTotalQty 
-                        : `${(tableData.grandTotalRev / 1000000).toFixed(1)} tr`}
+
+                    {/* Row Total */}
+                    <td className="py-2 px-3 text-center text-[13.5px] font-black text-[#047857] bg-emerald-50/40 border-r border-slate-200/50">
+                      {rowVal > 0 ? (
+                        viewMetric === 'qty' ? rowVal : `${(rowVal / 1000000).toFixed(1)} tr`
+                      ) : (
+                        <span className="text-slate-300 font-normal">-</span>
+                      )}
                     </td>
-                    <td className="py-2.5 px-1 text-center font-black text-slate-700 bg-amber-50/60">
-                      100%
+
+                    {/* % Contribution */}
+                    <td className="py-2 px-2 text-center text-[11px] font-bold text-slate-500">
+                      {rowVal > 0 ? `${pct}%` : '-'}
                     </td>
                   </tr>
+                );
+              })
+            )}
 
-                  {/* EMPLOYEES ROWS (When specific brand selected) */}
-                  {!tableData.isAllMode && 'staffRows' in tableData && (
-                    tableData.staffRows.map((staff, idx) => {
-                      const isTop1 = idx === 0 && staff.totalQty > 0;
-                      const isTop2 = idx === 1 && staff.totalQty > 0;
-                      const isTop3 = idx === 2 && staff.totalQty > 0;
-                      const grand = viewMetric === 'qty' ? tableData.grandTotalQty : tableData.grandTotalRev;
-                      const rowVal = viewMetric === 'qty' ? staff.totalQty : staff.totalRev;
-                      const pct = grand > 0 ? ((rowVal / grand) * 100).toFixed(1) : '0';
+            {/* BRANDS ROWS (When ALL BRANDS mode selected) */}
+            {tableData.isAllMode && 'brandRows' in tableData && (
+              tableData.brandRows.map((brandRow, idx) => {
+                const grand = viewMetric === 'qty' ? tableData.grandTotalQty : tableData.grandTotalRev;
+                const rowVal = viewMetric === 'qty' ? brandRow.totalQty : brandRow.totalRev;
+                const pct = grand > 0 ? ((rowVal / grand) * 100).toFixed(1) : '0';
 
-                      return (
-                        <tr 
-                          key={staff.staffKey}
-                          className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${
-                            staff.totalQty > 0 ? 'bg-white' : 'bg-slate-50/30'
-                          }`}
-                        >
-                          {/* STT */}
-                          <td className="py-2 px-1 border-r border-slate-200 text-center text-[11px] font-bold text-slate-500 sticky left-0 z-10 bg-white">
-                            {isTop1 ? '🥇' : isTop2 ? '🥈' : isTop3 ? '🥉' : idx + 1}
-                          </td>
+                return (
+                  <tr 
+                    key={brandRow.key}
+                    className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors bg-white cursor-pointer"
+                    onClick={() => {
+                      setSelectedBrand(brandRow.brandName);
+                      setHasUserSelectedBrand(true);
+                    }}
+                    title={`Nhấp để xem chi tiết từng nhân viên bán hãng ${brandRow.brandName}`}
+                  >
+                    <td className="py-2 px-4 text-left font-bold text-[13px] text-slate-800 border-r border-slate-200/50 sticky left-0 z-10 bg-white">
+                      <div className="flex items-center gap-2">
+                        {renderRank(idx, brandRow.totalQty)}
+                        <span className="font-black text-[#047857] hover:underline">
+                          {brandRow.brandName}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-normal">
+                          ({brandRow.activeStaffCount} NV)
+                        </span>
+                      </div>
+                    </td>
 
-                          {/* Staff Name */}
-                          <td className="py-2 px-3 border-r border-slate-200 text-left sticky left-[44px] z-10 bg-white">
-                            <div className="flex items-center justify-between gap-1 overflow-hidden">
-                              <span 
-                                className={`truncate font-bold ${
-                                  staff.totalQty > 0 ? 'text-slate-900' : 'text-slate-400 font-normal'
-                                }`}
-                                title={staff.staffName}
-                              >
-                                {staff.staffName}
-                              </span>
-                              {staff.staffId && (
-                                <span className="text-[9px] text-slate-400 font-mono shrink-0">
-                                  {staff.staffId}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Day Columns */}
-                          {dayColumns.map(c => {
-                            const qty = staff.dailyQty[c.dateKey] || 0;
-                            const rev = staff.dailyRev[c.dateKey] || 0;
-                            const items = staff.dailyItems[c.dateKey] || [];
-
-                            return (
-                              <td
-                                key={c.dateKey}
-                                onClick={() => {
-                                  if (items.length > 0) {
-                                    setSelectedDetailCell({
-                                      staffName: staff.staffName,
-                                      dateDisplay: `${c.displayDate} (${c.dayOfWeek || ''})`,
-                                      items,
-                                      totalQty: qty,
-                                      totalRev: rev,
-                                    });
-                                  }
-                                }}
-                                className={`py-1.5 px-0.5 border-r border-slate-100 text-center ${
-                                  items.length > 0 ? 'cursor-pointer hover:bg-indigo-50/80 transition-colors' : ''
-                                }`}
-                                title={items.length > 0 ? `Nhấp để xem chi tiết (${items.length} sp)` : undefined}
-                              >
-                                {viewMetric === 'qty' ? (
-                                  qty > 0 ? (
-                                    <span 
-                                      className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-black min-w-[20px] shadow-2xs ${
-                                        qty >= 3
-                                          ? 'bg-amber-100 text-amber-900 border border-amber-300 font-black'
-                                          : qty === 2
-                                          ? 'bg-teal-100 text-teal-800 border border-teal-200 font-bold'
-                                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60 font-bold'
-                                      }`}
-                                    >
-                                      {qty}
-                                    </span>
-                                  ) : (
-                                    <span className="text-slate-300 font-normal">0</span>
-                                  )
-                                ) : (
-                                  rev > 0 ? (
-                                    <span className="text-[10px] font-bold text-indigo-700">
-                                      {(rev / 1000000).toFixed(1)}
-                                    </span>
-                                  ) : (
-                                    <span className="text-slate-300 font-normal">0</span>
-                                  )
-                                )}
-                              </td>
-                            );
-                          })}
-
-                          {/* Total Column */}
-                          <td className={`py-2 px-2 border-r border-slate-200 text-center font-black ${
-                            staff.totalQty > 0 
-                              ? 'bg-amber-50/60 text-slate-900 text-[12.5px]' 
-                              : 'text-slate-300'
-                          }`}>
-                            {viewMetric === 'qty' 
-                              ? (staff.totalQty > 0 ? staff.totalQty : '0')
-                              : (staff.totalRev > 0 ? `${(staff.totalRev / 1000000).toFixed(1)} tr` : '0')}
-                          </td>
-
-                          {/* % Contribution */}
-                          <td className="py-2 px-1 text-center text-[10.5px] font-medium text-slate-500">
-                            {staff.totalQty > 0 ? `${pct}%` : '-'}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-
-                  {/* BRANDS ROWS (When ALL BRANDS mode selected) */}
-                  {tableData.isAllMode && 'brandRows' in tableData && (
-                    tableData.brandRows.map((brandRow, idx) => {
-                      const grand = viewMetric === 'qty' ? tableData.grandTotalQty : tableData.grandTotalRev;
-                      const rowVal = viewMetric === 'qty' ? brandRow.totalQty : brandRow.totalRev;
-                      const pct = grand > 0 ? ((rowVal / grand) * 100).toFixed(1) : '0';
+                    {dayColumns.map(c => {
+                      const qty = brandRow.dailyQty[c.dateKey] || 0;
+                      const rev = brandRow.dailyRev[c.dateKey] || 0;
 
                       return (
-                        <tr 
-                          key={brandRow.key}
-                          className="border-b border-slate-100 hover:bg-slate-50 transition-colors bg-white cursor-pointer"
-                          onClick={() => {
-                            setSelectedBrand(brandRow.brandName);
-                            setHasUserSelectedBrand(true);
-                          }}
-                          title={`Nhấp để xem chi tiết từng nhân viên bán hãng ${brandRow.brandName}`}
-                        >
-                          <td className="py-2 px-1 border-r border-slate-200 text-center text-[11px] font-bold text-slate-500 sticky left-0 z-10 bg-white">
-                            {idx + 1}
-                          </td>
-                          <td className="py-2 px-3 border-r border-slate-200 text-left sticky left-[44px] z-10 bg-white">
-                            <div className="flex items-center justify-between gap-1.5">
-                              <span className="font-black text-indigo-700 hover:underline">
-                                {brandRow.brandName}
-                              </span>
-                              <span className="text-[9.5px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-500 font-bold shrink-0">
-                                {brandRow.activeStaffCount} NV
-                              </span>
-                            </div>
-                          </td>
-
-                          {dayColumns.map(c => {
-                            const qty = brandRow.dailyQty[c.dateKey] || 0;
-                            const rev = brandRow.dailyRev[c.dateKey] || 0;
-
-                            return (
-                              <td key={c.dateKey} className="py-1.5 px-0.5 border-r border-slate-100 text-center">
-                                {viewMetric === 'qty' ? (
-                                  qty > 0 ? (
-                                    <span className="inline-block px-1.5 py-0.5 rounded text-[11px] font-black bg-indigo-50 text-indigo-700 min-w-[20px]">
-                                      {qty}
-                                    </span>
-                                  ) : (
-                                    <span className="text-slate-300">0</span>
-                                  )
-                                ) : (
-                                  rev > 0 ? (
-                                    <span className="text-[10px] font-bold text-indigo-700">
-                                      {(rev / 1000000).toFixed(1)}
-                                    </span>
-                                  ) : (
-                                    <span className="text-slate-300">0</span>
-                                  )
-                                )}
-                              </td>
-                            );
-                          })}
-
-                          <td className="py-2 px-2 border-r border-slate-200 text-center font-black bg-amber-50/60 text-slate-900 text-[12.5px]">
-                            {viewMetric === 'qty' ? brandRow.totalQty : `${(brandRow.totalRev / 1000000).toFixed(1)} tr`}
-                          </td>
-
-                          <td className="py-2 px-1 text-center text-[10.5px] font-medium text-slate-500">
-                            {pct}%
-                          </td>
-                        </tr>
+                        <td key={c.dateKey} className="py-2 px-1 text-center border-r border-slate-200/50 text-[13px]">
+                          {viewMetric === 'qty' ? (
+                            qty > 0 ? (
+                              <span className="font-black text-[#047857]">{qty}</span>
+                            ) : (
+                              <span className="text-slate-300 font-normal">-</span>
+                            )
+                          ) : (
+                            rev > 0 ? (
+                              <span className="font-black text-[#1d4ed8]">{(rev / 1000000).toFixed(1)}</span>
+                            ) : (
+                              <span className="text-slate-300 font-normal">-</span>
+                            )
+                          )}
+                        </td>
                       );
-                    })
-                  )}
+                    })}
 
-                  {/* Empty state when no staff matched filter */}
-                  {!tableData.isAllMode && 'staffRows' in tableData && tableData.staffRows.length === 0 && (
-                    <tr>
-                      <td 
-                        colSpan={dayColumns.length + 4} 
-                        className="py-8 text-center text-slate-400 italic text-[11px]"
-                      >
-                        Không có nhân viên nào phù hợp với bộ lọc hiện tại.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    <td className="py-2 px-3 text-center text-[13.5px] font-black text-[#047857] bg-emerald-50/40 border-r border-slate-200/50">
+                      {rowVal > 0 ? (
+                        viewMetric === 'qty' ? rowVal : `${(rowVal / 1000000).toFixed(1)} tr`
+                      ) : (
+                        <span className="text-slate-300 font-normal">-</span>
+                      )}
+                    </td>
 
-            {/* Table Footer Guide */}
-            <div className="bg-slate-50 px-4 py-2.5 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[10px] text-slate-500 font-medium">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded bg-emerald-100 border border-emerald-300 inline-block"></span>
-                  SL 1: Mở bát
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded bg-teal-200 border border-teal-400 inline-block"></span>
-                  SL 2: Tốt
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded bg-amber-200 border border-amber-400 inline-block"></span>
-                  SL ≥ 3: Đỉnh cao
-                </span>
-                <span className="flex items-center gap-1 text-slate-400">
-                  <span className="w-2.5 h-2.5 rounded bg-slate-200 inline-block"></span>
-                  SL 0: Chưa bán
-                </span>
-              </div>
-              <div className="text-slate-400 text-right">
-                * Nhấp vào ô có số lượng bán để xem chi tiết sản phẩm & mã đơn
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+                    <td className="py-2 px-2 text-center text-[11px] font-bold text-slate-500">
+                      {rowVal > 0 ? `${pct}%` : '-'}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+
+            {/* Empty state when no rows */}
+            {((!tableData.isAllMode && 'staffRows' in tableData && tableData.staffRows.length === 0) ||
+              (tableData.isAllMode && 'brandRows' in tableData && tableData.brandRows.length === 0)) && (
+              <tr>
+                <td 
+                  colSpan={dayColumns.length + 3} 
+                  className="py-12 text-center text-slate-400 italic text-[11px]"
+                >
+                  Không có dữ liệu phù hợp với bộ lọc hiện tại.
+                </td>
+              </tr>
+            )}
+          </tbody>
+
+          {/* Footer - TỔNG CỘNG (EXACT SAME STYLE AS HÌNH 1) */}
+          <tfoot className="bg-[#e6f4ea] text-[#047857] font-black text-[13px] border-t-2 border-emerald-400">
+            <tr>
+              <td className="py-2.5 px-4 text-left uppercase font-black text-[13.5px] border-r border-emerald-300/60 sticky left-0 z-10 bg-[#e6f4ea]">
+                TỔNG CỘNG
+              </td>
+
+              {dayColumns.map(c => {
+                const dayQty = tableData.storeDailyQty[c.dateKey] || 0;
+                const dayRev = tableData.storeDailyRev[c.dateKey] || 0;
+                const val = viewMetric === 'qty' ? dayQty : dayRev;
+
+                return (
+                  <td key={c.dateKey} className="py-2.5 px-1 text-center font-black border-r border-emerald-300/60">
+                    {val > 0 ? (
+                      viewMetric === 'qty' ? val : `${Math.round(val / 1000000)}tr`
+                    ) : (
+                      <span className="text-slate-300 font-normal">-</span>
+                    )}
+                  </td>
+                );
+              })}
+
+              <td className="py-2.5 px-3 text-center font-black text-[14px] border-r border-emerald-300/60 bg-emerald-100/60">
+                {viewMetric === 'qty' 
+                  ? (tableData.grandTotalQty > 0 ? tableData.grandTotalQty : '-')
+                  : (tableData.grandTotalRev > 0 ? `${(tableData.grandTotalRev / 1000000).toFixed(1)} tr` : '-')}
+              </td>
+
+              <td className="py-2.5 px-2 text-center font-black text-slate-600 text-[11px]">
+                100%
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
 
       {/* Detail Popover Modal for clicked day cell */}
       {selectedDetailCell && (
@@ -1390,18 +1217,18 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
             className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150"
             onClick={e => e.stopPropagation()}
           >
-            <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-4 text-white flex items-center justify-between">
+            <div className="bg-gradient-to-r from-red-600 to-rose-700 p-4 text-white flex items-center justify-between">
               <div>
-                <h4 className="text-[13px] font-black uppercase text-amber-300">
+                <h4 className="text-[13px] font-black uppercase tracking-wide">
                   CHI TIẾT ĐƠN HÀNG HÃNG {selectedBrand}
                 </h4>
-                <p className="text-[10.5px] text-slate-300 mt-0.5">
+                <p className="text-[10.5px] text-red-100 mt-0.5">
                   👤 <span className="font-bold text-white">{selectedDetailCell.staffName}</span> • 📅 {selectedDetailCell.dateDisplay}
                 </p>
               </div>
               <button 
                 onClick={() => setSelectedDetailCell(null)}
-                className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white"
+                className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white"
               >
                 <X size={15} />
               </button>
@@ -1409,9 +1236,9 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
 
             <div className="p-4 space-y-3 max-h-80 overflow-y-auto">
               <div className="flex items-center justify-between text-[11px] font-bold pb-2 border-b border-slate-100 text-slate-600">
-                <span>Tổng sản phẩm: <strong className="text-indigo-600">{selectedDetailCell.totalQty}</strong></span>
+                <span>Tổng sản phẩm: <strong className="text-emerald-700">{selectedDetailCell.totalQty}</strong></span>
                 {selectedDetailCell.totalRev > 0 && (
-                  <span>Doanh thu: <strong className="text-emerald-600">{(selectedDetailCell.totalRev / 1000000).toFixed(2)} triệu</strong></span>
+                  <span>Doanh thu: <strong className="text-[#1d4ed8]">{(selectedDetailCell.totalRev / 1000000).toFixed(2)} triệu</strong></span>
                 )}
               </div>
 
