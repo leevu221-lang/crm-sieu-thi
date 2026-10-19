@@ -10061,6 +10061,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                       rawYcxRows={rawYcxRows}
                       filteredRawYcxRows={filteredRawYcxRows}
                       marketFilter={marketFilter}
+                      activeStore={activeStore}
                       onCapture={() => handleCaptureTable('brand-daily-staff-sales-container', 'theo_doi_hang_theo_ngay')}
                       selectedStaffs={selectedStaffs}
                       drillFilterStaff={drillFilterStaff}

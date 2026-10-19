@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Building2, 
   Calendar, 
@@ -7,7 +7,7 @@ import {
   Filter, 
   Search, 
   ChevronDown, 
-  ChevronUp, 
+  ChevronRight, 
   Award, 
   TrendingUp, 
   Users, 
@@ -18,15 +18,20 @@ import {
   Layers,
   ArrowUpDown,
   AlertTriangle,
-  BarChart3
+  BarChart3,
+  Check,
+  ChevronsUpDown,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { removeAccents } from '../utils';
+import { removeAccents, normalizeStoreId } from '../utils';
 
 export interface BrandDailyStaffSalesTableProps {
   rawYcxRows: string[][];
   filteredRawYcxRows?: string[][];
   marketFilter?: string;
+  activeStore?: string;
   onCapture?: () => void;
   selectedStaffs?: string[];
   drillFilterStaff?: string[];
@@ -114,7 +119,7 @@ const standardizeBrand = (brandCell?: string, prodName?: string): string => {
   return 'KHÁC';
 };
 
-// Safe date parser: avoids timezone offset issues & sequentially calling setDate/setMonth
+// Safe date parser
 const parseRowDateSafe = (rawVal: string): { dateKey: string; dayNum: number; displayDate: string; fullDate: Date } | null => {
   if (!rawVal) return null;
   const str = String(rawVal).trim();
@@ -165,25 +170,54 @@ const extractName = (raw: string): string => {
 export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps> = ({
   rawYcxRows,
   filteredRawYcxRows,
+  activeStore = '',
   onCapture,
   selectedStaffs = [],
   drillFilterStaff = []
 }) => {
-  const [selectedBrand, setSelectedBrand] = useState<string>('PANASONIC');
-  const [hasUserSelectedBrand, setHasUserSelectedBrand] = useState(false);
+  // Store-specific settings key
+  const storeKey = useMemo(() => {
+    if (!activeStore) return 'default';
+    return normalizeStoreId(activeStore) || activeStore;
+  }, [activeStore]);
+
+  // Selected brands state (Multi-select)
+  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [hasLoadedSavedConfig, setHasLoadedSavedConfig] = useState(false);
+
+  // Expanded state for each brand row
+  const [expandedBrands, setExpandedBrands] = useState<Record<string, boolean>>({});
+
   const [viewMetric, setViewMetric] = useState<'qty' | 'revenue'>('qty');
   const [showOnlyWithSales, setShowOnlyWithSales] = useState(false);
   const [showAllDaysInMonth, setShowAllDaysInMonth] = useState(true);
-  const [staffSearchQuery, setStaffSearchQuery] = useState('');
   const [brandSearchQuery, setBrandSearchQuery] = useState('');
-  const [showBrandDropdown, setShowBrandDropdown] = useState(false);
+  const [showBrandFilterModal, setShowBrandFilterModal] = useState(false);
+  const brandDropdownRef = useRef<HTMLDivElement>(null);
+
   const [selectedDetailCell, setSelectedDetailCell] = useState<{
     staffName: string;
+    brandName: string;
     dateDisplay: string;
     items: SaleItemDetail[];
     totalQty: number;
     totalRev: number;
   } | null>(null);
+
+  // Close brand dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (brandDropdownRef.current && !brandDropdownRef.current.contains(e.target as Node)) {
+        setShowBrandFilterModal(false);
+      }
+    };
+    if (showBrandFilterModal) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showBrandFilterModal]);
 
   // Parse header and indices
   const indices = useMemo(() => {
@@ -203,7 +237,6 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
       return defaultIdx;
     };
 
-    // Staff index (Priority to creator / sales staff, strictly exclude delivery)
     const idxStaff = (() => {
       const priorityList = [
         'nguoi tao', 'user tao', 'ten nguoi tao', 'ma/ten nguoi tao',
@@ -248,12 +281,11 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
     return [];
   }, [filteredRawYcxRows, rawYcxRows]);
 
-  // Aggregate ALL brands and ALL staff across the dataset
+  // Aggregate ALL brands and staff
   const parsedData = useMemo(() => {
     if (!indices || sourceRows.length === 0) {
       return {
-        brandList: [] as { brand: string; totalQty: number; totalRev: number }[],
-        staffMasterList: [] as { staffKey: string; staffId: string; staffName: string }[],
+        brandList: [] as { brand: string; totalQty: number; totalRev: number; staffCount: number }[],
         brandSalesMap: new Map<string, Map<string, StaffBrandSales>>(),
         allDateKeysMap: new Map<string, DayColumn>(),
         minDate: null as Date | null,
@@ -263,8 +295,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
 
     const { idxStaff, idxDate, idxBrand, idxProduct, idxQty, idxRevenue, idxOrder } = indices;
 
-    const brandStats = new Map<string, { totalQty: number; totalRev: number }>();
-    const staffMasterMap = new Map<string, { staffKey: string; staffId: string; staffName: string }>();
+    const brandStats = new Map<string, { totalQty: number; totalRev: number; staffKeys: Set<string> }>();
     const brandSalesMap = new Map<string, Map<string, StaffBrandSales>>();
     const allDateKeysMap = new Map<string, DayColumn>();
     let minDate: Date | null = null;
@@ -283,10 +314,6 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
       const staffMatch = rawStaff.match(/^\s*(\d+)/);
       const staffId = staffMatch ? staffMatch[1].trim() : '';
       const staffKey = staffName;
-
-      if (!staffMasterMap.has(staffKey)) {
-        staffMasterMap.set(staffKey, { staffKey, staffId, staffName });
-      }
 
       // 2. Product & Brand info
       const rawProdName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() : '';
@@ -318,7 +345,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
         }
       }
 
-      // Ultimate fallback date if completely missing: use current date
+      // Ultimate fallback date if missing
       if (!parsedDate) {
         const now = new Date();
         const y = now.getFullYear();
@@ -352,11 +379,12 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
 
       // 5. Update brand totals
       if (!brandStats.has(brand)) {
-        brandStats.set(brand, { totalQty: 0, totalRev: 0 });
+        brandStats.set(brand, { totalQty: 0, totalRev: 0, staffKeys: new Set<string>() });
       }
       const bStat = brandStats.get(brand)!;
       bStat.totalQty += qty;
       bStat.totalRev += rev;
+      bStat.staffKeys.add(staffKey);
 
       // 6. Update staff matrix for this brand
       if (!brandSalesMap.has(brand)) {
@@ -394,15 +422,16 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
     }
 
     const brandList = Array.from(brandStats.entries())
-      .map(([brand, stat]) => ({ brand, totalQty: stat.totalQty, totalRev: stat.totalRev }))
+      .map(([brand, stat]) => ({ 
+        brand, 
+        totalQty: stat.totalQty, 
+        totalRev: stat.totalRev,
+        staffCount: stat.staffKeys.size
+      }))
       .sort((a, b) => b.totalQty - a.totalQty || a.brand.localeCompare(b.brand));
-
-    const staffMasterList = Array.from(staffMasterMap.values())
-      .sort((a, b) => a.staffName.localeCompare(b.staffName));
 
     return {
       brandList,
-      staffMasterList,
       brandSalesMap,
       allDateKeysMap,
       minDate,
@@ -410,17 +439,86 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
     };
   }, [indices, sourceRows]);
 
-  // Auto-select initial brand
-  useMemo(() => {
-    if (hasUserSelectedBrand) return;
-    if (parsedData.brandList.length === 0) return;
-    const hasPana = parsedData.brandList.find(b => b.brand === 'PANASONIC');
-    if (hasPana && hasPana.totalQty > 0) {
-      setSelectedBrand('PANASONIC');
-    } else {
-      setSelectedBrand(parsedData.brandList[0].brand);
+  // Load / Restore store-specific saved brands configuration
+  useEffect(() => {
+    if (!parsedData.brandList || parsedData.brandList.length === 0) return;
+
+    const storageKey = `brandDailyStaffSales_selectedBrands_${storeKey}`;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Keep only brands that exist in current dataset
+          const valid = parsed.filter(b => parsedData.brandList.some(item => item.brand === b));
+          if (valid.length > 0) {
+            setSelectedBrands(valid);
+            setHasLoadedSavedConfig(true);
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Could not read saved brand filter from localStorage', e);
     }
-  }, [parsedData.brandList, hasUserSelectedBrand]);
+
+    // Default if no saved config: select all brands
+    setSelectedBrands(parsedData.brandList.map(b => b.brand));
+    setHasLoadedSavedConfig(true);
+  }, [storeKey, parsedData.brandList]);
+
+  // Helper to update selected brands and save to store config
+  const updateSelectedBrands = (newBrands: string[]) => {
+    setSelectedBrands(newBrands);
+    const storageKey = `brandDailyStaffSales_selectedBrands_${storeKey}`;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(newBrands));
+    } catch (e) {
+      console.warn('Could not save brand filter to localStorage', e);
+    }
+  };
+
+  const toggleBrandSelection = (brand: string) => {
+    if (selectedBrands.includes(brand)) {
+      if (selectedBrands.length === 1) return; // Keep at least one
+      updateSelectedBrands(selectedBrands.filter(b => b !== brand));
+    } else {
+      updateSelectedBrands([...selectedBrands, brand]);
+    }
+  };
+
+  const selectAllBrands = () => {
+    updateSelectedBrands(parsedData.brandList.map(b => b.brand));
+  };
+
+  const clearAllBrands = () => {
+    if (parsedData.brandList.length > 0) {
+      updateSelectedBrands([parsedData.brandList[0].brand]);
+    }
+  };
+
+  // Toggle expand / collapse for a single brand row
+  const toggleExpandBrand = (brand: string) => {
+    setExpandedBrands(prev => ({
+      ...prev,
+      [brand]: !prev[brand]
+    }));
+  };
+
+  // Expand all / Collapse all toggle
+  const allBrandsExpanded = useMemo(() => {
+    if (selectedBrands.length === 0) return false;
+    return selectedBrands.every(b => expandedBrands[b]);
+  }, [selectedBrands, expandedBrands]);
+
+  const toggleExpandAll = () => {
+    const nextState = !allBrandsExpanded;
+    const updated: Record<string, boolean> = {};
+    selectedBrands.forEach(b => {
+      updated[b] = nextState;
+    });
+    setExpandedBrands(updated);
+  };
 
   // Generate day columns
   const dayColumns: DayColumn[] = useMemo(() => {
@@ -431,7 +529,6 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
     const minD = parsedData.minDate;
     const maxD = parsedData.maxDate;
 
-    // Check if dates are within the same month
     const sameMonth = minD.getFullYear() === maxD.getFullYear() && minD.getMonth() === maxD.getMonth();
 
     if (sameMonth && showAllDaysInMonth) {
@@ -461,216 +558,148 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
     return Array.from(parsedData.allDateKeysMap.values()).sort((a, b) => a.dateKey.localeCompare(b.dateKey));
   }, [parsedData.minDate, parsedData.maxDate, parsedData.allDateKeysMap, showAllDaysInMonth]);
 
-  // Compute table rows for the selected brand
-  const tableData = useMemo(() => {
-    const isAllMode = selectedBrand === 'ALL';
+  // Compute displayed brands and their staff rows
+  const displayedBrandsData = useMemo(() => {
+    // Filter by selected brands in checklist
+    const activeBrandList = parsedData.brandList.filter(b => selectedBrands.includes(b.brand));
 
-    if (isAllMode) {
-      // "ALL BRANDS" Mode: Each row is a brand
-      const brandRows = parsedData.brandList.map(b => {
-        const staffMap = parsedData.brandSalesMap.get(b.brand) || new Map<string, StaffBrandSales>();
-        const dailyQty: Record<string, number> = {};
-        const dailyRev: Record<string, number> = {};
-        
-        staffMap.forEach(staff => {
-          Object.entries(staff.dailyQty).forEach(([dk, q]) => {
-            dailyQty[dk] = (dailyQty[dk] || 0) + q;
-          });
-          Object.entries(staff.dailyRev).forEach(([dk, r]) => {
-            dailyRev[dk] = (dailyRev[dk] || 0) + r;
-          });
+    const brandRows = activeBrandList.map(b => {
+      const staffMap = parsedData.brandSalesMap.get(b.brand) || new Map<string, StaffBrandSales>();
+      const dailyQty: Record<string, number> = {};
+      const dailyRev: Record<string, number> = {};
+      
+      let staffList: StaffBrandSales[] = Array.from(staffMap.values());
+
+      // Filter staff by parent filter if any
+      if (selectedStaffs.length > 0) {
+        staffList = staffList.filter(s => selectedStaffs.some(sel => s.staffName.toLowerCase().includes(sel.toLowerCase())));
+      }
+      if (drillFilterStaff.length > 0) {
+        staffList = staffList.filter(s => drillFilterStaff.includes(s.staffName));
+      }
+
+      // Filter staff with sales
+      if (showOnlyWithSales) {
+        staffList = staffList.filter(s => s.totalQty > 0);
+      }
+
+      // Sort staff in brand descending
+      staffList.sort((s1, s2) => s2.totalQty - s1.totalQty || s2.totalRev - s1.totalRev || s1.staffName.localeCompare(s2.staffName));
+
+      staffList.forEach(staff => {
+        Object.entries(staff.dailyQty).forEach(([dk, q]) => {
+          dailyQty[dk] = (dailyQty[dk] || 0) + q;
         });
-
-        return {
-          key: b.brand,
-          brandName: b.brand,
-          dailyQty,
-          dailyRev,
-          totalQty: b.totalQty,
-          totalRev: b.totalRev,
-          activeStaffCount: staffMap.size,
-        };
-      });
-
-      // Filter by brand search
-      const filtered = brandSearchQuery.trim()
-        ? brandRows.filter(r => removeAccents(r.brandName).includes(removeAccents(brandSearchQuery)))
-        : brandRows;
-
-      // Total store row for ALL brands
-      const storeDailyQty: Record<string, number> = {};
-      const storeDailyRev: Record<string, number> = {};
-      let grandTotalQty = 0;
-      let grandTotalRev = 0;
-
-      filtered.forEach(r => {
-        grandTotalQty += r.totalQty;
-        grandTotalRev += r.totalRev;
-        Object.entries(r.dailyQty).forEach(([dk, q]) => {
-          storeDailyQty[dk] = (storeDailyQty[dk] || 0) + q;
-        });
-        Object.entries(r.dailyRev).forEach(([dk, rev]) => {
-          storeDailyRev[dk] = (storeDailyRev[dk] || 0) + rev;
+        Object.entries(staff.dailyRev).forEach(([dk, r]) => {
+          dailyRev[dk] = (dailyRev[dk] || 0) + r;
         });
       });
 
       return {
-        isAllMode: true as const,
-        brandRows: filtered,
-        storeDailyQty,
-        storeDailyRev,
-        grandTotalQty,
-        grandTotalRev,
-      };
-    }
-
-    // Specific Brand Mode: Each row is an employee
-    const staffSalesMap = parsedData.brandSalesMap.get(selectedBrand) || new Map<string, StaffBrandSales>();
-
-    let staffRows: StaffBrandSales[] = parsedData.staffMasterList.map(m => {
-      const existing = staffSalesMap.get(m.staffKey);
-      if (existing) return existing;
-      return {
-        staffKey: m.staffKey,
-        staffId: m.staffId,
-        staffName: m.staffName,
-        dailyQty: {},
-        dailyRev: {},
-        dailyItems: {},
-        totalQty: 0,
-        totalRev: 0,
+        brandName: b.brand,
+        dailyQty,
+        dailyRev,
+        totalQty: b.totalQty,
+        totalRev: b.totalRev,
+        staffCount: staffList.length,
+        staffList,
       };
     });
 
-    if (selectedStaffs.length > 0) {
-      staffRows = staffRows.filter(s => selectedStaffs.some(sel => s.staffName.toLowerCase().includes(sel.toLowerCase())));
-    }
-    if (drillFilterStaff.length > 0) {
-      staffRows = staffRows.filter(s => drillFilterStaff.includes(s.staffName));
-    }
-
-    if (showOnlyWithSales) {
-      staffRows = staffRows.filter(s => s.totalQty > 0);
-    }
-
-    if (staffSearchQuery.trim()) {
-      const q = removeAccents(staffSearchQuery.trim());
-      staffRows = staffRows.filter(s => 
-        removeAccents(s.staffName).includes(q) || 
-        (s.staffId && s.staffId.includes(q))
-      );
-    }
-
-    // Sort: Staff with sales at top (descending), staff with 0 at bottom
-    staffRows.sort((a, b) => b.totalQty - a.totalQty || b.totalRev - a.totalRev || a.staffName.localeCompare(b.staffName));
-
+    // Store total row across all displayed brands
     const storeDailyQty: Record<string, number> = {};
     const storeDailyRev: Record<string, number> = {};
     let grandTotalQty = 0;
     let grandTotalRev = 0;
 
-    staffRows.forEach(s => {
-      grandTotalQty += s.totalQty;
-      grandTotalRev += s.totalRev;
-      Object.entries(s.dailyQty).forEach(([dk, q]) => {
+    brandRows.forEach(r => {
+      grandTotalQty += r.totalQty;
+      grandTotalRev += r.totalRev;
+      Object.entries(r.dailyQty).forEach(([dk, q]) => {
         storeDailyQty[dk] = (storeDailyQty[dk] || 0) + q;
       });
-      Object.entries(s.dailyRev).forEach(([dk, r]) => {
-        storeDailyRev[dk] = (storeDailyRev[dk] || 0) + r;
+      Object.entries(r.dailyRev).forEach(([dk, rev]) => {
+        storeDailyRev[dk] = (storeDailyRev[dk] || 0) + rev;
       });
     });
 
     return {
-      isAllMode: false as const,
-      staffRows,
+      brandRows,
       storeDailyQty,
       storeDailyRev,
       grandTotalQty,
       grandTotalRev,
     };
   }, [
-    selectedBrand, 
-    parsedData, 
-    selectedStaffs, 
-    drillFilterStaff, 
-    showOnlyWithSales, 
-    staffSearchQuery, 
-    brandSearchQuery
+    parsedData,
+    selectedBrands,
+    selectedStaffs,
+    drillFilterStaff,
+    showOnlyWithSales
   ]);
 
-  // Export Excel handler
+  // Export Excel
   const handleExportExcel = () => {
     try {
       const aoa: (string | number)[][] = [];
-      const title = selectedBrand === 'ALL' 
-        ? 'BẢNG THEO DÕI BÁN HÀNG TỔNG HỢP CÁC HÃNG THEO NGÀY' 
-        : `BẢNG THEO DÕI BÁN HÀNG HÃNG ${selectedBrand} THEO NGÀY`;
+      const title = `BẢNG THEO DÕI BÁN HÀNG THEO HÃNG THEO NGÀY (${activeStore || 'SIÊU THỊ'})`;
 
       aoa.push([title]);
+      aoa.push([`Các hãng được chọn: ${selectedBrands.join(', ')}`]);
       aoa.push([]);
 
-      // Headers
-      const headerRow1 = ['STT', selectedBrand === 'ALL' ? 'Tên Hãng' : 'Nhân Viên'];
-      if (selectedBrand !== 'ALL') {
-        headerRow1.splice(2, 0, 'Mã NV');
-      }
-      dayColumns.forEach(c => headerRow1.push(c.displayDate));
-      headerRow1.push(viewMetric === 'qty' ? 'TỔNG SL' : 'TỔNG DOANH THU');
-      headerRow1.push('% TỔNG');
-      aoa.push(headerRow1);
+      // Header row
+      const headerRow = ['STT', 'HÃNG SẢN XUẤT / NHÂN VIÊN', 'MÃ NV'];
+      dayColumns.forEach(c => headerRow.push(c.displayDate));
+      headerRow.push(viewMetric === 'qty' ? 'TỔNG SL' : 'TỔNG DOANH THU');
+      headerRow.push('% TỔNG');
+      aoa.push(headerRow);
 
       // Data Rows
-      if (!tableData.isAllMode && 'staffRows' in tableData) {
-        tableData.staffRows.forEach((s, idx) => {
-          const row: (string | number)[] = [idx + 1, s.staffName, s.staffId || ''];
-          dayColumns.forEach(c => {
-            const val = viewMetric === 'qty'
-              ? (s.dailyQty[c.dateKey] || 0)
-              : (s.dailyRev[c.dateKey] || 0);
-            row.push(val);
-          });
-          const rowTotal = viewMetric === 'qty' ? s.totalQty : s.totalRev;
-          row.push(rowTotal);
-          const grand = viewMetric === 'qty' ? tableData.grandTotalQty : tableData.grandTotalRev;
-          const pct = grand > 0 ? `${((rowTotal / grand) * 100).toFixed(1)}%` : '0%';
-          row.push(pct);
-          aoa.push(row);
+      let rankCounter = 1;
+      displayedBrandsData.brandRows.forEach(b => {
+        // Brand Row
+        const brandRowData: (string | number)[] = [rankCounter++, `HÃNG ${b.brandName}`, ''];
+        dayColumns.forEach(c => {
+          const val = viewMetric === 'qty' ? (b.dailyQty[c.dateKey] || 0) : (b.dailyRev[c.dateKey] || 0);
+          brandRowData.push(val);
         });
-      } else if (tableData.isAllMode && 'brandRows' in tableData) {
-        tableData.brandRows.forEach((b, idx) => {
-          const row: (string | number)[] = [idx + 1, b.brandName];
-          dayColumns.forEach(c => {
-            const val = viewMetric === 'qty'
-              ? (b.dailyQty[c.dateKey] || 0)
-              : (b.dailyRev[c.dateKey] || 0);
-            row.push(val);
-          });
-          const rowTotal = viewMetric === 'qty' ? b.totalQty : b.totalRev;
-          row.push(rowTotal);
-          const grand = viewMetric === 'qty' ? tableData.grandTotalQty : tableData.grandTotalRev;
-          const pct = grand > 0 ? `${((rowTotal / grand) * 100).toFixed(1)}%` : '0%';
-          row.push(pct);
-          aoa.push(row);
-        });
-      }
+        const bTotal = viewMetric === 'qty' ? b.totalQty : b.totalRev;
+        brandRowData.push(bTotal);
+        const grand = viewMetric === 'qty' ? displayedBrandsData.grandTotalQty : displayedBrandsData.grandTotalRev;
+        brandRowData.push(grand > 0 ? `${((bTotal / grand) * 100).toFixed(1)}%` : '0%');
+        aoa.push(brandRowData);
 
-      // Store Total Row at bottom
-      const storeRow: (string | number)[] = ['-', 'TỔNG CỘNG'];
-      if (selectedBrand !== 'ALL') storeRow.push('-');
+        // Staff sub-rows
+        b.staffList.forEach((s, sIdx) => {
+          const staffRowData: (string | number)[] = [`${rankCounter - 1}.${sIdx + 1}`, `  ${s.staffName}`, s.staffId || ''];
+          dayColumns.forEach(c => {
+            const val = viewMetric === 'qty' ? (s.dailyQty[c.dateKey] || 0) : (s.dailyRev[c.dateKey] || 0);
+            staffRowData.push(val);
+          });
+          const sTotal = viewMetric === 'qty' ? s.totalQty : s.totalRev;
+          staffRowData.push(sTotal);
+          staffRowData.push(bTotal > 0 ? `${((sTotal / bTotal) * 100).toFixed(1)}%` : '0%');
+          aoa.push(staffRowData);
+        });
+      });
+
+      // Total store row
+      const storeRow: (string | number)[] = ['-', 'TỔNG CỘNG', ''];
       dayColumns.forEach(c => {
         const val = viewMetric === 'qty'
-          ? (tableData.storeDailyQty[c.dateKey] || 0)
-          : (tableData.storeDailyRev[c.dateKey] || 0);
+          ? (displayedBrandsData.storeDailyQty[c.dateKey] || 0)
+          : (displayedBrandsData.storeDailyRev[c.dateKey] || 0);
         storeRow.push(val);
       });
-      storeRow.push(viewMetric === 'qty' ? tableData.grandTotalQty : tableData.grandTotalRev);
+      storeRow.push(viewMetric === 'qty' ? displayedBrandsData.grandTotalQty : displayedBrandsData.grandTotalRev);
       storeRow.push('100%');
       aoa.push(storeRow);
 
       const ws = XLSX.utils.aoa_to_sheet(aoa);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'TheoDoi_Hang_Ngay');
-      const filename = `TheoDoi_${selectedBrand}_TheoNgay_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const filename = `TheoDoi_Hang_TheoNgay_${storeKey}_${new Date().toISOString().slice(0, 10)}.xlsx`;
       XLSX.writeFile(wb, filename);
     } catch (err) {
       console.error('Error exporting Excel:', err);
@@ -681,22 +710,23 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
     return null;
   }
 
-  // Top brands for pills
-  const topPillBrands = parsedData.brandList.slice(0, 9);
-
-  // Render rank medal or warning icon matching Image 1
+  // Render rank medal or number with proper spacing to prevent text overlapping
   const renderRank = (idx: number, qty: number) => {
     if (qty === 0) {
       return (
-        <span className="text-[14px] text-amber-500 font-bold shrink-0" title="Chưa bán">
+        <span className="inline-flex items-center justify-center min-w-[26px] mr-1 text-[13px] text-amber-500 font-bold shrink-0" title="Chưa bán">
           ⚠️
         </span>
       );
     }
-    if (idx === 0) return <span className="text-[15px] shrink-0" title="Hạng 1">🥇</span>;
-    if (idx === 1) return <span className="text-[15px] shrink-0" title="Hạng 2">🥈</span>;
-    if (idx === 2) return <span className="text-[15px] shrink-0" title="Hạng 3">🥉</span>;
-    return <span className="text-[11px] font-black text-slate-500 shrink-0 w-4">#{idx + 1}</span>;
+    if (idx === 0) return <span className="inline-flex items-center justify-center min-w-[26px] mr-1 text-[15px] shrink-0" title="Hạng 1">🥇</span>;
+    if (idx === 1) return <span className="inline-flex items-center justify-center min-w-[26px] mr-1 text-[15px] shrink-0" title="Hạng 2">🥈</span>;
+    if (idx === 2) return <span className="inline-flex items-center justify-center min-w-[26px] mr-1 text-[15px] shrink-0" title="Hạng 3">🥉</span>;
+    return (
+      <span className="inline-flex items-center justify-center min-w-[26px] mr-1 text-[11px] font-black text-slate-500 shrink-0">
+        #{idx + 1}
+      </span>
+    );
   };
 
   return (
@@ -712,11 +742,18 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
               <BarChart3 size={20} />
             </div>
             <div>
-              <h3 className="text-[16px] sm:text-[18px] font-black text-red-600 tracking-tight uppercase">
-                THEO DÕI BÁN HÀNG THEO HÃNG THEO NGÀY
-              </h3>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-[16px] sm:text-[18px] font-black text-red-600 tracking-tight uppercase">
+                  THEO DÕI BÁN HÀNG THEO HÃNG THEO NGÀY
+                </h3>
+                {activeStore && (
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200 uppercase">
+                    {activeStore}
+                  </span>
+                )}
+              </div>
               <p className="text-[10.5px] sm:text-[11px] text-slate-400 mt-0.5">
-                Chi tiết số lượng bán ra theo từng ngày của từng nhân viên theo hãng ({selectedBrand === 'ALL' ? 'TẤT CẢ HÃNG' : `HÃNG ${selectedBrand}`})
+                Bấm vào nút mũi tên (▶) trên từng dòng Hãng để xổ danh sách nhân viên bán trong kỳ (Lưu cấu hình theo siêu thị)
               </p>
             </div>
           </div>
@@ -747,121 +784,172 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
 
         {/* Filter bar - EXACT SAME STYLE AS HÌNH 1 */}
         <div className="flex flex-col gap-3 bg-slate-50 rounded-xl p-3 sm:px-5 sm:py-4 no-capture">
-          {/* Row 1: Brand buttons list */}
+          {/* Row 1: Brand checklist button & quick chips */}
           <div className="flex flex-wrap sm:flex-nowrap sm:overflow-x-auto no-scrollbar items-center gap-1.5 sm:gap-2.5 pb-1">
             <span className="text-[11px] sm:text-[12px] font-black text-slate-500 uppercase tracking-wider whitespace-nowrap mr-1 flex items-center gap-1.5 w-full sm:w-auto mb-1 sm:mb-0">
               <Filter size={13} />
-              CHỌN HÃNG:
+              BỘ LỌC HÃNG:
             </span>
 
-            {/* ALL BRANDS Button */}
-            <button
-              onClick={() => {
-                setSelectedBrand('ALL');
-                setHasUserSelectedBrand(true);
-              }}
-              className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[10.5px] sm:text-[12px] font-black transition-all border whitespace-nowrap flex items-center gap-1.5 ${
-                selectedBrand === 'ALL'
-                  ? 'bg-emerald-50 text-[#047857] border-emerald-300 shadow-sm'
-                  : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
-              }`}
-            >
-              <span>🏷️</span>
-              <span>TẤT CẢ HÃNG ({parsedData.brandList.length})</span>
-            </button>
+            {/* Checklist Dropdown Trigger */}
+            <div className="relative" ref={brandDropdownRef}>
+              <button
+                onClick={() => setShowBrandFilterModal(!showBrandFilterModal)}
+                className="px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border whitespace-nowrap flex items-center gap-2 bg-emerald-50 text-[#047857] border-emerald-300 shadow-sm hover:bg-emerald-100"
+                title="Chọn một hoặc nhiều hãng cần hiển thị"
+              >
+                <CheckSquare size={13} className="text-[#047857]" />
+                <span>
+                  ĐÃ CHỌN {selectedBrands.length}/{parsedData.brandList.length} HÃNG
+                </span>
+                <ChevronDown size={12} className={`transition-transform duration-200 ${showBrandFilterModal ? 'rotate-180' : ''}`} />
+              </button>
 
-            {/* Individual Brands Pills */}
-            {topPillBrands.map(b => {
-              const isActive = selectedBrand === b.brand;
+              {/* Multi-Select Brand Checklist Modal / Popover */}
+              {showBrandFilterModal && (
+                <div className="absolute left-0 top-full mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 p-3 z-50">
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+                    <div>
+                      <h4 className="text-[12px] font-black text-slate-800 uppercase tracking-wide">
+                        CHỌN HÃNG HIỂN THỊ
+                      </h4>
+                      <p className="text-[10px] text-slate-400">
+                        {activeStore ? `Lưu cho: ${activeStore}` : 'Lưu theo cấu hình siêu thị'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowBrandFilterModal(false)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  {/* Search box inside modal */}
+                  <div className="relative mb-2.5">
+                    <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm tên hãng..."
+                      value={brandSearchQuery}
+                      onChange={e => setBrandSearchQuery(e.target.value)}
+                      className="w-full pl-7 pr-2.5 py-1.5 text-[11px] bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Select All / Deselect All actions */}
+                  <div className="flex items-center justify-between gap-1.5 mb-2 pb-2 border-b border-slate-100 text-[10.5px]">
+                    <button
+                      onClick={selectAllBrands}
+                      className="px-2 py-1 rounded-lg bg-emerald-50 text-[#047857] hover:bg-emerald-100 font-bold transition-colors"
+                    >
+                      Chọn tất cả ({parsedData.brandList.length})
+                    </button>
+                    <button
+                      onClick={clearAllBrands}
+                      className="px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-bold transition-colors"
+                    >
+                      Bỏ chọn tất cả
+                    </button>
+                  </div>
+
+                  {/* Checklist Items List */}
+                  <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
+                    {parsedData.brandList
+                      .filter(b => removeAccents(b.brand).includes(removeAccents(brandSearchQuery)))
+                      .map(b => {
+                        const isChecked = selectedBrands.includes(b.brand);
+                        return (
+                          <div
+                            key={b.brand}
+                            onClick={() => toggleBrandSelection(b.brand)}
+                            className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl cursor-pointer transition-colors text-[11.5px] ${
+                              isChecked 
+                                ? 'bg-emerald-50/80 text-emerald-900 font-bold' 
+                                : 'hover:bg-slate-50 text-slate-600'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <span className={`w-4 h-4 rounded-md flex items-center justify-center border transition-colors shrink-0 ${
+                                isChecked 
+                                  ? 'bg-[#047857] border-[#047857] text-white' 
+                                  : 'border-slate-300 bg-white'
+                              }`}>
+                                {isChecked && <Check size={11} strokeWidth={3} />}
+                              </span>
+                              <span className="truncate">{b.brand}</span>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0 ml-2">
+                              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white border border-slate-200 text-slate-700 font-black">
+                                {b.totalQty} sp
+                              </span>
+                              <span className="text-[9.5px] text-slate-400 font-medium">
+                                ({b.staffCount} NV)
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+
+                  <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-[10px] text-emerald-700 font-bold">
+                      ✓ Đã lưu cấu hình tự động
+                    </span>
+                    <button
+                      onClick={() => setShowBrandFilterModal(false)}
+                      className="px-3 py-1 rounded-xl bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800"
+                    >
+                      Xong
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Pills for Top Brands */}
+            {parsedData.brandList.slice(0, 7).map(b => {
+              const isChecked = selectedBrands.includes(b.brand);
               return (
                 <button
                   key={b.brand}
-                  onClick={() => {
-                    setSelectedBrand(b.brand);
-                    setHasUserSelectedBrand(true);
-                  }}
-                  className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[10.5px] sm:text-[12px] font-black transition-all border whitespace-nowrap flex items-center gap-1.5 ${
-                    isActive
-                      ? 'bg-emerald-50 text-[#047857] border-emerald-300 shadow-sm'
-                      : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                  onClick={() => toggleBrandSelection(b.brand)}
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[10.5px] sm:text-[11.5px] font-black transition-all border whitespace-nowrap flex items-center gap-1.5 ${
+                    isChecked
+                      ? 'bg-emerald-50 text-[#047857] border-emerald-300 shadow-xs'
+                      : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600'
                   }`}
+                  title={`${isChecked ? 'Nhấp để bỏ chọn' : 'Nhấp để chọn'} hãng ${b.brand}`}
                 >
-                  <span>❄️</span>
+                  <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[9px] ${isChecked ? 'bg-[#047857] text-white' : 'border border-slate-300'}`}>
+                    {isChecked ? '✓' : ''}
+                  </span>
                   <span>{b.brand}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
-                    isActive ? 'bg-emerald-200/80 text-emerald-900' : 'bg-slate-100 text-slate-500'
+                  <span className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
+                    isChecked ? 'bg-emerald-200/80 text-emerald-900' : 'bg-slate-100 text-slate-400'
                   }`}>
                     {b.totalQty}
                   </span>
                 </button>
               );
             })}
-
-            {/* Dropdown for other brands */}
-            {parsedData.brandList.length > 9 && (
-              <div className="relative">
-                <button
-                  onClick={() => setShowBrandDropdown(!showBrandDropdown)}
-                  className={`px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-[10.5px] sm:text-[12px] font-black border transition-all flex items-center gap-1 whitespace-nowrap ${
-                    !topPillBrands.some(b => b.brand === selectedBrand) && selectedBrand !== 'ALL'
-                      ? 'bg-emerald-50 text-[#047857] border-emerald-300 shadow-sm'
-                      : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600'
-                  }`}
-                >
-                  <span>
-                    {!topPillBrands.some(b => b.brand === selectedBrand) && selectedBrand !== 'ALL'
-                      ? selectedBrand
-                      : `Khác (${parsedData.brandList.length - 9})`}
-                  </span>
-                  <ChevronDown size={12} />
-                </button>
-
-                {showBrandDropdown && (
-                  <div className="absolute left-0 top-full mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 p-2 z-50 max-h-72 overflow-y-auto">
-                    <div className="p-1 mb-1 border-b border-slate-100">
-                      <input
-                        type="text"
-                        placeholder="Tìm hãng..."
-                        value={brandSearchQuery}
-                        onChange={e => setBrandSearchQuery(e.target.value)}
-                        className="w-full px-2.5 py-1 text-[11px] bg-slate-50 border border-slate-200 rounded-lg focus:outline-none"
-                        autoFocus
-                      />
-                    </div>
-                    <div className="space-y-0.5">
-                      {parsedData.brandList
-                        .filter(b => removeAccents(b.brand).includes(removeAccents(brandSearchQuery)))
-                        .map(b => (
-                          <button
-                            key={b.brand}
-                            onClick={() => {
-                              setSelectedBrand(b.brand);
-                              setHasUserSelectedBrand(true);
-                              setShowBrandDropdown(false);
-                            }}
-                            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-between transition-colors ${
-                              selectedBrand === b.brand ? 'bg-emerald-50 text-[#047857]' : 'hover:bg-slate-50 text-slate-700'
-                            }`}
-                          >
-                            <span>{b.brand}</span>
-                            <span className="text-[10px] text-slate-400 font-mono">({b.totalQty})</span>
-                          </button>
-                        ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
-          {/* Row 2: Sub-options (like sub-category buttons in Hình 1) */}
+          {/* Row 2: Sub-options (Expand All, Metrics, Daily View) */}
           <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-slate-200/60 pt-2.5">
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-              <span className="text-[10px] font-black text-[#047857] flex items-center gap-1">
-                ⚙️ TÙY CHỌN:
-              </span>
+              {/* Expand All / Collapse All Button */}
+              <button
+                onClick={toggleExpandAll}
+                className="px-2.5 sm:px-3 py-1 rounded-lg text-[9.5px] sm:text-[10px] font-black transition-all border whitespace-nowrap flex items-center gap-1 bg-white text-slate-700 border-slate-200 hover:bg-slate-100 shadow-2xs"
+                title="Xổ hoặc đóng danh sách nhân viên của tất cả các hãng"
+              >
+                <ChevronsUpDown size={12} className="text-indigo-600" />
+                <span>{allBrandsExpanded ? 'Thu gọn tất cả' : 'Xổ tất cả nhân viên (▼)'}</span>
+              </button>
 
-              {/* Qty vs Revenue */}
+              {/* Metric Toggle */}
               <button
                 onClick={() => setViewMetric('qty')}
                 className={`px-2.5 sm:px-3 py-1 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${
@@ -884,18 +972,16 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
               </button>
 
               {/* Show only active staff */}
-              {selectedBrand !== 'ALL' && (
-                <button
-                  onClick={() => setShowOnlyWithSales(!showOnlyWithSales)}
-                  className={`px-2.5 sm:px-3 py-1 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${
-                    showOnlyWithSales
-                      ? 'bg-amber-50 text-amber-800 border-amber-200 shadow-sm'
-                      : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600'
-                  }`}
-                >
-                  {showOnlyWithSales ? '✓ Đang lọc: NV đã bán' : 'Hiện tất cả NV'}
-                </button>
-              )}
+              <button
+                onClick={() => setShowOnlyWithSales(!showOnlyWithSales)}
+                className={`px-2.5 sm:px-3 py-1 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${
+                  showOnlyWithSales
+                    ? 'bg-amber-50 text-amber-800 border-amber-200 shadow-sm'
+                    : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600'
+                }`}
+              >
+                {showOnlyWithSales ? '✓ Đang lọc: NV đã bán' : 'Hiện tất cả NV'}
+              </button>
 
               {/* Show all days in month */}
               <button
@@ -910,27 +996,9 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
               </button>
             </div>
 
-            {/* Search staff */}
-            {selectedBrand !== 'ALL' && (
-              <div className="relative">
-                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Tìm nhân viên..."
-                  value={staffSearchQuery}
-                  onChange={e => setStaffSearchQuery(e.target.value)}
-                  className="pl-7 pr-2.5 py-1 text-[11px] bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400 w-36 sm:w-48"
-                />
-                {staffSearchQuery && (
-                  <button
-                    onClick={() => setStaffSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  >
-                    <X size={11} />
-                  </button>
-                )}
-              </div>
-            )}
+            <div className="text-[10.5px] text-slate-400 font-medium">
+              Đang hiển thị <strong className="text-[#047857]">{displayedBrandsData.brandRows.length}</strong> hãng • Tổng sản lượng: <strong className="text-red-600">{displayedBrandsData.grandTotalQty}</strong> sp
+            </div>
           </div>
         </div>
       </div>
@@ -942,7 +1010,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
           style={{ tableLayout: 'fixed', borderSpacing: 0 }}
         >
           <colgroup>
-            <col style={{ width: selectedBrand === 'ALL' ? '220px' : '200px' }} />
+            <col style={{ width: '220px' }} />
             {dayColumns.map(c => (
               <col key={c.dateKey} style={{ width: '46px' }} />
             ))}
@@ -951,14 +1019,14 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
           </colgroup>
 
           <thead>
-            {/* Group Header - Light mint/emerald background like SP CHÍNH in Hình 1 */}
+            {/* Group Header */}
             <tr className="border-b border-slate-200">
               <th 
                 rowSpan={2} 
                 className="py-2.5 px-4 text-left font-black text-slate-800 text-[12px] border-r border-slate-200/60 sticky left-0 z-20 bg-white"
               >
                 <div className="flex items-center gap-1.5">
-                  <span>NHÂN VIÊN</span>
+                  <span>HÃNG SẢN XUẤT / NHÂN VIÊN</span>
                   <span className="text-slate-400 text-[11px]">⇅</span>
                 </div>
               </th>
@@ -967,7 +1035,9 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                 colSpan={dayColumns.length} 
                 className="py-2 px-3 text-center bg-[#d1fae5] text-[#047857] font-black uppercase text-[12px] border-r border-slate-200/60 tracking-wider"
               >
-                {selectedBrand === 'ALL' ? 'TẤT CẢ HÃNG - SẢN LƯỢNG THEO NGÀY' : `HÃNG ${selectedBrand} - SẢN LƯỢNG THEO NGÀY`}
+                {selectedBrands.length === 1 
+                  ? `HÃNG ${selectedBrands[0]} - SẢN LƯỢNG THEO NGÀY`
+                  : `THEO DÕI ${selectedBrands.length} HÃNG ĐÃ CHỌN - SẢN LƯỢNG THEO NGÀY`}
               </th>
 
               <th 
@@ -1006,120 +1076,60 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
           </thead>
 
           <tbody>
-            {/* EMPLOYEES ROWS (When specific brand selected) */}
-            {!tableData.isAllMode && 'staffRows' in tableData && (
-              tableData.staffRows.map((staff, idx) => {
-                const grand = viewMetric === 'qty' ? tableData.grandTotalQty : tableData.grandTotalRev;
-                const rowVal = viewMetric === 'qty' ? staff.totalQty : staff.totalRev;
-                const pct = grand > 0 ? ((rowVal / grand) * 100).toFixed(1) : '0';
+            {displayedBrandsData.brandRows.map((b, bIdx) => {
+              const isExpanded = !!expandedBrands[b.brandName];
+              const grand = viewMetric === 'qty' ? displayedBrandsData.grandTotalQty : displayedBrandsData.grandTotalRev;
+              const rowVal = viewMetric === 'qty' ? b.totalQty : b.totalRev;
+              const pct = grand > 0 ? ((rowVal / grand) * 100).toFixed(1) : '0';
 
-                return (
+              return (
+                <React.Fragment key={b.brandName}>
+                  {/* PARENT ROW: THE BRAND */}
                   <tr 
-                    key={staff.staffKey}
-                    className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors bg-white"
+                    className="border-b border-slate-200 hover:bg-slate-50/80 transition-colors bg-white cursor-pointer select-none group"
+                    onClick={() => toggleExpandBrand(b.brandName)}
                   >
-                    {/* Staff Name with medal / warning icon */}
-                    <td className="py-2 px-4 text-left font-bold text-[13px] text-slate-800 border-r border-slate-200/50 sticky left-0 z-10 bg-white">
-                      <div className="flex items-center gap-2 overflow-hidden">
-                        {renderRank(idx, staff.totalQty)}
-                        <span className="truncate" title={staff.staffName}>
-                          {staff.staffName}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Day Columns */}
-                    {dayColumns.map(c => {
-                      const qty = staff.dailyQty[c.dateKey] || 0;
-                      const rev = staff.dailyRev[c.dateKey] || 0;
-                      const items = staff.dailyItems[c.dateKey] || [];
-
-                      return (
-                        <td
-                          key={c.dateKey}
-                          onClick={() => {
-                            if (items.length > 0) {
-                              setSelectedDetailCell({
-                                staffName: staff.staffName,
-                                dateDisplay: `${c.displayDate} (${c.dayOfWeek || ''})`,
-                                items,
-                                totalQty: qty,
-                                totalRev: rev,
-                              });
-                            }
+                    {/* Brand Name Column with Expand/Collapse button and rank */}
+                    <td className="py-2.5 px-3 text-left font-black text-[13px] text-slate-900 border-r border-slate-200/50 sticky left-0 z-10 bg-white group-hover:bg-slate-50/80">
+                      <div className="flex items-center gap-1.5">
+                        {/* Expand/Collapse Button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleExpandBrand(b.brandName);
                           }}
-                          className={`py-2 px-1 text-center border-r border-slate-200/50 text-[13px] ${
-                            items.length > 0 ? 'cursor-pointer hover:bg-emerald-50/80 transition-colors' : ''
+                          className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
+                            isExpanded ? 'bg-emerald-100 text-[#047857]' : 'bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-[#047857]'
                           }`}
-                          title={items.length > 0 ? `Nhấp để xem chi tiết (${items.length} sp)` : undefined}
+                          title={isExpanded ? 'Thu gọn nhân viên' : 'Xổ danh sách nhân viên'}
                         >
-                          {viewMetric === 'qty' ? (
-                            qty > 0 ? (
-                              <span className="font-black text-[#047857]">{qty}</span>
-                            ) : (
-                              <span className="text-slate-300 font-normal">-</span>
-                            )
-                          ) : (
-                            rev > 0 ? (
-                              <span className="font-black text-[#1d4ed8]">{(rev / 1000000).toFixed(1)}</span>
-                            ) : (
-                              <span className="text-slate-300 font-normal">-</span>
-                            )
-                          )}
-                        </td>
-                      );
-                    })}
+                          <ChevronRight 
+                            size={14} 
+                            className={`transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} 
+                          />
+                        </button>
 
-                    {/* Row Total */}
-                    <td className="py-2 px-3 text-center text-[13.5px] font-black text-[#047857] bg-emerald-50/40 border-r border-slate-200/50">
-                      {rowVal > 0 ? (
-                        viewMetric === 'qty' ? rowVal : `${(rowVal / 1000000).toFixed(1)} tr`
-                      ) : (
-                        <span className="text-slate-300 font-normal">-</span>
-                      )}
-                    </td>
+                        {/* Rank medal/number with clean width to prevent overlapping */}
+                        {renderRank(bIdx, b.totalQty)}
 
-                    {/* % Contribution */}
-                    <td className="py-2 px-2 text-center text-[11px] font-bold text-slate-500">
-                      {rowVal > 0 ? `${pct}%` : '-'}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-
-            {/* BRANDS ROWS (When ALL BRANDS mode selected) */}
-            {tableData.isAllMode && 'brandRows' in tableData && (
-              tableData.brandRows.map((brandRow, idx) => {
-                const grand = viewMetric === 'qty' ? tableData.grandTotalQty : tableData.grandTotalRev;
-                const rowVal = viewMetric === 'qty' ? brandRow.totalQty : brandRow.totalRev;
-                const pct = grand > 0 ? ((rowVal / grand) * 100).toFixed(1) : '0';
-
-                return (
-                  <tr 
-                    key={brandRow.key}
-                    className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors bg-white cursor-pointer"
-                    onClick={() => {
-                      setSelectedBrand(brandRow.brandName);
-                      setHasUserSelectedBrand(true);
-                    }}
-                    title={`Nhấp để xem chi tiết từng nhân viên bán hãng ${brandRow.brandName}`}
-                  >
-                    <td className="py-2 px-4 text-left font-bold text-[13px] text-slate-800 border-r border-slate-200/50 sticky left-0 z-10 bg-white">
-                      <div className="flex items-center gap-2">
-                        {renderRank(idx, brandRow.totalQty)}
-                        <span className="font-black text-[#047857] hover:underline">
-                          {brandRow.brandName}
+                        {/* Brand Name */}
+                        <span className="font-black text-[#047857] hover:underline truncate" title={b.brandName}>
+                          {b.brandName}
                         </span>
-                        <span className="text-[10px] text-slate-400 font-normal">
-                          ({brandRow.activeStaffCount} NV)
+
+                        {/* Staff count badge */}
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-500 font-bold shrink-0 ml-1">
+                          {b.staffCount} NV
                         </span>
                       </div>
                     </td>
 
+                    {/* Day Columns for Brand */}
                     {dayColumns.map(c => {
-                      const qty = brandRow.dailyQty[c.dateKey] || 0;
-                      const rev = brandRow.dailyRev[c.dateKey] || 0;
+                      const qty = b.dailyQty[c.dateKey] || 0;
+                      const rev = b.dailyRev[c.dateKey] || 0;
+                      const val = viewMetric === 'qty' ? qty : rev;
 
                       return (
                         <td key={c.dateKey} className="py-2 px-1 text-center border-r border-slate-200/50 text-[13px]">
@@ -1140,6 +1150,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                       );
                     })}
 
+                    {/* Brand Total Column */}
                     <td className="py-2 px-3 text-center text-[13.5px] font-black text-[#047857] bg-emerald-50/40 border-r border-slate-200/50">
                       {rowVal > 0 ? (
                         viewMetric === 'qty' ? rowVal : `${(rowVal / 1000000).toFixed(1)} tr`
@@ -1148,23 +1159,125 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                       )}
                     </td>
 
+                    {/* Brand % Contribution */}
                     <td className="py-2 px-2 text-center text-[11px] font-bold text-slate-500">
                       {rowVal > 0 ? `${pct}%` : '-'}
                     </td>
                   </tr>
-                );
-              })
-            )}
 
-            {/* Empty state when no rows */}
-            {((!tableData.isAllMode && 'staffRows' in tableData && tableData.staffRows.length === 0) ||
-              (tableData.isAllMode && 'brandRows' in tableData && tableData.brandRows.length === 0)) && (
+                  {/* CHILD ROWS: EMPLOYEES OF THIS BRAND (WHEN EXPANDED) */}
+                  {isExpanded && (
+                    <>
+                      {b.staffList.length > 0 ? (
+                        b.staffList.map((staff, sIdx) => {
+                          const sGrand = viewMetric === 'qty' ? b.totalQty : b.totalRev;
+                          const sVal = viewMetric === 'qty' ? staff.totalQty : staff.totalRev;
+                          const sPct = sGrand > 0 ? ((sVal / sGrand) * 100).toFixed(1) : '0';
+
+                          return (
+                            <tr 
+                              key={`${b.brandName}_${staff.staffKey}`}
+                              className="border-b border-slate-100 hover:bg-slate-100/70 transition-colors bg-slate-50/50"
+                            >
+                              {/* Staff Name with indent and tree icon */}
+                              <td className="py-1.5 px-3 text-left border-r border-slate-200/40 sticky left-0 z-10 bg-slate-50/90 pl-8 sm:pl-10">
+                                <div className="flex items-center gap-1.5 overflow-hidden">
+                                  <span className="text-slate-400 text-[11px] font-mono shrink-0">↳</span>
+                                  <span className="text-slate-400 text-[12px] shrink-0">👤</span>
+                                  <span className="truncate text-[12.5px] font-bold text-slate-700" title={staff.staffName}>
+                                    {staff.staffName}
+                                  </span>
+                                  {staff.staffId && (
+                                    <span className="text-[9px] text-slate-400 font-mono shrink-0 ml-1">
+                                      #{staff.staffId}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Day Columns for Staff */}
+                              {dayColumns.map(c => {
+                                const qty = staff.dailyQty[c.dateKey] || 0;
+                                const rev = staff.dailyRev[c.dateKey] || 0;
+                                const items = staff.dailyItems[c.dateKey] || [];
+
+                                return (
+                                  <td
+                                    key={c.dateKey}
+                                    onClick={() => {
+                                      if (items.length > 0) {
+                                        setSelectedDetailCell({
+                                          staffName: staff.staffName,
+                                          brandName: b.brandName,
+                                          dateDisplay: `${c.displayDate} (${c.dayOfWeek || ''})`,
+                                          items,
+                                          totalQty: qty,
+                                          totalRev: rev,
+                                        });
+                                      }
+                                    }}
+                                    className={`py-1.5 px-1 text-center border-r border-slate-200/30 text-[12px] ${
+                                      items.length > 0 ? 'cursor-pointer hover:bg-emerald-100/60 transition-colors' : ''
+                                    }`}
+                                    title={items.length > 0 ? `Nhấp xem chi tiết: ${staff.staffName} bán ${items.length} sp ngày ${c.displayDate}` : undefined}
+                                  >
+                                    {viewMetric === 'qty' ? (
+                                      qty > 0 ? (
+                                        <span className="font-bold text-[#047857]">{qty}</span>
+                                      ) : (
+                                        <span className="text-slate-300 font-normal">-</span>
+                                      )
+                                    ) : (
+                                      rev > 0 ? (
+                                        <span className="font-bold text-[#1d4ed8]">{(rev / 1000000).toFixed(1)}</span>
+                                      ) : (
+                                        <span className="text-slate-300 font-normal">-</span>
+                                      )
+                                    )}
+                                  </td>
+                                );
+                              })}
+
+                              {/* Staff Total Column */}
+                              <td className="py-1.5 px-3 text-center text-[12.5px] font-bold text-[#047857] bg-emerald-50/20 border-r border-slate-200/40">
+                                {sVal > 0 ? (
+                                  viewMetric === 'qty' ? sVal : `${(sVal / 1000000).toFixed(1)} tr`
+                                ) : (
+                                  <span className="text-slate-300 font-normal">-</span>
+                                )}
+                              </td>
+
+                              {/* Staff % in Brand */}
+                              <td className="py-1.5 px-2 text-center text-[10px] font-medium text-slate-400">
+                                {sVal > 0 ? `${sPct}%` : '-'}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr className="border-b border-slate-100 bg-slate-50/40">
+                          <td 
+                            colSpan={dayColumns.length + 3} 
+                            className="py-2.5 text-center text-slate-400 italic text-[11px]"
+                          >
+                            Chưa có nhân viên nào phát sinh đơn hàng cho hãng {b.brandName}.
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  )}
+                </React.Fragment>
+              );
+            })}
+
+            {/* Empty state when no brands match */}
+            {displayedBrandsData.brandRows.length === 0 && (
               <tr>
                 <td 
                   colSpan={dayColumns.length + 3} 
                   className="py-12 text-center text-slate-400 italic text-[11px]"
                 >
-                  Không có dữ liệu phù hợp với bộ lọc hiện tại.
+                  Không có hãng nào được chọn hoặc dữ liệu không tồn tại. Vui lòng mở lại "Bộ lọc hãng" ở trên.
                 </td>
               </tr>
             )}
@@ -1178,8 +1291,8 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
               </td>
 
               {dayColumns.map(c => {
-                const dayQty = tableData.storeDailyQty[c.dateKey] || 0;
-                const dayRev = tableData.storeDailyRev[c.dateKey] || 0;
+                const dayQty = displayedBrandsData.storeDailyQty[c.dateKey] || 0;
+                const dayRev = displayedBrandsData.storeDailyRev[c.dateKey] || 0;
                 const val = viewMetric === 'qty' ? dayQty : dayRev;
 
                 return (
@@ -1195,8 +1308,8 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
 
               <td className="py-2.5 px-3 text-center font-black text-[14px] border-r border-emerald-300/60 bg-emerald-100/60">
                 {viewMetric === 'qty' 
-                  ? (tableData.grandTotalQty > 0 ? tableData.grandTotalQty : '-')
-                  : (tableData.grandTotalRev > 0 ? `${(tableData.grandTotalRev / 1000000).toFixed(1)} tr` : '-')}
+                  ? (displayedBrandsData.grandTotalQty > 0 ? displayedBrandsData.grandTotalQty : '-')
+                  : (displayedBrandsData.grandTotalRev > 0 ? `${(displayedBrandsData.grandTotalRev / 1000000).toFixed(1)} tr` : '-')}
               </td>
 
               <td className="py-2.5 px-2 text-center font-black text-slate-600 text-[11px]">
@@ -1220,7 +1333,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
             <div className="bg-gradient-to-r from-red-600 to-rose-700 p-4 text-white flex items-center justify-between">
               <div>
                 <h4 className="text-[13px] font-black uppercase tracking-wide">
-                  CHI TIẾT ĐƠN HÀNG HÃNG {selectedBrand}
+                  CHI TIẾT ĐƠN HÀNG HÃNG {selectedDetailCell.brandName}
                 </h4>
                 <p className="text-[10.5px] text-red-100 mt-0.5">
                   👤 <span className="font-bold text-white">{selectedDetailCell.staffName}</span> • 📅 {selectedDetailCell.dateDisplay}
