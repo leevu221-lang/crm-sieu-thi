@@ -157,6 +157,7 @@ interface ReportInputBoxProps {
   colorTheme: 'emerald' | 'amber' | 'blue' | 'teal' | 'orange';
   placeholder?: string;
   onSaveTrigger?: () => void;
+  externalLink?: string;
 }
 
 const ReportInputBox: React.FC<ReportInputBoxProps> = ({
@@ -168,7 +169,8 @@ const ReportInputBox: React.FC<ReportInputBoxProps> = ({
   onClear,
   colorTheme = 'emerald',
   placeholder,
-  onSaveTrigger
+  onSaveTrigger,
+  externalLink
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [tempVal, setTempVal] = useState('');
@@ -296,6 +298,18 @@ const ReportInputBox: React.FC<ReportInputBoxProps> = ({
           <span className={cn("text-sm sm:text-base font-black", textHeaderColor)}>
             {label}
           </span>
+          {externalLink && (
+            <a 
+              href={externalLink} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              onClick={(e) => e.stopPropagation()} 
+              className="text-amber-500 hover:text-amber-600 p-1 rounded-md hover:bg-amber-50 transition-colors inline-flex items-center" 
+              title="Mở báo cáo BI"
+            >
+              <ExternalLink size={13} />
+            </a>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {extractedTime && (
@@ -1095,10 +1109,35 @@ const InputSection: React.FC<InputSectionProps> = ({
               };
 
               const storeFields = [
-                { key: `${storeName}_dt_nv`, label: 'DOANH THU NV', value: cardStaffInput, setter: isActiveCard ? setStaffInput : undefined, biLink: 'https://bi.thegioididong.com/sieu-thi-con?id=16500&tab=bcdtnv&rt=2&dm=1' },
-                { key: `${storeName}_td_nv`, label: 'THI ĐUA NV', value: cardStaffCategoryInput, setter: isActiveCard ? setStaffCategoryInput : undefined },
-                { key: `${storeName}_hq_nv`, label: 'HQ BÁN KÈM NV', value: cardBanKemNv, setter: isActiveCard ? setBanKemNv : undefined },
-                { key: `${storeName}_tragop`, label: 'TRẢ GÓP NV', value: cardTragopNv, setter: isActiveCard ? setTragopNv : undefined },
+                { 
+                  key: `${storeName}_dt_nv`, 
+                  label: 'DOANH THU NV', 
+                  value: cardStaffInput, 
+                  setter: isActiveCard ? setStaffInput : undefined, 
+                  biLink: 'https://bi.thegioididong.com/sieu-thi-con?id=16500&tab=bcdtnv&rt=2&dm=1',
+                  colorTheme: 'emerald' as const
+                },
+                { 
+                  key: `${storeName}_td_nv`, 
+                  label: 'THI ĐUA NV', 
+                  value: cardStaffCategoryInput, 
+                  setter: isActiveCard ? setStaffCategoryInput : undefined,
+                  colorTheme: 'teal' as const
+                },
+                { 
+                  key: `${storeName}_hq_nv`, 
+                  label: 'HQ BÁN KÈM NV', 
+                  value: cardBanKemNv, 
+                  setter: isActiveCard ? setBanKemNv : undefined,
+                  colorTheme: 'amber' as const
+                },
+                { 
+                  key: `${storeName}_tragop`, 
+                  label: 'TRẢ GÓP NV', 
+                  value: cardTragopNv, 
+                  setter: isActiveCard ? setTragopNv : undefined,
+                  colorTheme: 'orange' as const
+                },
               ];
 
               return (
@@ -1137,106 +1176,45 @@ const InputSection: React.FC<InputSectionProps> = ({
                   </div>
 
                   {/* Store Card Body */}
-                  <div className="p-4 sm:p-5 space-y-2.5 bg-white">
-                    {storeFields.map(item => {
-                      const val = item.value || '';
-                      const hasData = !!val;
-                      const handleChange = (v: string) => {
-                        if (!isActiveCard) { handleCardActivate(); return; }
-                        const cleanV = cleanBiReportText(v);
-                        if (item.setter) {
-                          item.setter(cleanV);
-                        }
-                      };
-                      const handleClear = () => {
-                        if (!isActiveCard) return;
-                        if (item.setter) {
-                          if (clearField) clearField(item.setter, item.label);
-                          else item.setter('');
-                          setTimeout(() => onSaveLuyke(true, 'auto', undefined, undefined, item.label), 200);
-                        }
-                      };
+                  <div className="p-4 sm:p-5 space-y-4 bg-white">
+                    {/* Grid 2 cột các ô dữ liệu theo thiết kế Hình 2 */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
+                      {storeFields.map(item => {
+                        const handleChange = (v: string) => {
+                          if (!isActiveCard) { handleCardActivate(); }
+                          const cleanV = cleanBiReportText(v);
+                          if (item.setter) {
+                            item.setter(cleanV);
+                          }
+                        };
+                        const handleClear = () => {
+                          if (!isActiveCard) handleCardActivate();
+                          if (item.setter) {
+                            if (clearField) clearField(item.setter, item.label);
+                            else item.setter('');
+                            setTimeout(() => onSaveLuyke(true, 'auto', undefined, undefined, item.label), 200);
+                          }
+                        };
 
-                      return (
-                        <div key={item.key} className="space-y-1.5">
-                          <button 
-                            onClick={() => { handleCardActivate(); toggleInput(item.key); }}
-                            className={cn(
-                              "w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-2xl border transition-all text-left shadow-xs cursor-pointer active:scale-[0.99]",
-                              expandedInput === item.key ? "border-indigo-400 bg-indigo-50/60 shadow-sm" :
-                              hasData ? "border-emerald-300 bg-gradient-to-r from-emerald-50/60 to-teal-50/40" : "border-slate-200 bg-slate-50/60 hover:bg-slate-50"
-                            )}
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className={cn(
-                                "w-7 h-7 rounded-xl flex items-center justify-center shrink-0 shadow-xs transition-colors",
-                                hasData ? "bg-emerald-600 text-white" : "bg-white border border-slate-200 text-slate-400"
-                              )}>
-                                <Upload size={13} />
-                              </div>
-                              <span className={cn(
-                                "text-xs font-black uppercase tracking-wide truncate",
-                                hasData ? "text-emerald-900" : "text-slate-700"
-                              )}>
-                                {item.label}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              {(item as any).biLink && (
-                                <a 
-                                  href={(item as any).biLink} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer" 
-                                  onClick={(e) => e.stopPropagation()} 
-                                  className="text-amber-500 hover:text-amber-600 p-1 rounded-md hover:bg-amber-50 transition-colors" 
-                                  title="Mở báo cáo BI"
-                                >
-                                  <ExternalLink size={13} />
-                                </a>
-                              )}
-                              {hasData && (
-                                <div 
-                                  onClick={(e) => { e.stopPropagation(); handleClear(); }} 
-                                  className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer" 
-                                  title="Xoá dữ liệu"
-                                >
-                                  <X size={13} />
-                                </div>
-                              )}
-                            </div>
-                          </button>
-
-                          {expandedInput === item.key && isActiveCard && (
-                            <div className="relative w-full">
-                              <textarea 
-                                value={val} 
-                                onFocus={() => {
-                                  focusedInputValRef.current[item.key] = val;
-                                }}
-                                onChange={(e) => handleChange(e.target.value)} 
-                                onPaste={(e) => { e.preventDefault(); const t = e.clipboardData.getData('text'); if (t) { handleChange(t); } }} 
-                                onBlur={() => {
-                                  const prevVal = focusedInputValRef.current[item.key] ?? '';
-                                  if (val === prevVal) {
-                                    // Data didn't change! Skip saving to conserve Firebase writes!
-                                    return;
-                                  }
-                                  focusedInputValRef.current[item.key] = val;
-                                  onSaveLuyke(false, 'auto', undefined, undefined, item.label);
-                                }} 
-                                rows={3} 
-                                autoFocus 
-                                placeholder="Dán dữ liệu (Ctrl + V)..." 
-                                className={cn(
-                                  "w-full bg-white border border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/15 rounded-2xl p-3 text-[13px] outline-none resize-none font-sans font-normal shadow-inner text-slate-800"
-                                )} 
-                              />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                        return (
+                          <ReportInputBox
+                            key={item.key}
+                            id={item.key}
+                            label={item.label}
+                            value={item.value || ''}
+                            externalLink={item.biLink}
+                            colorTheme={item.colorTheme}
+                            onChange={(v) => {
+                              handleChange(v);
+                            }}
+                            onBlur={() => {
+                              onSaveLuyke(false, 'auto', undefined, undefined, item.label);
+                            }}
+                            onClear={handleClear}
+                          />
+                        );
+                      })}
+                    </div>
 
                     {/* Phục vụ upload */}
                     <div className={cn(
