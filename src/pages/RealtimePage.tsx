@@ -2277,11 +2277,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
             setYcxData(rawString);
           }
           // showNotification('Đã xử lý dữ liệu Excel thành công!', 'success'); // Hidden as requested
-          // Wait longer for React re-render + useEffect ref update before saving to Firebase
+          // Save data reliably without long lag
           setTimeout(() => {
             console.log('[YCX Upload] Triggering save to Firebase...');
             saveRealtimeData(false);
-          }, 2500);
+          }, 400);
         } catch (error) {
           console.error(error);
           showNotification('Lỗi khi xử lý file Excel!', 'error');

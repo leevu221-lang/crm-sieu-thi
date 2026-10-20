@@ -40,8 +40,10 @@ export async function compressString(str: string): Promise<string> {
     const buffer = await response.arrayBuffer();
     const bytes = new Uint8Array(buffer);
     let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
+    const CHUNK_SIZE = 8192;
+    for (let i = 0; i < bytes.byteLength; i += CHUNK_SIZE) {
+      const chunk = bytes.subarray(i, i + CHUNK_SIZE);
+      binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
     }
     return 'GZ:' + btoa(binary);
   } catch (err) {
@@ -310,22 +312,80 @@ export const useRealtimeData = (maKho: string) => {
 
   const updateYcxData = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(ycxDataRef.current) : val;
-    // Minify data before setting to prevent Firebase 1MB size limit errors
+    // Minify data before setting to prevent database size limit errors
     const minified = minifyYcxData(newVal);
     ycxDataRef.current = minified;
     isDirtyRef.current = true;
     setYcxData(minified);
     setIsYcxDirty(true);
+
+    const storeKey = normalizeStoreId(activeStoreRef.current || '');
+    if (storeKey) {
+      localYcxDb.get('ycx_' + storeKey).then(existingStr => {
+        let existingObj: any = {};
+        try { if (existingStr) existingObj = JSON.parse(existingStr); } catch {}
+        existingObj.ycx_data = minified;
+        if (ycxFileNameRef.current) existingObj.ycx_file_name = ycxFileNameRef.current;
+        existingObj.updated_at = Date.now();
+        localYcxDb.set('ycx_' + storeKey, JSON.stringify(existingObj)).catch(console.warn);
+      }).catch(console.warn);
+    }
   }, []);
 
   const updateYcxDataMoi = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(ycxDataMoiRef.current) : val;
-    // Minify data before setting to prevent Firebase 1MB size limit errors
+    // Minify data before setting to prevent database size limit errors
     const minified = minifyYcxData(newVal);
     ycxDataMoiRef.current = minified;
     isDirtyRef.current = true;
     setYcxDataMoi(minified);
     setIsYcxDirty(true);
+
+    const storeKey = normalizeStoreId(activeStoreRef.current || '');
+    if (storeKey) {
+      localYcxDb.get('ycx_' + storeKey).then(existingStr => {
+        let existingObj: any = {};
+        try { if (existingStr) existingObj = JSON.parse(existingStr); } catch {}
+        existingObj.ycx_data_moi = minified;
+        if (ycxFileNameMoiRef.current) existingObj.ycx_file_name_moi = ycxFileNameMoiRef.current;
+        existingObj.updated_at = Date.now();
+        localYcxDb.set('ycx_' + storeKey, JSON.stringify(existingObj)).catch(console.warn);
+      }).catch(console.warn);
+    }
+  }, []);
+
+  const updateYcxFileName = useCallback((val: string | ((prev: string) => string)) => {
+    const newVal = typeof val === 'function' ? val(ycxFileNameRef.current) : val;
+    ycxFileNameRef.current = newVal;
+    setYcxFileNameState(newVal);
+
+    const storeKey = normalizeStoreId(activeStoreRef.current || '');
+    if (storeKey) {
+      localYcxDb.get('ycx_' + storeKey).then(existingStr => {
+        let existingObj: any = {};
+        try { if (existingStr) existingObj = JSON.parse(existingStr); } catch {}
+        existingObj.ycx_file_name = newVal;
+        existingObj.updated_at = Date.now();
+        localYcxDb.set('ycx_' + storeKey, JSON.stringify(existingObj)).catch(console.warn);
+      }).catch(console.warn);
+    }
+  }, []);
+
+  const updateYcxFileNameMoi = useCallback((val: string | ((prev: string) => string)) => {
+    const newVal = typeof val === 'function' ? val(ycxFileNameMoiRef.current) : val;
+    ycxFileNameMoiRef.current = newVal;
+    setYcxFileNameMoiState(newVal);
+
+    const storeKey = normalizeStoreId(activeStoreRef.current || '');
+    if (storeKey) {
+      localYcxDb.get('ycx_' + storeKey).then(existingStr => {
+        let existingObj: any = {};
+        try { if (existingStr) existingObj = JSON.parse(existingStr); } catch {}
+        existingObj.ycx_file_name_moi = newVal;
+        existingObj.updated_at = Date.now();
+        localYcxDb.set('ycx_' + storeKey, JSON.stringify(existingObj)).catch(console.warn);
+      }).catch(console.warn);
+    }
   }, []);
 
   const clearField = useCallback((setter: (val: string) => void, fieldName?: string) => {
@@ -532,20 +592,38 @@ export const useRealtimeData = (maKho: string) => {
       }
 
       // Backup locally FIRST to prevent data loss on F5 if payload exceeds Supabase limit
+      const nowTs = Date.now();
       try {
         await localYcxDb.set('ycx_' + normalizeStoreId(cleanStore), JSON.stringify({
-          ycx_data: compressedYcx || '',
-          ycx_data_moi: compressedYcxMoi || '',
+          ycx_data: minifiedYcx || '',
+          ycx_data_moi: minifiedYcxMoi || '',
           ycx_file_name: ycxFileNameVal || '',
-          ycx_file_name_moi: ycxFileNameMoiVal || ''
+          ycx_file_name_moi: ycxFileNameMoiVal || '',
+          updated_at: nowTs
         }));
       } catch (e) {
         console.warn('[RealtimeData] Lỗi lưu LocalDB', e);
       }
 
-      const { error: upsertError } = await supabase
+      let { error: upsertError } = await supabase
         .from('store')
         .upsert(payload, { onConflict: 'id' });
+
+      // If full upsert failed (e.g. payload too large for PostgREST or Supabase limit),
+      // fallback to storing file metadata and __LOCAL_CACHED__ marker to Supabase so DB state is never stale!
+      if (upsertError && (payload.ycx_data || payload.ycx_data_moi)) {
+        console.warn('[RealtimeData] Upsert failed with large payload, retrying with __LOCAL_CACHED__ metadata:', upsertError);
+        const fallbackPayload = { ...payload };
+        if (fallbackPayload.ycx_data) fallbackPayload.ycx_data = '__LOCAL_CACHED__';
+        if (fallbackPayload.ycx_data_moi) fallbackPayload.ycx_data_moi = '__LOCAL_CACHED__';
+        const retryRes = await supabase
+          .from('store')
+          .upsert(fallbackPayload, { onConflict: 'id' });
+        if (!retryRes.error) {
+          upsertError = null;
+          console.log('[RealtimeData] ✓ Fallback metadata successfully saved to Supabase with __LOCAL_CACHED__');
+        }
+      }
 
       if (upsertError) {
         console.error('[RealtimeData] Upsert error:', upsertError);
@@ -619,6 +697,7 @@ export const useRealtimeData = (maKho: string) => {
         }
       }
 
+      setGlobalLastSaveTs(Date.now());
       lastSavedSnapshotRef.current = currentSnapshotKey;
 
       if (!silent) {
@@ -628,7 +707,7 @@ export const useRealtimeData = (maKho: string) => {
       const payloadSize = JSON.stringify(payload).length;
       console.log(`[RealtimeData] Data saved successfully to DB for: ${cleanMaKho} | ycx: ${compressedYcx.length} bytes, ycx_moi: ${compressedYcxMoi.length} bytes, total payload: ${payloadSize} bytes`);
       if (!silent) {
-        const msg = fieldName ? `Dữ liệu ${fieldName} đã được lưu thành công lên Firebase!` : 'Đã lưu dữ liệu Realtime thành công lên Firebase!';
+        const msg = fieldName ? `Dữ liệu ${fieldName} đã được lưu thành công!` : 'Đã lưu dữ liệu Realtime thành công!';
         showNotification(msg, 'success');
       }
     } catch (error: any) {
@@ -636,8 +715,9 @@ export const useRealtimeData = (maKho: string) => {
       let message = fieldName ? `Lỗi lưu dữ liệu ${fieldName}: ${error.message}` : `Lỗi lưu dữ liệu Realtime: ${error.message}`;
       if (error.message?.includes('violates row-level security policy')) {
         message = 'Lỗi bảo mật (RLS): Bạn không có quyền lưu dữ liệu cho siêu thị này hoặc cấu hình Supabase chưa cho phép ghi dữ liệu.';
-      } else if (error.message?.includes('exceeds the maximum allowed size') || error.message?.includes('1,048,576 bytes')) {
-        console.warn('[RealtimeData] Dữ liệu quá lớn vượt 1MB Firestore — giữ dữ liệu thô trong bộ nhớ.');
+      } else if (error.message?.includes('exceeds the maximum allowed size') || error.message?.includes('1,048,576 bytes') || error.message?.includes('Payload Too Large')) {
+        console.warn('[RealtimeData] Dữ liệu quá lớn — đã lưu an toàn vào bộ nhớ máy (LocalDB).');
+        if (!silent) showNotification('File Excel lớn đã được lưu an toàn trên máy của bạn!', 'info');
         return;
       }
       if (!silent) showNotification(message, 'error');
@@ -732,6 +812,7 @@ export const useRealtimeData = (maKho: string) => {
     const sanitizeField = async (val: any) => {
       if (!val) return '';
       let str = String(val).trim();
+      if (str === '__LOCAL_CACHED__') return '';
       if (str.startsWith('GZ:')) {
         try {
           str = await decompressString(str);
@@ -884,20 +965,44 @@ export const useRealtimeData = (maKho: string) => {
           let finalYcxFileName = record.ycx_file_name || '';
           let finalYcxFileNameMoi = record.ycx_file_name_moi || '';
 
-          // If empty (because it was too large to save to DB), try to recover from LocalDB
+          // Check LocalDB cache for newer or locally cached data
           const resolvedDocId = targetDocId || record.id || normalizeStoreId(targetStore);
-          if (!finalYcxData || !finalYcxDataMoi || !finalYcxFileName) {
-            try {
-              const localPayload = await localYcxDb.get('ycx_' + resolvedDocId);
-              if (localPayload) {
-                const parsed = JSON.parse(localPayload);
-                if (!finalYcxData && parsed.ycx_data) finalYcxData = await sanitizeField(parsed.ycx_data);
-                if (!finalYcxDataMoi && parsed.ycx_data_moi) finalYcxDataMoi = await sanitizeField(parsed.ycx_data_moi);
-                if (!finalYcxFileName && parsed.ycx_file_name) finalYcxFileName = parsed.ycx_file_name;
-                if (!finalYcxFileNameMoi && parsed.ycx_file_name_moi) finalYcxFileNameMoi = parsed.ycx_file_name_moi;
-              }
-            } catch (e) {}
+          let localObj: any = null;
+          try {
+            const localPayload = await localYcxDb.get('ycx_' + resolvedDocId);
+            if (localPayload) {
+              localObj = JSON.parse(localPayload);
+            }
+          } catch (e) {}
+
+          const dbUpdatedTime = record.updated_at ? new Date(record.updated_at).getTime() : 0;
+          const localUpdatedTime = localObj?.updated_at || 0;
+
+          // If local data exists and is newer or equal, OR if DB has __LOCAL_CACHED__ or missing data
+          const useLocalYcx = localObj && (
+            localUpdatedTime >= dbUpdatedTime ||
+            record.ycx_data === '__LOCAL_CACHED__' ||
+            !finalYcxData
+          );
+
+          if (useLocalYcx && localObj) {
+            if (localObj.ycx_data) finalYcxData = await sanitizeField(localObj.ycx_data);
+            if (localObj.ycx_file_name) finalYcxFileName = localObj.ycx_file_name;
           }
+
+          const useLocalYcxMoi = localObj && (
+            localUpdatedTime >= dbUpdatedTime ||
+            record.ycx_data_moi === '__LOCAL_CACHED__' ||
+            !finalYcxDataMoi
+          );
+
+          if (useLocalYcxMoi && localObj) {
+            if (localObj.ycx_data_moi) finalYcxDataMoi = await sanitizeField(localObj.ycx_data_moi);
+            if (localObj.ycx_file_name_moi) finalYcxFileNameMoi = localObj.ycx_file_name_moi;
+          }
+
+          if (finalYcxData === '__LOCAL_CACHED__') finalYcxData = '';
+          if (finalYcxDataMoi === '__LOCAL_CACHED__') finalYcxDataMoi = '';
 
           if (finalYcxData) setYcxData(finalYcxData);
           if (finalYcxDataMoi) setYcxDataMoi(finalYcxDataMoi);
@@ -928,8 +1033,14 @@ export const useRealtimeData = (maKho: string) => {
             const localPayload = await localYcxDb.get('ycx_' + targetDocId);
             if (localPayload) {
               const parsed = JSON.parse(localPayload);
-              if (parsed.ycx_data) setYcxData(await sanitizeField(parsed.ycx_data));
-              if (parsed.ycx_data_moi) setYcxDataMoi(await sanitizeField(parsed.ycx_data_moi));
+              if (parsed.ycx_data) {
+                const val = await sanitizeField(parsed.ycx_data);
+                if (val && val !== '__LOCAL_CACHED__') setYcxData(val);
+              }
+              if (parsed.ycx_data_moi) {
+                const val = await sanitizeField(parsed.ycx_data_moi);
+                if (val && val !== '__LOCAL_CACHED__') setYcxDataMoi(val);
+              }
               if (parsed.ycx_file_name) setYcxFileNameState(parsed.ycx_file_name);
               if (parsed.ycx_file_name_moi) setYcxFileNameMoiState(parsed.ycx_file_name_moi);
             }
@@ -981,7 +1092,7 @@ export const useRealtimeData = (maKho: string) => {
         },
         (payload: any) => {
           // console.log('[RTST] Realtime update received from DB:', payload);
-          if (skipSubscriptionRef.current || (Date.now() - globalLastSaveTimestampMs < 3000) || isDirtyRef.current) {
+          if (skipSubscriptionRef.current || (Date.now() - globalLastSaveTimestampMs < 5000) || isDirtyRef.current) {
             return;
           }
           if (payload.new) {
@@ -1003,6 +1114,7 @@ export const useRealtimeData = (maKho: string) => {
             const sanitizeField = async (val: any) => {
               if (!val) return '';
               let str = String(val).trim();
+              if (str === '__LOCAL_CACHED__') return '';
               if (str.startsWith('GZ:')) {
                 try {
                   str = await decompressString(str);
@@ -1015,10 +1127,13 @@ export const useRealtimeData = (maKho: string) => {
             };
 
             if (isMoiRecord) {
-              if (record.ycx_data_moi !== undefined) {
+              if (record.ycx_data_moi !== undefined && record.ycx_data_moi !== '__LOCAL_CACHED__') {
                 sanitizeField(record.ycx_data_moi).then(val => {
-                  setYcxDataMoi(prev => (prev !== val ? val : prev));
+                  if (val) setYcxDataMoi(prev => (prev !== val ? val : prev));
                 });
+              }
+              if (record.ycx_file_name_moi) {
+                setYcxFileNameMoiState(record.ycx_file_name_moi);
               }
             } else {
               if (record.rt_bi_tong_quan !== undefined) {
@@ -1043,10 +1158,13 @@ export const useRealtimeData = (maKho: string) => {
                   if (val) setCategoryTargetInput(prev => (prev !== val ? val : prev));
                 });
               }
-              if (record.ycx_data !== undefined) {
+              if (record.ycx_data !== undefined && record.ycx_data !== '__LOCAL_CACHED__') {
                 sanitizeField(record.ycx_data).then(val => {
-                  setYcxData(prev => (prev !== val ? val : prev));
+                  if (val) setYcxData(prev => (prev !== val ? val : prev));
                 });
+              }
+              if (record.ycx_file_name) {
+                setYcxFileNameState(record.ycx_file_name);
               }
             }
           }
@@ -1070,36 +1188,15 @@ export const useRealtimeData = (maKho: string) => {
     clearData(); // Clear old data first
     setIsLoadingRealtime(true);
     try {
-      // Query directly using the selected store name as the unique document ID
-      const { data, error } = await supabase
-        .from('store')
-        .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ycx_data_moi, ycx_file_name, ycx_file_name_moi, ten_sieu_thi, updated_at')
-        .eq('id', normalizeStoreId(activeStore.trim()))
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (data) {
-        setMarketInput(data.rt_bi_tong_quan || '');
-        setCategoryInput(data.rt_nh_cum || '');
-        setCategoryRevenueInput(data.lk_bi_tong_quan || '');
-        setCategoryTargetInput(data.lk_nh_sieu_thi || '');
-        setYcxData(data.ycx_data || '');
-        setYcxDataMoi(data.ycx_data_moi || '');
-        // Restore file names from Firebase
-        setYcxFileNameState(data.ycx_file_name || '');
-        setYcxFileNameMoiState(data.ycx_file_name_moi || '');
-      } else {
-        showNotification('Không tìm thấy dữ liệu Realtime để đồng bộ.', 'error');
-      }
-
+      await loadDataForStore(activeStore);
+      showNotification('Đã đồng bộ dữ liệu Realtime thành công!', 'success');
     } catch (error: any) {
       console.error('Lỗi đồng bộ dữ liệu Realtime:', error);
       showNotification(`Lỗi đồng bộ dữ liệu Realtime: ${error.message}`, 'error');
     } finally {
       setIsLoadingRealtime(false);
     }
-  }, [normalizedMaKho, activeStore, handleProcess, showNotification, clearData]);
+  }, [normalizedMaKho, activeStore, loadDataForStore, showNotification, clearData]);
 
   // Synchronous setters to prevent stale closures during rapid paste/blur events
   const setMarketInputSync = useCallback((val: string | ((prev: string) => string)) => {
@@ -1214,8 +1311,8 @@ export const useRealtimeData = (maKho: string) => {
     categoryInput, setCategoryInput: setCategoryInputSync,
     ycxData, setYcxData: updateYcxData,
     ycxDataMoi, setYcxDataMoi: updateYcxDataMoi,
-    ycxFileName, setYcxFileName: setYcxFileNameState,
-    ycxFileNameMoi, setYcxFileNameMoi: setYcxFileNameMoiState,
+    ycxFileName, setYcxFileName: updateYcxFileName,
+    ycxFileNameMoi, setYcxFileNameMoi: updateYcxFileNameMoi,
     categoryRevenueInput, setCategoryRevenueInput: setCategoryRevenueInputSync,
     categoryTargetInput, setCategoryTargetInput: setCategoryTargetInputSync,
     activeStore, setActiveStore,

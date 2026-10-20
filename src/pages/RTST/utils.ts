@@ -2437,30 +2437,30 @@ export const minifyYcxData = (data: string): string => {
   const colKhachHang = idxKhachHang !== -1 ? idxKhachHang : 16;
   const colDienThoai = idxDienThoai !== -1 ? idxDienThoai : 17;
 
-  // Lọc ra danh sách các cột cần giữ lại nội dung
+  // Lọc ra danh sách các cột thực sự cần thiết cho hệ thống tính toán & hiển thị
   const essentialCols = [
     colType, colMethod, colStatus, colStaffName, colStaffId,
     colRevenue, colGiaBan2, colNganhHang, colProduct, colQty, colMarket, colColumnAO, colReturnStatus,
-    colMaYcx, colNgayTao, colKhachHang, colDienThoai,
+    colMaYcx, colNgayTao,
     idxSmallCat, idxProductCode, idxNhaSanXuat, idxThuTien,
     idxDtqdCol, idxDtThucCol, idxImei, idxCtkm,
     35, 36, 37, 38, 39, 40 // Cố định giữ các cột: AJ (IMEI), AK (GIÁ BÁN), AL (GIÁ BÁN_2), AM (CTKM), AN (NGÀNH HÀNG), AO (NHÓM HÀNG)
   ];
   const keepIndices = new Set(essentialCols.filter(i => i !== -1 && i !== undefined));
+  const maxKeepIdx = Math.max(40, ...Array.from(keepIndices));
 
   const validRows = [];
   // Giữ nguyên dòng tiêu đề (Header) và các dòng bên trên
   for (let i = 0; i <= headerIdx; i++) {
-    validRows.push(rows[i]);
+    validRows.push(rows[i].slice(0, maxKeepIdx + 1));
   }
 
-  // Tối ưu siêu mạnh: XOÁ TRẮNG (null out) nội dung của các cột KHÔNG QUAN TRỌNG.
-  // Mặc dù mảng vẫn giữ nguyên số lượng cột để không phá vỡ UI Bảng Gốc,
-  // nhưng các chuỗi rỗng ('') sẽ được GZIP nén lại chỉ còn vài bytes! Giúp vượt qua giới hạn 1MB của Supabase.
+  // Tối ưu siêu mạnh: XOÁ TRẮNG (null out) nội dung của các cột KHÔNG QUAN TRỌNG
+  // và cắt bỏ toàn bộ các cột thừa phía sau maxKeepIdx để giảm kích thước payload tối đa
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const cols = rows[i];
     if (!cols || cols.length < 3) continue;
-    validRows.push(cols.map((val, idx) => keepIndices.has(idx) ? val : ''));
+    validRows.push(cols.slice(0, maxKeepIdx + 1).map((val, idx) => keepIndices.has(idx) ? val : ''));
   }
 
   try {
