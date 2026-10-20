@@ -3,8 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
+import confetti from 'canvas-confetti';
 import { 
   Monitor, 
   Smartphone, 
@@ -31,7 +32,10 @@ import {
   X,
   Upload,
   UploadCloud,
-  Target
+  Target,
+  Clock,
+  Unlock,
+  Trash2
 } from 'lucide-react';
 import { cn, formatShortCurrency } from '../utils';
 import { cleanBiReportText } from '../../../utils/rtstHelpers';
@@ -142,6 +146,248 @@ interface InputSectionProps {
     categoryTargets: any[];
   }>;
 }
+
+interface ReportInputBoxProps {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  onBlur?: () => void;
+  onClear: () => void;
+  colorTheme: 'emerald' | 'amber' | 'blue' | 'teal' | 'orange';
+  placeholder?: string;
+  onSaveTrigger?: () => void;
+}
+
+const ReportInputBox: React.FC<ReportInputBoxProps> = ({
+  id,
+  label,
+  value,
+  onChange,
+  onBlur,
+  onClear,
+  colorTheme = 'emerald',
+  placeholder,
+  onSaveTrigger
+}) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [tempVal, setTempVal] = useState('');
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  // Tự động đóng/khóa khi click ra ngoài
+  useEffect(() => {
+    if (!isEditing) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) {
+        setIsEditing(false);
+        setTempVal('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isEditing]);
+
+  // Trích xuất thời gian cập nhật từ text (nếu có dạng "Cập nhật lúc: 20:49:40")
+  const extractedTime = useMemo(() => {
+    if (!value) return '';
+    const match = value.match(/Cập nhật lúc:\s*([^\n\r]+)/i);
+    if (match) {
+      const raw = match[1].trim();
+      const tMatch = raw.match(/(\d{1,2}:\d{2}:\d{2})/);
+      return tMatch ? tMatch[1] : raw.substring(0, 15);
+    }
+    return '';
+  }, [value]);
+
+  const lineCount = useMemo(() => {
+    if (!value || !value.trim()) return 0;
+    return value.trim().split('\n').filter(Boolean).length;
+  }, [value]);
+
+  const hasData = !!(value && value.trim());
+
+  const handleSaveAndLock = (text: string) => {
+    if (!text || !text.trim()) {
+      setIsEditing(false);
+      setTempVal('');
+      return;
+    }
+    onChange(text);
+    setTimeout(() => {
+      if (onBlur) onBlur();
+      if (onSaveTrigger) onSaveTrigger();
+      try {
+        confetti({
+          particleCount: 65,
+          spread: 60,
+          origin: { y: 0.6 }
+        });
+      } catch (e) {}
+    }, 50);
+    setIsEditing(false);
+    setTempVal('');
+  };
+
+  // Màu sắc theo chủ đề
+  const isEmerald = colorTheme === 'emerald';
+  const isTeal = colorTheme === 'teal';
+  const isAmber = colorTheme === 'amber';
+  const isOrange = colorTheme === 'orange';
+
+  const textHeaderColor = isEmerald 
+    ? 'text-emerald-700' 
+    : isTeal 
+    ? 'text-teal-700' 
+    : isAmber 
+    ? 'text-amber-700' 
+    : isOrange 
+    ? 'text-orange-700' 
+    : 'text-blue-700';
+
+  const iconColor = isEmerald 
+    ? 'text-emerald-600' 
+    : isTeal 
+    ? 'text-teal-600' 
+    : isAmber 
+    ? 'text-amber-500' 
+    : isOrange 
+    ? 'text-orange-500' 
+    : 'text-blue-600';
+
+  const badgeTimeColor = (isEmerald || isTeal)
+    ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80' 
+    : (isAmber || isOrange)
+    ? 'bg-amber-50 text-amber-700 border-amber-200/80' 
+    : 'bg-blue-50 text-blue-700 border-blue-200/80';
+
+  const badgeCountColor = (isEmerald || isTeal)
+    ? 'bg-emerald-100 text-emerald-800'
+    : (isAmber || isOrange)
+    ? 'bg-amber-100 text-amber-800'
+    : 'bg-blue-100 text-blue-800';
+
+  const buttonBgColor = isEmerald
+    ? 'bg-[#00825e] hover:bg-[#006e50]'
+    : isTeal
+    ? 'bg-teal-600 hover:bg-teal-700'
+    : isAmber
+    ? 'bg-amber-500 hover:bg-amber-600'
+    : isOrange
+    ? 'bg-orange-500 hover:bg-orange-600'
+    : 'bg-blue-600 hover:bg-blue-700';
+
+  const boxBorderHover = (isEmerald || isTeal)
+    ? 'bg-emerald-50/70 hover:bg-emerald-100/80 border-emerald-200/90'
+    : (isAmber || isOrange)
+    ? 'bg-amber-50/70 hover:bg-amber-100/80 border-amber-200/90'
+    : 'bg-blue-50/70 hover:bg-blue-100/80 border-blue-200/90';
+
+  const borderEditColor = (isEmerald || isTeal) ? 'border-emerald-400' : 'border-amber-400';
+
+  return (
+    <div 
+      ref={boxRef} 
+      className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 space-y-3 shadow-2xs h-full flex flex-col justify-between"
+    >
+      {/* Header ô dữ liệu */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Globe size={18} className={cn(iconColor, "shrink-0")} />
+          <span className={cn("text-sm sm:text-base font-black", textHeaderColor)}>
+            {label}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {extractedTime && (
+            <span className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] sm:text-xs font-bold", badgeTimeColor)}>
+              <Clock size={13} />
+              Cập nhật: {extractedTime}
+            </span>
+          )}
+          <span className={cn("inline-flex items-center px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-black", badgeCountColor)}>
+            {hasData ? `${lineCount} dòng` : 'Chưa có dữ liệu'}
+          </span>
+        </div>
+      </div>
+
+      {/* Trạng thái Khóa / Mở dán mới */}
+      {!isEditing ? (
+        <div 
+          onClick={() => {
+            setIsEditing(true);
+            setTempVal('');
+          }}
+          className={cn(
+            "border rounded-2xl p-2 sm:p-2.5 flex items-center justify-center cursor-pointer transition-all active:scale-[0.99] group select-none",
+            boxBorderHover
+          )}
+          title="Click vào bất kỳ vị trí nào trong ô này để mở dán mới"
+        >
+          <button
+            type="button"
+            className={cn(
+              "w-full inline-flex items-center justify-center gap-2 py-2 px-4 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all pointer-events-none cursor-pointer",
+              buttonBgColor
+            )}
+          >
+            <Unlock size={15} />
+            <span>Mở dán mới</span>
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3 pt-1">
+          <textarea
+            value={tempVal}
+            onPaste={(e) => {
+              const text = e.clipboardData?.getData('text');
+              if (text && text.trim()) {
+                e.preventDefault();
+                handleSaveAndLock(text);
+              }
+            }}
+            onChange={(e) => {
+              const val = e.target.value;
+              setTempVal(val);
+              if (val && val.trim()) {
+                handleSaveAndLock(val);
+              }
+            }}
+            placeholder={placeholder || `Dán toàn bộ dữ liệu báo cáo ${label} tại đây... (Tự động Khóa & Lưu ngay khi dán)`}
+            rows={5}
+            autoFocus
+            className={cn(
+              "w-full p-3.5 bg-white border-2 rounded-2xl text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-hidden transition-all resize-y",
+              borderEditColor
+            )}
+          />
+
+          <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
+            <span className="text-[11px] text-slate-400 font-medium">
+              💡 Tự động <b>Khóa &amp; Lưu</b> ngay khi dán • Click ra ngoài để đóng
+            </span>
+
+            {hasData && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(`Bạn có chắc muốn xóa trắng hoàn toàn dữ liệu ${label}?`)) {
+                    onClear();
+                    setIsEditing(false);
+                    setTempVal('');
+                  }
+                }}
+                className="inline-flex items-center justify-center gap-1 px-2.5 py-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg text-[11px] font-bold cursor-pointer transition-all"
+              >
+                <Trash2 size={12} />
+                <span>Xóa Trắng</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const InputSection: React.FC<InputSectionProps> = ({
   marketInput, setMarketInput,
@@ -527,11 +773,20 @@ const InputSection: React.FC<InputSectionProps> = ({
                 reportUrl: 'https://baocao.dienmayxanh.com/dashboard/revenue-consolidated',
                 reportLabel: 'LINK REPORT DT',
                 items: [
-                  { id: 'rt_market', label: 'REALTIME DT', value: marketInput, onChange: setMarketInput, onBlur: () => onSaveRealtime(false, 'REALTIME DT'), hasData: !!marketInput },
+                  { 
+                    id: 'rt_market', 
+                    label: 'REALTIME DT', 
+                    value: marketInput, 
+                    onChange: setMarketInput, 
+                    onBlur: () => onSaveRealtime(false, 'REALTIME DT'), 
+                    hasData: !!marketInput,
+                    colorTheme: 'emerald'
+                  },
                   { 
                     id: 'rt_catrev', 
                     label: 'LUỸ KẾ DT', 
                     value: clusterSummaryInput || categoryRevenueInput, 
+                    colorTheme: 'teal',
                     onChange: (val: string) => { 
                       setCategoryRevenueInput(val); 
                       setClusterSummaryInput(val); 
@@ -578,11 +833,20 @@ const InputSection: React.FC<InputSectionProps> = ({
                 reportUrl: 'https://baocao.dienmayxanh.com/dashboard/thi-dua',
                 reportLabel: 'LINK REPORT TĐ',
                 items: [
-                  { id: 'rt_cat', label: 'REALTIME TĐ', value: categoryInput, onChange: setCategoryInput, onBlur: () => onSaveRealtime(false, 'REALTIME TĐ'), hasData: !!categoryInput },
+                  { 
+                    id: 'rt_cat', 
+                    label: 'REALTIME TĐ', 
+                    value: categoryInput, 
+                    onChange: setCategoryInput, 
+                    onBlur: () => onSaveRealtime(false, 'REALTIME TĐ'), 
+                    hasData: !!categoryInput,
+                    colorTheme: 'amber'
+                  },
                   { 
                     id: 'rt_catlk', 
                     label: 'LUỸ KẾ TĐ', 
                     value: categoryTargetInput || clusterCategoryInput, 
+                    colorTheme: 'orange',
                     onChange: (val: string) => { 
                       setCategoryTargetInput(val); 
                       setClusterCategoryInput && setClusterCategoryInput(val); 
@@ -629,115 +893,55 @@ const InputSection: React.FC<InputSectionProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {group.items.map(item => (
-                    <div key={item.id} className="flex flex-col gap-2">
-                      <div className={cn(
-                        "w-full flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-2xl border transition-all text-left shadow-xs",
-                        item.hasData 
-                          ? group.activeColor === 'emerald'
-                            ? "border-emerald-300 bg-gradient-to-r from-emerald-50/70 to-teal-50/50" 
-                            : "border-amber-300 bg-gradient-to-r from-amber-50/70 to-orange-50/50"
-                          : "border-slate-200 bg-slate-50/70 hover:bg-slate-50"
-                      )}>
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className={cn(
-                            "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-xs transition-colors",
-                            item.hasData 
-                              ? group.activeColor === 'emerald' ? "bg-emerald-600 text-white" : "bg-amber-500 text-white"
-                              : "bg-white border border-slate-200 text-slate-400"
-                          )}>
-                            <Globe size={15} />
-                          </div>
-                          <div className="min-w-0">
-                            <span className={cn(
-                              "text-xs font-black uppercase tracking-wide block truncate",
-                              item.hasData 
-                                ? group.activeColor === 'emerald' ? "text-emerald-900" : "text-amber-900"
-                                : "text-slate-600"
-                            )}>
-                              {item.label}
-                            </span>
-                            {item.hasData && (
-                              <span className={cn(
-                                "text-[9px] font-extrabold uppercase",
-                                group.activeColor === 'emerald' ? "text-emerald-600" : "text-amber-600"
-                              )}>
-                                ✓ ĐÃ NẠP DỮ LIỆU
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {item.hasData && (
-                          <button 
-                            onClick={(e) => { 
-                              e.stopPropagation(); 
-                              if (item.label === 'REALTIME DT') {
-                                setMarketInput('');
-                                if (clearField) clearField(setMarketInput, 'REALTIME DT');
-                                else onSaveRealtime(true, 'REALTIME DT');
-                              } else if (item.label === 'LUỸ KẾ DT') {
-                                setCategoryRevenueInput('');
-                                setClusterSummaryInput('');
-                                try {
-                                  localStorage.removeItem('rt_catrev');
-                                  localStorage.removeItem('rtst_cluster_summary');
-                                  localStorage.removeItem('rtst_catrev');
-                                } catch {}
-                                if (clearField) clearField(setCategoryRevenueInput, 'LUỸ KẾ DT');
-                                else {
-                                  onSaveRealtime(true, 'LUỸ KẾ DT');
-                                  onSaveLuyke(true, 'auto', undefined, undefined, 'LUỸ KẾ DT');
-                                }
-                              } else if (item.label === 'REALTIME TĐ') {
-                                setCategoryInput('');
-                                if (clearField) clearField(setCategoryInput, 'REALTIME TĐ');
-                                else onSaveRealtime(true, 'REALTIME TĐ');
-                              } else if (item.label === 'LUỸ KẾ TĐ') {
-                                setCategoryTargetInput('');
-                                if (setClusterCategoryInput) setClusterCategoryInput('');
-                                try {
-                                  localStorage.removeItem('rt_catlk');
-                                  localStorage.removeItem('rtst_catlk');
-                                  localStorage.removeItem('rtst_cluster_category');
-                                } catch {}
-                                if (clearField) clearField(setCategoryTargetInput, 'LUỸ KẾ TĐ');
-                                else {
-                                  onSaveRealtime(true, 'LUỸ KẾ TĐ');
-                                  onSaveLuyke(true, 'auto', undefined, undefined, 'LUỸ KẾ TĐ');
-                                }
-                              } else {
-                                if (clearField) clearField(item.onChange, item.label);
-                                else item.onChange('');
-                              }
-                            }} 
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all shrink-0 cursor-pointer border border-transparent hover:border-rose-200" 
-                            title="Xoá dữ liệu ô này"
-                          >
-                            <X size={14} />
-                          </button>
-                        )}
-                      </div>
-
-                      <textarea
-                        value={item.value}
-                        onChange={(e) => item.onChange(e.target.value)}
-                        onPaste={(e) => {
-                          e.preventDefault();
-                          const pastedText = e.clipboardData.getData('text');
-                          if (pastedText) {
-                            item.onChange(pastedText);
-                            setTimeout(() => {
-                              if (item.onBlur) item.onBlur();
-                              if (onSaveRealtime) onSaveRealtime(true);
-                            }, 50);
+                    <ReportInputBox
+                      key={item.id}
+                      id={item.id}
+                      label={item.label}
+                      value={item.value}
+                      onChange={item.onChange}
+                      onBlur={item.onBlur}
+                      colorTheme={item.colorTheme as any}
+                      onClear={() => {
+                        if (item.label === 'REALTIME DT') {
+                          setMarketInput('');
+                          if (clearField) clearField(setMarketInput, 'REALTIME DT');
+                          else onSaveRealtime(true, 'REALTIME DT');
+                        } else if (item.label === 'LUỸ KẾ DT') {
+                          setCategoryRevenueInput('');
+                          setClusterSummaryInput('');
+                          try {
+                            localStorage.removeItem('rt_catrev');
+                            localStorage.removeItem('rtst_cluster_summary');
+                            localStorage.removeItem('rtst_catrev');
+                          } catch {}
+                          if (clearField) clearField(setCategoryRevenueInput, 'LUỸ KẾ DT');
+                          else {
+                            onSaveRealtime(true, 'LUỸ KẾ DT');
+                            onSaveLuyke(true, 'auto', undefined, undefined, 'LUỸ KẾ DT');
                           }
-                        }}
-                        onBlur={item.onBlur}
-                        rows={3}
-                        placeholder="Dán dữ liệu (Ctrl + V) tại đây..."
-                        className="w-full bg-white border border-slate-200 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/15 rounded-2xl p-3 text-[13px] outline-none resize-none font-sans font-normal text-slate-800 transition-all shadow-inner placeholder:text-slate-300 placeholder:text-xs"
-                      />
-                    </div>
+                        } else if (item.label === 'REALTIME TĐ') {
+                          setCategoryInput('');
+                          if (clearField) clearField(setCategoryInput, 'REALTIME TĐ');
+                          else onSaveRealtime(true, 'REALTIME TĐ');
+                        } else if (item.label === 'LUỸ KẾ TĐ') {
+                          setCategoryTargetInput('');
+                          if (setClusterCategoryInput) setClusterCategoryInput('');
+                          try {
+                            localStorage.removeItem('rt_catlk');
+                            localStorage.removeItem('rtst_catlk');
+                            localStorage.removeItem('rtst_cluster_category');
+                          } catch {}
+                          if (clearField) clearField(setCategoryTargetInput, 'LUỸ KẾ TĐ');
+                          else {
+                            onSaveRealtime(true, 'LUỸ KẾ TĐ');
+                            onSaveLuyke(true, 'auto', undefined, undefined, 'LUỸ KẾ TĐ');
+                          }
+                        } else {
+                          if (clearField) clearField(item.onChange, item.label);
+                          else item.onChange('');
+                        }
+                      }}
+                    />
                   ))}
                 </div>
 
