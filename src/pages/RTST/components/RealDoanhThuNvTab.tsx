@@ -35,6 +35,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
 import AutoFitTable from '../../../components/AutoFitTable';
+import confetti from 'canvas-confetti';
 
 export { DEFAULT_RAW_MWG_DATA_1841 } from '../data/defaultMwgRaw1841';
 import { DEFAULT_RAW_MWG_DATA_1841 } from '../data/defaultMwgRaw1841';
@@ -536,6 +537,59 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       localStorage.setItem(`real_dthu_nv_raw_thuc_${cleanStore}`, text);
     } catch (e) {}
     triggerCloudSave(rawInput, text, immediate);
+  };
+
+  // Hiệu ứng pháo giấy tung bay chúc mừng
+  const fireConfetti = () => {
+    try {
+      // 1. Pháo bên trái
+      confetti({
+        particleCount: 65,
+        angle: 60,
+        spread: 60,
+        origin: { x: 0.15, y: 0.75 },
+        colors: ['#2563eb', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#38bdf8']
+      });
+      // 2. Pháo bên phải
+      confetti({
+        particleCount: 65,
+        angle: 120,
+        spread: 60,
+        origin: { x: 0.85, y: 0.75 },
+        colors: ['#2563eb', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#38bdf8']
+      });
+      // 3. Pháo trung tâm tung bay rực rỡ
+      setTimeout(() => {
+        confetti({
+          particleCount: 90,
+          spread: 110,
+          origin: { x: 0.5, y: 0.5 },
+          colors: ['#3b82f6', '#10b981', '#fbbf24', '#f43f5e', '#a855f7', '#06b6d4']
+        });
+      }, 120);
+    } catch (e) {
+      console.warn('Confetti error:', e);
+    }
+  };
+
+  // Lưu và khóa D.Thu Thực kèm hiệu ứng pháo giấy
+  const handleSaveAndLockThuc = (text: string) => {
+    if (text && text.trim()) {
+      handleSaveDataThuc(text, true);
+      fireConfetti();
+    }
+    setIsEditingThuc(false);
+    setTempThuc('');
+  };
+
+  // Lưu và khóa D.Thu Quy Đổi kèm hiệu ứng pháo giấy
+  const handleSaveAndLockQd = (text: string) => {
+    if (text && text.trim()) {
+      handleSaveData(text, true);
+      fireConfetti();
+    }
+    setIsEditingQd(false);
+    setTempQd('');
   };
 
   const handlePasteClipboard = async () => {
@@ -1079,18 +1133,14 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                   const text = e.clipboardData?.getData('text');
                   if (text && text.trim()) {
                     e.preventDefault();
-                    handleSaveDataThuc(text, true);
-                    setIsEditingThuc(false);
-                    setTempThuc('');
+                    handleSaveAndLockThuc(text);
                   }
                 }}
                 onChange={(e) => {
                   const val = e.target.value;
                   setTempThuc(val);
                   if (val && val.trim()) {
-                    handleSaveDataThuc(val, true);
-                    setIsEditingThuc(false);
-                    setTempThuc('');
+                    handleSaveAndLockThuc(val);
                   }
                 }}
                 placeholder="Dán toàn bộ dữ liệu báo cáo DOANH THU THỰC tại đây... (Tự động Khóa & Lưu ngay khi dán)"
@@ -1108,9 +1158,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                       try {
                         const clip = await navigator.clipboard.readText();
                         if (clip && clip.trim()) {
-                          handleSaveDataThuc(clip, true);
-                          setIsEditingThuc(false);
-                          setTempThuc('');
+                          handleSaveAndLockThuc(clip);
                         } else {
                           alert('Clipboard trống hoặc không có nội dung!');
                         }
@@ -1128,11 +1176,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      if (tempThuc.trim()) {
-                        handleSaveDataThuc(tempThuc, true);
-                      }
-                      setIsEditingThuc(false);
-                      setTempThuc('');
+                      handleSaveAndLockThuc(tempThuc);
                     }}
                     className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider shadow-xs cursor-pointer transition-all active:scale-95"
                   >
@@ -1229,18 +1273,14 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                   const text = e.clipboardData?.getData('text');
                   if (text && text.trim()) {
                     e.preventDefault();
-                    handleSaveData(text, true);
-                    setIsEditingQd(false);
-                    setTempQd('');
+                    handleSaveAndLockQd(text);
                   }
                 }}
                 onChange={(e) => {
                   const val = e.target.value;
                   setTempQd(val);
                   if (val && val.trim()) {
-                    handleSaveData(val, true);
-                    setIsEditingQd(false);
-                    setTempQd('');
+                    handleSaveAndLockQd(val);
                   }
                 }}
                 placeholder="Dán toàn bộ dữ liệu báo cáo DOANH THU QUY ĐỔI tại đây... (Tự động Khóa & Lưu ngay khi dán)"
@@ -1258,9 +1298,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                       try {
                         const clip = await navigator.clipboard.readText();
                         if (clip && clip.trim()) {
-                          handleSaveData(clip, true);
-                          setIsEditingQd(false);
-                          setTempQd('');
+                          handleSaveAndLockQd(clip);
                         } else {
                           alert('Clipboard trống hoặc không có nội dung!');
                         }
@@ -1278,9 +1316,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      handleSaveData(DEFAULT_RAW_MWG_DATA_1841, true);
-                      setIsEditingQd(false);
-                      setTempQd('');
+                      handleSaveAndLockQd(DEFAULT_RAW_MWG_DATA_1841);
                     }}
                     className="inline-flex items-center justify-center gap-1 px-2.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-[11px] sm:text-xs font-bold cursor-pointer transition-all active:scale-95"
                     title="Nạp dữ liệu mẫu mới nhất ngày 20/10 (198 Tr)"
@@ -1293,11 +1329,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      if (tempQd.trim()) {
-                        handleSaveData(tempQd, true);
-                      }
-                      setIsEditingQd(false);
-                      setTempQd('');
+                      handleSaveAndLockQd(tempQd);
                     }}
                     className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider shadow-xs cursor-pointer transition-all active:scale-95"
                   >
