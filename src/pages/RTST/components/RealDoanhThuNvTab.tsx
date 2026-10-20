@@ -1075,8 +1075,25 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
             <div className="space-y-3 pt-1">
               <textarea
                 value={tempThuc}
-                onChange={e => setTempThuc(e.target.value)}
-                placeholder="Dán toàn bộ dữ liệu báo cáo DOANH THU THỰC tại đây... (Nếu không dán dữ liệu mới, bấm Hủy để giữ nguyên)"
+                onPaste={(e) => {
+                  const text = e.clipboardData?.getData('text');
+                  if (text && text.trim()) {
+                    e.preventDefault();
+                    handleSaveDataThuc(text, true);
+                    setIsEditingThuc(false);
+                    setTempThuc('');
+                  }
+                }}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setTempThuc(val);
+                  if (val && val.trim()) {
+                    handleSaveDataThuc(val, true);
+                    setIsEditingThuc(false);
+                    setTempThuc('');
+                  }
+                }}
+                placeholder="Dán toàn bộ dữ liệu báo cáo DOANH THU THỰC tại đây... (Tự động Khóa & Lưu ngay khi dán)"
                 rows={5}
                 autoFocus
                 className="w-full p-3.5 bg-white border-2 border-blue-400 rounded-2xl text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-200 transition-all resize-y"
@@ -1208,8 +1225,25 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
             <div className="space-y-3 pt-1">
               <textarea
                 value={tempQd}
-                onChange={e => setTempQd(e.target.value)}
-                placeholder="Dán toàn bộ dữ liệu báo cáo DOANH THU QUY ĐỔI tại đây... (Nếu không dán dữ liệu mới, bấm Hủy để giữ nguyên)"
+                onPaste={(e) => {
+                  const text = e.clipboardData?.getData('text');
+                  if (text && text.trim()) {
+                    e.preventDefault();
+                    handleSaveData(text, true);
+                    setIsEditingQd(false);
+                    setTempQd('');
+                  }
+                }}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setTempQd(val);
+                  if (val && val.trim()) {
+                    handleSaveData(val, true);
+                    setIsEditingQd(false);
+                    setTempQd('');
+                  }
+                }}
+                placeholder="Dán toàn bộ dữ liệu báo cáo DOANH THU QUY ĐỔI tại đây... (Tự động Khóa & Lưu ngay khi dán)"
                 rows={5}
                 autoFocus
                 className="w-full p-3.5 bg-white border-2 border-emerald-400 rounded-2xl text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-200 transition-all resize-y"
