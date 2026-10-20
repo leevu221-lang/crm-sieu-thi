@@ -1177,8 +1177,8 @@ const InputSection: React.FC<InputSectionProps> = ({
 
                   {/* Store Card Body */}
                   <div className="p-4 sm:p-5 space-y-4 bg-white">
-                    {/* Grid 2 cột các ô dữ liệu theo thiết kế Hình 2 */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
+                    {/* Bố cục 1 cột các ô dữ liệu theo thiết kế Hình 2 */}
+                    <div className="grid grid-cols-1 gap-3.5">
                       {storeFields.map(item => {
                         const handleChange = (v: string) => {
                           if (!isActiveCard) { handleCardActivate(); }
