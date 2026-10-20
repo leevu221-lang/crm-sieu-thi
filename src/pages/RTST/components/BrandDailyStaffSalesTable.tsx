@@ -1143,20 +1143,26 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                       const qty = b.dailyQty[c.dateKey] || 0;
                       const rev = b.dailyRev[c.dateKey] || 0;
                       const val = viewMetric === 'qty' ? qty : rev;
+                      const isEmpty = val <= 0;
 
                       return (
-                        <td key={c.dateKey} className="py-2 px-1 text-center border-r border-slate-200/50 text-[13px]">
+                        <td 
+                          key={c.dateKey} 
+                          className={`py-2 px-1 text-center border-r border-slate-200/50 text-[13px] ${
+                            isEmpty ? 'bg-red-100/90 text-red-600 font-bold' : ''
+                          }`}
+                        >
                           {viewMetric === 'qty' ? (
                             qty > 0 ? (
                               <span className="font-black text-[#047857]">{qty}</span>
                             ) : (
-                              <span className="text-slate-300 font-normal">-</span>
+                              <span className="text-red-500 font-bold">-</span>
                             )
                           ) : (
                             rev > 0 ? (
                               <span className="font-black text-[#1d4ed8]">{(rev / 1000000).toFixed(1)}</span>
                             ) : (
-                              <span className="text-slate-300 font-normal">-</span>
+                              <span className="text-red-500 font-bold">-</span>
                             )
                           )}
                         </td>
@@ -1213,6 +1219,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                                 const qty = staff.dailyQty[c.dateKey] || 0;
                                 const rev = staff.dailyRev[c.dateKey] || 0;
                                 const items = staff.dailyItems[c.dateKey] || [];
+                                const isEmpty = val <= 0;
 
                                 return (
                                   <td
@@ -1230,6 +1237,8 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                                       }
                                     }}
                                     className={`py-1.5 px-1 text-center border-r border-slate-200/30 text-[12px] ${
+                                      isEmpty ? 'bg-red-50 text-red-500 font-bold' : ''
+                                    } ${
                                       items.length > 0 ? 'cursor-pointer hover:bg-emerald-100/60 transition-colors' : ''
                                     }`}
                                     title={items.length > 0 ? `Nhấp xem chi tiết: ${staff.staffName} bán ${items.length} sp ngày ${c.displayDate}` : undefined}
@@ -1238,13 +1247,13 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                                       qty > 0 ? (
                                         <span className="font-bold text-[#047857]">{qty}</span>
                                       ) : (
-                                        <span className="text-slate-300 font-normal">-</span>
+                                        <span className="text-red-400 font-bold">-</span>
                                       )
                                     ) : (
                                       rev > 0 ? (
                                         <span className="font-bold text-[#1d4ed8]">{(rev / 1000000).toFixed(1)}</span>
                                       ) : (
-                                        <span className="text-slate-300 font-normal">-</span>
+                                        <span className="text-red-400 font-bold">-</span>
                                       )
                                     )}
                                   </td>
@@ -1307,13 +1316,19 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                 const dayQty = displayedBrandsData.storeDailyQty[c.dateKey] || 0;
                 const dayRev = displayedBrandsData.storeDailyRev[c.dateKey] || 0;
                 const val = viewMetric === 'qty' ? dayQty : dayRev;
+                const isEmpty = val <= 0;
 
                 return (
-                  <td key={c.dateKey} className="py-2.5 px-1 text-center font-black border-r border-emerald-300/60">
+                  <td 
+                    key={c.dateKey} 
+                    className={`py-2.5 px-1 text-center font-black border-r border-emerald-300/60 ${
+                      isEmpty ? 'bg-red-100 text-red-600' : ''
+                    }`}
+                  >
                     {val > 0 ? (
                       viewMetric === 'qty' ? val : `${Math.round(val / 1000000)}tr`
                     ) : (
-                      <span className="text-slate-300 font-normal">-</span>
+                      <span className="text-red-600 font-bold">-</span>
                     )}
                   </td>
                 );
