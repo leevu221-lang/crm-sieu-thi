@@ -30,7 +30,10 @@ import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
 import AutoFitTable from '../../../components/AutoFitTable';
 
-export const DEFAULT_RAW_MWG_DATA_1841 = `Dashboards
+export { DEFAULT_RAW_MWG_DATA_1841 } from '../data/defaultMwgRaw1841';
+import { DEFAULT_RAW_MWG_DATA_1841 } from '../data/defaultMwgRaw1841';
+
+const _OLD_RAW = `Dashboards
 [Danh mục báo cáo](https://baocao.dienmayxanh.com/dashboard/home)[Hiệu quả kinh doanh](https://baocao.dienmayxanh.com/dashboard/effectiveness)[Doanh thu hợp nhất](https://baocao.dienmayxanh.com/dashboard/revenue-consolidated)[Thi đua](https://baocao.dienmayxanh.com/dashboard/thi-dua)[Doanh Thu Ngành Hàng BI](https://baocao.dienmayxanh.com/dashboard/bi-category)[Giờ Công Làm Việc](https://baocao.dienmayxanh.com/dashboard/timekeeping)[Báo cáo trả chậm](https://baocao.dienmayxanh.com/dashboard/tra-cham)[Lượt bill TGDĐ](https://baocao.dienmayxanh.com/dashboard/countbill-tgdd)[Chi phí chăm sóc khách hàng](https://baocao.dienmayxanh.com/dashboard/productreturncost)L
 Linh Võ Vũemployee
 Doanh thu hợp nhất
@@ -325,7 +328,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       const legacy = localStorage.getItem(`mwg_rt_staff_raw_${cleanStore}`);
       if (legacy && legacy.trim()) return legacy;
     } catch (e) {}
-    return '';
+    return cleanStore === '1841' ? DEFAULT_RAW_MWG_DATA_1841 : '';
   });
 
   // Filter Staff State (Excluded staff IDs) with Persistence
@@ -664,6 +667,10 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       colIdxTiTrongTraGop = columnHeaders.findIndex(h => h.includes('% TRẢ GÓP') || h.includes('% TRAGOP'));
     }
 
+    const hasStaffColInHeader = columnHeaders.length > 0 && 
+      (columnHeaders[0].includes('NHÂN VIÊN') || columnHeaders[0].includes('NV'));
+    const headerColOffset = hasStaffColInHeader ? 1 : 0;
+
     let currentStaffLine: string | null = null;
     let currentValues: string[] = [];
 
@@ -678,45 +685,41 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       let installmentRevenue = 0;
       let installmentRate = 0;
 
-      // 1. DT TRẢ GÓP & % TRẢ GÓP (Guaranteed detection)
-      if (colIdxDtTraGop !== -1 && tokens[colIdxDtTraGop - 1] !== undefined) {
-        installmentRevenue = parseNum(tokens[colIdxDtTraGop - 1]);
+      // 1. DT QUY ĐỔI (Quy tắc bắt buộc: CỘT "DT.QUY ĐỔI" TRÊN HÌNH = CỘT THỨ 3 TRÁI SANG CỦA DATA)
+      // Cột 1 = NHÂN VIÊN (staffLine), Cột 2 = SỐ LƯỢNG (tokens[0]), Cột 3 = DOANH THU QĐ (tokens[1])
+      if (colIdxDtqd !== -1 && tokens[colIdxDtqd - headerColOffset] !== undefined) {
+        convertedRevenue = parseNum(tokens[colIdxDtqd - headerColOffset]);
       } else if (tokens.length >= 2) {
-        const lastToken = tokens[tokens.length - 1];
-        if (lastToken.includes('%') || lastToken === '—' || lastToken === '-') {
-          installmentRevenue = parseNum(tokens[tokens.length - 2]);
-        }
-      }
-
-      if (colIdxTiTrongTraGop !== -1 && tokens[colIdxTiTrongTraGop - 1] !== undefined) {
-        installmentRate = parsePercent(tokens[colIdxTiTrongTraGop - 1]);
-      } else if (tokens.length >= 1) {
-        const lastToken = tokens[tokens.length - 1];
-        if (lastToken.includes('%') || lastToken === '—' || lastToken === '-') {
-          installmentRate = parsePercent(lastToken);
-        }
+        convertedRevenue = parseNum(tokens[1]);
+      } else if (tokens.length === 1) {
+        convertedRevenue = parseNum(tokens[0]);
       }
 
       // 2. DT THỰC
-      if (colIdxDtThuc !== -1 && tokens[colIdxDtThuc - 1] !== undefined) {
-        actualRevenue = parseNum(tokens[colIdxDtThuc - 1]);
+      if (colIdxDtThuc !== -1 && tokens[colIdxDtThuc - headerColOffset] !== undefined) {
+        actualRevenue = parseNum(tokens[colIdxDtThuc - headerColOffset]);
+      } else if (tokens.length >= 7 && (tokens[2]?.includes('%') || tokens[1]?.includes('%'))) {
+        actualRevenue = parseNum(tokens[3]);
       } else {
-        if (tokens.length >= 7 && (tokens[2]?.includes('%') || tokens[1]?.includes('%'))) {
-          actualRevenue = parseNum(tokens[3]);
-        } else if (tokens.length > 0) {
-          actualRevenue = parseNum(tokens[0]);
-        }
+        // Báo cáo 6 cột (không có cột DOANH THU thực riêng) -> gán bằng DT.QUY ĐỔI để HQ.QĐ hiển thị chuẩn 0.0%
+        actualRevenue = convertedRevenue;
       }
 
-      // 3. DT QUY ĐỔI
-      if (colIdxDtqd !== -1 && tokens[colIdxDtqd - 1] !== undefined) {
-        convertedRevenue = parseNum(tokens[colIdxDtqd - 1]);
+      // 3. DT TRẢ GÓP & % TRẢ GÓP
+      if (colIdxDtTraGop !== -1 && tokens[colIdxDtTraGop - headerColOffset] !== undefined) {
+        installmentRevenue = parseNum(tokens[colIdxDtTraGop - headerColOffset]);
+      } else if (tokens.length >= 10) {
+        installmentRevenue = parseNum(tokens[tokens.length - 2]);
       } else {
-        if (tokens.length >= 7 && tokens[2]?.includes('%')) {
-          convertedRevenue = parseNum(tokens[1]);
-        } else {
-          convertedRevenue = actualRevenue;
-        }
+        installmentRevenue = 0;
+      }
+
+      if (colIdxTiTrongTraGop !== -1 && tokens[colIdxTiTrongTraGop - headerColOffset] !== undefined) {
+        installmentRate = parsePercent(tokens[colIdxTiTrongTraGop - headerColOffset]);
+      } else if (tokens.length >= 10) {
+        installmentRate = parsePercent(tokens[tokens.length - 1]);
+      } else {
+        installmentRate = 0;
       }
 
       // 4. HQ.QĐ = (DT.QĐ - DT.THỰC) / DT.THỰC
@@ -942,6 +945,16 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                 >
                   <ClipboardPaste size={13} className="shrink-0" />
                   <span>Dán Từ Clipboard</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSaveData(DEFAULT_RAW_MWG_DATA_1841, true)}
+                  className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-[10.5px] sm:text-xs font-bold cursor-pointer transition-all active:scale-95 shrink-0"
+                  title="Nạp dữ liệu mẫu mới nhất ngày 20/10 (198 Tr)"
+                >
+                  <Sparkles size={12} className="text-emerald-600" />
+                  <span>Mẫu 1841 (198 Tr)</span>
                 </button>
 
                 <button
