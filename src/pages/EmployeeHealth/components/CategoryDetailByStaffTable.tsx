@@ -446,6 +446,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   const [commentRowData, setCommentRowData] = useState<CategoryRowData[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const initializedRef = useRef(false);
 
   // 4. Precompute Category Data Map with O(1) Lookups & Fallback Search
   const allCategoryDataMap = useMemo(() => {
