@@ -9,7 +9,6 @@ import {
   Copy, 
   Check, 
   RotateCcw, 
-  ClipboardPaste, 
   Trash2, 
   Eye, 
   EyeOff,
@@ -26,8 +25,7 @@ import {
   Globe,
   Lock,
   Unlock,
-  Clock,
-  Save
+  Clock
 } from 'lucide-react';
 import { domToPng } from 'modern-screenshot';
 import { addWhiteBorderToDataUrl } from '../../../utils/imageBorderUtil';
@@ -1227,53 +1225,10 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                 className="w-full p-3.5 bg-white border-2 border-blue-400 rounded-2xl text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-200 transition-all resize-y"
               />
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  {/* Nút Dán Clipboard & Lưu */}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        const clip = await navigator.clipboard.readText();
-                        if (clip && clip.trim()) {
-                          handleSaveAndLockThuc(clip);
-                        } else {
-                          alert('Clipboard trống hoặc không có nội dung!');
-                        }
-                      } catch (e) {
-                        alert('Vui lòng cấp quyền đọc clipboard hoặc dán trực tiếp vào ô.');
-                      }
-                    }}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider shadow-xs cursor-pointer transition-all active:scale-95"
-                  >
-                    <ClipboardPaste size={14} />
-                    <span>Dán Clipboard & Lưu</span>
-                  </button>
-
-                  {/* Nút Khóa & Lưu (nếu có dữ liệu mới thì lưu, nếu rỗng thì giữ nguyên) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleSaveAndLockThuc(tempThuc);
-                    }}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider shadow-xs cursor-pointer transition-all active:scale-95"
-                  >
-                    <Save size={14} />
-                    <span>Khóa & Lưu</span>
-                  </button>
-
-                  {/* Nút Hủy (Giữ nguyên) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsEditingThuc(false);
-                      setTempThuc('');
-                    }}
-                    className="inline-flex items-center justify-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] sm:text-xs font-bold cursor-pointer transition-all active:scale-95"
-                  >
-                    <span>Hủy (Giữ nguyên)</span>
-                  </button>
-                </div>
+              <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
+                <span className="text-[11px] text-slate-400 font-medium">
+                  💡 Tự động <b>Khóa &amp; Lưu</b> ngay khi dán • Click ra ngoài để đóng
+                </span>
 
                 {/* Xóa trắng nếu muốn xóa hẳn */}
                 {rawInputThuc.trim() && (
@@ -1286,9 +1241,9 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                         setTempThuc('');
                       }
                     }}
-                    className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 rounded-xl text-[11px] sm:text-xs font-bold cursor-pointer transition-all self-end sm:self-auto"
+                    className="inline-flex items-center justify-center gap-1 px-2.5 py-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg text-[11px] font-bold cursor-pointer transition-all"
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={12} />
                     <span>Xóa Trắng</span>
                   </button>
                 )}
@@ -1370,66 +1325,10 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                 className="w-full p-3.5 bg-white border-2 border-emerald-400 rounded-2xl text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-200 transition-all resize-y"
               />
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  {/* Nút Dán Clipboard & Lưu */}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        const clip = await navigator.clipboard.readText();
-                        if (clip && clip.trim()) {
-                          handleSaveAndLockQd(clip);
-                        } else {
-                          alert('Clipboard trống hoặc không có nội dung!');
-                        }
-                      } catch (e) {
-                        alert('Vui lòng cấp quyền đọc clipboard hoặc dán trực tiếp vào ô.');
-                      }
-                    }}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider shadow-xs cursor-pointer transition-all active:scale-95"
-                  >
-                    <ClipboardPaste size={14} />
-                    <span>Dán Clipboard & Lưu</span>
-                  </button>
-
-                  {/* Nút Mẫu 1841 */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleSaveAndLockQd(DEFAULT_RAW_MWG_DATA_1841);
-                    }}
-                    className="inline-flex items-center justify-center gap-1 px-2.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-[11px] sm:text-xs font-bold cursor-pointer transition-all active:scale-95"
-                    title="Nạp dữ liệu mẫu mới nhất ngày 20/10 (198 Tr)"
-                  >
-                    <Sparkles size={13} className="text-emerald-600" />
-                    <span>Mẫu 1841 (198 Tr)</span>
-                  </button>
-
-                  {/* Nút Khóa & Lưu */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleSaveAndLockQd(tempQd);
-                    }}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider shadow-xs cursor-pointer transition-all active:scale-95"
-                  >
-                    <Save size={14} />
-                    <span>Khóa & Lưu</span>
-                  </button>
-
-                  {/* Nút Hủy (Giữ nguyên) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsEditingQd(false);
-                      setTempQd('');
-                    }}
-                    className="inline-flex items-center justify-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] sm:text-xs font-bold cursor-pointer transition-all active:scale-95"
-                  >
-                    <span>Hủy (Giữ nguyên)</span>
-                  </button>
-                </div>
+              <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
+                <span className="text-[11px] text-slate-400 font-medium">
+                  💡 Tự động <b>Khóa &amp; Lưu</b> ngay khi dán • Click ra ngoài để đóng
+                </span>
 
                 {/* Xóa trắng nếu muốn xóa hẳn */}
                 {rawInput.trim() && (
@@ -1442,9 +1341,9 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                         setTempQd('');
                       }
                     }}
-                    className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 rounded-xl text-[11px] sm:text-xs font-bold cursor-pointer transition-all self-end sm:self-auto"
+                    className="inline-flex items-center justify-center gap-1 px-2.5 py-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg text-[11px] font-bold cursor-pointer transition-all"
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={12} />
                     <span>Xóa Trắng</span>
                   </button>
                 )}
