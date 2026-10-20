@@ -1104,9 +1104,16 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
 
           {/* Trạng thái Khóa / Mở dán mới D.Thu Thực */}
           {!isEditingThuc ? (
-            <div className="bg-blue-50/70 border border-blue-200/90 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div 
+              onClick={() => {
+                setIsEditingThuc(true);
+                setTempThuc('');
+              }}
+              className="bg-blue-50/70 hover:bg-blue-100/80 border border-blue-200/90 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer transition-all active:scale-[0.99] group select-none"
+              title="Click vào bất kỳ vị trí nào trong ô này để mở dán mới"
+            >
               <div className="flex items-center gap-2.5 text-blue-900 font-black text-xs sm:text-sm">
-                <Lock size={16} className="text-blue-600 shrink-0" />
+                <Lock size={16} className="text-blue-600 shrink-0 group-hover:scale-110 transition-transform" />
                 <span>
                   {rawInputThuc.trim()
                     ? `Đã khóa dữ liệu D.Thu Thực (${thucStaffCount > 0 ? `${thucStaffCount} nhân sự` : `${rawInputThuc.trim().split('\n').filter(Boolean).length} dòng`})`
@@ -1115,11 +1122,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setIsEditingThuc(true);
-                  setTempThuc('');
-                }}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs cursor-pointer transition-all active:scale-95 shrink-0"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all pointer-events-none shrink-0"
               >
                 <Unlock size={15} />
                 <span>Mở dán mới</span>
@@ -1244,9 +1247,16 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
 
           {/* Trạng thái Khóa / Mở dán mới D.Thu Quy Đổi */}
           {!isEditingQd ? (
-            <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div 
+              onClick={() => {
+                setIsEditingQd(true);
+                setTempQd('');
+              }}
+              className="bg-emerald-50/70 hover:bg-emerald-100/80 border border-emerald-200/90 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer transition-all active:scale-[0.99] group select-none"
+              title="Click vào bất kỳ vị trí nào trong ô này để mở dán mới"
+            >
               <div className="flex items-center gap-2.5 text-emerald-900 font-black text-xs sm:text-sm">
-                <Lock size={16} className="text-emerald-600 shrink-0" />
+                <Lock size={16} className="text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" />
                 <span>
                   {rawInput.trim()
                     ? `Đã khóa dữ liệu D.Thu Quy Đổi (${qdStaffCount > 0 ? `${qdStaffCount} nhân sự` : `${rawInput.trim().split('\n').filter(Boolean).length} dòng`})`
@@ -1255,11 +1265,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setIsEditingQd(true);
-                  setTempQd('');
-                }}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs cursor-pointer transition-all active:scale-95 shrink-0"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all pointer-events-none shrink-0"
               >
                 <Unlock size={15} />
                 <span>Mở dán mới</span>
