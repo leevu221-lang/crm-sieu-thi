@@ -357,6 +357,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
 }) => {
   const { activeStore: luykeActiveStore } = useLuykeData();
   const targetStore = propActiveStore || luykeActiveStore || 'GLOBAL';
+  const activeStore = targetStore;
 
   // 1. Memoized Staff Matrix & Categories parsing from text data
   const { results: allStaffMatrix, categories } = useMemo(() => {
@@ -716,7 +717,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     }
     setSelectedCategories([...dropdownCategories]);
     saveSelectedToStorage([...dropdownCategories]);
-  }, [activeStore, dropdownCategories, saveSelectedToStorage]);
+  }, [targetStore, dropdownCategories, saveSelectedToStorage]);
 
   // Chọn nhanh theo nhóm ngành hàng
   const handleSelectGroup = useCallback((group: 'ALL' | 'ICT' | 'DỊCH VỤ' | 'CE' | 'THI_DUA') => {
