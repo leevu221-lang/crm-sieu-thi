@@ -381,6 +381,53 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
   const [isCapturing, setIsCapturing] = useState<boolean>(false);
 
   const tableRef = useRef<HTMLDivElement>(null);
+  const boxThucRef = useRef<HTMLDivElement>(null);
+  const boxQdRef = useRef<HTMLDivElement>(null);
+
+  // Click ra ngoài thì tự khóa lại; nếu không có dán dữ liệu mới thì giữ nguyên (không lưu)
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
+      if (!target) return;
+
+      // Click outside D.Thu Thực
+      if (isEditingThuc && boxThucRef.current && !boxThucRef.current.contains(target)) {
+        setIsEditingThuc(false);
+        setTempThuc('');
+      }
+
+      // Click outside D.Thu Quy Đổi
+      if (isEditingQd && boxQdRef.current && !boxQdRef.current.contains(target)) {
+        setIsEditingQd(false);
+        setTempQd('');
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isEditingThuc) {
+          setIsEditingThuc(false);
+          setTempThuc('');
+        }
+        if (isEditingQd) {
+          setIsEditingQd(false);
+          setTempQd('');
+        }
+      }
+    };
+
+    if (isEditingThuc || isEditingQd) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+      window.addEventListener('keydown', handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isEditingThuc, isEditingQd]);
 
   // Sync with selected store and subscribe to Cloud Firestore for cross-browser/mobile real-time sync
   useEffect(() => {
@@ -1082,7 +1129,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
         {/* ── BỐ CỤC 2 CỘT: BÊN TRÁI LÀ Ô "D.THU THỰC", BÊN PHẢI LÀ Ô "D.THU QUY ĐỔI" ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
           {/* ── CỘT TRÁI: D.THU THỰC ── */}
-          <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 space-y-3 shadow-2xs h-full flex flex-col justify-between">
+          <div ref={boxThucRef} className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 space-y-3 shadow-2xs h-full flex flex-col justify-between">
           {/* Header D.Thu Thực */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
@@ -1225,7 +1272,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
         </div>
 
         {/* ── CỘT PHẢI: D.THU QUY ĐỔI ── */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 space-y-3 shadow-2xs h-full flex flex-col justify-between">
+        <div ref={boxQdRef} className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 space-y-3 shadow-2xs h-full flex flex-col justify-between">
           {/* Header D.Thu Quy Đổi */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
