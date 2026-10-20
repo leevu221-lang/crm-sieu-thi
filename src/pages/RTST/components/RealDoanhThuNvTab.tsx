@@ -21,7 +21,13 @@ import {
   X,
   CheckSquare,
   Square,
-  Scan
+  Scan,
+  Zap,
+  Globe,
+  Lock,
+  Unlock,
+  Clock,
+  Save
 } from 'lucide-react';
 import { domToPng } from 'modern-screenshot';
 import { addWhiteBorderToDataUrl } from '../../../utils/imageBorderUtil';
@@ -365,8 +371,10 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
 
   const [isFilterModalOpen, setIsFilterModalOpen] = useState<boolean>(false);
   const [filterSearchTerm, setFilterSearchTerm] = useState<string>('');
-  const [isInputCollapsed, setIsInputCollapsed] = useState<boolean>(false);
-  const [isThucCollapsed, setIsThucCollapsed] = useState<boolean>(false);
+  const [isEditingThuc, setIsEditingThuc] = useState<boolean>(false);
+  const [tempThuc, setTempThuc] = useState<string>('');
+  const [isEditingQd, setIsEditingQd] = useState<boolean>(false);
+  const [tempQd, setTempQd] = useState<string>('');
   const [isTableAutoFit, setIsTableAutoFit] = useState<boolean>(true);
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [isCapturing, setIsCapturing] = useState<boolean>(false);
@@ -889,6 +897,8 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
 
     return {
       timeStr,
+      timeStrQd: qdResult.timeStr,
+      timeStrThuc: thucResult.timeStr,
       displayRows,
       allRows: rows,
       totals: displayTotals,
@@ -945,7 +955,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
     });
   };
 
-  const { timeStr, displayRows, totals, allRows, qdStaffCount, thucStaffCount } = parsedData;
+  const { timeStr, displayRows, totals, allRows, qdStaffCount, thucStaffCount, timeStrQd, timeStrThuc } = parsedData;
   const count = displayRows.length;
   const excludedCount = excludedStaffIds.length;
 
@@ -959,204 +969,342 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
   return (
     <div className="w-full max-w-5xl mx-auto space-y-5 pb-12" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
       
-      {/* ── 1. Ô NHẬP D.THU THỰC ── */}
-      <div className="bg-white rounded-3xl border-2 border-blue-200/80 shadow-md overflow-hidden no-capture">
-        <div 
-          onClick={() => setIsThucCollapsed(!isThucCollapsed)}
-          className="flex items-center justify-between p-3.5 sm:p-4 bg-gradient-to-r from-blue-50 via-sky-50 to-indigo-100/40 cursor-pointer border-b border-blue-100 select-none"
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black shadow-xs">
-              📊
+      {/* ── CARD REALTIME: Ô DÁN DỮ LIỆU D.THU THỰC & D.THU QUY ĐỔI (THIẾT KẾ CHUẨN HÌNH 2) ── */}
+      <div className="bg-white rounded-3xl p-4 sm:p-6 border border-slate-200/90 shadow-sm space-y-4 no-capture">
+        {/* Header Realtime */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black border border-emerald-100 shadow-2xs">
+              <Zap size={22} className="text-emerald-500 fill-emerald-500/20" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-blue-950 uppercase tracking-wide flex items-center gap-2 flex-wrap">
-                <span>D.THU THỰC</span>
-                <span className="text-[11px] font-bold text-blue-700 bg-white px-2 py-0.5 rounded-md border border-blue-200 shadow-2xs">
-                  {thucStaffCount} Nhân Sự
-                </span>
-                <span className="text-[11px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                  ST: {cleanStore}
-                </span>
-                {syncStatus === 'saving' ? (
-                  <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1 animate-pulse">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block animate-ping" />
-                    Đang đồng bộ Cloud...
-                  </span>
-                ) : syncStatus === 'synced' ? (
-                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                    Đã đồng bộ Cloud
-                  </span>
-                ) : null}
-              </h3>
-              <p className="text-[11px] text-blue-900/80 font-medium">
-                Dán nội dung copy khi chọn "DT thực" từ baocao.dienmayxanh.com vào khung bên dưới để cập nhật DT thực & tính HQ.QĐ
+              <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-none uppercase">
+                REALTIME
+              </h2>
+              <p className="text-xs sm:text-[13px] text-slate-500 font-medium mt-1">
+                Ô dán dữ liệu: Doanh Thu Nhân Viên (ST: {cleanStore})
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-blue-700 hidden sm:inline">
-              {isThucCollapsed ? 'Mở rộng khung nhập' : 'Thu gọn'}
-            </span>
-            {isThucCollapsed ? <ChevronDown size={18} className="text-blue-700" /> : <ChevronUp size={18} className="text-blue-700" />}
+
+          {/* Cloud Sync Status & Quick filter toggles */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {syncStatus === 'saving' ? (
+              <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200 flex items-center gap-1.5 animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block animate-ping" />
+                Đang đồng bộ Cloud...
+              </span>
+            ) : syncStatus === 'synced' ? (
+              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                Đã đồng bộ Cloud
+              </span>
+            ) : null}
+
+            {/* View Toggle */}
+            <div className="inline-flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => handleToggleOnlyWithRevenue(true)}
+                className={`px-2.5 py-1 rounded-lg text-[10.5px] sm:text-xs font-black transition-all cursor-pointer ${
+                  onlyWithRevenue ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Chỉ NV Có DT ({allRows.filter(r => r.convertedRevenue > 0 || r.actualRevenue > 0).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleOnlyWithRevenue(false)}
+                className={`px-2.5 py-1 rounded-lg text-[10.5px] sm:text-xs font-black transition-all cursor-pointer ${
+                  !onlyWithRevenue ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Hiện Tất Cả ({allRows.length})
+              </button>
+            </div>
           </div>
         </div>
 
-        {!isThucCollapsed && (
-          <div className="p-3.5 sm:p-5 space-y-3 bg-slate-50/50">
-            <textarea
-              value={rawInputThuc}
-              onChange={e => handleSaveDataThuc(e.target.value, false)}
-              placeholder="Dán toàn bộ dữ liệu báo cáo DOANH THU THỰC tại đây..."
-              rows={5}
-              className="w-full p-3.5 bg-white border border-slate-300 rounded-2xl text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all resize-y"
-            />
-
-            {/* Toolbar Buttons */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
-              <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={handlePasteClipboardThuc}
-                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10.5px] sm:text-xs font-black uppercase tracking-wider shadow-xs cursor-pointer transition-all active:scale-95"
-                >
-                  <ClipboardPaste size={13} className="shrink-0" />
-                  <span>Dán Từ Clipboard</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSaveDataThuc('', true)}
-                  className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-[10.5px] sm:text-xs font-bold cursor-pointer transition-all active:scale-95 shrink-0"
-                  title="Xoá trắng khung nhập D.THU THỰC"
-                >
-                  <Trash2 size={12} />
-                  <span>Xóa Trắng</span>
-                </button>
-              </div>
-
-              {thucStaffCount > 0 && (
-                <div className="text-[11px] text-blue-700 font-bold bg-blue-50 px-2.5 py-1 rounded-xl border border-blue-200">
-                  Đã nhận: <b>{thucStaffCount}</b> NV từ báo cáo DT Thực
-                </div>
+        {/* ── KHUNG 1: D.THU THỰC ── */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 space-y-3 shadow-2xs">
+          {/* Header D.Thu Thực */}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Globe size={18} className="text-blue-600 shrink-0" />
+              <span className="text-sm sm:text-base font-black text-blue-700">
+                D.Thu Thực
+              </span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {timeStrThuc && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 text-[11px] sm:text-xs font-bold">
+                  <Clock size={13} className="text-blue-600" />
+                  Cập nhật: {timeStrThuc.includes(' - ') ? timeStrThuc.replace(' - ', ' NGÀY ') : timeStrThuc}
+                </span>
               )}
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 text-[11px] sm:text-xs font-black">
+                {thucStaffCount > 0 ? `${thucStaffCount} nhân sự` : `${rawInputThuc.trim() ? rawInputThuc.trim().split('\n').filter(Boolean).length : 0} dòng`}
+              </span>
             </div>
           </div>
-        )}
-      </div>
 
-      {/* ── 2. Ô NHẬP D.THU QUY ĐỔI ── */}
-      <div className="bg-white rounded-3xl border-2 border-emerald-200/80 shadow-md overflow-hidden no-capture">
-        <div 
-          onClick={() => setIsInputCollapsed(!isInputCollapsed)}
-          className="flex items-center justify-between p-3.5 sm:p-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-100/50 cursor-pointer border-b border-emerald-100 select-none"
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black shadow-xs">
-              📝
-            </div>
-            <div>
-              <h3 className="text-sm font-black text-emerald-950 uppercase tracking-wide flex items-center gap-2 flex-wrap">
-                <span>D.THU QUY ĐỔI</span>
-                <span className="text-[11px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-md border border-emerald-200 shadow-2xs">
-                  {qdStaffCount} Nhân Sự
+          {/* Trạng thái Khóa / Mở dán mới D.Thu Thực */}
+          {!isEditingThuc ? (
+            <div className="bg-blue-50/70 border border-blue-200/90 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 text-blue-900 font-black text-xs sm:text-sm">
+                <Lock size={16} className="text-blue-600 shrink-0" />
+                <span>
+                  {rawInputThuc.trim()
+                    ? `Đã khóa dữ liệu D.Thu Thực (${thucStaffCount > 0 ? `${thucStaffCount} nhân sự` : `${rawInputThuc.trim().split('\n').filter(Boolean).length} dòng`})`
+                    : 'Chưa có dữ liệu D.Thu Thực (Click mở dán mới để cập nhật)'}
                 </span>
-                <span className="text-[11px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                  ST: {cleanStore}
-                </span>
-                {syncStatus === 'saving' ? (
-                  <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1 animate-pulse">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block animate-ping" />
-                    Đang đồng bộ Cloud...
-                  </span>
-                ) : syncStatus === 'synced' ? (
-                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                    Đã đồng bộ Cloud
-                  </span>
-                ) : null}
-              </h3>
-              <p className="text-[11px] text-emerald-800/80 font-medium">
-                Dán nội dung copy khi chọn "DT quy đổi" từ baocao.dienmayxanh.com vào khung bên dưới để cập nhật bảng (tự động đồng bộ trên điện thoại & mọi thiết bị)
-              </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingThuc(true);
+                  setTempThuc('');
+                }}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs cursor-pointer transition-all active:scale-95 shrink-0"
+              >
+                <Unlock size={15} />
+                <span>Mở dán mới</span>
+              </button>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-emerald-700 hidden sm:inline">
-              {isInputCollapsed ? 'Mở rộng khung nhập' : 'Thu gọn'}
-            </span>
-            {isInputCollapsed ? <ChevronDown size={18} className="text-emerald-700" /> : <ChevronUp size={18} className="text-emerald-700" />}
-          </div>
+          ) : (
+            <div className="space-y-3 pt-1">
+              <textarea
+                value={tempThuc}
+                onChange={e => setTempThuc(e.target.value)}
+                placeholder="Dán toàn bộ dữ liệu báo cáo DOANH THU THỰC tại đây... (Nếu không dán dữ liệu mới, bấm Hủy để giữ nguyên)"
+                rows={5}
+                autoFocus
+                className="w-full p-3.5 bg-white border-2 border-blue-400 rounded-2xl text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-200 transition-all resize-y"
+              />
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Nút Dán Clipboard & Lưu */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const clip = await navigator.clipboard.readText();
+                        if (clip && clip.trim()) {
+                          handleSaveDataThuc(clip, true);
+                          setIsEditingThuc(false);
+                          setTempThuc('');
+                        } else {
+                          alert('Clipboard trống hoặc không có nội dung!');
+                        }
+                      } catch (e) {
+                        alert('Vui lòng cấp quyền đọc clipboard hoặc dán trực tiếp vào ô.');
+                      }
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider shadow-xs cursor-pointer transition-all active:scale-95"
+                  >
+                    <ClipboardPaste size={14} />
+                    <span>Dán Clipboard & Lưu</span>
+                  </button>
+
+                  {/* Nút Khóa & Lưu (nếu có dữ liệu mới thì lưu, nếu rỗng thì giữ nguyên) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (tempThuc.trim()) {
+                        handleSaveDataThuc(tempThuc, true);
+                      }
+                      setIsEditingThuc(false);
+                      setTempThuc('');
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider shadow-xs cursor-pointer transition-all active:scale-95"
+                  >
+                    <Save size={14} />
+                    <span>Khóa & Lưu</span>
+                  </button>
+
+                  {/* Nút Hủy (Giữ nguyên) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingThuc(false);
+                      setTempThuc('');
+                    }}
+                    className="inline-flex items-center justify-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] sm:text-xs font-bold cursor-pointer transition-all active:scale-95"
+                  >
+                    <span>Hủy (Giữ nguyên)</span>
+                  </button>
+                </div>
+
+                {/* Xóa trắng nếu muốn xóa hẳn */}
+                {rawInputThuc.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('Bạn có chắc muốn xóa trắng hoàn toàn dữ liệu D.Thu Thực?')) {
+                        handleSaveDataThuc('', true);
+                        setIsEditingThuc(false);
+                        setTempThuc('');
+                      }
+                    }}
+                    className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 rounded-xl text-[11px] sm:text-xs font-bold cursor-pointer transition-all self-end sm:self-auto"
+                  >
+                    <Trash2 size={13} />
+                    <span>Xóa Trắng</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
-        {!isInputCollapsed && (
-          <div className="p-3.5 sm:p-5 space-y-3 bg-slate-50/50">
-            <textarea
-              value={rawInput}
-              onChange={e => handleSaveData(e.target.value, false)}
-              placeholder="Dán toàn bộ dữ liệu báo cáo DOANH THU QUY ĐỔI tại đây..."
-              rows={5}
-              className="w-full p-3.5 bg-white border border-slate-300 rounded-2xl text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all resize-y"
-            />
-
-            {/* Toolbar Buttons */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
-              <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={handlePasteClipboard}
-                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10.5px] sm:text-xs font-black uppercase tracking-wider shadow-xs cursor-pointer transition-all active:scale-95"
-                >
-                  <ClipboardPaste size={13} className="shrink-0" />
-                  <span>Dán Từ Clipboard</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSaveData(DEFAULT_RAW_MWG_DATA_1841, true)}
-                  className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-[10.5px] sm:text-xs font-bold cursor-pointer transition-all active:scale-95 shrink-0"
-                  title="Nạp dữ liệu mẫu mới nhất ngày 20/10 (198 Tr)"
-                >
-                  <Sparkles size={12} className="text-emerald-600" />
-                  <span>Mẫu 1841 (198 Tr)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSaveData('', true)}
-                  className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-[10.5px] sm:text-xs font-bold cursor-pointer transition-all active:scale-95 shrink-0"
-                  title="Xoá trắng khung nhập D.THU QUY ĐỔI"
-                >
-                  <Trash2 size={12} />
-                  <span>Xóa Trắng</span>
-                </button>
-              </div>
-
-              {/* View Toggle */}
-              <div className="grid grid-cols-2 sm:flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => handleToggleOnlyWithRevenue(true)}
-                  className={`px-2 sm:px-2.5 py-1 rounded-lg text-[10.5px] sm:text-xs font-black transition-all cursor-pointer text-center truncate ${
-                    onlyWithRevenue ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  Chỉ NV Có DT ({allRows.filter(r => r.convertedRevenue > 0 || r.actualRevenue > 0).length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleToggleOnlyWithRevenue(false)}
-                  className={`px-2 sm:px-2.5 py-1 rounded-lg text-[10.5px] sm:text-xs font-black transition-all cursor-pointer text-center truncate ${
-                    !onlyWithRevenue ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  Hiện Tất Cả ({allRows.length})
-                </button>
-              </div>
+        {/* ── KHUNG 2: D.THU QUY ĐỔI ── */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 space-y-3 shadow-2xs">
+          {/* Header D.Thu Quy Đổi */}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Globe size={18} className="text-emerald-600 shrink-0" />
+              <span className="text-sm sm:text-base font-black text-emerald-700">
+                D.Thu Quy Đổi
+              </span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {timeStrQd && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 text-[11px] sm:text-xs font-bold">
+                  <Clock size={13} className="text-emerald-600" />
+                  Cập nhật: {timeStrQd.includes(' - ') ? timeStrQd.replace(' - ', ' NGÀY ') : timeStrQd}
+                </span>
+              )}
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] sm:text-xs font-black">
+                {qdStaffCount > 0 ? `${qdStaffCount} nhân sự` : `${rawInput.trim() ? rawInput.trim().split('\n').filter(Boolean).length : 0} dòng`}
+              </span>
             </div>
           </div>
-        )}
+
+          {/* Trạng thái Khóa / Mở dán mới D.Thu Quy Đổi */}
+          {!isEditingQd ? (
+            <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 text-emerald-900 font-black text-xs sm:text-sm">
+                <Lock size={16} className="text-emerald-600 shrink-0" />
+                <span>
+                  {rawInput.trim()
+                    ? `Đã khóa dữ liệu D.Thu Quy Đổi (${qdStaffCount > 0 ? `${qdStaffCount} nhân sự` : `${rawInput.trim().split('\n').filter(Boolean).length} dòng`})`
+                    : 'Chưa có dữ liệu D.Thu Quy Đổi (Click mở dán mới để cập nhật)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingQd(true);
+                  setTempQd('');
+                }}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs cursor-pointer transition-all active:scale-95 shrink-0"
+              >
+                <Unlock size={15} />
+                <span>Mở dán mới</span>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3 pt-1">
+              <textarea
+                value={tempQd}
+                onChange={e => setTempQd(e.target.value)}
+                placeholder="Dán toàn bộ dữ liệu báo cáo DOANH THU QUY ĐỔI tại đây... (Nếu không dán dữ liệu mới, bấm Hủy để giữ nguyên)"
+                rows={5}
+                autoFocus
+                className="w-full p-3.5 bg-white border-2 border-emerald-400 rounded-2xl text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-200 transition-all resize-y"
+              />
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Nút Dán Clipboard & Lưu */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const clip = await navigator.clipboard.readText();
+                        if (clip && clip.trim()) {
+                          handleSaveData(clip, true);
+                          setIsEditingQd(false);
+                          setTempQd('');
+                        } else {
+                          alert('Clipboard trống hoặc không có nội dung!');
+                        }
+                      } catch (e) {
+                        alert('Vui lòng cấp quyền đọc clipboard hoặc dán trực tiếp vào ô.');
+                      }
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider shadow-xs cursor-pointer transition-all active:scale-95"
+                  >
+                    <ClipboardPaste size={14} />
+                    <span>Dán Clipboard & Lưu</span>
+                  </button>
+
+                  {/* Nút Mẫu 1841 */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSaveData(DEFAULT_RAW_MWG_DATA_1841, true);
+                      setIsEditingQd(false);
+                      setTempQd('');
+                    }}
+                    className="inline-flex items-center justify-center gap-1 px-2.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-[11px] sm:text-xs font-bold cursor-pointer transition-all active:scale-95"
+                    title="Nạp dữ liệu mẫu mới nhất ngày 20/10 (198 Tr)"
+                  >
+                    <Sparkles size={13} className="text-emerald-600" />
+                    <span>Mẫu 1841 (198 Tr)</span>
+                  </button>
+
+                  {/* Nút Khóa & Lưu */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (tempQd.trim()) {
+                        handleSaveData(tempQd, true);
+                      }
+                      setIsEditingQd(false);
+                      setTempQd('');
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider shadow-xs cursor-pointer transition-all active:scale-95"
+                  >
+                    <Save size={14} />
+                    <span>Khóa & Lưu</span>
+                  </button>
+
+                  {/* Nút Hủy (Giữ nguyên) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingQd(false);
+                      setTempQd('');
+                    }}
+                    className="inline-flex items-center justify-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] sm:text-xs font-bold cursor-pointer transition-all active:scale-95"
+                  >
+                    <span>Hủy (Giữ nguyên)</span>
+                  </button>
+                </div>
+
+                {/* Xóa trắng nếu muốn xóa hẳn */}
+                {rawInput.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('Bạn có chắc muốn xóa trắng hoàn toàn dữ liệu D.Thu Quy Đổi?')) {
+                        handleSaveData('', true);
+                        setIsEditingQd(false);
+                        setTempQd('');
+                      }
+                    }}
+                    className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 rounded-xl text-[11px] sm:text-xs font-bold cursor-pointer transition-all self-end sm:self-auto"
+                  >
+                    <Trash2 size={13} />
+                    <span>Xóa Trắng</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── TOP ACTION BUTTONS (BỘ LỌC NV / XUẤT ẢNH / ZALO / AUTO ZOOM) ── */}
