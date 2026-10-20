@@ -823,7 +823,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
 
       const staffList: { id: string; name: string; revenue: number; embeddedActualRevenue?: number; installmentRevenue: number; installmentRate: number }[] = [];
 
-      const pushStaff = (staffLine: string, values: string[]) => {
+      const pushStaff = (staffLine: string, values: string[], forceCol3Rev?: number) => {
         const nameParts = staffLine.split(' - ');
         const cleanName = (nameParts.length > 1 ? nameParts.slice(1).join(' - ') : staffLine).trim().toUpperCase();
         const tokens = tokenize(values);
@@ -833,18 +833,30 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
         let installmentRevenue = 0;
         let installmentRate = 0;
 
-        // Cột thứ 3 từ trái sang của bảng data luôn là doanh thu (tokens[1])
-        if (colIdxRev !== -1 && tokens[colIdxRev - headerColOffset] !== undefined) {
-          revenue = parseNum(tokens[colIdxRev - headerColOffset]);
-        } else if (tokens.length >= 2) {
-          revenue = parseNum(tokens[1]);
-        } else if (tokens.length === 1) {
-          revenue = parseNum(tokens[0]);
-        }
+        if (mode === 'thuc') {
+          // Yêu cầu: CỘT "DT. THỰC" LẤY CỘT THỨ 3 TRÁI SANG Ở Ô "D.THU THỰC"
+          if (forceCol3Rev !== undefined && !isNaN(forceCol3Rev)) {
+            revenue = forceCol3Rev;
+          } else if (tokens.length >= 2) {
+            // Cột 1: Nhân viên, Cột 2: Số lượng (tokens[0]), Cột 3: Doanh thu thực (tokens[1])
+            revenue = parseNum(tokens[1]);
+          } else if (tokens.length === 1) {
+            revenue = parseNum(tokens[0]);
+          }
+        } else {
+          // Cột thứ 3 từ trái sang của bảng data luôn là doanh thu (tokens[1])
+          if (colIdxRev !== -1 && tokens[colIdxRev - headerColOffset] !== undefined) {
+            revenue = parseNum(tokens[colIdxRev - headerColOffset]);
+          } else if (tokens.length >= 2) {
+            revenue = parseNum(tokens[1]);
+          } else if (tokens.length === 1) {
+            revenue = parseNum(tokens[0]);
+          }
 
-        // Báo cáo 11 cột có chứa cột DOANH THU thực ở cột thứ 5 từ trái sang (tokens[3])
-        if (mode === 'qd' && tokens.length >= 7 && (tokens[2]?.includes('%') || tokens[1]?.includes('%'))) {
-          embeddedActualRevenue = parseNum(tokens[3]);
+          // Báo cáo 11 cột có chứa cột DOANH THU thực ở cột thứ 5 từ trái sang (tokens[3])
+          if (tokens.length >= 7 && (tokens[2]?.includes('%') || tokens[1]?.includes('%'))) {
+            embeddedActualRevenue = parseNum(tokens[3]);
+          }
         }
 
         if (colIdxDtTraGop !== -1 && tokens[colIdxDtTraGop - headerColOffset] !== undefined) {
@@ -882,14 +894,28 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
 
         if (line.includes('\t')) {
           const cols = line.split('\t').map(c => c.trim()).filter(Boolean);
-          if (cols.length >= 3 && isStaffLine(cols[0])) {
-            if (currentStaffLine) {
-              pushStaff(currentStaffLine, currentValues);
-              currentStaffLine = null;
-              currentValues = [];
+          if (cols.length >= 3) {
+            if (isStaffLine(cols[0])) {
+              if (currentStaffLine) {
+                pushStaff(currentStaffLine, currentValues);
+                currentStaffLine = null;
+                currentValues = [];
+              }
+              // Cột thứ 3 từ trái sang là cols[2]!
+              const col3Val = mode === 'thuc' ? parseNum(cols[2]) : undefined;
+              pushStaff(cols[0], cols.slice(1), col3Val);
+              continue;
+            } else if (isStaffLine(cols[1])) {
+              // Trường hợp cols[0] là STT, cols[1] là Tên NV, Cột thứ 3 từ trái sang là cols[2]!
+              if (currentStaffLine) {
+                pushStaff(currentStaffLine, currentValues);
+                currentStaffLine = null;
+                currentValues = [];
+              }
+              const col3Val = mode === 'thuc' ? parseNum(cols[2]) : undefined;
+              pushStaff(cols[1], cols.slice(2), col3Val);
+              continue;
             }
-            pushStaff(cols[0], cols.slice(1));
-            continue;
           }
         }
 
