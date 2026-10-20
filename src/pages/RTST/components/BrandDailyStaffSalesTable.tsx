@@ -480,7 +480,6 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
 
   const toggleBrandSelection = (brand: string) => {
     if (selectedBrands.includes(brand)) {
-      if (selectedBrands.length === 1) return; // Keep at least one
       updateSelectedBrands(selectedBrands.filter(b => b !== brand));
     } else {
       updateSelectedBrands([...selectedBrands, brand]);
@@ -492,9 +491,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
   };
 
   const clearAllBrands = () => {
-    if (parsedData.brandList.length > 0) {
-      updateSelectedBrands([parsedData.brandList[0].brand]);
-    }
+    updateSelectedBrands([]);
   };
 
   // Toggle expand / collapse for a single brand row
@@ -561,7 +558,21 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
   // Compute displayed brands and their staff rows
   const displayedBrandsData = useMemo(() => {
     // Filter by selected brands in checklist
-    const activeBrandList = parsedData.brandList.filter(b => selectedBrands.includes(b.brand));
+    let activeBrandList = parsedData.brandList.filter(b => selectedBrands.includes(b.brand));
+
+    // If search text entered in top bar, filter activeBrandList by query as well
+    if (brandSearchQuery.trim()) {
+      const q = removeAccents(brandSearchQuery.trim().toLowerCase());
+      const queryMatches = activeBrandList.filter(b => removeAccents(b.brand.toLowerCase()).includes(q));
+      if (queryMatches.length > 0) {
+        activeBrandList = queryMatches;
+      } else {
+        const allMatches = parsedData.brandList.filter(b => removeAccents(b.brand.toLowerCase()).includes(q));
+        if (allMatches.length > 0) {
+          activeBrandList = allMatches;
+        }
+      }
+    }
 
     const brandRows = activeBrandList.map(b => {
       const staffMap = parsedData.brandSalesMap.get(b.brand) || new Map<string, StaffBrandSales>();
@@ -633,6 +644,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
   }, [
     parsedData,
     selectedBrands,
+    brandSearchQuery,
     selectedStaffs,
     drillFilterStaff,
     showOnlyWithSales
@@ -782,39 +794,64 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
           </div>
         </div>
 
-        {/* Filter bar - EXACT SAME STYLE AS HÌNH 1 */}
-        <div className="flex flex-col gap-3 bg-slate-50 rounded-xl p-3 sm:px-5 sm:py-4 no-capture">
-          {/* Row 1: Brand checklist button & quick chips */}
-          <div className="flex flex-wrap sm:flex-nowrap sm:overflow-x-auto no-scrollbar items-center gap-1.5 sm:gap-2.5 pb-1">
-            <span className="text-[11px] sm:text-[12px] font-black text-slate-500 uppercase tracking-wider whitespace-nowrap mr-1 flex items-center gap-1.5 w-full sm:w-auto mb-1 sm:mb-0">
-              <Filter size={13} />
-              BỘ LỌC HÃNG:
-            </span>
+        {/* Filter bar - EXACT SAME STYLE AS HÌNH & USER SCREENSHOT */}
+        <div className="flex flex-col gap-2.5 bg-slate-50/90 rounded-2xl p-3 sm:px-5 sm:py-3.5 border border-slate-200/70 no-capture">
+          {/* Top Row: Brand Search & Multi-select Filter Bar */}
+          <div className="w-full flex justify-center pb-0.5">
+            <div className="relative w-full max-w-md sm:max-w-lg" ref={brandDropdownRef}>
+              <div className="relative flex items-center">
+                <Search size={15} className="absolute left-3.5 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={brandSearchQuery}
+                  onChange={(e) => {
+                    setBrandSearchQuery(e.target.value);
+                    setShowBrandFilterModal(true);
+                  }}
+                  onFocus={() => setShowBrandFilterModal(true)}
+                  placeholder={
+                    selectedBrands.length === parsedData.brandList.length
+                      ? '🔍 Tìm kiếm hãng (Đang chọn tất cả)...'
+                      : `🔍 Tìm kiếm hãng (Đã chọn ${selectedBrands.length}/${parsedData.brandList.length} hãng)...`
+                  }
+                  className="w-full pl-9 pr-24 py-1.5 sm:py-2 text-[12px] sm:text-[13px] bg-white border-2 border-emerald-500 rounded-full shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-slate-800 font-semibold placeholder:text-slate-400 placeholder:font-normal transition-all"
+                />
 
-            {/* Checklist Dropdown Trigger */}
-            <div className="relative" ref={brandDropdownRef}>
-              <button
-                onClick={() => setShowBrandFilterModal(!showBrandFilterModal)}
-                className="px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border whitespace-nowrap flex items-center gap-2 bg-emerald-50 text-[#047857] border-emerald-300 shadow-sm hover:bg-emerald-100"
-                title="Chọn một hoặc nhiều hãng cần hiển thị"
-              >
-                <CheckSquare size={13} className="text-[#047857]" />
-                <span>
-                  ĐÃ CHỌN {selectedBrands.length}/{parsedData.brandList.length} HÃNG
-                </span>
-                <ChevronDown size={12} className={`transition-transform duration-200 ${showBrandFilterModal ? 'rotate-180' : ''}`} />
-              </button>
+                {/* Right controls inside search pill */}
+                <div className="absolute right-2 flex items-center gap-1.5">
+                  {brandSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setBrandSearchQuery('')}
+                      className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                      title="Xóa tìm kiếm"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowBrandFilterModal(!showBrandFilterModal)}
+                    className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-[#047857] border border-emerald-300 hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-2xs"
+                    title="Mở danh sách chọn hãng"
+                  >
+                    <span>{selectedBrands.length}/{parsedData.brandList.length}</span>
+                    <ChevronDown size={11} className={`transition-transform duration-200 ${showBrandFilterModal ? 'rotate-180' : ''}`} />
+                  </button>
+                </div>
+              </div>
 
               {/* Multi-Select Brand Checklist Modal / Popover */}
               {showBrandFilterModal && (
-                <div className="absolute left-0 top-full mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 p-3 z-50">
+                <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 p-3.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                   <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
                     <div>
-                      <h4 className="text-[12px] font-black text-slate-800 uppercase tracking-wide">
-                        CHỌN HÃNG HIỂN THỊ
+                      <h4 className="text-[12px] font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                        <CheckSquare size={13} className="text-[#047857]" />
+                        BỘ LỌC HÃNG HIỂN THỊ
                       </h4>
                       <p className="text-[10px] text-slate-400">
-                        {activeStore ? `Lưu cho: ${activeStore}` : 'Lưu theo cấu hình siêu thị'}
+                        {activeStore ? `Lưu tự động cho siêu thị: ${activeStore}` : 'Lưu cấu hình tự động'}
                       </p>
                     </div>
                     <button
@@ -825,30 +862,17 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                     </button>
                   </div>
 
-                  {/* Search box inside modal */}
-                  <div className="relative mb-2.5">
-                    <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="Tìm kiếm tên hãng..."
-                      value={brandSearchQuery}
-                      onChange={e => setBrandSearchQuery(e.target.value)}
-                      className="w-full pl-7 pr-2.5 py-1.5 text-[11px] bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                      autoFocus
-                    />
-                  </div>
-
                   {/* Select All / Deselect All actions */}
                   <div className="flex items-center justify-between gap-1.5 mb-2 pb-2 border-b border-slate-100 text-[10.5px]">
                     <button
                       onClick={selectAllBrands}
-                      className="px-2 py-1 rounded-lg bg-emerald-50 text-[#047857] hover:bg-emerald-100 font-bold transition-colors"
+                      className="px-2.5 py-1 rounded-lg bg-emerald-50 text-[#047857] hover:bg-emerald-100 font-bold transition-colors"
                     >
                       Chọn tất cả ({parsedData.brandList.length})
                     </button>
                     <button
                       onClick={clearAllBrands}
-                      className="px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-bold transition-colors"
+                      className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-bold transition-colors"
                     >
                       Bỏ chọn tất cả
                     </button>
@@ -881,6 +905,17 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                               <span className="truncate">{b.brand}</span>
                             </div>
                             <div className="flex items-center gap-1 shrink-0 ml-2">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  updateSelectedBrands([b.brand]);
+                                }}
+                                className="text-[9.5px] px-1.5 py-0.5 rounded bg-white hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-medium transition-colors"
+                                title="Chỉ xem riêng hãng này"
+                              >
+                                Chỉ chọn
+                              </button>
                               <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white border border-slate-200 text-slate-700 font-black">
                                 {b.totalQty} sp
                               </span>
@@ -891,6 +926,11 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                           </div>
                         );
                       })}
+                    {parsedData.brandList.filter(b => removeAccents(b.brand).includes(removeAccents(brandSearchQuery))).length === 0 && (
+                      <div className="py-4 text-center text-[11px] text-slate-400">
+                        Không tìm thấy hãng nào khớp với "{brandSearchQuery}"
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
@@ -899,73 +939,46 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                     </span>
                     <button
                       onClick={() => setShowBrandFilterModal(false)}
-                      className="px-3 py-1 rounded-xl bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800"
+                      className="px-3.5 py-1 rounded-xl bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800 transition-colors"
                     >
-                      Xong
+                      Đóng
                     </button>
                   </div>
                 </div>
               )}
             </div>
-
-            {/* Quick Pills for Top Brands */}
-            {parsedData.brandList.slice(0, 7).map(b => {
-              const isChecked = selectedBrands.includes(b.brand);
-              return (
-                <button
-                  key={b.brand}
-                  onClick={() => toggleBrandSelection(b.brand)}
-                  className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[10.5px] sm:text-[11.5px] font-black transition-all border whitespace-nowrap flex items-center gap-1.5 ${
-                    isChecked
-                      ? 'bg-emerald-50 text-[#047857] border-emerald-300 shadow-xs'
-                      : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600'
-                  }`}
-                  title={`${isChecked ? 'Nhấp để bỏ chọn' : 'Nhấp để chọn'} hãng ${b.brand}`}
-                >
-                  <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[9px] ${isChecked ? 'bg-[#047857] text-white' : 'border border-slate-300'}`}>
-                    {isChecked ? '✓' : ''}
-                  </span>
-                  <span>{b.brand}</span>
-                  <span className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
-                    isChecked ? 'bg-emerald-200/80 text-emerald-900' : 'bg-slate-100 text-slate-400'
-                  }`}>
-                    {b.totalQty}
-                  </span>
-                </button>
-              );
-            })}
           </div>
 
-          {/* Row 2: Sub-options (Expand All, Metrics, Daily View) */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-slate-200/60 pt-2.5">
+          {/* Row 2: Sub-options matching user's screenshot */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-slate-200/60 pt-2">
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               {/* Expand All / Collapse All Button */}
               <button
                 onClick={toggleExpandAll}
-                className="px-2.5 sm:px-3 py-1 rounded-lg text-[9.5px] sm:text-[10px] font-black transition-all border whitespace-nowrap flex items-center gap-1 bg-white text-slate-700 border-slate-200 hover:bg-slate-100 shadow-2xs"
+                className="px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border whitespace-nowrap flex items-center gap-1.5 bg-white text-slate-700 border-slate-200 hover:bg-slate-100 shadow-2xs"
                 title="Xổ hoặc đóng danh sách nhân viên của tất cả các hãng"
               >
-                <ChevronsUpDown size={12} className="text-indigo-600" />
-                <span>{allBrandsExpanded ? 'Thu gọn tất cả' : 'Xổ tất cả nhân viên (▼)'}</span>
+                <ChevronsUpDown size={13} className="text-indigo-600" />
+                <span>{allBrandsExpanded ? 'Thu gọn tất cả (▲)' : 'Xổ tất cả nhân viên (▼)'}</span>
               </button>
 
               {/* Metric Toggle */}
               <button
                 onClick={() => setViewMetric('qty')}
-                className={`px-2.5 sm:px-3 py-1 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${
+                className={`px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border whitespace-nowrap ${
                   viewMetric === 'qty'
-                    ? 'bg-emerald-50 text-[#047857] border-emerald-200 shadow-sm'
-                    : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600'
+                    ? 'bg-[#ecfdf5] text-[#047857] border-emerald-300 shadow-xs'
+                    : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700'
                 }`}
               >
                 SL BÁN
               </button>
               <button
                 onClick={() => setViewMetric('revenue')}
-                className={`px-2.5 sm:px-3 py-1 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${
+                className={`px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border whitespace-nowrap ${
                   viewMetric === 'revenue'
-                    ? 'bg-emerald-50 text-[#047857] border-emerald-200 shadow-sm'
-                    : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600'
+                    ? 'bg-[#ecfdf5] text-[#047857] border-emerald-300 shadow-xs'
+                    : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700'
                 }`}
               >
                 DOANH THU
@@ -974,22 +987,22 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
               {/* Show only active staff */}
               <button
                 onClick={() => setShowOnlyWithSales(!showOnlyWithSales)}
-                className={`px-2.5 sm:px-3 py-1 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${
+                className={`px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border whitespace-nowrap ${
                   showOnlyWithSales
-                    ? 'bg-amber-50 text-amber-800 border-amber-200 shadow-sm'
-                    : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600'
+                    ? 'bg-amber-50 text-amber-800 border-amber-300 shadow-xs'
+                    : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700'
                 }`}
               >
-                {showOnlyWithSales ? '✓ Đang lọc: NV đã bán' : 'Hiện tất cả NV'}
+                {showOnlyWithSales ? '✓ NV đã bán' : 'Hiện tất cả NV'}
               </button>
 
               {/* Show all days in month */}
               <button
                 onClick={() => setShowAllDaysInMonth(!showAllDaysInMonth)}
-                className={`px-2.5 sm:px-3 py-1 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${
+                className={`px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border whitespace-nowrap ${
                   showAllDaysInMonth
-                    ? 'bg-blue-50 text-[#1d4ed8] border-blue-200 shadow-sm'
-                    : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600'
+                    ? 'bg-blue-50 text-blue-700 border-blue-200 shadow-xs'
+                    : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700'
                 }`}
               >
                 {showAllDaysInMonth ? 'Đủ ngày 1→N' : 'Chỉ ngày có đơn'}
