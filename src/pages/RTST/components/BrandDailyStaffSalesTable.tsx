@@ -1023,7 +1023,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
           style={{ tableLayout: 'fixed', borderSpacing: 0 }}
         >
           <colgroup>
-            <col style={{ width: '220px' }} />
+            <col style={{ width: '310px' }} />
             {dayColumns.map(c => (
               <col key={c.dateKey} style={{ width: '46px' }} />
             ))}
@@ -1127,7 +1127,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                         {renderRank(bIdx, b.totalQty)}
 
                         {/* Brand Name */}
-                        <span className="font-black text-[#047857] hover:underline truncate" title={b.brandName}>
+                        <span className="font-black text-[#047857] hover:underline whitespace-nowrap" title={b.brandName}>
                           {b.brandName}
                         </span>
 
@@ -1199,15 +1199,15 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                               className="border-b border-slate-100 hover:bg-slate-100/70 transition-colors bg-slate-50/50"
                             >
                               {/* Staff Name with indent and tree icon */}
-                              <td className="py-1.5 px-3 text-left border-r border-slate-200/40 sticky left-0 z-10 bg-slate-50/90 pl-8 sm:pl-10">
-                                <div className="flex items-center gap-1.5 overflow-hidden">
+                              <td className="py-1.5 px-3 text-left border-r border-slate-200/40 sticky left-0 z-10 bg-slate-50/90 pl-4 sm:pl-5">
+                                <div className="flex items-center gap-1.5 whitespace-nowrap">
                                   <span className="text-slate-400 text-[11px] font-mono shrink-0">↳</span>
                                   <span className="text-slate-400 text-[12px] shrink-0">👤</span>
-                                  <span className="truncate text-[12.5px] font-bold text-slate-700" title={staff.staffName}>
+                                  <span className="whitespace-nowrap text-[12.5px] font-bold text-slate-800" title={staff.staffName}>
                                     {staff.staffName}
                                   </span>
                                   {staff.staffId && (
-                                    <span className="text-[9px] text-slate-400 font-mono shrink-0 ml-1">
+                                    <span className="text-[9.5px] text-slate-400 font-mono shrink-0 ml-1">
                                       #{staff.staffId}
                                     </span>
                                   )}
