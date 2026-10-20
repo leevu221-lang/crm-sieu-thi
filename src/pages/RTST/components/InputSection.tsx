@@ -34,6 +34,7 @@ import {
   UploadCloud,
   Target,
   Clock,
+  Lock,
   Unlock,
   Trash2
 } from 'lucide-react';
@@ -284,7 +285,15 @@ const ReportInputBox: React.FC<ReportInputBoxProps> = ({
     ? 'bg-amber-50/70 hover:bg-amber-100/80 border-amber-200/90'
     : 'bg-blue-50/70 hover:bg-blue-100/80 border-blue-200/90';
 
-  const borderEditColor = (isEmerald || isTeal) ? 'border-emerald-400' : 'border-amber-400';
+  const textLockedColor = isEmerald
+    ? 'text-emerald-950'
+    : isTeal
+    ? 'text-teal-950'
+    : isAmber
+    ? 'text-amber-950'
+    : isOrange
+    ? 'text-orange-950'
+    : 'text-blue-950';
 
   return (
     <div 
@@ -324,7 +333,7 @@ const ReportInputBox: React.FC<ReportInputBoxProps> = ({
         </div>
       </div>
 
-      {/* Trạng thái Khóa / Mở dán mới */}
+      {/* Trạng thái Khóa / Mở dán mới (Kiểu thanh ngang Hình 1) */}
       {!isEditing ? (
         <div 
           onClick={() => {
@@ -332,19 +341,25 @@ const ReportInputBox: React.FC<ReportInputBoxProps> = ({
             setTempVal('');
           }}
           className={cn(
-            "border rounded-2xl p-2 sm:p-2.5 flex items-center justify-center cursor-pointer transition-all active:scale-[0.99] group select-none",
+            "flex items-center justify-between p-3 sm:p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer group select-none shadow-2xs",
             boxBorderHover
           )}
-          title="Click vào bất kỳ vị trí nào trong ô này để mở dán mới"
+          title="Click để mở dán mới"
         >
+          <div className="flex items-center gap-2.5 min-w-0 pr-2">
+            <Lock size={16} className={cn(iconColor, "shrink-0 stroke-[2.5]")} />
+            <span className={cn("text-xs sm:text-[13.5px] font-black truncate", textLockedColor)}>
+              Đã khóa dữ liệu {label} ({lineCount} dòng)
+            </span>
+          </div>
           <button
             type="button"
             className={cn(
-              "w-full inline-flex items-center justify-center gap-2 py-2 px-4 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all pointer-events-none cursor-pointer",
+              "shrink-0 inline-flex items-center gap-1.5 py-1.5 px-3.5 sm:px-4 sm:py-2 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all pointer-events-none",
               buttonBgColor
             )}
           >
-            <Unlock size={15} />
+            <Unlock size={14} className="stroke-[2.5]" />
             <span>Mở dán mới</span>
           </button>
         </div>
