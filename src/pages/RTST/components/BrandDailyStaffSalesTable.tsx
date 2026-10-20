@@ -1219,6 +1219,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                                 const qty = staff.dailyQty[c.dateKey] || 0;
                                 const rev = staff.dailyRev[c.dateKey] || 0;
                                 const items = staff.dailyItems[c.dateKey] || [];
+                                const val = viewMetric === 'qty' ? qty : rev;
                                 const isEmpty = val <= 0;
 
                                 return (
