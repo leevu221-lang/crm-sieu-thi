@@ -771,10 +771,55 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
 
     const isStaffLine = (line: string): boolean => {
       if (!line || typeof line !== 'string') return false;
-      if (line.startsWith('Tổng') || line.startsWith('1-') || line.includes('Đơn vị:') || line.includes('Tỉ trọng tính')) return false;
-      const m = line.match(/^([a-zA-Z0-9_]+)\s*-\s*(.+)/);
-      if (!m) return false;
-      return /[a-zA-ZÀ-ỹ]/.test(m[2]);
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+
+      const upper = trimmed.toUpperCase();
+      // Bỏ qua các dòng tiêu đề, nút, phân trang MWG
+      if (
+        upper.startsWith('TỔNG') || upper.startsWith('1-') || upper.includes('/ TỔNG') ||
+        upper.includes('ĐƠN VỊ:') || upper.includes('TỈ TRỌNG TÍNH') || upper.includes('CẬP NHẬT LÚC') ||
+        upper.includes('XUẤT EXCEL') || upper.includes('XUẤT THEO MẪU') || upper.includes('LŨY KẾ') ||
+        upper.includes('REALTIME') || upper.includes('TẤT CẢ VÙNG') || upper.includes('TỶ TRỌNG TRẢ') ||
+        upper.includes('HOMECREDIT') || upper.includes('FECREDIT') || upper.includes('KREDIVO') ||
+        upper.includes('MWG PAYLATER') || upper.includes('PAYLATER') || upper.includes('THEO NGÀNH') ||
+        upper.includes('TỶ LỆ DUYỆT') || upper.includes('CHI TIẾT THEO') || upper.includes('DASHBOARDS') ||
+        upper.includes('DANH MỤC') || upper.includes('DOANH THU') || upper.includes('THI ĐUA') ||
+        upper.includes('GIỜ CÔNG') || upper.includes('LƯỢT BILL') || upper.includes('CHI PHÍ') ||
+        upper.includes('TÌM BÁO CÁO') || upper.includes('EMPLOYEE') || upper.includes('TRANG') ||
+        upper.includes('TARGET') || upper.includes('TB 3 THÁNG') || upper === 'XEM' || upper === 'TGDD' ||
+        upper === 'S' || upper === 'NHÂN VIÊN' || upper.startsWith('NHÂN VIÊN\t') || upper === 'VÙNG' ||
+        upper === 'KHU VỰC' || upper === 'SIÊU THỊ' || upper.includes('VÙNG') || upper.includes('KHU VỰC')
+      ) {
+        return false;
+      }
+
+      // Loại bỏ nếu là dòng siêu thị, vd: 10470 - ĐMS_KGI_VTH - Vĩnh Bình Nam
+      if (/^\d+\s*-\s*(ĐMS|TGDĐ|BHX|KHO|ST)/i.test(trimmed)) {
+        return false;
+      }
+
+      // Loại bỏ nếu là dòng chỉ toàn số / ký tự đặc biệt, vd: "6", "3877", "10470", "112.71", "70.31%", "—", "-"
+      if (/^[0-9.,%\s—\-]+$/.test(trimmed)) {
+        return false;
+      }
+
+      // Dạng 1: Có mã nhân viên ở đầu (vd: "43751 - Võ Vũ Linh", "100544 - Trần Văn Duy", "NV01 - Lê Kim Mỹ")
+      const m = trimmed.match(/^([a-zA-Z0-9_]+)\s*-\s*(.+)/);
+      if (m && /[a-zA-ZÀ-ỹ]/.test(m[2])) {
+        return true;
+      }
+
+      // Dạng 2: Tên nhân viên tiếng Việt (vd: "Phạm Văn Sang", "Lê Kim Mỹ", "Võ Vũ Linh")
+      // Gồm chữ cái tiếng Việt, có từ 2 từ trở lên, độ dài >= 4 ký tự
+      if (/^[a-zA-ZÀ-ỹ\s]+$/.test(trimmed)) {
+        const words = trimmed.split(/\s+/).filter(Boolean);
+        if (words.length >= 2 && trimmed.length >= 4) {
+          return true;
+        }
+      }
+
+      return false;
     };
 
     const tokenize = (vals: string[]): string[] => {
@@ -1047,14 +1092,49 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       });
     }
 
+    // Helper so khớp nhân sự thông minh giữa các bảng (kể cả có hoặc không có mã NV)
+    const findMatchingStaff = (s: { id: string; name: string }) => {
+      if (staffMap.has(s.id)) return staffMap.get(s.id);
+
+      const norm = (str: string) => 
+        (str || '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+      const sNameNorm = norm(s.name);
+      const sIdNorm = norm(s.id);
+
+      for (const item of staffMap.values()) {
+        const itemNameNorm = norm(item.name);
+        const itemIdNorm = norm(item.id);
+
+        if (itemNameNorm && (itemNameNorm === sNameNorm || itemNameNorm === sIdNorm)) {
+          return item;
+        }
+        if (itemIdNorm && (itemIdNorm === sIdNorm || itemIdNorm === sNameNorm)) {
+          return item;
+        }
+
+        // Khớp họ tên đầy đủ
+        if (sNameNorm.length >= 4 && (itemNameNorm.endsWith(sNameNorm) || sNameNorm.endsWith(itemNameNorm))) {
+          return item;
+        }
+      }
+      return null;
+    };
+
     // 2. Nạp / cập nhật từ D.THU THỰC
     for (const s of thucResult.staffList) {
-      if (staffMap.has(s.id)) {
-        const item = staffMap.get(s.id)!;
-        item.actualRevenue = s.revenue;
-        if (item.installmentRevenue === 0 && s.installmentRevenue > 0) {
-          item.installmentRevenue = s.installmentRevenue;
-          item.installmentRate = s.installmentRate;
+      const matched = findMatchingStaff(s);
+      if (matched) {
+        matched.actualRevenue = s.revenue;
+        if (matched.installmentRevenue === 0 && s.installmentRevenue > 0) {
+          matched.installmentRevenue = s.installmentRevenue;
+          matched.installmentRate = s.installmentRate;
         }
       } else {
         staffMap.set(s.id, {
@@ -1069,16 +1149,16 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       }
     }
 
-    // 3. Nạp / cập nhật từ D.THU TRẢ GÓP
+    // 3. Nạp / cập nhật từ D.THU TRẢ GÓP (Cột thứ 2 từ trái sang ở ô D.THU TRẢ GÓP)
     for (const s of tragopResult.staffList) {
       const instRev = s.installmentRevenue || s.revenue;
-      if (staffMap.has(s.id)) {
-        const item = staffMap.get(s.id)!;
-        item.installmentRevenue = instRev;
+      const matched = findMatchingStaff(s);
+      if (matched) {
+        matched.installmentRevenue = instRev;
         if (s.installmentRate > 0) {
-          item.installmentRate = s.installmentRate;
-        } else if (item.actualRevenue > 0) {
-          item.installmentRate = Math.round((item.installmentRevenue / item.actualRevenue) * 1000) / 10;
+          matched.installmentRate = s.installmentRate;
+        } else if (matched.actualRevenue > 0) {
+          matched.installmentRate = Math.round((matched.installmentRevenue / matched.actualRevenue) * 1000) / 10;
         }
       } else {
         staffMap.set(s.id, {
@@ -1116,11 +1196,8 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
     // Sắp xếp giảm dần theo DT. QUY ĐỔI (hoặc DT Thực nếu bằng nhau)
     rows.sort((a, b) => b.convertedRevenue - a.convertedRevenue || b.actualRevenue - a.actualRevenue);
 
-    // Apply Filter based on excludedStaffIds AND onlyWithRevenue
-    let displayRows = rows.filter(r => !excludedStaffIds.includes(r.id));
-    if (onlyWithRevenue) {
-      displayRows = displayRows.filter(r => r.convertedRevenue !== 0 || r.actualRevenue !== 0 || r.installmentRevenue !== 0);
-    }
+    // Danh sách nhân viên lấy theo "LỌC NV" (bỏ chọn những người nằm trong excludedStaffIds)
+    const displayRows = rows.filter(r => !excludedStaffIds.includes(r.id));
 
     // Recalculate totals for displayed staff: HQ.QĐ dòng tổng = (DT.QĐ - DT.THỰC) / DT.THỰC
     const totalActual = displayRows.reduce((acc, r) => acc + r.actualRevenue, 0);
@@ -1237,8 +1314,8 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
             </div>
           </div>
 
-          {/* Cloud Sync Status & Quick filter toggles */}
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Cloud Sync Status */}
+          <div className="flex items-center gap-2">
             {syncStatus === 'saving' ? (
               <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200 flex items-center gap-1.5 animate-pulse">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block animate-ping" />
@@ -1250,28 +1327,6 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                 Đã đồng bộ Cloud
               </span>
             ) : null}
-
-            {/* View Toggle */}
-            <div className="inline-flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200">
-              <button
-                type="button"
-                onClick={() => handleToggleOnlyWithRevenue(true)}
-                className={`px-2.5 py-1 rounded-lg text-[10.5px] sm:text-xs font-black transition-all cursor-pointer ${
-                  onlyWithRevenue ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Chỉ NV Có DT ({allRows.filter(r => r.convertedRevenue > 0 || r.actualRevenue > 0 || r.installmentRevenue > 0).length})
-              </button>
-              <button
-                type="button"
-                onClick={() => handleToggleOnlyWithRevenue(false)}
-                className={`px-2.5 py-1 rounded-lg text-[10.5px] sm:text-xs font-black transition-all cursor-pointer ${
-                  !onlyWithRevenue ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Hiện Tất Cả ({allRows.length})
-              </button>
-            </div>
           </div>
         </div>
 
