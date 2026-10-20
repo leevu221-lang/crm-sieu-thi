@@ -295,6 +295,12 @@ const ReportInputBox: React.FC<ReportInputBoxProps> = ({
     ? 'text-orange-950'
     : 'text-blue-950';
 
+  const borderEditColor = (isEmerald || isTeal)
+    ? 'border-emerald-400 focus:border-emerald-500'
+    : (isAmber || isOrange)
+    ? 'border-amber-400 focus:border-amber-500'
+    : 'border-blue-400 focus:border-blue-500';
+
   return (
     <div 
       ref={boxRef} 
