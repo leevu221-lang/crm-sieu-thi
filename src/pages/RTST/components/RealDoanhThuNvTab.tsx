@@ -345,6 +345,15 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
     return '';
   });
 
+  // Input Box State - D.THU TRẢ GÓP
+  const [rawInputTraGop, setRawInputTraGop] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(`real_dthu_nv_raw_tragop_${cleanStore}`);
+      if (saved && saved.trim()) return saved;
+    } catch (e) {}
+    return '';
+  });
+
   // Filter Staff State (Excluded staff IDs) with Persistence
   const [excludedStaffIds, setExcludedStaffIds] = useState<string[]>(() => {
     try {
@@ -374,6 +383,8 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
   const [tempThuc, setTempThuc] = useState<string>('');
   const [isEditingQd, setIsEditingQd] = useState<boolean>(false);
   const [tempQd, setTempQd] = useState<string>('');
+  const [isEditingTraGop, setIsEditingTraGop] = useState<boolean>(false);
+  const [tempTraGop, setTempTraGop] = useState<string>('');
   const [isTableAutoFit, setIsTableAutoFit] = useState<boolean>(true);
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [isCapturing, setIsCapturing] = useState<boolean>(false);
@@ -381,6 +392,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
   const tableRef = useRef<HTMLDivElement>(null);
   const boxThucRef = useRef<HTMLDivElement>(null);
   const boxQdRef = useRef<HTMLDivElement>(null);
+  const boxTraGopRef = useRef<HTMLDivElement>(null);
 
   // Click ra ngoài thì tự khóa lại; nếu không có dán dữ liệu mới thì giữ nguyên (không lưu)
   useEffect(() => {
@@ -399,6 +411,12 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
         setIsEditingQd(false);
         setTempQd('');
       }
+
+      // Click outside D.Thu Trả Góp
+      if (isEditingTraGop && boxTraGopRef.current && !boxTraGopRef.current.contains(target)) {
+        setIsEditingTraGop(false);
+        setTempTraGop('');
+      }
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -411,10 +429,14 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
           setIsEditingQd(false);
           setTempQd('');
         }
+        if (isEditingTraGop) {
+          setIsEditingTraGop(false);
+          setTempTraGop('');
+        }
       }
     };
 
-    if (isEditingThuc || isEditingQd) {
+    if (isEditingThuc || isEditingQd || isEditingTraGop) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('touchstart', handleClickOutside);
       window.addEventListener('keydown', handleKeyDown);
@@ -425,7 +447,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       document.removeEventListener('touchstart', handleClickOutside);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isEditingThuc, isEditingQd]);
+  }, [isEditingThuc, isEditingQd, isEditingTraGop]);
 
   // Sync with selected store and subscribe to Cloud Firestore for cross-browser/mobile real-time sync
   useEffect(() => {
@@ -443,6 +465,13 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
         setRawInputThuc(savedThuc);
       } else {
         setRawInputThuc('');
+      }
+
+      const savedTraGop = localStorage.getItem(`real_dthu_nv_raw_tragop_${cleanStore}`);
+      if (savedTraGop && savedTraGop.trim()) {
+        setRawInputTraGop(savedTraGop);
+      } else {
+        setRawInputTraGop('');
       }
 
       const savedFilters = localStorage.getItem(`real_dthu_nv_excluded_${cleanStore}`);
@@ -474,6 +503,10 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
             setRawInputThuc(data.rawInputThuc);
             try { localStorage.setItem(`real_dthu_nv_raw_thuc_${cleanStore}`, data.rawInputThuc); } catch (e) {}
           }
+          if (typeof data.rawInputTraGop === 'string') {
+            setRawInputTraGop(data.rawInputTraGop);
+            try { localStorage.setItem(`real_dthu_nv_raw_tragop_${cleanStore}`, data.rawInputTraGop); } catch (e) {}
+          }
           if (Array.isArray(data.excludedStaffIds)) {
             setExcludedStaffIds(data.excludedStaffIds);
             try { localStorage.setItem(`real_dthu_nv_excluded_${cleanStore}`, JSON.stringify(data.excludedStaffIds)); } catch (e) {}
@@ -488,11 +521,13 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
         // Document does not exist in Firestore yet.
         const initialToSave = localStorage.getItem(`real_dthu_nv_raw_${cleanStore}`) || (cleanStore === '1841' ? DEFAULT_RAW_MWG_DATA_1841 : '');
         const initialThucToSave = localStorage.getItem(`real_dthu_nv_raw_thuc_${cleanStore}`) || '';
-        if (initialToSave || initialThucToSave) {
+        const initialTraGopToSave = localStorage.getItem(`real_dthu_nv_raw_tragop_${cleanStore}`) || '';
+        if (initialToSave || initialThucToSave || initialTraGopToSave) {
           setDoc(docRef, {
             storeId: cleanStore,
             rawInput: initialToSave,
             rawInputThuc: initialThucToSave,
+            rawInputTraGop: initialTraGopToSave,
             excludedStaffIds: [],
             onlyWithRevenue: true,
             updatedAt: serverTimestamp(),
@@ -528,7 +563,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
   };
 
   // Cloud save trigger helper
-  const triggerCloudSave = (qdText: string, thucText: string, immediate: boolean = false) => {
+  const triggerCloudSave = (qdText: string, thucText: string, tragopText: string, immediate: boolean = false) => {
     setSyncStatus('saving');
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
@@ -541,6 +576,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
           storeId: cleanStore,
           rawInput: qdText,
           rawInputThuc: thucText,
+          rawInputTraGop: tragopText,
           excludedStaffIds,
           onlyWithRevenue,
           updatedAt: serverTimestamp(),
@@ -571,7 +607,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
     try {
       localStorage.setItem(`real_dthu_nv_raw_${cleanStore}`, text);
     } catch (e) {}
-    triggerCloudSave(text, rawInputThuc, immediate);
+    triggerCloudSave(text, rawInputThuc, rawInputTraGop, immediate);
   };
 
   // Save D.THU THỰC data
@@ -581,7 +617,17 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
     try {
       localStorage.setItem(`real_dthu_nv_raw_thuc_${cleanStore}`, text);
     } catch (e) {}
-    triggerCloudSave(rawInput, text, immediate);
+    triggerCloudSave(rawInput, text, rawInputTraGop, immediate);
+  };
+
+  // Save D.THU TRẢ GÓP data
+  const handleSaveDataTraGop = (text: string, immediate: boolean = false) => {
+    isEditingRef.current = true;
+    setRawInputTraGop(text);
+    try {
+      localStorage.setItem(`real_dthu_nv_raw_tragop_${cleanStore}`, text);
+    } catch (e) {}
+    triggerCloudSave(rawInput, rawInputThuc, text, immediate);
   };
 
   // Hiệu ứng pháo giấy tung bay chúc mừng
@@ -635,6 +681,16 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
     }
     setIsEditingQd(false);
     setTempQd('');
+  };
+
+  // Lưu và khóa D.Thu Trả Góp kèm hiệu ứng pháo giấy
+  const handleSaveAndLockTraGop = (text: string) => {
+    if (text && text.trim()) {
+      handleSaveDataTraGop(text, true);
+      fireConfetti();
+    }
+    setIsEditingTraGop(false);
+    setTempTraGop('');
   };
 
   const handlePasteClipboard = async () => {
@@ -732,7 +788,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       return result;
     };
 
-    const parseSingleReport = (rawInputText: string, mode: 'qd' | 'thuc') => {
+    const parseSingleReport = (rawInputText: string, mode: 'qd' | 'thuc' | 'tragop') => {
       if (!rawInputText || !rawInputText.trim()) {
         return { staffList: [] as { id: string; name: string; revenue: number; embeddedActualRevenue?: number; installmentRevenue: number; installmentRate: number }[], timeStr: '' };
       }
@@ -805,14 +861,19 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
           if (colIdxRev === -1) {
             colIdxRev = columnHeaders.findIndex(h => h.includes('DOANH THU') || h.includes('DT'));
           }
+        } else if (mode === 'tragop') {
+          colIdxRev = columnHeaders.findIndex(h => h.includes('DT TRẢ GÓP') || h.includes('DT TRAGOP') || h.includes('TRẢ GÓP') || h.includes('TRẢ CHẬM'));
+          if (colIdxRev === -1) {
+            colIdxRev = columnHeaders.findIndex(h => h.includes('DOANH THU') || h.includes('DT'));
+          }
         } else {
           colIdxRev = columnHeaders.findIndex(h => h === 'DOANH THU' || h === 'DT THỰC' || h.includes('DOANH THU THỰC'));
           if (colIdxRev === -1) {
             colIdxRev = columnHeaders.findIndex(h => h.includes('DOANH THU') || h.includes('DT'));
           }
         }
-        colIdxDtTraGop = columnHeaders.findIndex(h => h.includes('DT TRẢ GÓP') || h.includes('DT TRAGOP'));
-        colIdxTiTrongTraGop = columnHeaders.findIndex(h => h.includes('% TRẢ GÓP') || h.includes('% TRAGOP'));
+        colIdxDtTraGop = columnHeaders.findIndex(h => h.includes('DT TRẢ GÓP') || h.includes('DT TRAGOP') || h.includes('TRẢ GÓP') || h.includes('TRẢ CHẬM'));
+        colIdxTiTrongTraGop = columnHeaders.findIndex(h => h.includes('% TRẢ GÓP') || h.includes('% TRAGOP') || h.includes('% TG'));
       }
 
       const hasStaffColInHeader = columnHeaders.length > 0 && 
@@ -841,6 +902,27 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
           } else if (tokens.length === 1) {
             revenue = parseNum(tokens[0]);
           }
+        } else if (mode === 'tragop') {
+          // Ô D.THU TRẢ GÓP: Lấy cột 3 trái sang (Doanh thu trả góp)
+          if (forceCol3Rev !== undefined && !isNaN(forceCol3Rev)) {
+            installmentRevenue = forceCol3Rev;
+          } else if (colIdxDtTraGop !== -1 && tokens[colIdxDtTraGop - headerColOffset] !== undefined) {
+            installmentRevenue = parseNum(tokens[colIdxDtTraGop - headerColOffset]);
+          } else if (tokens.length >= 2) {
+            installmentRevenue = parseNum(tokens[1]);
+          } else if (tokens.length === 1) {
+            installmentRevenue = parseNum(tokens[0]);
+          }
+
+          if (colIdxTiTrongTraGop !== -1 && tokens[colIdxTiTrongTraGop - headerColOffset] !== undefined) {
+            installmentRate = parsePercent(tokens[colIdxTiTrongTraGop - headerColOffset]);
+          } else {
+            const pctToken = tokens.find(t => t.includes('%'));
+            if (pctToken) {
+              installmentRate = parsePercent(pctToken);
+            }
+          }
+          revenue = installmentRevenue;
         } else {
           // Cột thứ 3 từ trái sang của bảng data luôn là doanh thu (tokens[1])
           if (colIdxRev !== -1 && tokens[colIdxRev - headerColOffset] !== undefined) {
@@ -857,16 +939,18 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
           }
         }
 
-        if (colIdxDtTraGop !== -1 && tokens[colIdxDtTraGop - headerColOffset] !== undefined) {
-          installmentRevenue = parseNum(tokens[colIdxDtTraGop - headerColOffset]);
-        } else if (tokens.length >= 10) {
-          installmentRevenue = parseNum(tokens[tokens.length - 2]);
-        }
+        if (mode !== 'tragop') {
+          if (colIdxDtTraGop !== -1 && tokens[colIdxDtTraGop - headerColOffset] !== undefined) {
+            installmentRevenue = parseNum(tokens[colIdxDtTraGop - headerColOffset]);
+          } else if (tokens.length >= 10) {
+            installmentRevenue = parseNum(tokens[tokens.length - 2]);
+          }
 
-        if (colIdxTiTrongTraGop !== -1 && tokens[colIdxTiTrongTraGop - headerColOffset] !== undefined) {
-          installmentRate = parsePercent(tokens[colIdxTiTrongTraGop - headerColOffset]);
-        } else if (tokens.length >= 10) {
-          installmentRate = parsePercent(tokens[tokens.length - 1]);
+          if (colIdxTiTrongTraGop !== -1 && tokens[colIdxTiTrongTraGop - headerColOffset] !== undefined) {
+            installmentRate = parsePercent(tokens[colIdxTiTrongTraGop - headerColOffset]);
+          } else if (tokens.length >= 10) {
+            installmentRate = parsePercent(tokens[tokens.length - 1]);
+          }
         }
 
         staffList.push({
@@ -900,7 +984,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                 currentValues = [];
               }
               // Cột thứ 3 từ trái sang là cols[2]!
-              const col3Val = mode === 'thuc' ? parseNum(cols[2]) : undefined;
+              const col3Val = (mode === 'thuc' || mode === 'tragop') ? parseNum(cols[2]) : undefined;
               pushStaff(cols[0], cols.slice(1), col3Val);
               continue;
             } else if (isStaffLine(cols[1])) {
@@ -910,7 +994,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                 currentStaffLine = null;
                 currentValues = [];
               }
-              const col3Val = mode === 'thuc' ? parseNum(cols[2]) : undefined;
+              const col3Val = (mode === 'thuc' || mode === 'tragop') ? parseNum(cols[2]) : undefined;
               pushStaff(cols[1], cols.slice(2), col3Val);
               continue;
             }
@@ -939,6 +1023,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
 
     const qdResult = parseSingleReport(rawInput, 'qd');
     const thucResult = parseSingleReport(rawInputThuc, 'thuc');
+    const tragopResult = parseSingleReport(rawInputTraGop, 'tragop');
 
     const hasThucInput = thucResult.staffList.length > 0;
     const staffMap = new Map<string, StaffRowItem>();
@@ -978,7 +1063,31 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       }
     }
 
-    // 3. Tính HQ.QĐ cho từng nhân sự
+    // 3. Nạp / cập nhật từ D.THU TRẢ GÓP
+    for (const s of tragopResult.staffList) {
+      const instRev = s.installmentRevenue || s.revenue;
+      if (staffMap.has(s.id)) {
+        const item = staffMap.get(s.id)!;
+        item.installmentRevenue = instRev;
+        if (s.installmentRate > 0) {
+          item.installmentRate = s.installmentRate;
+        } else if (item.actualRevenue > 0) {
+          item.installmentRate = Math.round((item.installmentRevenue / item.actualRevenue) * 1000) / 10;
+        }
+      } else {
+        staffMap.set(s.id, {
+          id: s.id,
+          name: s.name,
+          convertedRevenue: 0,
+          actualRevenue: 0,
+          shareRate: 0,
+          installmentRevenue: instRev,
+          installmentRate: s.installmentRate
+        });
+      }
+    }
+
+    // 4. Tính HQ.QĐ & % Trả Góp cho từng nhân sự
     for (const item of staffMap.values()) {
       if (item.actualRevenue !== 0) {
         item.shareRate = Math.round(((item.convertedRevenue - item.actualRevenue) / Math.abs(item.actualRevenue)) * 1000) / 10;
@@ -986,6 +1095,14 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
         item.shareRate = 100.0;
       } else {
         item.shareRate = 0.0;
+      }
+
+      if (item.installmentRevenue > 0 && item.installmentRate === 0) {
+        if (item.actualRevenue > 0) {
+          item.installmentRate = Math.round((item.installmentRevenue / item.actualRevenue) * 1000) / 10;
+        } else if (item.convertedRevenue > 0) {
+          item.installmentRate = Math.round((item.installmentRevenue / item.convertedRevenue) * 1000) / 10;
+        }
       }
     }
 
@@ -996,7 +1113,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
     // Apply Filter based on excludedStaffIds AND onlyWithRevenue
     let displayRows = rows.filter(r => !excludedStaffIds.includes(r.id));
     if (onlyWithRevenue) {
-      displayRows = displayRows.filter(r => r.convertedRevenue !== 0 || r.actualRevenue !== 0);
+      displayRows = displayRows.filter(r => r.convertedRevenue !== 0 || r.actualRevenue !== 0 || r.installmentRevenue !== 0);
     }
 
     // Recalculate totals for displayed staff: HQ.QĐ dòng tổng = (DT.QĐ - DT.THỰC) / DT.THỰC
@@ -1018,19 +1135,21 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       displayTotals.installmentRate = Math.round((displayTotals.installmentRevenue / displayTotals.actualRevenue) * 1000) / 10;
     }
 
-    const timeStr = qdResult.timeStr || thucResult.timeStr || '19:21:19 - 20/10/2026';
+    const timeStr = qdResult.timeStr || thucResult.timeStr || tragopResult.timeStr || '19:21:19 - 20/10/2026';
 
     return {
       timeStr,
       timeStrQd: qdResult.timeStr,
       timeStrThuc: thucResult.timeStr,
+      timeStrTraGop: tragopResult.timeStr,
       displayRows,
       allRows: rows,
       totals: displayTotals,
       qdStaffCount: qdResult.staffList.length,
-      thucStaffCount: thucResult.staffList.length
+      thucStaffCount: thucResult.staffList.length,
+      tragopStaffCount: tragopResult.staffList.length
     };
-  }, [rawInput, rawInputThuc, onlyWithRevenue, excludedStaffIds]);
+  }, [rawInput, rawInputThuc, rawInputTraGop, onlyWithRevenue, excludedStaffIds]);
 
   // Export Table to PNG
   const handleExportPng = async () => {
@@ -1080,7 +1199,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
     });
   };
 
-  const { timeStr, displayRows, totals, allRows, qdStaffCount, thucStaffCount, timeStrQd, timeStrThuc } = parsedData;
+  const { timeStr, displayRows, totals, allRows, qdStaffCount, thucStaffCount, tragopStaffCount, timeStrQd, timeStrThuc, timeStrTraGop } = parsedData;
   const count = displayRows.length;
   const excludedCount = excludedStaffIds.length;
 
@@ -1092,9 +1211,9 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
   }, [allRows, filterSearchTerm]);
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-5 pb-12" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
+    <div className="w-full max-w-7xl mx-auto space-y-5 pb-12" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
       
-      {/* ── CARD REALTIME: Ô DÁN DỮ LIỆU D.THU THỰC & D.THU QUY ĐỔI (THIẾT KẾ CHUẨN HÌNH 2) ── */}
+      {/* ── CARD REALTIME: Ô DÁN DỮ LIỆU D.THU THỰC & D.THU QUY ĐỔI & D.THU TRẢ GÓP ── */}
       <div className="bg-white rounded-3xl p-4 sm:p-6 border border-slate-200/90 shadow-sm space-y-4 no-capture">
         {/* Header Realtime */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -1135,7 +1254,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                   onlyWithRevenue ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Chỉ NV Có DT ({allRows.filter(r => r.convertedRevenue > 0 || r.actualRevenue > 0).length})
+                Chỉ NV Có DT ({allRows.filter(r => r.convertedRevenue > 0 || r.actualRevenue > 0 || r.installmentRevenue > 0).length})
               </button>
               <button
                 type="button"
@@ -1150,209 +1269,309 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
           </div>
         </div>
 
-        {/* ── BỐ CỤC 2 CỘT: BÊN TRÁI LÀ Ô "D.THU THỰC", BÊN PHẢI LÀ Ô "D.THU QUY ĐỔI" ── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-          {/* ── CỘT TRÁI: D.THU THỰC ── */}
+        {/* ── BỐ CỤC 3 CỘT: Ô "D.THU THỰC", Ô "D.THU QUY ĐỔI", Ô "D.THU TRẢ GÓP" ── */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4 items-start">
+          {/* ── CỘT 1: D.THU THỰC ── */}
           <div ref={boxThucRef} className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 space-y-3 shadow-2xs h-full flex flex-col justify-between">
-          {/* Header D.Thu Thực */}
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Globe size={18} className="text-blue-600 shrink-0" />
-              <span className="text-sm sm:text-base font-black text-blue-700">
-                D.Thu Thực
-              </span>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {timeStrThuc && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 text-[11px] sm:text-xs font-bold">
-                  <Clock size={13} className="text-blue-600" />
-                  Cập nhật: {timeStrThuc.includes(' - ') ? timeStrThuc.replace(' - ', ' NGÀY ') : timeStrThuc}
+            {/* Header D.Thu Thực */}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Globe size={18} className="text-blue-600 shrink-0" />
+                <span className="text-sm sm:text-base font-black text-blue-700">
+                  D.Thu Thực
                 </span>
-              )}
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 text-[11px] sm:text-xs font-black">
-                {thucStaffCount > 0 ? `${thucStaffCount} nhân sự` : `${rawInputThuc.trim() ? rawInputThuc.trim().split('\n').filter(Boolean).length : 0} dòng`}
-              </span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {timeStrThuc && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 text-[11px] sm:text-xs font-bold">
+                    <Clock size={13} className="text-blue-600" />
+                    Cập nhật: {timeStrThuc.includes(' - ') ? timeStrThuc.replace(' - ', ' NGÀY ') : timeStrThuc}
+                  </span>
+                )}
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 text-[11px] sm:text-xs font-black">
+                  {thucStaffCount > 0 ? `${thucStaffCount} nhân sự` : `${rawInputThuc.trim() ? rawInputThuc.trim().split('\n').filter(Boolean).length : 0} dòng`}
+                </span>
+              </div>
             </div>
+
+            {/* Trạng thái Khóa / Mở dán mới D.Thu Thực */}
+            {!isEditingThuc ? (
+              <div 
+                onClick={() => {
+                  setIsEditingThuc(true);
+                  setTempThuc('');
+                }}
+                className="bg-blue-50/70 hover:bg-blue-100/80 border border-blue-200/90 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer transition-all active:scale-[0.99] group select-none"
+                title="Click vào bất kỳ vị trí nào trong ô này để mở dán mới"
+              >
+                <div className="flex items-center gap-2.5 text-blue-900 font-black text-xs sm:text-sm">
+                  <Lock size={16} className="text-blue-600 shrink-0 group-hover:scale-110 transition-transform" />
+                  <span>
+                    {rawInputThuc.trim()
+                      ? `Đã khóa dữ liệu D.Thu Thực (${thucStaffCount > 0 ? `${thucStaffCount} nhân sự` : `${rawInputThuc.trim().split('\n').filter(Boolean).length} dòng`})`
+                      : 'Chưa có dữ liệu D.Thu Thực (Click mở dán mới để cập nhật)'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all pointer-events-none shrink-0"
+                >
+                  <Unlock size={15} />
+                  <span>Mở dán mới</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3 pt-1">
+                <textarea
+                  value={tempThuc}
+                  onPaste={(e) => {
+                    const text = e.clipboardData?.getData('text');
+                    if (text && text.trim()) {
+                      e.preventDefault();
+                      handleSaveAndLockThuc(text);
+                    }
+                  }}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setTempThuc(val);
+                    if (val && val.trim()) {
+                      handleSaveAndLockThuc(val);
+                    }
+                  }}
+                  placeholder="Dán toàn bộ dữ liệu báo cáo DOANH THU THỰC tại đây... (Tự động Khóa & Lưu ngay khi dán)"
+                  rows={5}
+                  autoFocus
+                  className="w-full p-3.5 bg-white border-2 border-blue-400 rounded-2xl text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-200 transition-all resize-y"
+                />
+
+                <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    💡 Tự động <b>Khóa &amp; Lưu</b> ngay khi dán • Click ra ngoài để đóng
+                  </span>
+
+                  {/* Xóa trắng nếu muốn xóa hẳn */}
+                  {rawInputThuc.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm('Bạn có chắc muốn xóa trắng hoàn toàn dữ liệu D.Thu Thực?')) {
+                          handleSaveDataThuc('', true);
+                          setIsEditingThuc(false);
+                          setTempThuc('');
+                        }
+                      }}
+                      className="inline-flex items-center justify-center gap-1 px-2.5 py-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg text-[11px] font-bold cursor-pointer transition-all"
+                    >
+                      <Trash2 size={12} />
+                      <span>Xóa Trắng</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Trạng thái Khóa / Mở dán mới D.Thu Thực */}
-          {!isEditingThuc ? (
-            <div 
-              onClick={() => {
-                setIsEditingThuc(true);
-                setTempThuc('');
-              }}
-              className="bg-blue-50/70 hover:bg-blue-100/80 border border-blue-200/90 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer transition-all active:scale-[0.99] group select-none"
-              title="Click vào bất kỳ vị trí nào trong ô này để mở dán mới"
-            >
-              <div className="flex items-center gap-2.5 text-blue-900 font-black text-xs sm:text-sm">
-                <Lock size={16} className="text-blue-600 shrink-0 group-hover:scale-110 transition-transform" />
-                <span>
-                  {rawInputThuc.trim()
-                    ? `Đã khóa dữ liệu D.Thu Thực (${thucStaffCount > 0 ? `${thucStaffCount} nhân sự` : `${rawInputThuc.trim().split('\n').filter(Boolean).length} dòng`})`
-                    : 'Chưa có dữ liệu D.Thu Thực (Click mở dán mới để cập nhật)'}
+          {/* ── CỘT 2: D.THU QUY ĐỔI ── */}
+          <div ref={boxQdRef} className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 space-y-3 shadow-2xs h-full flex flex-col justify-between">
+            {/* Header D.Thu Quy Đổi */}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Globe size={18} className="text-emerald-600 shrink-0" />
+                <span className="text-sm sm:text-base font-black text-emerald-700">
+                  D.Thu Quy Đổi
                 </span>
               </div>
-              <button
-                type="button"
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all pointer-events-none shrink-0"
-              >
-                <Unlock size={15} />
-                <span>Mở dán mới</span>
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3 pt-1">
-              <textarea
-                value={tempThuc}
-                onPaste={(e) => {
-                  const text = e.clipboardData?.getData('text');
-                  if (text && text.trim()) {
-                    e.preventDefault();
-                    handleSaveAndLockThuc(text);
-                  }
-                }}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setTempThuc(val);
-                  if (val && val.trim()) {
-                    handleSaveAndLockThuc(val);
-                  }
-                }}
-                placeholder="Dán toàn bộ dữ liệu báo cáo DOANH THU THỰC tại đây... (Tự động Khóa & Lưu ngay khi dán)"
-                rows={5}
-                autoFocus
-                className="w-full p-3.5 bg-white border-2 border-blue-400 rounded-2xl text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-200 transition-all resize-y"
-              />
-
-              <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
-                <span className="text-[11px] text-slate-400 font-medium">
-                  💡 Tự động <b>Khóa &amp; Lưu</b> ngay khi dán • Click ra ngoài để đóng
-                </span>
-
-                {/* Xóa trắng nếu muốn xóa hẳn */}
-                {rawInputThuc.trim() && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (window.confirm('Bạn có chắc muốn xóa trắng hoàn toàn dữ liệu D.Thu Thực?')) {
-                        handleSaveDataThuc('', true);
-                        setIsEditingThuc(false);
-                        setTempThuc('');
-                      }
-                    }}
-                    className="inline-flex items-center justify-center gap-1 px-2.5 py-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg text-[11px] font-bold cursor-pointer transition-all"
-                  >
-                    <Trash2 size={12} />
-                    <span>Xóa Trắng</span>
-                  </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                {timeStrQd && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 text-[11px] sm:text-xs font-bold">
+                    <Clock size={13} className="text-emerald-600" />
+                    Cập nhật: {timeStrQd.includes(' - ') ? timeStrQd.replace(' - ', ' NGÀY ') : timeStrQd}
+                  </span>
                 )}
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] sm:text-xs font-black">
+                  {qdStaffCount > 0 ? `${qdStaffCount} nhân sự` : `${rawInput.trim() ? rawInput.trim().split('\n').filter(Boolean).length : 0} dòng`}
+                </span>
               </div>
             </div>
-          )}
-        </div>
 
-        {/* ── CỘT PHẢI: D.THU QUY ĐỔI ── */}
-        <div ref={boxQdRef} className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 space-y-3 shadow-2xs h-full flex flex-col justify-between">
-          {/* Header D.Thu Quy Đổi */}
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Globe size={18} className="text-emerald-600 shrink-0" />
-              <span className="text-sm sm:text-base font-black text-emerald-700">
-                D.Thu Quy Đổi
-              </span>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {timeStrQd && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 text-[11px] sm:text-xs font-bold">
-                  <Clock size={13} className="text-emerald-600" />
-                  Cập nhật: {timeStrQd.includes(' - ') ? timeStrQd.replace(' - ', ' NGÀY ') : timeStrQd}
-                </span>
-              )}
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] sm:text-xs font-black">
-                {qdStaffCount > 0 ? `${qdStaffCount} nhân sự` : `${rawInput.trim() ? rawInput.trim().split('\n').filter(Boolean).length : 0} dòng`}
-              </span>
-            </div>
+            {/* Trạng thái Khóa / Mở dán mới D.Thu Quy Đổi */}
+            {!isEditingQd ? (
+              <div 
+                onClick={() => {
+                  setIsEditingQd(true);
+                  setTempQd('');
+                }}
+                className="bg-emerald-50/70 hover:bg-emerald-100/80 border border-emerald-200/90 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer transition-all active:scale-[0.99] group select-none"
+                title="Click vào bất kỳ vị trí nào trong ô này để mở dán mới"
+              >
+                <div className="flex items-center gap-2.5 text-emerald-900 font-black text-xs sm:text-sm">
+                  <Lock size={16} className="text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" />
+                  <span>
+                    {rawInput.trim()
+                      ? `Đã khóa dữ liệu D.Thu Quy Đổi (${qdStaffCount > 0 ? `${qdStaffCount} nhân sự` : `${rawInput.trim().split('\n').filter(Boolean).length} dòng`})`
+                      : 'Chưa có dữ liệu D.Thu Quy Đổi (Click mở dán mới để cập nhật)'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all pointer-events-none shrink-0"
+                >
+                  <Unlock size={15} />
+                  <span>Mở dán mới</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3 pt-1">
+                <textarea
+                  value={tempQd}
+                  onPaste={(e) => {
+                    const text = e.clipboardData?.getData('text');
+                    if (text && text.trim()) {
+                      e.preventDefault();
+                      handleSaveAndLockQd(text);
+                    }
+                  }}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setTempQd(val);
+                    if (val && val.trim()) {
+                      handleSaveAndLockQd(val);
+                    }
+                  }}
+                  placeholder="Dán toàn bộ dữ liệu báo cáo DOANH THU QUY ĐỔI tại đây... (Tự động Khóa & Lưu ngay khi dán)"
+                  rows={5}
+                  autoFocus
+                  className="w-full p-3.5 bg-white border-2 border-emerald-400 rounded-2xl text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-200 transition-all resize-y"
+                />
+
+                <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    💡 Tự động <b>Khóa &amp; Lưu</b> ngay khi dán • Click ra ngoài để đóng
+                  </span>
+
+                  {/* Xóa trắng nếu muốn xóa hẳn */}
+                  {rawInput.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm('Bạn có chắc muốn xóa trắng hoàn toàn dữ liệu D.Thu Quy Đổi?')) {
+                          handleSaveData('', true);
+                          setIsEditingQd(false);
+                          setTempQd('');
+                        }
+                      }}
+                      className="inline-flex items-center justify-center gap-1 px-2.5 py-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg text-[11px] font-bold cursor-pointer transition-all"
+                    >
+                      <Trash2 size={12} />
+                      <span>Xóa Trắng</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Trạng thái Khóa / Mở dán mới D.Thu Quy Đổi */}
-          {!isEditingQd ? (
-            <div 
-              onClick={() => {
-                setIsEditingQd(true);
-                setTempQd('');
-              }}
-              className="bg-emerald-50/70 hover:bg-emerald-100/80 border border-emerald-200/90 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer transition-all active:scale-[0.99] group select-none"
-              title="Click vào bất kỳ vị trí nào trong ô này để mở dán mới"
-            >
-              <div className="flex items-center gap-2.5 text-emerald-900 font-black text-xs sm:text-sm">
-                <Lock size={16} className="text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" />
-                <span>
-                  {rawInput.trim()
-                    ? `Đã khóa dữ liệu D.Thu Quy Đổi (${qdStaffCount > 0 ? `${qdStaffCount} nhân sự` : `${rawInput.trim().split('\n').filter(Boolean).length} dòng`})`
-                    : 'Chưa có dữ liệu D.Thu Quy Đổi (Click mở dán mới để cập nhật)'}
+          {/* ── CỘT 3: D.THU TRẢ GÓP ── */}
+          <div ref={boxTraGopRef} className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 space-y-3 shadow-2xs h-full flex flex-col justify-between">
+            {/* Header D.Thu Trả Góp */}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Globe size={18} className="text-purple-600 shrink-0" />
+                <span className="text-sm sm:text-base font-black text-purple-700">
+                  D.Thu Trả Góp
                 </span>
               </div>
-              <button
-                type="button"
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all pointer-events-none shrink-0"
-              >
-                <Unlock size={15} />
-                <span>Mở dán mới</span>
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3 pt-1">
-              <textarea
-                value={tempQd}
-                onPaste={(e) => {
-                  const text = e.clipboardData?.getData('text');
-                  if (text && text.trim()) {
-                    e.preventDefault();
-                    handleSaveAndLockQd(text);
-                  }
-                }}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setTempQd(val);
-                  if (val && val.trim()) {
-                    handleSaveAndLockQd(val);
-                  }
-                }}
-                placeholder="Dán toàn bộ dữ liệu báo cáo DOANH THU QUY ĐỔI tại đây... (Tự động Khóa & Lưu ngay khi dán)"
-                rows={5}
-                autoFocus
-                className="w-full p-3.5 bg-white border-2 border-emerald-400 rounded-2xl text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-200 transition-all resize-y"
-              />
-
-              <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
-                <span className="text-[11px] text-slate-400 font-medium">
-                  💡 Tự động <b>Khóa &amp; Lưu</b> ngay khi dán • Click ra ngoài để đóng
-                </span>
-
-                {/* Xóa trắng nếu muốn xóa hẳn */}
-                {rawInput.trim() && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (window.confirm('Bạn có chắc muốn xóa trắng hoàn toàn dữ liệu D.Thu Quy Đổi?')) {
-                        handleSaveData('', true);
-                        setIsEditingQd(false);
-                        setTempQd('');
-                      }
-                    }}
-                    className="inline-flex items-center justify-center gap-1 px-2.5 py-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg text-[11px] font-bold cursor-pointer transition-all"
-                  >
-                    <Trash2 size={12} />
-                    <span>Xóa Trắng</span>
-                  </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                {timeStrTraGop && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200/80 text-[11px] sm:text-xs font-bold">
+                    <Clock size={13} className="text-purple-600" />
+                    Cập nhật: {timeStrTraGop.includes(' - ') ? timeStrTraGop.replace(' - ', ' NGÀY ') : timeStrTraGop}
+                  </span>
                 )}
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 text-[11px] sm:text-xs font-black">
+                  {tragopStaffCount > 0 ? `${tragopStaffCount} nhân sự` : `${rawInputTraGop.trim() ? rawInputTraGop.trim().split('\n').filter(Boolean).length : 0} dòng`}
+                </span>
               </div>
             </div>
-          )}
+
+            {/* Trạng thái Khóa / Mở dán mới D.Thu Trả Góp */}
+            {!isEditingTraGop ? (
+              <div 
+                onClick={() => {
+                  setIsEditingTraGop(true);
+                  setTempTraGop('');
+                }}
+                className="bg-purple-50/70 hover:bg-purple-100/80 border border-purple-200/90 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer transition-all active:scale-[0.99] group select-none"
+                title="Click vào bất kỳ vị trí nào trong ô này để mở dán mới"
+              >
+                <div className="flex items-center gap-2.5 text-purple-900 font-black text-xs sm:text-sm">
+                  <Lock size={16} className="text-purple-600 shrink-0 group-hover:scale-110 transition-transform" />
+                  <span>
+                    {rawInputTraGop.trim()
+                      ? `Đã khóa dữ liệu D.Thu Trả Góp (${tragopStaffCount > 0 ? `${tragopStaffCount} nhân sự` : `${rawInputTraGop.trim().split('\n').filter(Boolean).length} dòng`})`
+                      : 'Chưa có dữ liệu D.Thu Trả Góp (Click mở dán mới để cập nhật)'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all pointer-events-none shrink-0"
+                >
+                  <Unlock size={15} />
+                  <span>Mở dán mới</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3 pt-1">
+                <textarea
+                  value={tempTraGop}
+                  onPaste={(e) => {
+                    const text = e.clipboardData?.getData('text');
+                    if (text && text.trim()) {
+                      e.preventDefault();
+                      handleSaveAndLockTraGop(text);
+                    }
+                  }}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setTempTraGop(val);
+                    if (val && val.trim()) {
+                      handleSaveAndLockTraGop(val);
+                    }
+                  }}
+                  placeholder="Dán toàn bộ dữ liệu báo cáo DOANH THU TRẢ GÓP tại đây... (Tự động Khóa & Lưu ngay khi dán)"
+                  rows={5}
+                  autoFocus
+                  className="w-full p-3.5 bg-white border-2 border-purple-400 rounded-2xl text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-purple-200 transition-all resize-y"
+                />
+
+                <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    💡 Tự động <b>Khóa &amp; Lưu</b> ngay khi dán • Click ra ngoài để đóng
+                  </span>
+
+                  {/* Xóa trắng nếu muốn xóa hẳn */}
+                  {rawInputTraGop.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm('Bạn có chắc muốn xóa trắng hoàn toàn dữ liệu D.Thu Trả Góp?')) {
+                          handleSaveDataTraGop('', true);
+                          setIsEditingTraGop(false);
+                          setTempTraGop('');
+                        }
+                      }}
+                      className="inline-flex items-center justify-center gap-1 px-2.5 py-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg text-[11px] font-bold cursor-pointer transition-all"
+                    >
+                      <Trash2 size={12} />
+                      <span>Xóa Trắng</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
 
       {/* ── TOP ACTION BUTTONS (BỘ LỌC NV / XUẤT ẢNH / ZALO / AUTO ZOOM) ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-0.5 sm:px-1 no-capture">
