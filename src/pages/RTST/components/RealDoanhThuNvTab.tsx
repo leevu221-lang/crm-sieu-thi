@@ -1021,7 +1021,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
   }, [allRows, filterSearchTerm]);
 
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-5 pb-12" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
+    <div className="w-full max-w-6xl mx-auto space-y-5 pb-12" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
       
       {/* ── CARD REALTIME: Ô DÁN DỮ LIỆU D.THU THỰC & D.THU QUY ĐỔI (THIẾT KẾ CHUẨN HÌNH 2) ── */}
       <div className="bg-white rounded-3xl p-4 sm:p-6 border border-slate-200/90 shadow-sm space-y-4 no-capture">
@@ -1079,8 +1079,10 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
           </div>
         </div>
 
-        {/* ── KHUNG 1: D.THU THỰC ── */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 space-y-3 shadow-2xs">
+        {/* ── BỐ CỤC 2 CỘT: BÊN TRÁI LÀ Ô "D.THU THỰC", BÊN PHẢI LÀ Ô "D.THU QUY ĐỔI" ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+          {/* ── CỘT TRÁI: D.THU THỰC ── */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 space-y-3 shadow-2xs h-full flex flex-col justify-between">
           {/* Header D.Thu Thực */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
@@ -1222,8 +1224,8 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
           )}
         </div>
 
-        {/* ── KHUNG 2: D.THU QUY ĐỔI ── */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 space-y-3 shadow-2xs">
+        {/* ── CỘT PHẢI: D.THU QUY ĐỔI ── */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 space-y-3 shadow-2xs h-full flex flex-col justify-between">
           {/* Header D.Thu Quy Đổi */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
@@ -1378,6 +1380,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
           )}
         </div>
       </div>
+    </div>
 
       {/* ── TOP ACTION BUTTONS (BỘ LỌC NV / XUẤT ẢNH / ZALO / AUTO ZOOM) ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-0.5 sm:px-1 no-capture">
