@@ -331,7 +331,17 @@ interface CategoryDetailByStaffTableProps {
   selectedStaffIds?: string[];
   luykeCategories?: CategoryData[];
   categoryConfig?: CategoryConfigItem[];
+  activeStore?: string;
 }
+
+const areArraysEqual = (a: string[], b: string[]) => {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+};
 
 const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   luyKeNganhHang,
@@ -342,8 +352,12 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   categoryTargets,
   selectedStaffIds = [],
   luykeCategories,
-  categoryConfig
+  categoryConfig,
+  activeStore: propActiveStore
 }) => {
+  const { activeStore: luykeActiveStore } = useLuykeData();
+  const targetStore = propActiveStore || luykeActiveStore || 'GLOBAL';
+
   // 1. Memoized Staff Matrix & Categories parsing from text data
   const { results: allStaffMatrix, categories } = useMemo(() => {
     return parseStaffMatrixDataRefined(
@@ -359,7 +373,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   }, [thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays, categoryConfig]);
 
   // 2. Memoized Dropdown Categories list: Lấy đúng 100% theo "TH Thi đua" (chỉ 40 ngành hàng, không ghép thừa từ luykeCategories)
-  const dropdownCategories = useMemo(() => {
+  const rawDropdownCategories = useMemo(() => {
     if (categories && categories.length > 0) {
       return categories;
     }
@@ -368,6 +382,16 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     }
     return [];
   }, [categories, luykeCategories]);
+
+  // Giữ tham chiếu ổn định để chống vòng lặp re-render nhấp nháy
+  const dropdownCategoriesRef = useRef<string[]>([]);
+  const dropdownCategories = useMemo(() => {
+    if (areArraysEqual(dropdownCategoriesRef.current, rawDropdownCategories)) {
+      return dropdownCategoriesRef.current;
+    }
+    dropdownCategoriesRef.current = rawDropdownCategories;
+    return rawDropdownCategories;
+  }, [rawDropdownCategories]);
 
   // Phân nhóm ngành hàng ICT, DỊCH VỤ, CE theo chuẩn TH Thi Đua
   const ictCategories = useMemo(
@@ -390,9 +414,27 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
       : allStaffMatrix;
   }, [allStaffMatrix, selectedStaffIds]);
 
-  const { activeStore } = useLuykeData();
+  // Khởi tạo synchronous lazy state từ localStorage để frame đầu tiên KHÔNG BAO GIỜ bị rỗng (triệt tiêu chớp nháy)
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(() => {
+    try {
+      const savedKey = `EH_DETAIL_CATEGORIES_${targetStore}`;
+      const savedVal = localStorage.getItem(savedKey);
+      if (savedVal !== null) {
+        const parsed = JSON.parse(savedVal);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      const savedThiDuaKey = `EH_VISIBLE_CATEGORIES_${targetStore}`;
+      const savedThiDuaVal = localStorage.getItem(savedThiDuaKey);
+      if (savedThiDuaVal !== null) {
+        const parsedThiDua = JSON.parse(savedThiDuaVal);
+        if (Array.isArray(parsedThiDua) && parsedThiDua.length > 0) return parsedThiDua;
+      }
+    } catch (e) {
+      console.error('Error reading initial detail categories:', e);
+    }
+    return [];
+  });
 
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isCapturingAll, setIsCapturingAll] = useState(false);
@@ -403,17 +445,6 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   const [commentRowData, setCommentRowData] = useState<CategoryRowData[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const initializedRef = useRef(false);
-  const prevStoreRef = useRef(activeStore);
-  const prevDropdownCategoriesRef = useRef<string[]>([]);
-
-  // Reset flag when switching stores
-  React.useEffect(() => {
-    if (prevStoreRef.current !== activeStore) {
-      prevStoreRef.current = activeStore;
-      initializedRef.current = false;
-    }
-  }, [activeStore]);
 
   // 4. Precompute Category Data Map with O(1) Lookups & Fallback Search
   const allCategoryDataMap = useMemo(() => {
@@ -502,7 +533,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
           accumulated,
           projectedRate
         };
-      }).sort((a, b) => b.projectedRate - a.projectedRate);
+      }).sort((a, b) => (b.projectedRate - a.projectedRate) || a.staffName.localeCompare(b.staffName, 'vi'));
 
       const reachedCount = rowData.filter(row => Math.round(row.projectedRate) >= 100).length;
       const totalStaff = rowData.length;
@@ -513,7 +544,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
         : 0;
       const totDiff = totAcc - totTarget;
 
-      map.set(catName, {
+      const cardData: CategoryCardData = {
         targetPerStaff,
         rowData,
         reachedCount,
@@ -522,7 +553,12 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
         totAcc,
         totRate,
         totDiff
-      });
+      };
+
+      // Đăng ký cả 3 dạng key để truy xuất O(1) không bao giờ bị lỡ
+      map.set(catName, cardData);
+      map.set(cleanName, cardData);
+      map.set(lowerName, cardData);
     }
 
     return map;
@@ -531,18 +567,80 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   // Save selected categories synchronously to localStorage
   const saveSelectedToStorage = useCallback((cats: string[]) => {
     try {
-      const savedKey = `EH_DETAIL_CATEGORIES_${activeStore || 'GLOBAL'}`;
+      const savedKey = `EH_DETAIL_CATEGORIES_${targetStore}`;
       localStorage.setItem(savedKey, JSON.stringify(cats));
     } catch (e) {
       console.error('Error saving detail categories:', e);
     }
-  }, [activeStore]);
+  }, [targetStore]);
 
-  // Restore selection from localStorage - Tự động đồng bộ chuẩn theo TH Thi Đua
+  // Khi chuyển siêu thị thật sự (targetStore thay đổi), đồng bộ lại danh mục đã lưu của store đó
+  const prevStoreRef = useRef(targetStore);
   React.useEffect(() => {
-    if (dropdownCategories.length > 0 && !initializedRef.current) {
-      // 1. Kiểm tra cache riêng của CT Ngành hàng
-      const savedKey = `EH_DETAIL_CATEGORIES_${activeStore || 'GLOBAL'}`;
+    if (prevStoreRef.current !== targetStore) {
+      prevStoreRef.current = targetStore;
+      try {
+        const savedKey = `EH_DETAIL_CATEGORIES_${targetStore}`;
+        const savedVal = localStorage.getItem(savedKey);
+        if (savedVal !== null) {
+          const parsed = JSON.parse(savedVal);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const valid = dropdownCategories.length > 0
+              ? dropdownCategories.filter(cat => {
+                  const clean = cleanCategoryName(cat);
+                  return parsed.some((p: string) => p === cat || cleanCategoryName(p) === clean);
+                })
+              : parsed;
+            if (valid.length > 0) {
+              setSelectedCategories(prev => areArraysEqual(prev, valid) ? prev : valid);
+              return;
+            }
+          }
+        }
+        const savedThiDuaKey = `EH_VISIBLE_CATEGORIES_${targetStore}`;
+        const savedThiDuaVal = localStorage.getItem(savedThiDuaKey);
+        if (savedThiDuaVal !== null) {
+          const parsedThiDua = JSON.parse(savedThiDuaVal);
+          if (Array.isArray(parsedThiDua) && parsedThiDua.length > 0) {
+            const valid = dropdownCategories.length > 0
+              ? dropdownCategories.filter(cat => {
+                  const clean = cleanCategoryName(cat);
+                  return parsedThiDua.some((p: string) => p === cat || cleanCategoryName(p) === clean);
+                })
+              : parsedThiDua;
+            if (valid.length > 0) {
+              setSelectedCategories(prev => areArraysEqual(prev, valid) ? prev : valid);
+              return;
+            }
+          }
+        }
+        if (dropdownCategories.length > 0) {
+          setSelectedCategories(prev => areArraysEqual(prev, dropdownCategories) ? prev : dropdownCategories);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, [targetStore, dropdownCategories]);
+
+  // Restore selection when dropdownCategories loads - Tự động đồng bộ chuẩn theo TH Thi Đua
+  React.useEffect(() => {
+    if (dropdownCategories.length === 0) return;
+
+    setSelectedCategories(prev => {
+      // 1. Nếu prev đã có danh mục hợp lệ, kiểm tra xem có cần lọc lại theo dropdown mới không
+      if (prev.length > 0) {
+        const valid = prev.filter(cat => {
+          const clean = cleanCategoryName(cat);
+          return dropdownCategories.some(d => d === cat || cleanCategoryName(d) === clean);
+        });
+        if (valid.length > 0) {
+          return areArraysEqual(prev, valid) ? prev : valid;
+        }
+      }
+
+      // 2. Kiểm tra cache riêng của CT Ngành hàng
+      const savedKey = `EH_DETAIL_CATEGORIES_${targetStore}`;
       const savedVal = localStorage.getItem(savedKey);
       if (savedVal !== null) {
         try {
@@ -553,9 +651,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
               return parsed.some((p: string) => p === cat || cleanCategoryName(p) === clean);
             });
             if (validSaved.length > 0) {
-              setSelectedCategories(validSaved);
-              initializedRef.current = true;
-              return;
+              return validSaved;
             }
           }
         } catch (e) {
@@ -563,8 +659,8 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
         }
       }
 
-      // 2. Nếu CT Ngành hàng chưa có cache, đọc từ cấu hình TH Thi Đua
-      const savedThiDuaKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
+      // 3. Nếu CT Ngành hàng chưa có cache, đọc từ cấu hình TH Thi Đua
+      const savedThiDuaKey = `EH_VISIBLE_CATEGORIES_${targetStore}`;
       const savedThiDuaVal = localStorage.getItem(savedThiDuaKey);
       if (savedThiDuaVal !== null) {
         try {
@@ -575,9 +671,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
               return parsedThiDua.some((p: string) => p === cat || cleanCategoryName(p) === clean);
             });
             if (validThiDua.length > 0) {
-              setSelectedCategories(validThiDua);
-              initializedRef.current = true;
-              return;
+              return validThiDua;
             }
           }
         } catch (e) {
@@ -585,11 +679,10 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
         }
       }
 
-      // 3. Mặc định chọn tất cả nếu chưa từng lưu
-      setSelectedCategories(dropdownCategories);
-      initializedRef.current = true;
-    }
-  }, [dropdownCategories, activeStore]);
+      // 4. Mặc định chọn tất cả
+      return dropdownCategories;
+    });
+  }, [dropdownCategories, targetStore]);
 
   const selectedCategoriesSet = useMemo(() => new Set(selectedCategories), [selectedCategories]);
 
@@ -601,7 +694,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
 
   // Đồng bộ danh sách hiển thị khớp 100% với các ngành hàng đang bật ở TH Thi Đua
   const handleSyncWithThiDua = useCallback(() => {
-    const savedThiDuaKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
+    const savedThiDuaKey = `EH_VISIBLE_CATEGORIES_${targetStore}`;
     const savedThiDuaVal = localStorage.getItem(savedThiDuaKey);
     if (savedThiDuaVal) {
       try {
@@ -1061,7 +1154,14 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     setCommentOpenCat(catName);
   }, [catCommentTemplate, generateCatComment]);
 
-  if (dropdownCategories.length === 0 && categories.length === 0) return null;
+  if (dropdownCategories.length === 0 && categories.length === 0) {
+    return (
+      <div className="mt-6 sm:mt-8 flex flex-col items-center justify-center p-8 bg-white border border-slate-200 text-slate-400">
+        <Layers size={36} className="mb-2 text-slate-300 animate-pulse" />
+        <p className="font-bold text-sm text-slate-600">Đang chuẩn bị dữ liệu ngành hàng...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-6 sm:mt-8 flex flex-col gap-4 sm:gap-5 w-full max-w-none" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
@@ -1298,7 +1398,11 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
           </>
         ) : (
           selectedCategories.map((catName) => {
-            const cardData = allCategoryDataMap.get(catName);
+            const cleanName = cleanCategoryName(catName);
+            const lowerName = catName.trim().toLowerCase();
+            const cardData = allCategoryDataMap.get(catName)
+              || allCategoryDataMap.get(cleanName)
+              || allCategoryDataMap.get(lowerName);
             if (!cardData) return null;
 
             return (

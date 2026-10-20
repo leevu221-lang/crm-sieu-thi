@@ -4763,6 +4763,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                     selectedStaffIds={selectedStaffIds}
                     luykeCategories={filteredLuykeCategories}
                     categoryConfig={categoryConfig}
+                    activeStore={marketFilter !== 'ALL' ? marketFilter : (tenSieuThi || maKho || 'GLOBAL')}
                   />
                 </motion.div>
               )}
