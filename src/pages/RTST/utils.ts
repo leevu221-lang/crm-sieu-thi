@@ -535,8 +535,10 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
   // 1. Extract Top KPI Cards if present in BI text
   let topInstallmentRate = 0;
   const normValForTopKpi = removeAccents(val);
-  const traGopMatch = normValForTopKpi.match(/(?:t[yi]\s*trong\s*tra\s*(?:gop|cham)|t[yi]\s*trong\s*t[gc]|%\s*tra\s*(?:gop|cham))\s*[:\n\r\t ]+\s*([\d,.]+)\s*%/i) ||
-                      val.match(/(?:T[ỉiỷy]\s*tr[ọo]ng\s*tr[ảa]\s*(?:g[óo]p|ch[ậa]m)|T[ỉiỷy]\s*tr[ọo]ng\s*t[gc]|%\s*tr[ảa]\s*(?:g[óo]p|ch[ậa]m))\s*[:\n\r\t ]+\s*([\d,.]+)\s*%/i);
+  const traGopMatch = normValForTopKpi.match(/(?:t[yi]\s*trong\s*tra\s*(?:gop|cham)|t[yi]\s*trong\s*t[gc]|%\s*tra\s*(?:gop|cham))[\s\S]{0,60}?([\d,.]+)\s*%/i) ||
+                      val.match(/(?:T[ỉiỷy]\s*tr[ọo]ng\s*tr[ảa]\s*(?:g[óo]p|ch[ậa]m)|T[ỉiỷy]\s*tr[ọo]ng\s*t[gc]|%\s*tr[ảa]\s*(?:g[óo]p|ch[ậa]m))[\s\S]{0,60}?([\d,.]+)\s*%/i) ||
+                      normValForTopKpi.match(/([\d,.]+)\s*%[\s\S]{0,60}?(?:t[yi]\s*trong\s*tra\s*(?:gop|cham)|t[yi]\s*trong\s*t[gc]|%\s*tra\s*(?:gop|cham))/i) ||
+                      val.match(/([\d,.]+)\s*%[\s\S]{0,60}?(?:T[ỉiỷy]\s*tr[ọo]ng\s*tr[ảa]\s*(?:g[óo]p|ch[ậa]m)|T[ỉiỷy]\s*tr[ọo]ng\s*t[gc]|%\s*tr[ảa]\s*(?:g[óo]p|ch[ậa]m))/i);
   if (traGopMatch) {
     topInstallmentRate = cleanNum(traGopMatch[1]);
   }
@@ -971,7 +973,13 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
           percentTraGopVal = cleanNum(cols[cols.length - 1]);
         }
 
-        const finalInstallmentRate = percentTraGopVal || installmentRateVal || topInstallmentRate;
+        if (percentTraGopVal < 0 || percentTraGopVal > 100) percentTraGopVal = 0;
+        if (installmentRateVal < 0 || installmentRateVal > 100) installmentRateVal = 0;
+        const finalInstallmentRate = (tyTrongTraGopIdx !== -1 && percentTraGopVal > 0)
+          ? percentTraGopVal
+          : (topInstallmentRate > 0
+              ? topInstallmentRate
+              : (percentTraGopVal > 0 ? percentTraGopVal : (installmentRateVal > 0 ? installmentRateVal : 0)));
 
         if (!results.some(m => m.name === marketName)) {
           results.push({ 
@@ -1049,7 +1057,13 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
             if (codeMatch) {
               ma_kho = codeMatch[1].trim().replace(/[\s_]+/g, '');
             }
-            const finalInstallmentRate = percentTraGopVal || installmentRateVal || topInstallmentRate;
+            if (percentTraGopVal < 0 || percentTraGopVal > 100) percentTraGopVal = 0;
+            if (installmentRateVal < 0 || installmentRateVal > 100) installmentRateVal = 0;
+            const finalInstallmentRate = (tyTrongTraGopIdx !== -1 && percentTraGopVal > 0)
+              ? percentTraGopVal
+              : (topInstallmentRate > 0
+                  ? topInstallmentRate
+                  : (percentTraGopVal > 0 ? percentTraGopVal : (installmentRateVal > 0 ? installmentRateVal : 0)));
             results.push({
               name: marketName,
               ma_kho,
@@ -1141,7 +1155,13 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
               ma_kho = codeMatch[1].trim().replace(/[\s_]+/g, '');
             }
 
-            const finalInstallmentRate = percentTraGopVal || installmentRateVal || topInstallmentRate;
+            if (percentTraGopVal < 0 || percentTraGopVal > 100) percentTraGopVal = 0;
+            if (installmentRateVal < 0 || installmentRateVal > 100) installmentRateVal = 0;
+            const finalInstallmentRate = (tyTrongTraGopIdx !== -1 && percentTraGopVal > 0)
+              ? percentTraGopVal
+              : (topInstallmentRate > 0
+                  ? topInstallmentRate
+                  : (percentTraGopVal > 0 ? percentTraGopVal : (installmentRateVal > 0 ? installmentRateVal : 0)));
             results.push({ 
               name: marketName, 
               ma_kho,
@@ -1379,6 +1399,21 @@ export function parseTraChamRate(rawInput: string | undefined | null, targetStor
     if (!isNaN(num) && num > 0) return num;
   }
 
+  // Check top KPI card pattern in text (e.g. "Tỷ trọng trả chậm \n 81.8%" or "81.8% \n Tỷ trọng trả chậm")
+  const normVal = removeAccents(trimmed);
+  const m1 = normVal.match(/(?:t[yi]\s*trong\s*tra\s*(?:gop|cham)|t[yi]\s*trong\s*t[gc]|%\s*tra\s*(?:gop|cham))[\s\S]{0,60}?([\d,.]+)\s*%/i) ||
+             trimmed.match(/(?:T[ỉiỷy]\s*tr[ọo]ng\s*tr[ảa]\s*(?:g[óo]p|ch[ậa]m)|T[ỉiỷy]\s*tr[ọo]ng\s*t[gc]|%\s*tr[ảa]\s*(?:g[óo]p|ch[ậa]m))[\s\S]{0,60}?([\d,.]+)\s*%/i);
+  const m2 = normVal.match(/([\d,.]+)\s*%[\s\S]{0,60}?(?:t[yi]\s*trong\s*tra\s*(?:gop|cham)|t[yi]\s*trong\s*t[gc]|%\s*tra\s*(?:gop|cham))/i) ||
+             trimmed.match(/([\d,.]+)\s*%[\s\S]{0,60}?(?:T[ỉiỷy]\s*tr[ọo]ng\s*tr[ảa]\s*(?:g[óo]p|ch[ậa]m)|T[ỉiỷy]\s*tr[ọo]ng\s*t[gc]|%\s*tr[ảa]\s*(?:g[óo]p|ch[ậa]m))/i);
+  if (m1) {
+    const r = cleanNum(m1[1]);
+    if (r > 0 && r <= 100) return r;
+  }
+  if (m2) {
+    const r = cleanNum(m2[1]);
+    if (r > 0 && r <= 100) return r;
+  }
+
   const lines = trimmed.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   if (lines.length === 0) return null;
 
@@ -1468,7 +1503,7 @@ export function parseTraChamRate(rawInput: string | undefined | null, targetStor
       }
 
       const rateVal = cleanNum(cols[tcColIdx]);
-      if (!isNaN(rateVal) && rateVal >= 0) {
+      if (!isNaN(rateVal) && rateVal >= 0 && rateVal <= 100) {
         const isSum = rowName.toUpperCase().startsWith('TỔNG') || rowName.toUpperCase().includes('TOÀN') || rowName.toUpperCase().includes('CỤM');
         storeRows.push({
           name: rowName,
@@ -1526,12 +1561,24 @@ export function resolveRealtimeTraChamRate(targetStoreName?: string): number | n
   const storeKey = targetStoreName && targetStoreName !== 'ALL' ? targetStoreName : '';
   const digits = storeKey ? (storeKey.match(/\d{3,}/) || [''])[0] : '';
   
+  // 1. Check explicit "REALTIME TRẢ CHẬM" input
   const raw = (digits && localStorage.getItem(`rtst_realtime_tra_cham_${digits}`)) ||
               (storeKey && localStorage.getItem(`rtst_realtime_tra_cham_${storeKey}`)) ||
               localStorage.getItem('rtst_realtime_tra_cham') ||
               localStorage.getItem('rt_tra_cham') || '';
               
-  return parseTraChamRate(raw, targetStoreName);
+  const parsed = parseTraChamRate(raw, targetStoreName);
+  if (parsed !== null && !isNaN(parsed) && parsed > 0) return parsed;
+
+  // 2. Check main realtime input (REALTIME DOANH THU QUY ĐỔI)
+  const rawMarket = (digits && localStorage.getItem(`rtst_market_input_${digits}`)) ||
+                    (storeKey && localStorage.getItem(`rtst_market_input_${storeKey}`)) ||
+                    localStorage.getItem('rtst_market_input') ||
+                    localStorage.getItem('rt_market') || '';
+  const parsedMarket = parseTraChamRate(rawMarket, targetStoreName);
+  if (parsedMarket !== null && !isNaN(parsedMarket) && parsedMarket > 0) return parsedMarket;
+
+  return null;
 }
 
 export function resolveLuykeTraChamRate(targetStoreName?: string): number | null {
@@ -1539,12 +1586,24 @@ export function resolveLuykeTraChamRate(targetStoreName?: string): number | null
   const storeKey = targetStoreName && targetStoreName !== 'ALL' ? targetStoreName : '';
   const digits = storeKey ? (storeKey.match(/\d{3,}/) || [''])[0] : '';
   
+  // 1. Check explicit "LUỸ KẾ TRẢ CHẬM" input
   const raw = (digits && localStorage.getItem(`rtst_luyke_tra_cham_${digits}`)) ||
               (storeKey && localStorage.getItem(`rtst_luyke_tra_cham_${storeKey}`)) ||
               localStorage.getItem('rtst_luyke_tra_cham') ||
               localStorage.getItem('rt_tra_cham_lk') || '';
               
-  return parseTraChamRate(raw, targetStoreName);
+  const parsed = parseTraChamRate(raw, targetStoreName);
+  if (parsed !== null && !isNaN(parsed) && parsed > 0) return parsed;
+
+  // 2. Check main LUỸ KẾ DOANH THU QUY ĐỔI input
+  const rawCluster = (digits && localStorage.getItem(`rtst_cluster_summary_${digits}`)) ||
+                     (storeKey && localStorage.getItem(`rtst_cluster_summary_${storeKey}`)) ||
+                     localStorage.getItem('rtst_cluster_summary') ||
+                     localStorage.getItem('rt_catrev') || '';
+  const parsedCluster = parseTraChamRate(rawCluster, targetStoreName);
+  if (parsedCluster !== null && !isNaN(parsedCluster) && parsedCluster > 0) return parsedCluster;
+
+  return null;
 }
 
 
