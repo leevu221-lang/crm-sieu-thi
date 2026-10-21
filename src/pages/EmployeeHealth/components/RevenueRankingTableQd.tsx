@@ -108,6 +108,19 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
     return sum + aNorm;
   }, 0);
 
+  // Sum of DT. THỰC matching the scale of totalVirtual
+  const totalActualDisplay = sortedData.reduce((sum, staff) => {
+    const rawA = getStaffActualRevenue(staff);
+    const vRaw = staff.virtualVal || 0;
+    let a = rawA;
+    if (Math.abs(vRaw) <= 1000000 && Math.abs(rawA) > 1000000) {
+      a = Math.round(rawA / 1000000);
+    } else if (Math.abs(vRaw) > 1000000 && Math.abs(rawA) <= 1000000) {
+      a = rawA * 1000000;
+    }
+    return sum + a;
+  }, 0);
+
   const totalEffQd = totalActual > 0 ? ((actualTotalVirtual - totalActual) / totalActual) * 100 : 0;
   // Lấy đúng giá trị từ cấu hình màn hình BC THÁNG -> THẺ TARGET QUY ĐỔI và chia cho số nhân viên
   const targetQdPerStaff = sortedData.length > 0 ? stTargetQuyDoi / sortedData.length : 0;
@@ -351,21 +364,23 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
             }}
           >
             <colgroup>
-              <col style={{ width: isMobile ? '28px' : '45px' }} />
-              <col style={{ width: isMobile ? 'auto' : '270px' }} />
-              <col style={{ width: isMobile ? '44px' : '95px' }} />
-              <col style={{ width: isMobile ? '44px' : '95px' }} />
-              <col style={{ width: isMobile ? '38px' : '95px' }} />
-              <col style={{ width: isMobile ? '42px' : '105px' }} />
-              <col style={{ width: isMobile ? '44px' : '105px' }} />
-              <col style={{ width: isMobile ? '28px' : '55px' }} />
+              <col style={{ width: isMobile ? '26px' : '40px' }} />
+              <col style={{ width: isMobile ? 'auto' : '230px' }} />
+              <col style={{ width: isMobile ? '38px' : '85px' }} />
+              <col style={{ width: isMobile ? '38px' : '85px' }} />
+              <col style={{ width: isMobile ? '38px' : '85px' }} />
+              <col style={{ width: isMobile ? '34px' : '75px' }} />
+              <col style={{ width: isMobile ? '40px' : '90px' }} />
+              <col style={{ width: isMobile ? '40px' : '90px' }} />
+              <col style={{ width: isMobile ? '26px' : '50px' }} />
             </colgroup>
             <thead>
               <tr className="text-white font-black text-[9px] sm:text-[13.5px] uppercase tracking-tight h-[34px] sm:h-[44px]">
                 <th style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">STT</th>
                 <th style={{ fontWeight: 900 }} className="px-1.5 sm:px-3.5 py-0 text-left text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">NHÂN VIÊN</th>
                 <th style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">TARGET</th>
-                <th style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">L.KẾ</th>
+                <th style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">DT. THỰC</th>
+                <th style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">DTQĐ</th>
                 <th style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">%HT</th>
                 <th style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">HQ.QĐ</th>
                 <th style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">{isMobile ? '% T.C' : '% T.CHẬM'}</th>
@@ -376,11 +391,18 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
               {sortedData.length > 0 ? (
                 sortedData.map((staff, index) => {
                   // Resolve Doanh thu Thực (actualVal) from Cột 3 từ trái sang ô "D.THU THỰC NHÂN VIÊN"
-                  const actualVal = getStaffActualRevenue(staff);
+                  const rawActual = getStaffActualRevenue(staff);
+                  const vRaw = staff.virtualVal || 0;
+                  let displayActual = rawActual;
+                  if (Math.abs(vRaw) <= 1000000 && Math.abs(rawActual) > 1000000) {
+                    displayActual = Math.round(rawActual / 1000000);
+                  } else if (Math.abs(vRaw) > 1000000 && Math.abs(rawActual) <= 1000000) {
+                    displayActual = rawActual * 1000000;
+                  }
 
                   // HQ.QĐ = (DOANH THU QĐ - DOANH THU THỰC) / DOANH THU THỰC × 100
                   const vNorm = Math.abs(staff.virtualVal || 0) > 1000000 ? (staff.virtualVal || 0) : (staff.virtualVal || 0) * 1000000;
-                  const aNorm = Math.abs(actualVal || 0) > 1000000 ? (actualVal || 0) : (actualVal || 0) * 1000000;
+                  const aNorm = Math.abs(rawActual || 0) > 1000000 ? (rawActual || 0) : (rawActual || 0) * 1000000;
                   const effQd = aNorm > 0 ? ((vNorm - aNorm) / aNorm) * 100 : (staff.effVal || 0);
 
                   const actualTargetQdPerStaff = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
@@ -429,6 +451,9 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                       <td style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center border-r border-b border-emerald-100/90 font-bold text-[10px] sm:text-[14.5px] text-slate-800 whitespace-nowrap overflow-hidden">
                         {targetQdPerStaff > 0 ? formatStaffTarget(targetQdPerStaff) : '0'}
                       </td>
+                      <td style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[10px] sm:text-[14.5px] text-emerald-700 whitespace-nowrap overflow-hidden">
+                        {displayActual > 0 ? formatCurrencyValue(displayActual) : '-'}
+                      </td>
                       <td style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[10px] sm:text-[14.5px] text-rose-600 whitespace-nowrap overflow-hidden">
                         {formatCurrencyValue(staff.virtualVal || 0)}
                       </td>
@@ -466,7 +491,7 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                 })
               ) : (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center h-[100px]">
+                  <td colSpan={9} className="px-4 py-12 text-center h-[100px]">
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                       Chưa có dữ liệu xếp hạng doanh thu
                     </p>
@@ -482,6 +507,9 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                   </td>
                   <td style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[10px] sm:text-[15px] whitespace-nowrap bg-[#047857] overflow-hidden">
                     {totalTargetQd > 0 ? formatCurrencyValue(totalTargetQd) : '0'}
+                  </td>
+                  <td style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[10px] sm:text-[15px] whitespace-nowrap bg-[#047857] overflow-hidden">
+                    {totalActualDisplay > 0 ? formatCurrencyValue(totalActualDisplay) : '-'}
                   </td>
                   <td style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[10px] sm:text-[15px] whitespace-nowrap bg-[#047857] overflow-hidden">
                     {formatCurrencyValue(totalVirtual)}
