@@ -157,7 +157,7 @@ interface ReportInputBoxProps {
   onChange: (val: string) => void;
   onBlur?: () => void;
   onClear: () => void;
-  colorTheme: 'emerald' | 'amber' | 'blue' | 'teal' | 'orange';
+  colorTheme?: 'emerald' | 'amber' | 'blue' | 'teal' | 'orange' | 'purple' | 'violet';
   placeholder?: string;
   onSaveTrigger?: () => void;
   externalLink?: string;
@@ -238,6 +238,7 @@ const ReportInputBox: React.FC<ReportInputBoxProps> = ({
   const isTeal = colorTheme === 'teal';
   const isAmber = colorTheme === 'amber';
   const isOrange = colorTheme === 'orange';
+  const isPurple = colorTheme === 'purple' || colorTheme === 'violet';
 
   const textHeaderColor = isEmerald 
     ? 'text-emerald-700' 
@@ -247,6 +248,8 @@ const ReportInputBox: React.FC<ReportInputBoxProps> = ({
     ? 'text-amber-700' 
     : isOrange 
     ? 'text-orange-700' 
+    : isPurple
+    ? 'text-purple-700'
     : 'text-blue-700';
 
   const iconColor = isEmerald 
@@ -257,18 +260,24 @@ const ReportInputBox: React.FC<ReportInputBoxProps> = ({
     ? 'text-amber-500' 
     : isOrange 
     ? 'text-orange-500' 
+    : isPurple
+    ? 'text-purple-600'
     : 'text-blue-600';
 
   const badgeTimeColor = (isEmerald || isTeal)
     ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80' 
     : (isAmber || isOrange)
     ? 'bg-amber-50 text-amber-700 border-amber-200/80' 
+    : isPurple
+    ? 'bg-purple-50 text-purple-700 border-purple-200/80'
     : 'bg-blue-50 text-blue-700 border-blue-200/80';
 
   const badgeCountColor = (isEmerald || isTeal)
     ? 'bg-emerald-100 text-emerald-800'
     : (isAmber || isOrange)
-    ? 'bg-amber-100 text-amber-800'
+    ? 'bg-amber-100 text-amber-800' 
+    : isPurple
+    ? 'bg-purple-100 text-purple-800'
     : 'bg-blue-100 text-blue-800';
 
   const buttonBgColor = isEmerald
@@ -279,12 +288,16 @@ const ReportInputBox: React.FC<ReportInputBoxProps> = ({
     ? 'bg-amber-500 hover:bg-amber-600'
     : isOrange
     ? 'bg-orange-500 hover:bg-orange-600'
+    : isPurple
+    ? 'bg-purple-600 hover:bg-purple-700'
     : 'bg-blue-600 hover:bg-blue-700';
 
   const boxBorderHover = (isEmerald || isTeal)
     ? 'bg-emerald-50/70 hover:bg-emerald-100/80 border-emerald-200/90'
     : (isAmber || isOrange)
     ? 'bg-amber-50/70 hover:bg-amber-100/80 border-amber-200/90'
+    : isPurple
+    ? 'bg-purple-50/70 hover:bg-purple-100/80 border-purple-200/90'
     : 'bg-blue-50/70 hover:bg-blue-100/80 border-blue-200/90';
 
   const textLockedColor = isEmerald
@@ -295,12 +308,16 @@ const ReportInputBox: React.FC<ReportInputBoxProps> = ({
     ? 'text-amber-950'
     : isOrange
     ? 'text-orange-950'
+    : isPurple
+    ? 'text-purple-950'
     : 'text-blue-950';
 
   const borderEditColor = (isEmerald || isTeal)
     ? 'border-emerald-400 focus:border-emerald-500'
     : (isAmber || isOrange)
     ? 'border-amber-400 focus:border-amber-500'
+    : isPurple
+    ? 'border-purple-400 focus:border-purple-500'
     : 'border-blue-400 focus:border-blue-500';
 
   return (
@@ -735,15 +752,42 @@ const InputSection: React.FC<InputSectionProps> = ({
     }
   });
 
+  // Realtime & Luỹ kế Trả chậm
+  const [realtimeTraCham, setRealtimeTraCham] = useState(() => {
+    try {
+      return (activeStore && localStorage.getItem(`rtst_realtime_tra_cham_${activeStore}`)) || 
+             localStorage.getItem('rtst_realtime_tra_cham') || 
+             localStorage.getItem('rt_tra_cham') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const [luykeTraCham, setLuykeTraCham] = useState(() => {
+    try {
+      return (activeStore && localStorage.getItem(`rtst_luyke_tra_cham_${activeStore}`)) || 
+             localStorage.getItem('rtst_luyke_tra_cham') || 
+             localStorage.getItem('rt_tra_cham_lk') || '';
+    } catch {
+      return '';
+    }
+  });
+
   const realtimeDtThucRef = useRef(realtimeDtThuc);
   const luykeDtThucRef = useRef(luykeDtThuc);
+  const realtimeTraChamRef = useRef(realtimeTraCham);
+  const luykeTraChamRef = useRef(luykeTraCham);
   useEffect(() => { realtimeDtThucRef.current = realtimeDtThuc; }, [realtimeDtThuc]);
   useEffect(() => { luykeDtThucRef.current = luykeDtThuc; }, [luykeDtThuc]);
+  useEffect(() => { realtimeTraChamRef.current = realtimeTraCham; }, [realtimeTraCham]);
+  useEffect(() => { luykeTraChamRef.current = luykeTraCham; }, [luykeTraCham]);
 
   useEffect(() => {
     if (!activeStore || activeStore === 'ALL') return;
     const vRt = localStorage.getItem(`rtst_realtime_dt_thuc_${activeStore}`) || localStorage.getItem('rtst_realtime_dt_thuc') || '';
     const vLk = localStorage.getItem(`rtst_luyke_dt_thuc_${activeStore}`) || localStorage.getItem('rtst_luyke_dt_thuc') || '';
+    const vRtTc = localStorage.getItem(`rtst_realtime_tra_cham_${activeStore}`) || localStorage.getItem('rtst_realtime_tra_cham') || '';
+    const vLkTc = localStorage.getItem(`rtst_luyke_tra_cham_${activeStore}`) || localStorage.getItem('rtst_luyke_tra_cham') || '';
     if (vRt) {
       realtimeDtThucRef.current = vRt;
       setRealtimeDtThuc(vRt);
@@ -751,6 +795,14 @@ const InputSection: React.FC<InputSectionProps> = ({
     if (vLk) {
       luykeDtThucRef.current = vLk;
       setLuykeDtThuc(vLk);
+    }
+    if (vRtTc) {
+      realtimeTraChamRef.current = vRtTc;
+      setRealtimeTraCham(vRtTc);
+    }
+    if (vLkTc) {
+      luykeTraChamRef.current = vLkTc;
+      setLuykeTraCham(vLkTc);
     }
   }, [activeStore]);
 
@@ -822,10 +874,81 @@ const InputSection: React.FC<InputSectionProps> = ({
     } catch {}
   };
 
+  const handleSaveRealtimeTraCham = (val: string) => {
+    const raw = (val || '').trim();
+    realtimeTraChamRef.current = raw;
+    setRealtimeTraCham(raw);
+    try {
+      if (raw) {
+        localStorage.setItem('rtst_realtime_tra_cham', raw);
+        localStorage.setItem('rt_tra_cham', raw);
+        if (activeStore && activeStore !== 'ALL') {
+          localStorage.setItem(`rtst_realtime_tra_cham_${activeStore}`, raw);
+        }
+      } else {
+        localStorage.removeItem('rtst_realtime_tra_cham');
+        localStorage.removeItem('rt_tra_cham');
+        if (activeStore && activeStore !== 'ALL') {
+          localStorage.removeItem(`rtst_realtime_tra_cham_${activeStore}`);
+        }
+      }
+    } catch {}
+    try {
+      const docKey = activeStore && activeStore !== 'ALL' ? `realtime_tra_cham_${activeStore}` : 'realtime_tra_cham_general';
+      const docRef = doc(db, 'app_settings', docKey);
+      setDoc(docRef, {
+        value: raw,
+        updatedAt: serverTimestamp()
+      }, { merge: true }).catch((err) => console.warn('Firestore write warning:', err));
+    } catch {}
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('realtime_tra_cham_updated', { detail: { value: raw, activeStore } }));
+      }
+    } catch {}
+  };
+
+  const handleSaveLuykeTraCham = (val: string) => {
+    const raw = (val || '').trim();
+    luykeTraChamRef.current = raw;
+    setLuykeTraCham(raw);
+    try {
+      if (raw) {
+        localStorage.setItem('rtst_luyke_tra_cham', raw);
+        localStorage.setItem('rt_tra_cham_lk', raw);
+        if (activeStore && activeStore !== 'ALL') {
+          localStorage.setItem(`rtst_luyke_tra_cham_${activeStore}`, raw);
+        }
+      } else {
+        localStorage.removeItem('rtst_luyke_tra_cham');
+        localStorage.removeItem('rt_tra_cham_lk');
+        if (activeStore && activeStore !== 'ALL') {
+          localStorage.removeItem(`rtst_luyke_tra_cham_${activeStore}`);
+        }
+      }
+    } catch {}
+    try {
+      const docKey = activeStore && activeStore !== 'ALL' ? `luyke_tra_cham_${activeStore}` : 'luyke_tra_cham_general';
+      const docRef = doc(db, 'app_settings', docKey);
+      setDoc(docRef, {
+        value: raw,
+        updatedAt: serverTimestamp()
+      }, { merge: true }).catch((err) => console.warn('Firestore write warning:', err));
+    } catch {}
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('luyke_tra_cham_updated', { detail: { value: raw, activeStore } }));
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     try {
       const docKeyRt = activeStore && activeStore !== 'ALL' ? `realtime_dt_thuc_${activeStore}` : 'realtime_dt_thuc_general';
       const docKeyLk = activeStore && activeStore !== 'ALL' ? `luyke_dt_thuc_${activeStore}` : 'luyke_dt_thuc_general';
+      const docKeyRtTc = activeStore && activeStore !== 'ALL' ? `realtime_tra_cham_${activeStore}` : 'realtime_tra_cham_general';
+      const docKeyLkTc = activeStore && activeStore !== 'ALL' ? `luyke_tra_cham_${activeStore}` : 'luyke_tra_cham_general';
+
       const unsub1 = onSnapshot(doc(db, 'app_settings', docKeyRt), (snap) => {
         if (snap.exists()) {
           const d = snap.data();
@@ -854,9 +977,40 @@ const InputSection: React.FC<InputSectionProps> = ({
           }
         }
       }, () => {});
+      const unsub3 = onSnapshot(doc(db, 'app_settings', docKeyRtTc), (snap) => {
+        if (snap.exists()) {
+          const d = snap.data();
+          if (d?.value) {
+            realtimeTraChamRef.current = d.value;
+            setRealtimeTraCham(d.value);
+            localStorage.setItem('rtst_realtime_tra_cham', d.value);
+            localStorage.setItem('rt_tra_cham', d.value);
+            if (activeStore && activeStore !== 'ALL') {
+              localStorage.setItem(`rtst_realtime_tra_cham_${activeStore}`, d.value);
+            }
+          }
+        }
+      }, () => {});
+      const unsub4 = onSnapshot(doc(db, 'app_settings', docKeyLkTc), (snap) => {
+        if (snap.exists()) {
+          const d = snap.data();
+          if (d?.value) {
+            luykeTraChamRef.current = d.value;
+            setLuykeTraCham(d.value);
+            localStorage.setItem('rtst_luyke_tra_cham', d.value);
+            localStorage.setItem('rt_tra_cham_lk', d.value);
+            if (activeStore && activeStore !== 'ALL') {
+              localStorage.setItem(`rtst_luyke_tra_cham_${activeStore}`, d.value);
+            }
+          }
+        }
+      }, () => {});
+
       return () => {
         unsub1();
         unsub2();
+        unsub3();
+        unsub4();
       };
     } catch {}
   }, [activeStore]);
@@ -1131,6 +1285,43 @@ const InputSection: React.FC<InputSectionProps> = ({
                   },
                 ]
               },
+              { 
+                title: 'TRẢ CHẬM CỤM', 
+                subtitle: 'Dữ liệu Trả chậm Realtime & Luỹ kế',
+                badgeBg: 'bg-purple-50 text-purple-700 border-purple-200',
+                headerDot: 'bg-purple-600',
+                activeColor: 'purple',
+                hasYcx: false,
+                reportUrl: 'https://baocao.dienmayxanh.com/dashboard/tra-cham',
+                reportLabel: 'LINK REPORT TRẢ CHẬM',
+                items: [
+                  { 
+                    id: 'rt_tra_cham', 
+                    label: 'REALTIME TRẢ CHẬM', 
+                    value: realtimeTraCham, 
+                    onChange: handleSaveRealtimeTraCham, 
+                    onBlur: () => {
+                      const v = realtimeTraChamRef.current;
+                      if (v) handleSaveRealtimeTraCham(v);
+                    }, 
+                    hasData: !!realtimeTraCham,
+                    colorTheme: 'purple'
+                  },
+                  { 
+                    id: 'lk_tra_cham', 
+                    label: 'LUỸ KẾ TRẢ CHẬM', 
+                    value: luykeTraCham, 
+                    colorTheme: 'violet',
+                    onChange: handleSaveLuykeTraCham, 
+                    onBlur: () => { 
+                      const v = luykeTraChamRef.current;
+                      if (v) handleSaveLuykeTraCham(v);
+                    }, 
+                    hasData: !!luykeTraCham,
+                    isLuyke: true 
+                  },
+                ]
+              },
             ].map(group => (
               <div key={group.title} className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-sm space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
@@ -1190,6 +1381,12 @@ const InputSection: React.FC<InputSectionProps> = ({
                         } else if (item.label === 'LUỸ KẾ DOANH THU THỰC') {
                           handleSaveLuykeDtThuc('');
                           showNotification('Đã xóa dữ liệu LUỸ KẾ DOANH THU THỰC', 'info');
+                        } else if (item.label === 'REALTIME TRẢ CHẬM') {
+                          handleSaveRealtimeTraCham('');
+                          showNotification('Đã xóa dữ liệu REALTIME TRẢ CHẬM', 'info');
+                        } else if (item.label === 'LUỸ KẾ TRẢ CHẬM') {
+                          handleSaveLuykeTraCham('');
+                          showNotification('Đã xóa dữ liệu LUỸ KẾ TRẢ CHẬM', 'info');
                         } else if (item.label === 'REALTIME TĐ') {
                           setCategoryInput('');
                           if (clearField) clearField(setCategoryInput, 'REALTIME TĐ');
