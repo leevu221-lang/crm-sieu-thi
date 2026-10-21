@@ -1685,7 +1685,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
               )}
             </div>
             <p className="text-xs font-semibold text-slate-400 mt-0.5">
-              Dữ liệu đồng bộ từ <strong className="text-slate-600">Cập nhật &gt; Báo cáo Tổng hợp &gt; Luỹ kế DT</strong>
+              Dữ liệu đồng bộ từ <strong className="text-slate-600">Cập nhật &gt; Doanh thu Cụm &gt; Luỹ kế DT</strong>
             </p>
           </div>
         </div>
@@ -1747,7 +1747,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
             Chưa có dữ liệu Báo cáo Cụm
           </h3>
           <p className="text-xs sm:text-sm font-medium text-slate-500 leading-relaxed">
-            Vui lòng vào mục <strong className="text-indigo-600">Cập nhật &gt; BÁO CÁO TỔNG HỢP</strong> và dán dữ liệu vào ô <strong className="text-slate-800">LUỸ KẾ DT</strong> để hệ thống tự động tổng hợp bảng Cụm Siêu Thị.
+            Vui lòng vào mục <strong className="text-indigo-600">Cập nhật &gt; DOANH THU CỤM</strong> và dán dữ liệu vào ô <strong className="text-slate-800">LUỸ KẾ DT</strong> để hệ thống tự động tổng hợp bảng Cụm Siêu Thị.
           </p>
           {onNavigateToKhaiBao && (
             <div className="flex justify-center pt-2">

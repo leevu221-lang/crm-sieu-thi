@@ -1005,7 +1005,7 @@ const InputSection: React.FC<InputSectionProps> = ({
           <div className="flex flex-col gap-6">
             {[
               { 
-                title: 'BÁO CÁO TỔNG HỢP', 
+                title: 'DOANH THU CỤM', 
                 subtitle: 'Dữ liệu Doanh thu Realtime & Luỹ kế',
                 badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
                 headerDot: 'bg-emerald-600',
@@ -1313,7 +1313,7 @@ const InputSection: React.FC<InputSectionProps> = ({
         <div className="p-6">
           {(availableMarkets || []).filter(m => m !== 'ALL').length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-sm text-slate-400">Chưa có siêu thị nào. Vui lòng nhập dữ liệu tại "BÁO CÁO TỔNG HỢP" hoặc "THI ĐUA CỤM" trước.</p>
+              <p className="text-sm text-slate-400">Chưa có siêu thị nào. Vui lòng nhập dữ liệu tại "DOANH THU CỤM" hoặc "THI ĐUA CỤM" trước.</p>
             </div>
           ) : (
           <div className={cn(
