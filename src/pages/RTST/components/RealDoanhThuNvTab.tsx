@@ -1887,10 +1887,10 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                       )}
                     </td>
 
-                    {/* HQ.QĐ: Green if > 0.0%, Red pill badge if <= 0.0% */}
+                    {/* HQ.QĐ: Green if >= totals.shareRate, Red with border if < totals.shareRate */}
                     <td className="py-1 sm:py-2 px-1 font-black text-center text-[12px] sm:text-[13px] whitespace-nowrap overflow-hidden">
-                      {staff.shareRate <= 0 ? (
-                        <span className="inline-block px-1.5 py-0.5 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[10.5px] sm:text-[12px] leading-tight">
+                      {staff.shareRate < totals.shareRate ? (
+                        <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-600 border border-rose-400 font-black text-[10.5px] sm:text-[12px] leading-tight">
                           {staff.shareRate.toFixed(1)}%
                         </span>
                       ) : (

@@ -476,11 +476,16 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                           {Math.round(percentHT)}%
                         </span>
                       </td>
-                      <td style={{ fontWeight: 900 }} className={cn(
-                        "px-0.5 sm:px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[9.5px] sm:text-[14.5px] whitespace-nowrap overflow-hidden",
-                        effQd < stPercentHTTargetDuKienQD ? "text-rose-600 font-bold" : "text-emerald-700 font-black"
-                      )}>
-                        {effQd.toFixed(1)}%
+                      <td style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap overflow-hidden">
+                        {effQd < (totalEffQd !== 0 ? totalEffQd : stPercentHTTargetDuKienQD) ? (
+                          <span className="inline-flex items-center justify-center px-1 sm:px-1.5 py-0.5 rounded sm:rounded-md font-black text-[9.5px] sm:text-[13px] leading-none bg-rose-50 text-rose-600 border border-rose-400">
+                            {effQd.toFixed(1)}%
+                          </span>
+                        ) : (
+                          <span className="font-black text-[9.5px] sm:text-[14.5px] text-emerald-700">
+                            {effQd.toFixed(1)}%
+                          </span>
+                        )}
                       </td>
                       <td style={{ fontWeight: 900 }} className={cn(
                         "px-0.5 sm:px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[9.5px] sm:text-[14.5px] whitespace-nowrap overflow-hidden",
