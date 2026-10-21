@@ -6310,6 +6310,30 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     }));
   };
 
+  // Track data update timestamp: only updates when data changes or arrives from DB
+  const dataUpdatedTimeRef = useRef<Date>(lastUpdated || new Date());
+  const prevCategoriesHashRef = useRef<string>('');
+
+  useEffect(() => {
+    if (lastUpdated) {
+      dataUpdatedTimeRef.current = lastUpdated;
+    }
+  }, [lastUpdated]);
+
+  useEffect(() => {
+    if (!processedData?.categories || processedData.categories.length === 0) return;
+    const currentHash = JSON.stringify(processedData.categories.map(c => [c.name, c.revenue, c.target, c.type, c.rate]));
+    if (prevCategoriesHashRef.current && prevCategoriesHashRef.current !== currentHash) {
+      dataUpdatedTimeRef.current = new Date();
+    }
+    prevCategoriesHashRef.current = currentHash;
+  }, [processedData?.categories]);
+
+  const formatTimeToSeconds = (d: Date) => {
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  };
+
   const generateAndCopyComment = (type: 'SL' | 'DT') => {
     const categories = processedData.categories
       .filter(c => c.type === type)
@@ -6317,8 +6341,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
     if (categories.length === 0) return;
 
+    const timeStr = formatTimeToSeconds(dataUpdatedTimeRef.current);
     const title = type === 'SL' ? 'BÁO CÁO NGÀNH HÀNG (SL)' : 'BÁO CÁO NGÀNH HÀNG (DT)';
-    let commentText = `📊 ${title}\n⏰ Cập nhật: ${new Date().toLocaleTimeString('vi-VN')}\n\n`;
+    let commentText = `📊 ${title}\n⏰ Cập nhật: ${timeStr}\n\n`;
 
     categories.forEach(cat => {
       const rate = Math.round(cat.rate || 0);
@@ -6366,8 +6391,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     };
 
     const marketName = activeDeclared?.name || parsedMarket?.name || 'SIÊU THỊ';
-    const now = lastUpdated || new Date();
-    const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const now = lastUpdated || dataUpdatedTimeRef.current || new Date();
+    const timeStr = formatTimeToSeconds(now);
     const dateStr = now.toLocaleDateString('vi-VN');
     const nowHeader = `${timeStr} NGÀY ${dateStr}`;
     // BC NGÀY > TARGET QĐ = BC THÁNG > TARGET QĐ (Số hiển thị trong thẻ) / SỐ NGÀY TRONG THÁNG

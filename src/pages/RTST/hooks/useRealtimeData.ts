@@ -747,6 +747,7 @@ export const useRealtimeData = (maKho: string) => {
 
       setGlobalLastSaveTs(Date.now());
       lastSavedSnapshotRef.current = currentSnapshotKey;
+      setLastUpdated(new Date());
 
       if (!silent) {
         setIsYcxDirty(false);
