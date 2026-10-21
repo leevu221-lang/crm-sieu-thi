@@ -1467,9 +1467,23 @@ export function parseTraChamRate(rawInput: string | undefined | null, targetStor
         }
       }
 
-      if (tcColIdx !== -1 && cols.length > tcColIdx) {
+      if (cols.length >= 2) {
         const rowName = cols[nameColIdx] || cols[0];
-        const rateVal = cleanNum(cols[tcColIdx]);
+        // Quy tắc bất biến: CỘT THỨ 4 TỪ TRÁI SANG (index 3: Cột 1 = ST, Cột 2 = DT TG, Cột 3 = DT ST, Cột 4 = % TC)
+        let rateVal = 0;
+        if (cols.length >= 4) {
+          rateVal = cleanNum(cols[3]);
+        }
+        if (!rateVal || rateVal <= 0 || rateVal > 100) {
+          const lineNums = cols.map(c => cleanNum(c)).filter(n => !isNaN(n) && n > 0);
+          if (lineNums.length >= 3) {
+            // lineNums[0] = DT trả góp, lineNums[1] = DT siêu thị (55.77), lineNums[2] = CỘT 4: Tỷ trọng trả chậm (81.7)
+            rateVal = lineNums[2];
+          } else if (lineNums.length >= 1) {
+            rateVal = lineNums[lineNums.length - 1];
+          }
+        }
+
         if (rateVal > 0 && rateVal <= 100) {
           storeRows.push({
             name: rowName,
@@ -1503,7 +1517,16 @@ export function parseTraChamRate(rawInput: string | undefined | null, targetStor
       const chunk = dataLines.slice(i, i + colCount);
       if (chunk.length >= 4) {
         const rowName = chunk[0];
-        const rateVal = cleanNum(chunk[chunk.length - 1]);
+        // CỘT THỨ 4 TỪ TRÁI SANG: chunk[3]
+        let rateVal = cleanNum(chunk[3]);
+        if (!rateVal || rateVal <= 0 || rateVal > 100) {
+          const chunkNums = chunk.slice(1).map(c => cleanNum(c)).filter(n => !isNaN(n) && n > 0);
+          if (chunkNums.length >= 3) {
+            rateVal = chunkNums[2];
+          } else if (chunkNums.length >= 1) {
+            rateVal = chunkNums[chunkNums.length - 1];
+          }
+        }
         if (rateVal > 0 && rateVal <= 100) {
           storeRows.push({
             name: rowName,
@@ -1514,21 +1537,31 @@ export function parseTraChamRate(rawInput: string | undefined | null, targetStor
       }
     }
 
-    // Direct scan fallback: Look for store name followed by numbers, where the last number is the rate
+    // Direct scan fallback: Look for store name followed by numbers
     if (storeRows.length === 0) {
       for (let i = 0; i < rawLines.length; i++) {
         const line = rawLines[i];
         if (/(ĐML|ĐMM|ĐMS|TGD|BHX|MWG|CMA)/i.test(line)) {
-          for (let j = i + 1; j <= Math.min(i + 5, rawLines.length - 1); j++) {
+          const rowNums: number[] = [];
+          for (let j = i + 1; j <= Math.min(i + 8, rawLines.length - 1); j++) {
             const num = cleanNum(rawLines[j]);
-            if (num > 0 && num <= 100 && (rawLines[j].includes('.') || rawLines[j].includes(',') || rawLines[j].includes('%'))) {
-              storeRows.push({
-                name: line,
-                rate: num,
-                isSummary: false
-              });
-              break;
-            }
+            if (num > 0) rowNums.push(num);
+          }
+          let rate = 0;
+          if (rowNums.length >= 3) {
+            // rowNums[0] = DT trả góp
+            // rowNums[1] = DT siêu thị (55.77)
+            // rowNums[2] = CỘT THỨ 4 TỪ TRÁI SANG: Tỷ trọng trả chậm % (81.7)
+            rate = rowNums[2];
+          } else if (rowNums.length >= 1) {
+            rate = rowNums[rowNums.length - 1];
+          }
+          if (rate > 0 && rate <= 100) {
+            storeRows.push({
+              name: line,
+              rate: rate,
+              isSummary: false
+            });
           }
         }
       }
