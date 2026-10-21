@@ -6396,8 +6396,29 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const installmentRate = (parsedMarket.installmentRate || parsedMarket.percentTraGop || 0).toFixed(1);
     const luotBill = Math.round(parsedMarket.luotBillThuHo || 0);
 
-    const dtlk = (parsedMarket as any).actualReal || 0;
-    const dtqd = parsedMarket.actualVirtual || 0;
+    let dtlk = (parsedMarket as any).actualReal || 0;
+    let dtqd = parsedMarket.actualVirtual || 0;
+    if (dtlk === 0) {
+      try {
+        const rawThuc = (selectedMaKho && localStorage.getItem(`rtst_realtime_dt_thuc_${selectedMaKho}`)) || localStorage.getItem('rtst_realtime_dt_thuc') || localStorage.getItem('rt_market_thuc') || '';
+        if (rawThuc) {
+          const thucList = parseMarketData(rawThuc, 0, 'RTST');
+          const mName = activeDeclared?.name || parsedMarket.name || '';
+          const targetCode = mName.replace(/\D/g, '');
+          const found = thucList.find(t => {
+            const nm1 = normalize(t.name);
+            const nm2 = normalize(mName);
+            if (nm1 === nm2 || nm1.includes(nm2) || nm2.includes(nm1)) return true;
+            if (targetCode && targetCode.length >= 3) {
+              const code = t.name.replace(/\D/g, '');
+              if (code && code === targetCode) return true;
+            }
+            return false;
+          });
+          if (found) dtlk = found.actualReal || found.actualVirtual || 0;
+        }
+      } catch {}
+    }
     const valQd = dtlk > 0 ? (((dtqd - dtlk) / dtlk) * 100) : 0;
     const percentQdStr = `${valQd >= 0 ? '+' : ''}${valQd.toFixed(1)}%`;
 
@@ -7285,8 +7306,50 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               <StatCard
                                 title="% QĐ"
                                 value={(() => {
-                                  const dtlk = (parsedMarket as any).actualReal || 0;
-                                  const dtqd = parsedMarket.actualVirtual || 0;
+                                  let dtlk = (parsedMarket as any).actualReal || 0;
+                                  let dtqd = parsedMarket.actualVirtual || 0;
+
+                                  if (dtlk === 0) {
+                                    try {
+                                      const rawThuc = (selectedMaKho && localStorage.getItem(`rtst_realtime_dt_thuc_${selectedMaKho}`)) || localStorage.getItem('rtst_realtime_dt_thuc') || localStorage.getItem('rt_market_thuc') || '';
+                                      if (rawThuc) {
+                                        const thucList = parseMarketData(rawThuc, 0, 'RTST');
+                                        const targetCode = (declaredMarket?.name || '').replace(/\D/g, '');
+                                        const found = thucList.find(t => {
+                                          const nm1 = normalize(t.name);
+                                          const nm2 = normalize(declaredMarket.name);
+                                          if (nm1 === nm2 || nm1.includes(nm2) || nm2.includes(nm1)) return true;
+                                          if (targetCode && targetCode.length >= 3) {
+                                            const code = t.name.replace(/\D/g, '');
+                                            if (code && code === targetCode) return true;
+                                          }
+                                          return false;
+                                        });
+                                        if (found) {
+                                          dtlk = found.actualReal || found.actualVirtual || 0;
+                                        }
+                                      }
+                                    } catch {}
+                                  }
+
+                                  if (dtqd === 0 && marketInput) {
+                                    try {
+                                      const qdList = parseMarketData(marketInput, 0, 'RTST');
+                                      const targetCode = (declaredMarket?.name || '').replace(/\D/g, '');
+                                      const foundQd = qdList.find(t => {
+                                        const nm1 = normalize(t.name);
+                                        const nm2 = normalize(declaredMarket.name);
+                                        if (nm1 === nm2 || nm1.includes(nm2) || nm2.includes(nm1)) return true;
+                                        if (targetCode && targetCode.length >= 3) {
+                                          const code = t.name.replace(/\D/g, '');
+                                          if (code && code === targetCode) return true;
+                                        }
+                                        return false;
+                                      });
+                                      if (foundQd) dtqd = foundQd.actualVirtual || foundQd.actualReal || 0;
+                                    } catch {}
+                                  }
+
                                   if (dtlk === 0) return '0.0%';
                                   const val = ((dtqd - dtlk) / dtlk) * 100;
                                   return `${val >= 0 ? '+' : ''}${val.toFixed(1)}%`;

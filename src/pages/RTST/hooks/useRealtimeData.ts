@@ -108,6 +108,22 @@ export const useRealtimeData = (maKho: string) => {
       return '';
     }
   });
+  const [realtimeDtThuc, setRealtimeDtThuc] = useState(() => {
+    try {
+      return (normalizedMaKho && localStorage.getItem(`rtst_realtime_dt_thuc_${normalizedMaKho}`)) || localStorage.getItem('rtst_realtime_dt_thuc') || localStorage.getItem('rt_market_thuc') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  useEffect(() => {
+    const handleUpdate = (e: any) => {
+      const val = e.detail?.value ?? '';
+      setRealtimeDtThuc(val);
+    };
+    window.addEventListener('realtime_dt_thuc_updated', handleUpdate);
+    return () => window.removeEventListener('realtime_dt_thuc_updated', handleUpdate);
+  }, []);
   const [ycxData, setYcxData] = useState('');
   const [ycxDataMoi, setYcxDataMoi] = useState('');
   const [ycxFileName, setYcxFileNameState] = useState('');
@@ -257,10 +273,41 @@ export const useRealtimeData = (maKho: string) => {
         ycxDataLength: ycxData?.length || 0
       });
       const marketTextToUse = (marketInput && marketInput.trim()) || '';
+      const realtimeDtThucText = (realtimeDtThuc && realtimeDtThuc.trim()) || 
+        (normalizedMaKho && localStorage.getItem(`rtst_realtime_dt_thuc_${normalizedMaKho}`)) || 
+        localStorage.getItem('rtst_realtime_dt_thuc') || 
+        localStorage.getItem('rt_market_thuc') || '';
       const luykeMarketTextToUse = (categoryRevenueInput && categoryRevenueInput.trim()) || '';
       const categoryTextToUse = (categoryInput && categoryInput.trim()) || '';
 
       const markets = marketTextToUse ? parseMarketData(marketTextToUse, 0, 'RTST') : [];
+      const thucMarkets = realtimeDtThucText ? parseMarketData(realtimeDtThucText, 0, 'RTST') : [];
+
+      if (thucMarkets.length > 0) {
+        markets.forEach(m => {
+          const normM = normalize(m.name);
+          const targetCode = m.name.replace(/\D/g, '');
+          const matchThuc = thucMarkets.find(tm => {
+            const normTm = normalize(tm.name);
+            if (normTm === normM || normTm.includes(normM) || normM.includes(normTm)) return true;
+            if (targetCode && targetCode.length >= 3) {
+              const code = tm.name.replace(/\D/g, '');
+              if (code && code === targetCode) return true;
+            }
+            return false;
+          });
+          if (matchThuc) {
+            const realVal = matchThuc.actualReal || matchThuc.actualVirtual || 0;
+            if (realVal > 0) {
+              m.actualReal = realVal;
+              if (m.actualVirtual > 0) {
+                m.percentQD = ((m.actualVirtual - realVal) / realVal) * 100;
+              }
+            }
+          }
+        });
+      }
+
       const luykeMarkets = luykeMarketTextToUse ? parseMarketData(luykeMarketTextToUse, 0, 'LUYKE') : [];
       const categories = categoryTextToUse ? parseCategoryData(categoryTextToUse, 0, 30, markets.length > 0 ? markets : luykeMarkets) : [];
       const staff = parseYcxData(ycxData, quyDoiRules);
@@ -285,7 +332,7 @@ export const useRealtimeData = (maKho: string) => {
       console.error('[RealtimeData] handleProcess error:', error);
       setProcessError(error.message || 'Lỗi xử lý dữ liệu');
     }
-  }, [marketInput, categoryInput, categoryRevenueInput, categoryTargetInput, ycxData, quyDoiRules]);
+  }, [marketInput, realtimeDtThuc, categoryInput, categoryRevenueInput, categoryTargetInput, ycxData, quyDoiRules]);
 
   // One-time cached read (shared cache key with RealtimePage's admin config modal) instead
   // of a permanent onSnapshot — see src/services/cachedFirestore.ts. This is rarely-edited
@@ -308,7 +355,7 @@ export const useRealtimeData = (maKho: string) => {
     }, 200);
 
     return () => clearTimeout(tid);
-  }, [marketInput, categoryInput, categoryRevenueInput, categoryTargetInput, ycxData, ycxDataMoi, handleProcess]);
+  }, [marketInput, realtimeDtThuc, categoryInput, categoryRevenueInput, categoryTargetInput, ycxData, ycxDataMoi, handleProcess]);
 
   const updateYcxData = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(ycxDataRef.current) : val;
@@ -1308,6 +1355,7 @@ export const useRealtimeData = (maKho: string) => {
 
   return {
     marketInput, setMarketInput: setMarketInputSync,
+    realtimeDtThuc, setRealtimeDtThuc,
     categoryInput, setCategoryInput: setCategoryInputSync,
     ycxData, setYcxData: updateYcxData,
     ycxDataMoi, setYcxDataMoi: updateYcxDataMoi,

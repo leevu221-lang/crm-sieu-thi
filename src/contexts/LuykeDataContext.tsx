@@ -522,6 +522,37 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const inputToParse = extractSection(summaryToUse, "1. BC TỔNG HỢP CỤM");
       const markets = parseMarketData(inputToParse, 0, 'LUYKE');
       
+      try {
+        const rawLkThuc = (activeStore && localStorage.getItem(`rtst_luyke_dt_thuc_${activeStore}`)) || localStorage.getItem('rtst_luyke_dt_thuc') || localStorage.getItem('rt_catrev_thuc') || '';
+        if (rawLkThuc) {
+          const thucLkMarkets = parseMarketData(rawLkThuc, 0, 'LUYKE');
+          if (thucLkMarkets.length > 0) {
+            markets.forEach(m => {
+              const normM = normalize(m.name);
+              const targetCode = m.name.replace(/\D/g, '');
+              const matchThuc = thucLkMarkets.find(tm => {
+                const normTm = normalize(tm.name);
+                if (normTm === normM || normTm.includes(normM) || normM.includes(normTm)) return true;
+                if (targetCode && targetCode.length >= 3) {
+                  const code = tm.name.replace(/\D/g, '');
+                  if (code && code === targetCode) return true;
+                }
+                return false;
+              });
+              if (matchThuc) {
+                const realVal = matchThuc.actualReal || matchThuc.actualVirtual || 0;
+                if (realVal > 0) {
+                  m.actualReal = realVal;
+                  if (m.actualVirtual > 0) {
+                    m.percentQD = ((m.actualVirtual - realVal) / realVal) * 100;
+                  }
+                }
+              }
+            });
+          }
+        }
+      } catch {}
+      
       // Fallback: If no markets found (user pasted only category data), default to activeStore
       const effectiveMarkets = markets.length > 0 ? markets : 
         (activeStore && activeStore !== 'ALL' ? [{ 

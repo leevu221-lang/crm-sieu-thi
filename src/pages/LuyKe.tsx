@@ -2549,7 +2549,29 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                   {marketsForDashboard.map((market: any, mIdx: number) => {
                     const { displayTargetQD, targetData } = resolveMarketTarget(market);
                     const actualVirtual = market.actualVirtual || 0;
-                    const actualReal = market.actualReal || 0;
+                    let actualReal = market.actualReal || 0;
+                    if (!actualReal) {
+                      try {
+                        const rawLkThuc = (maKho && localStorage.getItem(`rtst_luyke_dt_thuc_${maKho}`)) || localStorage.getItem('rtst_luyke_dt_thuc') || localStorage.getItem('rt_catrev_thuc') || '';
+                        if (rawLkThuc) {
+                          const thucLkList = parseMarketData(rawLkThuc, 0, 'LUYKE');
+                          const targetCode = (market.name || '').replace(/\D/g, '');
+                          const foundLk = thucLkList.find((t: any) => {
+                            const nm1 = normalize(t.name);
+                            const nm2 = normalize(market.name);
+                            if (nm1 === nm2 || nm1.includes(nm2) || nm2.includes(nm1)) return true;
+                            if (targetCode && targetCode.length >= 3) {
+                              const code = t.name.replace(/\D/g, '');
+                              if (code && code === targetCode) return true;
+                            }
+                            return false;
+                          });
+                          if (foundLk) {
+                            actualReal = foundLk.actualReal || foundLk.actualVirtual || 0;
+                          }
+                        }
+                      } catch {}
+                    }
                     const percentHTVal = displayTargetQD > 0 ? Math.round((daysPassed > 0 && totalDays > 0 ? (((actualVirtual) / daysPassed) * totalDays) : actualVirtual) / displayTargetQD * 100 * 10) / 10 : 0;
                     const dtlkVal = targetData?.stDtlk || actualReal || 0;
                     const dtqdVal = targetData?.stDtqd || actualVirtual || 0;
