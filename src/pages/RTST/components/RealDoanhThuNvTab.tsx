@@ -805,7 +805,9 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
         upper.includes('TÌM BÁO CÁO') || upper.includes('EMPLOYEE') || upper.includes('TRANG') ||
         upper.includes('TARGET') || upper.includes('TB 3 THÁNG') || upper === 'XEM' || upper === 'TGDD' ||
         upper === 'S' || upper === 'NHÂN VIÊN' || upper.startsWith('NHÂN VIÊN\t') || upper === 'VÙNG' ||
-        upper === 'KHU VỰC' || upper === 'SIÊU THỊ' || upper.includes('VÙNG') || upper.includes('KHU VỰC')
+        upper === 'KHU VỰC' || upper === 'SIÊU THỊ' || upper.includes('VÙNG') || upper.includes('KHU VỰC') ||
+        upper.includes('SỐ LƯỢNG') || upper === 'SỐ LƯỢNG' || upper.startsWith('SỐ LƯỢNG\t') ||
+        upper.includes('TỈ TRỌNG') || upper.includes('% TT') || upper.includes('TB 3 THÁNG')
       ) {
         return false;
       }
@@ -953,14 +955,20 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
         let installmentRate = 0;
 
         if (mode === 'thuc') {
-          // Yêu cầu: CỘT "DT. THỰC" LẤY CỘT THỨ 3 TRÁI SANG Ở Ô "D.THU THỰC"
-          if (forceColRev !== undefined && !isNaN(forceColRev)) {
+          // Yêu cầu: CỘT "DT. THỰC" LẤY CỘT THỨ 3 TRÁI SANG Ở Ô "D.THU THỰC" (DOANH THU = 403)
+          if (forceColRev !== undefined && !isNaN(forceColRev) && forceColRev > 0) {
             revenue = forceColRev;
-          } else if (tokens.length >= 2) {
-            // Cột 1: Nhân viên, Cột 2: Số lượng (tokens[0]), Cột 3: Doanh thu thực (tokens[1])
-            revenue = parseNum(tokens[1]);
-          } else if (tokens.length === 1) {
-            revenue = parseNum(tokens[0]);
+          } else {
+            const pctIdx = tokens.findIndex(t => t.includes('%'));
+            if (pctIdx > 0) {
+              const valBeforePct = parseNum(tokens[pctIdx - 1]);
+              if (valBeforePct > 0) revenue = valBeforePct;
+            } else if (tokens.length >= 2) {
+              // Cột 1: Nhân viên, Cột 2: Số lượng (tokens[0]), Cột 3: Doanh thu thực (tokens[1])
+              revenue = parseNum(tokens[1]);
+            } else if (tokens.length === 1) {
+              revenue = parseNum(tokens[0]);
+            }
           }
         } else if (mode === 'tragop') {
           // Yêu cầu: CỘT "DT TRẢ GÓP" SẼ LẤY DỮ LIỆU CỘT THỨ 2 TỪ TRÁI SANG Ở Ô "D.THU TRẢ GÓP"
@@ -1031,40 +1039,50 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
           break;
         }
 
-        if (line.includes('\t')) {
-          const cols = line.split('\t').map(c => c.trim()).filter(Boolean);
-          if (cols.length >= 2) {
-            if (isStaffLine(cols[0])) {
-              if (currentStaffLine) {
-                pushStaff(currentStaffLine, currentValues);
-                currentStaffLine = null;
-                currentValues = [];
-              }
-              // Cột thứ 2 từ trái sang là cols[1] (cho tragop), Cột thứ 3 từ trái sang là cols[2] (cho thuc va qd)
-              let targetRev: number | undefined = undefined;
-              if (mode === 'tragop') {
-                targetRev = parseNum(cols[1]);
-              } else if ((mode === 'thuc' || mode === 'qd') && cols.length >= 3) {
-                targetRev = parseNum(cols[2]);
-              }
-              pushStaff(cols[0], cols.slice(1), targetRev);
-              continue;
-            } else if (cols.length >= 3 && isStaffLine(cols[1])) {
-              // Trường hợp cols[0] là STT, cols[1] là Tên NV:
-              if (currentStaffLine) {
-                pushStaff(currentStaffLine, currentValues);
-                currentStaffLine = null;
-                currentValues = [];
-              }
-              let targetRev: number | undefined = undefined;
-              if (mode === 'tragop') {
-                targetRev = parseNum(cols[2]);
-              } else if (mode === 'thuc' || mode === 'qd') {
-                targetRev = parseNum(cols[3] !== undefined ? cols[3] : cols[2]);
-              }
-              pushStaff(cols[1], cols.slice(2), targetRev);
-              continue;
+        let cols = line.split('\t').map(c => c.trim()).filter(Boolean);
+        if (cols.length < 2 && line.includes('  ')) {
+          cols = line.split(/ {2,}/).map(c => c.trim()).filter(Boolean);
+        }
+        if (cols.length < 2) {
+          const m1 = line.match(/^(\d{4,8}\s*[-–—]\s*[a-zA-ZÀ-ỹ\s]+?)\s+([\d,.-]+.*)$/);
+          const m2 = line.match(/^([a-zA-ZÀ-ỹ\s]+?\s*[-–—]\s*\d{4,8})\s+([\d,.-]+.*)$/);
+          const m = m1 || m2;
+          if (m) {
+            cols = [m[1].trim(), ...m[2].trim().split(/\s+/).filter(Boolean)];
+          }
+        }
+
+        if (cols.length >= 2) {
+          if (isStaffLine(cols[0])) {
+            if (currentStaffLine) {
+              pushStaff(currentStaffLine, currentValues);
+              currentStaffLine = null;
+              currentValues = [];
             }
+            // Cột thứ 2 từ trái sang là cols[1] (cho tragop), Cột thứ 3 từ trái sang là cols[2] (cho thuc va qd)
+            let targetRev: number | undefined = undefined;
+            if (mode === 'tragop') {
+              targetRev = parseNum(cols[1]);
+            } else if ((mode === 'thuc' || mode === 'qd') && cols.length >= 3) {
+              targetRev = parseNum(cols[2]);
+            }
+            pushStaff(cols[0], cols.slice(1), targetRev);
+            continue;
+          } else if (cols.length >= 3 && isStaffLine(cols[1])) {
+            // Trường hợp cols[0] là STT, cols[1] là Tên NV:
+            if (currentStaffLine) {
+              pushStaff(currentStaffLine, currentValues);
+              currentStaffLine = null;
+              currentValues = [];
+            }
+            let targetRev: number | undefined = undefined;
+            if (mode === 'tragop') {
+              targetRev = parseNum(cols[2]);
+            } else if (mode === 'thuc' || mode === 'qd') {
+              targetRev = parseNum(cols[3] !== undefined ? cols[3] : cols[2]);
+            }
+            pushStaff(cols[1], cols.slice(2), targetRev);
+            continue;
           }
         }
 

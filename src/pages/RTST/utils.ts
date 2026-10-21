@@ -1834,7 +1834,9 @@ export const extractStaffRevFromReport = (text: string): Map<string, { id: strin
       upper.includes('TÌM BÁO CÁO') || upper.includes('EMPLOYEE') || upper.includes('TRANG') ||
       upper.includes('TARGET') || upper.includes('TB 3 THÁNG') || upper === 'XEM' || upper === 'TGDD' ||
       upper === 'S' || upper === 'NHÂN VIÊN' || upper.startsWith('NHÂN VIÊN\t') || upper === 'VÙNG' ||
-      upper === 'KHU VỰC' || upper === 'SIÊU THỊ' || upper === 'STT' || upper.startsWith('STT\t')
+      upper === 'KHU VỰC' || upper === 'SIÊU THỊ' || upper === 'STT' || upper.startsWith('STT\t') ||
+      upper.includes('SỐ LƯỢNG') || upper === 'SỐ LƯỢNG' || upper.startsWith('SỐ LƯỢNG\t') ||
+      upper.includes('TỈ TRỌNG') || upper.includes('% TT') || upper.includes('TB 3')
     );
   };
 
@@ -1865,19 +1867,42 @@ export const extractStaffRevFromReport = (text: string): Map<string, { id: strin
     return { id, name: name.toUpperCase() };
   };
 
+  // Helper thông minh trích xuất đúng cột DOANH THU (DT.THỰC) từ danh sách tokens
+  const resolveActualRevenue = (tokens: string[], colRevHint?: number): number => {
+    if (colRevHint !== undefined && !isNaN(colRevHint) && colRevHint > 0) {
+      return colRevHint;
+    }
+    if (!tokens || tokens.length === 0) return 0;
+
+    // Định dạng 11 cột BI: SỐ LƯỢNG (0) | DT QĐ (1) | % TỈ TRỌNG (2) | DOANH THU THỰC (3)
+    if (tokens.length >= 7 && (tokens[2]?.includes('%') || tokens[1]?.includes('%'))) {
+      const val3 = cleanNum(tokens[3]);
+      if (val3 > 0) return val3;
+    }
+
+    // Nếu có token chứa '%': số ngay liền trước '%' LUÔN là DOANH THU (vd: [151, 403, '13.2%'] -> 403)
+    const pctIdx = tokens.findIndex(t => t.includes('%'));
+    if (pctIdx > 0) {
+      const valBeforePct = cleanNum(tokens[pctIdx - 1]);
+      if (valBeforePct > 0) return valBeforePct;
+    }
+
+    // Nếu có từ 2 số trở lên: Cột 0 là SỐ LƯỢNG (151), Cột 1 là DOANH THU (403)
+    if (tokens.length >= 2) {
+      const t0 = cleanNum(tokens[0]);
+      const t1 = cleanNum(tokens[1]);
+      if (t1 > 0) return t1;
+      if (t0 > 0) return t0;
+    }
+
+    return cleanNum(tokens[0]);
+  };
+
   const pushEntry = (staffStr: string, tokens: string[], col3Val?: number) => {
     const { id, name } = parseIdName(staffStr);
     if (!id && !name) return;
 
-    let revenue = 0;
-    if (col3Val !== undefined && !isNaN(col3Val)) {
-      revenue = col3Val;
-    } else if (tokens.length >= 2) {
-      // Cột 1: Nhân viên, Cột 2: Số lượng (tokens[0]), Cột 3: Doanh thu thực (tokens[1])
-      revenue = cleanNum(tokens[1]);
-    } else if (tokens.length === 1) {
-      revenue = cleanNum(tokens[0]);
-    }
+    const revenue = resolveActualRevenue(tokens, col3Val);
 
     const entry = { id: id || norm(name), name, revenue };
     if (id) {
@@ -1905,6 +1930,14 @@ export const extractStaffRevFromReport = (text: string): Map<string, { id: strin
     if (cols.length < 2 && line.includes('  ')) {
       cols = line.split(/ {2,}/).map(c => c.trim()).filter(Boolean);
     }
+    if (cols.length < 2) {
+      const m1 = line.match(/^(\d{4,8}\s*[-–—]\s*[a-zA-ZÀ-ỹ\s]+?)\s+([\d,.-]+.*)$/);
+      const m2 = line.match(/^([a-zA-ZÀ-ỹ\s]+?\s*[-–—]\s*\d{4,8})\s+([\d,.-]+.*)$/);
+      const m = m1 || m2;
+      if (m) {
+        cols = [m[1].trim(), ...m[2].trim().split(/\s+/).filter(Boolean)];
+      }
+    }
 
     if (cols.length >= 2) {
       const staffIdx = cols.findIndex(c => isStaffLine(c));
@@ -1914,9 +1947,7 @@ export const extractStaffRevFromReport = (text: string): Map<string, { id: strin
           currentStaffLine = null;
           currentTokens = [];
         }
-        // Cột 3 từ trái sang:
-        // Nếu cols[0] là Nhân viên -> Cột 3 là cols[2]
-        // Nếu cols[0] là STT (staffIdx === 1) -> Cột 3 là cols[2] hoặc Cột 4 là cols[3]
+        // Cột 3 từ trái sang: DOANH THU = 403 (Cột 1 là NV, Cột 2 là Số lượng, Cột 3 là Doanh thu)
         let col3Val = 0;
         if (staffIdx === 0 && cols.length >= 3) {
           col3Val = cleanNum(cols[2]);
@@ -1926,8 +1957,6 @@ export const extractStaffRevFromReport = (text: string): Map<string, { id: strin
           col3Val = (val3 > 0 && (val3 > val2 || val2 < 100)) ? val3 : val2;
         } else if (cols.length >= 3) {
           col3Val = cleanNum(cols[2]);
-        } else {
-          col3Val = cleanNum(cols[cols.length - 1]);
         }
         pushEntry(cols[staffIdx], cols.slice(staffIdx + 1), col3Val);
         continue;
@@ -2140,15 +2169,33 @@ export const parseStaffRankData = (input: string, inputThuc?: string): StaffData
         const biWebColCount = dataCols.length;
         
         if (isBiWebStaffTable || (hasEmDash && biWebColCount >= 8)) {
-          // BI web employee format detected
-          // Col 0 = SỐ LƯỢNG
-          // Col 1 = DOANH THU QĐ (virtualVal)
-          // Col 2 = % TỈ TRỌNG
-          // Col 3 = DOANH THU THỰC (actualVal)
-          const soLuong = cleanNum(dataCols[0] || '0');
-          const dtqd = cleanNum(dataCols[1] || '0');     // DOANH THU QĐ → virtualVal
-          // dataCols[2] = % TỈ TRỌNG (skip)
-          const dtThuc = dataCols.length > 3 ? cleanNum(dataCols[3] || '0') : 0; // DOANH THU → actualVal
+          // Phân biệt báo cáo 11 cột (có DOANH THU QĐ và DOANH THU THỰC riêng)
+          // và báo cáo 6 cột (chỉ có DOANH THU THỰC: NHÂN VIÊN | SỐ LƯỢNG | DOANH THU | % TỈ TRỌNG | TB 3 THÁNG | % TT)
+          const lowerVal = val.toLowerCase();
+          const hasDtqdHeader = lowerVal.includes('doanh thu qđ') || lowerVal.includes('dtqđ') || lowerVal.includes('dt qđ');
+          const is11ColReport = (dataCols.length >= 8) || (hasDtqdHeader && dataCols.length >= 4);
+
+          let dtqd = 0;
+          let dtThuc = 0;
+
+          if (is11ColReport) {
+            // Định dạng 11 cột BI web:
+            // Col 0 = SỐ LƯỢNG
+            // Col 1 = DOANH THU QĐ (virtualVal)
+            // Col 2 = % TỈ TRỌNG
+            // Col 3 = DOANH THU THỰC (actualVal)
+            dtqd = cleanNum(dataCols[1] || '0');
+            dtThuc = dataCols.length > 3 ? cleanNum(dataCols[3] || '0') : dtqd;
+          } else {
+            // Định dạng 6 cột BI web (Báo cáo Doanh thu thực):
+            // Col 0 = SỐ LƯỢNG (151)
+            // Col 1 = DOANH THU (403 -> DT.THỰC của nhân viên)
+            // Col 2 = % TỈ TRỌNG (13.2%)
+            // Col 3 = TB 3 THÁNG (0)
+            // Col 4 = % TT (—)
+            dtThuc = cleanNum(dataCols[1] || '0');
+            dtqd = dtThuc;
+          }
 
           const staffKey = id;
           if (!staffMap.has(staffKey)) {
@@ -2157,8 +2204,8 @@ export const parseStaffRankData = (input: string, inputThuc?: string): StaffData
               fullId: id,
               department: 'N/A',
               storeName,
-              actualVal: dtThuc,      // DOANH THU (real/thực) = REAL column
-              virtualVal: dtqd,       // DOANH THU QĐ = DT QĐ column
+              actualVal: dtThuc,      // DOANH THU (thực)
+              virtualVal: dtqd,       // DOANH THU QĐ
               effVal: dtThuc > 0 ? Math.round(((dtqd - dtThuc) / dtThuc) * 100 * 10) / 10 : 0,
               target: 0,
               rate: 0
@@ -2211,12 +2258,12 @@ export const parseStaffRankData = (input: string, inputThuc?: string): StaffData
           }
         } else if (numbers.length >= 2) {
           // Fallback mapping:
-          // Cột 0 -> DT Thực (actualVal)
-          // Cột 1 -> DT QĐ (virtualVal)
-          // Cột 2 -> Hiệu quả QĐ (effVal)
-          let actualVal = cleanNum(numbers[0]);
-          let virtualVal = numbers.length > 1 ? cleanNum(numbers[1]) : 0;
-          let effVal = numbers.length > 2 ? cleanNum(numbers[2]) : 0;
+          // Cột 0 -> SỐ LƯỢNG (151)
+          // Cột 1 -> DOANH THU THỰC (403 -> actualVal)
+          // Cột 2 -> DT QĐ hoặc HQ
+          let actualVal = cleanNum(numbers[1]);
+          let virtualVal = numbers.length > 2 ? cleanNum(numbers[2]) : actualVal;
+          let effVal = 0;
 
           // If virtualVal > actualVal and effVal is 0, compute effVal
           if (effVal === 0 && actualVal > 0 && virtualVal > 0) {
