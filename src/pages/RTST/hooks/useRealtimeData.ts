@@ -298,16 +298,49 @@ export const useRealtimeData = (maKho: string) => {
             return false;
           });
           if (matchThuc) {
-            const realVal = matchThuc.actualReal || matchThuc.actualVirtual || 0;
+            let realVal = 0;
+            if (matchThuc.actualVirtual > 0 && matchThuc.actualReal > matchThuc.actualVirtual * 4) {
+              realVal = matchThuc.actualVirtual;
+            } else if (matchThuc.actualReal > 0 && matchThuc.actualVirtual > matchThuc.actualReal * 4) {
+              realVal = matchThuc.actualReal;
+            } else if (matchThuc.actualReal > 0) {
+              realVal = matchThuc.actualReal;
+            } else {
+              realVal = matchThuc.actualVirtual || 0;
+            }
+
             if (realVal > 0) {
               m.actualReal = realVal;
               if (m.actualVirtual > 0) {
+                // Formula: (Doanh thu quy đổi - Doanh thu thực) / Doanh thu thực * 100
                 m.percentQD = ((m.actualVirtual - realVal) / realVal) * 100;
               }
             }
           }
         });
+      } else if (realtimeDtThucText) {
+        const rawNum = cleanNum(realtimeDtThucText);
+        if (rawNum > 0) {
+          const realVal = rawNum > 1_000_000 ? Math.round(rawNum / 1_000_000) : rawNum;
+          markets.forEach(m => {
+            m.actualReal = realVal;
+            if (m.actualVirtual > 0) {
+              m.percentQD = ((m.actualVirtual - realVal) / realVal) * 100;
+            }
+          });
+        }
       }
+
+      // If percentQD was not computed from thucMarkets, check if marketInput has both actualVirtual and daily actualReal
+      markets.forEach(m => {
+        if (m.percentQD === undefined || m.percentQD === 0) {
+          const dtqd = m.actualVirtual || 0;
+          const dtthuc = m.actualReal || 0;
+          if (dtqd > 0 && dtthuc > 0 && dtthuc < dtqd * 4 && dtqd < dtthuc * 4) {
+            m.percentQD = ((dtqd - dtthuc) / dtthuc) * 100;
+          }
+        }
+      });
 
       const luykeMarkets = luykeMarketTextToUse ? parseMarketData(luykeMarketTextToUse, 0, 'LUYKE') : [];
       const categories = categoryTextToUse ? parseCategoryData(categoryTextToUse, 0, 30, markets.length > 0 ? markets : luykeMarkets) : [];

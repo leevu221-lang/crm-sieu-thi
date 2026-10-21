@@ -758,10 +758,18 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
         const lower = c.toLowerCase();
         return lower === "target" || lower === "mục tiêu" || (lower.includes("target") && !lower.includes("qđ"));
       });
-      actualRealIdx = cols.findIndex(c => {
-        const lower = c.toLowerCase();
-        return lower.includes("dtlk") || lower.includes("doanh thu lũy kế") || lower === "doanh thu";
-      });
+      if (pageType === 'RTST') {
+        actualRealIdx = cols.findIndex(c => {
+          const lower = c.toLowerCase().trim();
+          return (lower === "doanh thu" || lower === "doanh thu thực" || lower === "dt thực" || lower === "dt thuc" || lower === "dt") &&
+                 !lower.includes("lũy kế") && !lower.includes("luy ke") && !lower.includes("lk") && !lower.includes("qđ") && !lower.includes("qd");
+        });
+      } else {
+        actualRealIdx = cols.findIndex(c => {
+          const lower = c.toLowerCase();
+          return lower.includes("dtlk") || lower.includes("doanh thu lũy kế") || lower === "doanh thu";
+        });
+      }
       actualVirtualIdx = cols.findIndex(c => {
         const lower = c.toLowerCase();
         return lower.includes("dtqđ") || lower.includes("doanh thu quy đổi") || lower.includes("doanh thu qđ") || lower.includes("dt qđ");
@@ -1025,6 +1033,9 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
           actualReal = cleanNum(cols[nameColIdx + 2]);
           targetST = cleanNum(cols[nameColIdx + 3]); // DT Dự Kiến
           actualVirtual = cleanNum(cols[nameColIdx + 4]); // DTQĐ
+          if (pageType === 'RTST' && actualVirtual > 0 && actualReal > actualVirtual * 4) {
+            actualReal = 0;
+          }
           const targetQDVal = cleanNum(cols[nameColIdx + 5]); // DT Dự Kiến (QĐ)
           percentHT = cleanNum(cols[nameColIdx + 6]); // % HT
           

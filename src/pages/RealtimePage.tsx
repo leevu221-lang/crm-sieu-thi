@@ -106,7 +106,7 @@ import * as RadixTooltip from '@radix-ui/react-tooltip';
 import * as XLSX from 'xlsx';
 import { domToPng } from 'modern-screenshot';
 import { addWhiteBorderToDataUrl } from '../utils/imageBorderUtil';
-import { isValidStoreName, normalize, normalizeStoreId } from './RTST/utils';
+import { isValidStoreName, normalize, normalizeStoreId, cleanNum, parseMarketData } from './RTST/utils';
 import { AutoFitTable } from '../components/AutoFitTable';
 
 const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: boolean, onClick: () => void, icon: any, label: string, count?: number }) => (
@@ -6362,6 +6362,65 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     });
   };
 
+  // Helper tính % QĐ chuẩn xác: (Doanh thu quy đổi - Doanh thu thực) / Doanh thu thực * 100
+  // Ví dụ: Doanh thu thực 55, Doanh thu quy đổi 70 => (70 - 55) / 55 = 27.2%
+  const resolveQdPercent = (pMarket: any, mName: string) => {
+    let dtqd = pMarket?.actualVirtual || 0;
+    let dtthuc = pMarket?.actualReal || 0;
+
+    // Nếu dtthuc lớn hơn gấp nhiều lần dtqd (ví dụ 1470 vs 25 hoặc 70), đó là DTLK tháng chứ không phải DT ngày!
+    if (dtthuc > dtqd * 4 && dtqd > 0) {
+      dtthuc = 0;
+    }
+
+    if (dtthuc === 0) {
+      try {
+        const rawThuc = (selectedMaKho && localStorage.getItem(`rtst_realtime_dt_thuc_${selectedMaKho}`)) ||
+                        localStorage.getItem('rtst_realtime_dt_thuc') ||
+                        localStorage.getItem('rt_market_thuc') || '';
+        if (rawThuc) {
+          const rawNum = cleanNum(rawThuc);
+          if (rawNum > 0 && !rawThuc.includes('\t') && !rawThuc.includes('\n')) {
+            dtthuc = rawNum > 1_000_000 ? Math.round(rawNum / 1_000_000) : rawNum;
+          } else {
+            const thucList = parseMarketData(rawThuc, 0, 'RTST');
+            const targetCode = (mName || '').replace(/\D/g, '');
+            const found = thucList.find(t => {
+              const nm1 = normalize(t.name);
+              const nm2 = normalize(mName);
+              if (nm1 === nm2 || nm1.includes(nm2) || nm2.includes(nm1)) return true;
+              if (targetCode && targetCode.length >= 3) {
+                const code = t.name.replace(/\D/g, '');
+                if (code && code === targetCode) return true;
+              }
+              return false;
+            });
+            if (found) {
+              let fReal = 0;
+              if (found.actualVirtual > 0 && found.actualReal > found.actualVirtual * 4) {
+                fReal = found.actualVirtual;
+              } else if (found.actualReal > 0 && found.actualVirtual > found.actualReal * 4) {
+                fReal = found.actualReal;
+              } else {
+                fReal = found.actualReal || found.actualVirtual || 0;
+              }
+              dtthuc = fReal;
+            }
+          }
+        }
+      } catch {}
+    }
+
+    if (dtthuc > 0 && dtqd > 0) {
+      // Công thức: (Doanh thu quy đổi - Doanh thu thực) / Doanh thu thực * 100
+      return ((dtqd - dtthuc) / dtthuc) * 100;
+    }
+    if (typeof pMarket?.percentQD === 'number' && pMarket.percentQD !== 0 && pMarket.percentQD > -90) {
+      return pMarket.percentQD;
+    }
+    return 0;
+  };
+
   // Helper to build 3 comment templates for Realtime Doanh thu & Ngành hàng (Matching Image 2)
   const realtimeCommentTemplates = useMemo(() => {
     const activeDeclared = filteredMarkets.find(m => marketFilter === 'ALL' || m.name === marketFilter) || filteredMarkets[0];
@@ -6411,9 +6470,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const installmentRate = (parsedMarket.installmentRate || parsedMarket.percentTraGop || 0).toFixed(1);
     const luotBill = Math.round(parsedMarket.luotBillThuHo || 0);
 
-    const dtlk = (parsedMarket as any).actualReal || 0;
-    const dtqd = parsedMarket.actualVirtual || 0;
-    const valQd = (parsedMarket as any).percentQD ?? (dtlk > 0 ? (((dtqd - dtlk) / dtlk) * 100) : 0);
+    const valQd = resolveQdPercent(parsedMarket, activeDeclared?.name || parsedMarket?.name || '');
     const percentQdStr = `${valQd >= 0 ? '+' : ''}${valQd.toFixed(1)}%`;
 
     // SL Categories
@@ -7284,10 +7341,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               <StatCard
                                 title="% QĐ"
                                 value={(() => {
-                                  const dtlk = (parsedMarket as any).actualReal || 0;
-                                  const dtqd = parsedMarket.actualVirtual || 0;
-                                  if (dtlk === 0) return '0.0%';
-                                  const val = (parsedMarket as any).percentQD ?? (((dtqd - dtlk) / dtlk) * 100);
+                                  const val = resolveQdPercent(parsedMarket, declaredMarket.name);
+                                  if (val === 0) return '0.0%';
                                   return `${val >= 0 ? '+' : ''}${val.toFixed(1)}%`;
                                 })()}
                                 subValue=""
