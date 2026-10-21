@@ -27,7 +27,16 @@ import {
   cleanCategoryName
 } from '../pages/RTST/utils';
 import { cleanBiReportText } from '../utils/rtstHelpers';
-import { decompressString } from '../pages/RTST/hooks/useRealtimeData';
+const initGlobalAllStoresCache = (): Record<string, any> => {
+  try {
+    const saved = localStorage.getItem('crm_all_stores_cache_v2');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch {}
+  return {};
+};
 
 const globalAllStoresCache: Record<string, {
   clusterSummaryInput: string;
@@ -40,7 +49,7 @@ const globalAllStoresCache: Record<string, {
   tragopNv: string;
   stPercentTarget: number;
   categoryTargets: any[];
-}> = {};
+}> = initGlobalAllStoresCache();
 
 const globalPendingSaves: Set<string> = new Set();
 
@@ -462,6 +471,9 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         
         // Mutate the global cache object so it survives unmounts (e.g. fast tab switching)
         Object.assign(globalAllStoresCache, newCache);
+        try {
+          localStorage.setItem('crm_all_stores_cache_v2', JSON.stringify(globalAllStoresCache));
+        } catch {}
         
         return newCache;
       });
@@ -1067,6 +1079,9 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       });
       setAllStoresCache({ ...globalAllStoresCache });
+      try {
+        localStorage.setItem('crm_all_stores_cache_v2', JSON.stringify(globalAllStoresCache));
+      } catch {}
 
       // Find the specific record for targetStore
       let data: any = null;

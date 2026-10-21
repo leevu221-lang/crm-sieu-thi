@@ -121,7 +121,16 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return localStorage.getItem('currentStoreId') || 'ALL';
   });
   const [isStoreReady, setStoreReady] = useState(true);
-  const [availableStores, setAvailableStoresRaw] = useState<StoreInfo[]>([]);
+  const [availableStores, setAvailableStoresRaw] = useState<StoreInfo[]>(() => {
+    try {
+      const saved = localStorage.getItem('crm_available_stores');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
   const [storeVersion, setStoreVersion] = useState(0);
   // Helper to determine if the current URL or saved page belongs to pageKey
   const isCurrentUrlForPage = (pageKey: string): boolean => {
@@ -390,6 +399,11 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           currentStoresRef.current = uniqueNames;
 
           console.log('[StoreContext] Loaded declared stores from DB:', uniqueStores);
+          try {
+            if (uniqueStores.length > 0) {
+              localStorage.setItem('crm_available_stores', JSON.stringify(uniqueStores));
+            }
+          } catch {}
           setAvailableStoresRaw(prev => {
             const hasChanged = prev.length !== uniqueStores.length ||
               prev.some((store, idx) => store.name !== uniqueStores[idx].name);
@@ -498,6 +512,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setCurrentStoreIdRaw(prev => {
       if (prev === id) return prev;
       console.log(`[StoreContext] Switching store: "${prev}" → "${id}"`);
+      try {
+        if (id) localStorage.setItem('currentStoreId', id);
+      } catch {}
       setStoreReady(false);
       setStoreVersion(v => v + 1);
 

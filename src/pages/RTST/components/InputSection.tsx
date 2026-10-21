@@ -797,7 +797,7 @@ const InputSection: React.FC<InputSectionProps> = ({
         {showAll && showRealtime && (
         <div className="space-y-6">
           {/* Two Groups: BÁO CÁO TỔNG HỢP + THI ĐUA CỤM */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="flex flex-col gap-6">
             {[
               { 
                 title: 'BÁO CÁO TỔNG HỢP', 
@@ -1114,14 +1114,14 @@ const InputSection: React.FC<InputSectionProps> = ({
 
               // Per-store data: active card uses live state, inactive card uses the global allStoresCache
               const cachedData = allStoresCache?.[storeName];
-              const cardStaffInput = isActiveCard ? staffInput : (cachedData?.staffInput || '');
-              const cardStaffCategoryInput = isActiveCard ? staffCategoryInput : (cachedData?.staffCategoryInput || '');
-              const cardBanKemNv = isActiveCard ? (banKemNv || '') : (cachedData?.banKemNv || '');
-              const cardTragopMatran = isActiveCard ? (storeConfig['tragop_matran'] || '') : (cachedData?.tragopMatran || '');
-              const cardTragopNv = isActiveCard ? (tragopNv || '') : (cachedData?.tragopNv || '');
-              const cardPhucVu = isActiveCard ? (phucVu || '') : (cachedData?.phucVu || '');
-              const cardPercentTarget = isActiveCard ? stPercentTarget : (cachedData?.stPercentTarget || 0);
-              const cardCategoryTargets = isActiveCard ? categoryTargets : (cachedData?.categoryTargets || []);
+              const cardStaffInput = (isActiveCard && staffInput) ? staffInput : (cachedData?.staffInput || staffInput || '');
+              const cardStaffCategoryInput = (isActiveCard && staffCategoryInput) ? staffCategoryInput : (cachedData?.staffCategoryInput || staffCategoryInput || '');
+              const cardBanKemNv = (isActiveCard && banKemNv) ? banKemNv : (cachedData?.banKemNv || banKemNv || '');
+              const cardTragopMatran = (isActiveCard && storeConfig['tragop_matran']) ? storeConfig['tragop_matran'] : (cachedData?.tragopMatran || storeConfig['tragop_matran'] || '');
+              const cardTragopNv = (isActiveCard && tragopNv) ? tragopNv : (cachedData?.tragopNv || tragopNv || '');
+              const cardPhucVu = (isActiveCard && phucVu) ? phucVu : (cachedData?.phucVu || phucVu || '');
+              const cardPercentTarget = (isActiveCard && stPercentTarget) ? stPercentTarget : (cachedData?.stPercentTarget || stPercentTarget || 100);
+              const cardCategoryTargets = (isActiveCard && categoryTargets && categoryTargets.length > 0) ? categoryTargets : (cachedData?.categoryTargets || categoryTargets || []);
 
               const handleCardActivate = () => {
                 if (!isActiveCard && onStoreChange) {
