@@ -308,7 +308,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       if (staffVal) {
         payload.lk_dt_nv = staffVal;
-      } else if (fieldName === 'DOANH THU NV' || fieldName === 'CHI TIẾT DTNV') {
+      } else if (fieldName === 'DOANH THU NV' || fieldName === 'CHI TIẾT DTNV' || fieldName === 'D.THU QUY ĐỔI NHÂN VIÊN') {
         payload.lk_dt_nv = '';
       }
 
@@ -1680,7 +1680,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (!resolvedFieldName) {
         if (setter === setClusterSummaryInput || setter === setClusterSummaryInputSync) resolvedFieldName = 'LUỸ KẾ DT';
         else if (setter === setClusterCategoryInput || setter === setClusterCategoryInputSync) resolvedFieldName = 'LUỸ KẾ TĐ';
-        else if (setter === setStaffInput || setter === setStaffInputSync) resolvedFieldName = 'DOANH THU NV';
+        else if (setter === setStaffInput || setter === setStaffInputSync) resolvedFieldName = 'D.THU QUY ĐỔI NHÂN VIÊN';
         else if (setter === setStaffCategoryInput || setter === setStaffCategoryInputSync) resolvedFieldName = 'THI ĐUA NV';
         else if (setter === setStaffListInput || setter === setStaffListInputSync) resolvedFieldName = 'DS NHÂN VIÊN';
         else if (setter === setTragopMatran || setter === setTragopMatranSync) resolvedFieldName = 'TRẢ GÓP MT';
@@ -1715,7 +1715,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             localStorage.removeItem(`rtst_cluster_category_${shortMaKho}`);
           }
         } catch {}
-      } else if (resolvedFieldName === 'DOANH THU NV') {
+      } else if (resolvedFieldName === 'DOANH THU NV' || resolvedFieldName === 'D.THU QUY ĐỔI NHÂN VIÊN') {
         staffInputRef.current = '';
         setStaffInput('');
       } else if (resolvedFieldName === 'THI ĐUA NV') {

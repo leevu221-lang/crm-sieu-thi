@@ -41,6 +41,8 @@ import {
 import { cn, formatShortCurrency } from '../utils';
 import { cleanBiReportText } from '../../../utils/rtstHelpers';
 import { useNotification } from '../../../contexts/NotificationContext';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../../firebaseConfig';
 
 
 interface InputSectionProps {
@@ -656,6 +658,56 @@ const InputSection: React.FC<InputSectionProps> = ({
     }
   };
 
+  const [dtThucNvMap, setDtThucNvMap] = useState<Record<string, string>>({});
+
+  const handleUpdateDtThucNv = (sName: string, val: string) => {
+    const cleanVal = cleanBiReportText(val);
+    const sClean = sName ? sName.replace(/\D/g, '') : '';
+    setDtThucNvMap(prev => ({ ...prev, [sName]: cleanVal }));
+    if (sClean) {
+      try {
+        localStorage.setItem(`real_dthu_nv_raw_thuc_${sClean}`, cleanVal);
+      } catch {}
+      try {
+        const docRef = doc(db, 'app_settings', `real_dthu_nv_${sClean}`);
+        setDoc(docRef, {
+          storeId: sClean,
+          rawInputThuc: cleanVal,
+          updatedAt: serverTimestamp()
+        }, { merge: true }).catch(() => {});
+      } catch {}
+    }
+    try {
+      localStorage.setItem(`cauhinh_${sName}_dt_thuc_nv`, cleanVal);
+    } catch {}
+  };
+
+  const handleClearDtThucNv = (sName: string) => {
+    const sClean = sName ? sName.replace(/\D/g, '') : '';
+    setDtThucNvMap(prev => ({ ...prev, [sName]: '' }));
+    if (sClean) {
+      try {
+        localStorage.removeItem(`real_dthu_nv_raw_thuc_${sClean}`);
+      } catch {}
+      try {
+        const docRef = doc(db, 'app_settings', `real_dthu_nv_${sClean}`);
+        setDoc(docRef, {
+          storeId: sClean,
+          rawInputThuc: '',
+          updatedAt: serverTimestamp()
+        }, { merge: true }).catch(() => {});
+      } catch {}
+    }
+    try {
+      localStorage.removeItem(`cauhinh_${sName}_dt_thuc_nv`);
+    } catch {}
+    showNotification('Đã xóa dữ liệu D.THU THỰC NHÂN VIÊN', 'info');
+  };
+
+  const handleBlurDtThucNv = (sName: string) => {
+    showNotification('Đã lưu dữ liệu D.THU THỰC NHÂN VIÊN', 'success');
+  };
+
   const [showTimeSettings, setShowTimeSettings] = useState(true);
   const [showRealtime, setShowRealtime] = useState(true);
   const [showClusterData, setShowClusterData] = useState(true);
@@ -1129,10 +1181,27 @@ const InputSection: React.FC<InputSectionProps> = ({
                 }
               };
 
+              const storeCleanNum = storeName ? storeName.replace(/\D/g, '') : '';
+              const cardStaffInputThuc = dtThucNvMap[storeName] !== undefined
+                ? dtThucNvMap[storeName]
+                : ((storeCleanNum && localStorage.getItem(`real_dthu_nv_raw_thuc_${storeCleanNum}`)) ||
+                   localStorage.getItem(`cauhinh_${storeName}_dt_thuc_nv`) ||
+                   cachedData?.staffInputThuc || '');
+
               const storeFields = [
                 { 
+                  key: `${storeName}_dt_thuc_nv`, 
+                  label: 'D.THU THỰC NHÂN VIÊN', 
+                  value: cardStaffInputThuc, 
+                  setter: (v: string) => handleUpdateDtThucNv(storeName, v), 
+                  onBlur: () => handleBlurDtThucNv(storeName),
+                  onClear: () => handleClearDtThucNv(storeName),
+                  biLink: 'https://bi.thegioididong.com/sieu-thi-con?id=16500&tab=bcdtnv&rt=2&dm=1',
+                  colorTheme: 'emerald' as const
+                },
+                { 
                   key: `${storeName}_dt_nv`, 
-                  label: 'DOANH THU NV', 
+                  label: 'D.THU QUY ĐỔI NHÂN VIÊN', 
                   value: cardStaffInput, 
                   setter: isActiveCard ? setStaffInput : undefined, 
                   biLink: 'https://bi.thegioididong.com/sieu-thi-con?id=16500&tab=bcdtnv&rt=2&dm=1',
@@ -1210,7 +1279,9 @@ const InputSection: React.FC<InputSectionProps> = ({
                         };
                         const handleClear = () => {
                           if (!isActiveCard) handleCardActivate();
-                          if (item.setter) {
+                          if ((item as any).onClear) {
+                            (item as any).onClear();
+                          } else if (item.setter) {
                             if (clearField) clearField(item.setter, item.label);
                             else item.setter('');
                             setTimeout(() => onSaveLuyke(true, 'auto', undefined, undefined, item.label), 200);
@@ -1229,7 +1300,11 @@ const InputSection: React.FC<InputSectionProps> = ({
                               handleChange(v);
                             }}
                             onBlur={() => {
-                              onSaveLuyke(false, 'auto', undefined, undefined, item.label);
+                              if ((item as any).onBlur) {
+                                (item as any).onBlur();
+                              } else {
+                                onSaveLuyke(false, 'auto', undefined, undefined, item.label);
+                              }
                             }}
                             onClear={handleClear}
                           />
