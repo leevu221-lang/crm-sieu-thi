@@ -1947,6 +1947,19 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     };
   }, []);
 
+  const [, setTraChamTrigger] = useState(0);
+  useEffect(() => {
+    const handleUpdate = () => setTraChamTrigger(prev => prev + 1);
+    window.addEventListener('realtime_tra_cham_updated', handleUpdate);
+    window.addEventListener('luyke_tra_cham_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('realtime_tra_cham_updated', handleUpdate);
+      window.removeEventListener('luyke_tra_cham_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
   const { ycxData, setYcxData, ycxDataMoi, setYcxDataMoi, ycxFileName, setYcxFileName, ycxFileNameMoi, setYcxFileNameMoi, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, hasLoadedFromDB, processError, activeStore, setActiveStore, marketInput, setMarketInput, realtimeDtThuc, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
 
   const daysRemaining = useMemo(() => {
@@ -6510,10 +6523,10 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const actualVirtual = formatCurrencyUnit(parsedMarket.actualVirtual || 0);
     const percentHT = dailyPercentHT;
     const tcRate = resolveRealtimeTraChamRate(activeDeclared?.name || parsedMarket?.name || '');
-    const installmentRate = (tcRate !== null && !isNaN(tcRate))
-      ? tcRate.toFixed(1)
+    const installmentRate = (tcRate !== null && !isNaN(tcRate) && tcRate > 0)
+      ? (Math.floor(tcRate * 10) / 10).toFixed(1)
       : (((parsedMarket.installmentRate || parsedMarket.percentTraGop || 0) > 0)
-          ? (parsedMarket.installmentRate || parsedMarket.percentTraGop).toFixed(1)
+          ? (Math.floor((parsedMarket.installmentRate || parsedMarket.percentTraGop) * 10) / 10).toFixed(1)
           : '0.0');
     const luotBill = Math.round(parsedMarket.luotBillThuHo || 0);
 
@@ -7380,9 +7393,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 title="Tỷ Trọng Trả Góp"
                                 value={(() => {
                                   const tcRate = resolveRealtimeTraChamRate(declaredMarket.name);
-                                  if (tcRate !== null && !isNaN(tcRate)) return `${tcRate.toFixed(1)}%`;
+                                  if (tcRate !== null && !isNaN(tcRate) && tcRate > 0) {
+                                    const floored = Math.floor(tcRate * 10) / 10;
+                                    return `${floored.toFixed(1)}%`;
+                                  }
                                   const fallbackRate = parsedMarket.installmentRate || parsedMarket.percentTraGop || 0;
-                                  return `${(fallbackRate > 0 ? fallbackRate : 0).toFixed(1)}%`;
+                                  return `${(fallbackRate > 0 ? (Math.floor(fallbackRate * 10) / 10) : 0).toFixed(1)}%`;
                                 })()}
                                 subValue=""
                                 icon={ShoppingBag}

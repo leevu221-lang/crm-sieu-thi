@@ -1767,10 +1767,10 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     const dtqdVal = targetData?.stDtqd || actualVirtual || 0;
     const percentQDVal = dtlkVal > 0 ? ((dtqdVal - dtlkVal) / dtlkVal) * 100 : (market.percentQD || 0);
     const tcRate = resolveLuykeTraChamRate(market.name);
-    const installmentRate = (tcRate !== null && !isNaN(tcRate))
-      ? tcRate.toFixed(1)
+    const installmentRate = (tcRate !== null && !isNaN(tcRate) && tcRate > 0)
+      ? (Math.floor(tcRate * 10) / 10).toFixed(1)
       : (((market.installmentRate || market.percentTraGop || 0) > 0)
-          ? (market.installmentRate || market.percentTraGop).toFixed(1)
+          ? (Math.floor((market.installmentRate || market.percentTraGop) * 10) / 10).toFixed(1)
           : '0.0');
     const billCount = market.billCount || 0;
 
@@ -2560,10 +2560,10 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                     const dtqdVal = targetData?.stDtqd || actualVirtual || 0;
                     const percentQDVal = dtlkVal > 0 ? ((dtqdVal - dtlkVal) / dtlkVal) * 100 : (market.percentQD || 0);
                     const tcRate = resolveLuykeTraChamRate(market.name);
-                    const installmentRate = (tcRate !== null && !isNaN(tcRate))
-                      ? tcRate.toFixed(1)
+                    const installmentRate = (tcRate !== null && !isNaN(tcRate) && tcRate > 0)
+                      ? (Math.floor(tcRate * 10) / 10).toFixed(1)
                       : (((market.installmentRate || market.percentTraGop || 0) > 0)
-                          ? (market.installmentRate || market.percentTraGop).toFixed(1)
+                          ? (Math.floor((market.installmentRate || market.percentTraGop) * 10) / 10).toFixed(1)
                           : '0.0');
                     const billCount = market.billCount || 0;
                     const storeAddress = (storeSettings as any)?.[market.name]?.address || (storeSettings as any)?.[maKho]?.address || 'LUỸ KẾ THÁNG';

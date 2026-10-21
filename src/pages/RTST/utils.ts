@@ -1383,6 +1383,26 @@ export const isSupermarketLine = (text: string): boolean => {
   return (hasSupermarketPrefix && !text.includes('Sim') && !text.includes('Thẻ') && !text.includes('thẻ')) || isTotal;
 };
 
+function isKnownTcHeader(line: string): boolean {
+  const l = line.toLowerCase().trim();
+  if (l.includes('+/-') || l.includes('chênh lệch') || l.includes('tang truong') || l.includes('tăng trưởng') || l.includes('hôm qua') || l.includes('tb 3')) return false;
+  return (
+    l === 'siêu thị' || l === 'tên siêu thị' || l.startsWith('siêu thị') ||
+    l.includes('dt trả góp') || l.includes('dt trả chậm') || l.includes('doanh thu trả góp') ||
+    l.includes('dt siêu thị') || l.includes('doanh thu siêu thị') ||
+    l.includes('tỷ trọng trả chậm') || l.includes('tỉ trọng trả chậm') || l.includes('tỷ trọng trả góp') || l.includes('tỉ trọng trả góp') ||
+    l === '% trả chậm' || l === '% trả góp' || l === 'tỷ trọng trả chậm %' || l === 'tỉ trọng trả chậm %'
+  );
+}
+
+function isTcWatermark(line: string): boolean {
+  const l = line.trim();
+  // Watermark pattern: 5-6 digits (e.g. "43751") or employee name
+  if (/^\d{5,6}$/.test(l)) return true;
+  if (/^linh\s*võ\s*vũ$/i.test(l)) return true;
+  return false;
+}
+
 /**
  * Trích xuất Tỷ Trọng Trả Chậm % từ dữ liệu ô "REALTIME TRẢ CHẬM" hoặc "LUỸ KẾ TRẢ CHẬM"
  * BC NGÀY > LẤY CỘT "Tỷ trọng trả chậm %" TRONG Ô "REALTIME TRẢ CHẬM"
@@ -1393,7 +1413,7 @@ export function parseTraChamRate(rawInput: string | undefined | null, targetStor
   const trimmed = rawInput.trim();
   if (!trimmed) return null;
 
-  // Single number check (e.g. "25.5" or "25,5%" or "30")
+  // Single number check (e.g. "25.5" or "81.87" or "25,5%" or "30")
   if (!trimmed.includes('\t') && !trimmed.includes('\n')) {
     const num = cleanNum(trimmed);
     if (!isNaN(num) && num > 0) return num;
@@ -1414,118 +1434,101 @@ export function parseTraChamRate(rawInput: string | undefined | null, targetStor
     if (r > 0 && r <= 100) return r;
   }
 
-  const lines = trimmed.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  if (lines.length === 0) return null;
+  // Filter out empty lines and watermarks
+  const rawLines = trimmed.split(/\r?\n/).map(l => l.trim()).filter(l => l && !isTcWatermark(l));
+  if (rawLines.length === 0) return null;
 
-  let tcColIdx = -1;
-  let nameColIdx = -1;
-  const storeRows: { name: string; rate: number; isSummary: boolean }[] = [];
+  // Check if we have horizontal lines with tabs or multiple columns
+  const hasTabs = rawLines.some(l => l.includes('\t') || (l.split(/\s{2,}/).length >= 3 && !isKnownTcHeader(l)));
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const lowerLine = line.toLowerCase();
+  let storeRows: { name: string; rate: number; isSummary: boolean }[] = [];
 
-    // Check if this is a header row
-    if (
-      lowerLine.includes('tỷ trọng trả chậm') ||
-      lowerLine.includes('tỉ trọng trả chậm') ||
-      lowerLine.includes('tỷ trọng trả góp') ||
-      lowerLine.includes('tỉ trọng trả góp') ||
-      lowerLine.includes('tỷ trọng tc') ||
-      lowerLine.includes('% trả chậm') ||
-      lowerLine.includes('% trả góp') ||
-      lowerLine.includes('trả chậm %') ||
-      lowerLine.includes('trả chậm')
-    ) {
+  if (hasTabs) {
+    // Standard horizontal table
+    let tcColIdx = -1;
+    let nameColIdx = 0;
+
+    for (let i = 0; i < rawLines.length; i++) {
+      const line = rawLines[i];
       const cols = line.split(/\t|\||\s{2,}/).map(c => c.trim());
-      const foundTcIdx = cols.findIndex(c => {
-        const lower = c.toLowerCase().trim();
-        if (
-          lower.includes('+/-') || 
-          lower.includes('chênh lệch') || 
-          lower.includes('tang truong') || 
-          lower.includes('tăng trưởng') ||
-          lower.includes('hôm qua') ||
-          lower.includes('tb 3')
-        ) {
-          return false;
-        }
-        return (
-          lower === 'tỷ trọng trả chậm %' ||
-          lower === 'tỉ trọng trả chậm %' ||
-          lower === 'tỷ trọng trả chậm' ||
-          lower === 'tỉ trọng trả chậm' ||
-          lower.includes('tỷ trọng trả chậm') ||
-          lower.includes('tỉ trọng trả chậm') ||
-          lower === 'tỷ trọng trả góp %' ||
-          lower === 'tỷ trọng trả góp' ||
-          lower.includes('tỷ trọng trả góp') ||
-          lower === '% trả chậm' ||
-          lower === '% trả góp' ||
-          lower.includes('trả chậm %') ||
-          lower === 'tỷ trọng tc %' ||
-          lower === 'tỷ trọng tc' ||
-          lower === '%tc' ||
-          lower === '% tc'
-        );
-      });
+      const lowerLine = line.toLowerCase();
 
-      if (foundTcIdx !== -1) {
-        tcColIdx = foundTcIdx;
-        const foundNameIdx = cols.findIndex(c => {
-          const lower = c.toLowerCase().trim();
-          return lower.includes('tên siêu thị') || lower.includes('tên miền') || lower.includes('siêu thị') || lower.includes('tên kho') || lower.includes('mã kho') || lower.includes('kho');
+      if (lowerLine.includes('tỷ trọng trả chậm') || lowerLine.includes('tỉ trọng trả chậm') || lowerLine.includes('tỷ trọng trả góp') || lowerLine.includes('tỷ trọng tc') || lowerLine.includes('trả chậm %')) {
+        const foundTcIdx = cols.findIndex(c => {
+          const l = c.toLowerCase().trim();
+          if (l.includes('+/-') || l.includes('chênh lệch') || l.includes('tăng trưởng')) return false;
+          return l.includes('tỷ trọng trả chậm') || l.includes('tỉ trọng trả chậm') || l.includes('tỷ trọng trả góp') || l.includes('trả chậm %') || l.includes('tỷ trọng tc');
         });
-        if (foundNameIdx !== -1) {
-          nameColIdx = foundNameIdx;
-        }
-        continue;
-      }
-    }
-
-    if (tcColIdx === -1) {
-      continue;
-    }
-
-    // Data row
-    const cols = line.split(/\t|\||\s{2,}/).map(c => c.trim());
-    if (cols.length > tcColIdx) {
-      let rowName = '';
-      if (nameColIdx !== -1 && cols[nameColIdx]) {
-        rowName = cols[nameColIdx];
-      } else {
-        for (let c = 0; c < Math.min(cols.length, 3); c++) {
-          if (cols[c] && isNaN(Number(cols[c].replace(/,/g, '')))) {
-            rowName = cols[c];
-            break;
-          }
+        if (foundTcIdx !== -1) {
+          tcColIdx = foundTcIdx;
+          const foundName = cols.findIndex(c => c.toLowerCase().includes('siêu thị'));
+          if (foundName !== -1) nameColIdx = foundName;
+          continue;
         }
       }
 
-      const rateVal = cleanNum(cols[tcColIdx]);
-      if (!isNaN(rateVal) && rateVal >= 0 && rateVal <= 100) {
-        const isSum = rowName.toUpperCase().startsWith('TỔNG') || rowName.toUpperCase().includes('TOÀN') || rowName.toUpperCase().includes('CỤM');
-        storeRows.push({
-          name: rowName,
-          rate: rateVal,
-          isSummary: isSum
-        });
+      if (tcColIdx !== -1 && cols.length > tcColIdx) {
+        const rowName = cols[nameColIdx] || cols[0];
+        const rateVal = cleanNum(cols[tcColIdx]);
+        if (rateVal > 0 && rateVal <= 100) {
+          storeRows.push({
+            name: rowName,
+            rate: rateVal,
+            isSummary: rowName.toUpperCase().startsWith('TỔNG')
+          });
+        }
       }
     }
   }
 
-  // Fallback if no explicit header matched
-  if (storeRows.length === 0 && lines.length > 0) {
-    for (const line of lines) {
-      const cols = line.split(/\t|\||\s{2,}/).map(c => c.trim());
-      if (cols.length >= 2) {
-        const pctCol = cols.find(c => c.includes('%'));
-        if (pctCol) {
-          const val = cleanNum(pctCol);
-          if (!isNaN(val) && val >= 0 && val <= 100) {
-            let rowName = cols[0] || '';
-            const isSum = rowName.toUpperCase().startsWith('TỔNG');
-            storeRows.push({ name: rowName, rate: val, isSummary: isSum });
+  // If no storeRows yet, try cell-per-line (vertical table from web copy)
+  if (storeRows.length === 0) {
+    let headerList: string[] = [];
+    let dataStartIdx = 0;
+
+    for (let i = 0; i < rawLines.length; i++) {
+      if (isKnownTcHeader(rawLines[i])) {
+        headerList.push(rawLines[i]);
+        dataStartIdx = i + 1;
+      } else if (headerList.length >= 2) {
+        break;
+      }
+    }
+
+    const colCount = Math.max(headerList.length, 4); // Usually 4 columns: Siêu thị, DT trả góp, DT siêu thị, Tỷ trọng trả chậm %
+    const dataLines = rawLines.slice(dataStartIdx);
+
+    // Group data lines into chunks of colCount
+    for (let i = 0; i < dataLines.length; i += colCount) {
+      const chunk = dataLines.slice(i, i + colCount);
+      if (chunk.length >= 4) {
+        const rowName = chunk[0];
+        const rateVal = cleanNum(chunk[chunk.length - 1]);
+        if (rateVal > 0 && rateVal <= 100) {
+          storeRows.push({
+            name: rowName,
+            rate: rateVal,
+            isSummary: rowName.toUpperCase().startsWith('TỔNG')
+          });
+        }
+      }
+    }
+
+    // Direct scan fallback: Look for store name followed by numbers, where the last number is the rate
+    if (storeRows.length === 0) {
+      for (let i = 0; i < rawLines.length; i++) {
+        const line = rawLines[i];
+        if (/(ĐML|ĐMM|ĐMS|TGD|BHX|MWG|CMA)/i.test(line)) {
+          for (let j = i + 1; j <= Math.min(i + 5, rawLines.length - 1); j++) {
+            const num = cleanNum(rawLines[j]);
+            if (num > 0 && num <= 100 && (rawLines[j].includes('.') || rawLines[j].includes(',') || rawLines[j].includes('%'))) {
+              storeRows.push({
+                name: line,
+                rate: num,
+                isSummary: false
+              });
+              break;
+            }
           }
         }
       }
@@ -1534,6 +1537,7 @@ export function parseTraChamRate(rawInput: string | undefined | null, targetStor
 
   if (storeRows.length === 0) return null;
 
+  // Matching target store
   if (targetStoreName && targetStoreName !== 'ALL') {
     const cleanTarget = targetStoreName.toLowerCase().replace(/[^a-z0-9]/g, '');
     const targetDigits = (targetStoreName.match(/\d{3,}/) || [''])[0];
@@ -1541,18 +1545,19 @@ export function parseTraChamRate(rawInput: string | undefined | null, targetStor
     const matched = storeRows.find(r => {
       const rLower = r.name.toLowerCase().replace(/[^a-z0-9]/g, '');
       if (cleanTarget && (rLower.includes(cleanTarget) || cleanTarget.includes(rLower))) return true;
-      if (targetDigits) {
-        const rDigits = (r.name.match(/\d{3,}/) || [''])[0];
-        if (rDigits && rDigits === targetDigits) return true;
-      }
+      if (targetDigits && (r.name.match(/\d{3,}/) || [''])[0] === targetDigits) return true;
       return false;
     });
 
     if (matched) return matched.rate;
   }
 
-  const summaryRow = storeRows.find(r => r.isSummary);
-  if (summaryRow) return summaryRow.rate;
+  // If only 1 store row exists in the table, it is definitely the target store!
+  if (storeRows.length === 1) return storeRows[0].rate;
+
+  const sumRow = storeRows.find(r => r.isSummary);
+  if (sumRow) return sumRow.rate;
+
   return storeRows[0]?.rate ?? null;
 }
 
