@@ -75,7 +75,6 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
     window.self !== window.top ||
     window.location.search.includes('is_mobile_sim=1')
   );
-  const [liveClockStr, setLiveClockStr] = useState<string>('');
   const [storeDropdownOpen, setStoreDropdownOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [showHiddenPagesModal, setShowHiddenPagesModal] = useState(false);
@@ -113,17 +112,7 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
     }
   };
 
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      const dateStr = now.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      setLiveClockStr(`${timeStr} - ${dateStr}`);
-    };
-    updateTime();
-    const timer = setInterval(updateTime, 1000);
-    return () => clearInterval(timer);
-  }, []);
+
 
   /* Close dropdowns when clicking outside */
   useEffect(() => {
@@ -328,11 +317,7 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
               </button>
             )}
 
-            {/* Live Clock */}
-            <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-full text-[11px] font-bold tracking-tight whitespace-nowrap">
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
-              <span>{liveClockStr}</span>
-            </div>
+
 
             {/* User Profile Dropdown */}
             <div ref={userDropdownRef} className="relative">
