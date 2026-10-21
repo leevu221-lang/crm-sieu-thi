@@ -1041,11 +1041,18 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
             if (!percentTraGopVal) percentTraGopVal = cleanNum(dataCols[lastIdx]);
             if (!dtTraGopVal) dtTraGopVal = cleanNum(dataCols[lastIdx - 1]);
           }
-          if (!dtTraGopVal && cols.length >= 4) {
-            dtTraGopVal = cleanNum(cols[cols.length - 2]);
-          }
-          if (!percentTraGopVal && cols.length >= 4) {
-            percentTraGopVal = cleanNum(cols[cols.length - 1]);
+          if (dataCols.length === 4 || cols.length === 4) {
+            // Table with 4 columns: Siêu thị | DT trả góp | DT siêu thị | Tỷ trọng trả chậm %
+            // Cột 4 từ trái sang (hoặc cột cuối cùng) luôn là Tỷ trọng trả chậm %
+            percentTraGopVal = cleanNum(cols[3]) || cleanNum(cols[cols.length - 1]);
+            dtTraGopVal = cleanNum(cols[1]);
+          } else {
+            if (!dtTraGopVal && cols.length >= 4) {
+              dtTraGopVal = cleanNum(cols[cols.length - 2]);
+            }
+            if (!percentTraGopVal && cols.length >= 4) {
+              percentTraGopVal = cleanNum(cols[cols.length - 1]);
+            }
           }
 
           const percentHTTargetDuKienLNTTVal = percentHTTargetDuKienLNTTIdx !== -1 && percentHTTargetDuKienLNTTIdx < cols.length
@@ -1141,11 +1148,18 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
             if (!percentTraGopVal) percentTraGopVal = cleanNum(dataCols[lastIdx]);
             if (!dtTraGopVal) dtTraGopVal = cleanNum(dataCols[lastIdx - 1]);
           }
-          if (!dtTraGopVal && cols.length >= 4) {
-            dtTraGopVal = cleanNum(cols[cols.length - 2]);
-          }
-          if (!percentTraGopVal && cols.length >= 4) {
-            percentTraGopVal = cleanNum(cols[cols.length - 1]);
+          if (dataCols.length === 4 || cols.length === 4) {
+            // Table with 4 columns: Siêu thị | DT trả góp | DT siêu thị | Tỷ trọng trả chậm %
+            // Cột 4 từ trái sang (hoặc cột cuối cùng) luôn là Tỷ trọng trả chậm %
+            percentTraGopVal = cleanNum(cols[3]) || cleanNum(cols[cols.length - 1]);
+            dtTraGopVal = cleanNum(cols[1]);
+          } else {
+            if (!dtTraGopVal && cols.length >= 4) {
+              dtTraGopVal = cleanNum(cols[cols.length - 2]);
+            }
+            if (!percentTraGopVal && cols.length >= 4) {
+              percentTraGopVal = cleanNum(cols[cols.length - 1]);
+            }
           }
 
           if (!results.some(m => m.name === marketName)) {
@@ -1469,19 +1483,34 @@ export function parseTraChamRate(rawInput: string | undefined | null, targetStor
 
       if (cols.length >= 2) {
         const rowName = cols[nameColIdx] || cols[0];
-        // Quy tắc bất biến: CỘT THỨ 4 TỪ TRÁI SANG (index 3: Cột 1 = ST, Cột 2 = DT TG, Cột 3 = DT ST, Cột 4 = % TC)
         let rateVal = 0;
-        if (cols.length >= 4) {
-          rateVal = cleanNum(cols[3]);
-        }
-        if (!rateVal || rateVal <= 0 || rateVal > 100) {
-          const lineNums = cols.map(c => cleanNum(c)).filter(n => !isNaN(n) && n > 0);
-          if (lineNums.length >= 3) {
-            // lineNums[0] = DT trả góp, lineNums[1] = DT siêu thị (55.77), lineNums[2] = CỘT 4: Tỷ trọng trả chậm (81.7)
-            rateVal = lineNums[2];
-          } else if (lineNums.length >= 1) {
-            rateVal = lineNums[lineNums.length - 1];
+
+        // 1. If tab-separated, strictly take tabCols[3] (Cột 4 từ trái sang: % TC)
+        if (line.includes('\t')) {
+          const tabCols = line.split('\t').map(c => c.trim()).filter(Boolean);
+          if (tabCols.length >= 4) {
+            rateVal = cleanNum(tabCols[3]);
           }
+        }
+
+        // 2. Extract numeric tokens from line.
+        // In standard 4-column BI table (Siêu thị | DT TG | DT ST | % TC):
+        // The numbers are: DT TG (45.66), DT ST (55.77), % TC (81.7). The last number is ALWAYS Cột 4 (% TC)!
+        if (!rateVal || rateVal <= 0 || rateVal > 100) {
+          const numMatches = line.match(/\b\d+(?:[.,]\d+)?%?\b/g);
+          if (numMatches) {
+            const validNums = numMatches.map(cleanNum).filter(n => !isNaN(n) && n > 0);
+            if (validNums.length >= 3) {
+              rateVal = validNums[validNums.length - 1]; // ALWAYS Cột thứ 4 (% TC: 81.7)!
+            } else if (validNums.length === 1 && validNums[0] <= 100) {
+              rateVal = validNums[0];
+            }
+          }
+        }
+
+        // 3. Fallback to rightmost column
+        if (!rateVal || rateVal <= 0 || rateVal > 100) {
+          rateVal = cleanNum(cols[cols.length - 1]);
         }
 
         if (rateVal > 0 && rateVal <= 100) {
@@ -1517,12 +1546,12 @@ export function parseTraChamRate(rawInput: string | undefined | null, targetStor
       const chunk = dataLines.slice(i, i + colCount);
       if (chunk.length >= 4) {
         const rowName = chunk[0];
-        // CỘT THỨ 4 TỪ TRÁI SANG: chunk[3]
+        // Cột 4 từ trái sang: chunk[3] hoặc số cuối cùng trong chunk
         let rateVal = cleanNum(chunk[3]);
         if (!rateVal || rateVal <= 0 || rateVal > 100) {
           const chunkNums = chunk.slice(1).map(c => cleanNum(c)).filter(n => !isNaN(n) && n > 0);
           if (chunkNums.length >= 3) {
-            rateVal = chunkNums[2];
+            rateVal = chunkNums[chunkNums.length - 1]; // Cột 4: 81.7
           } else if (chunkNums.length >= 1) {
             rateVal = chunkNums[chunkNums.length - 1];
           }
@@ -1549,10 +1578,10 @@ export function parseTraChamRate(rawInput: string | undefined | null, targetStor
           }
           let rate = 0;
           if (rowNums.length >= 3) {
-            // rowNums[0] = DT trả góp
+            // rowNums[0] = DT trả góp (45.66)
             // rowNums[1] = DT siêu thị (55.77)
             // rowNums[2] = CỘT THỨ 4 TỪ TRÁI SANG: Tỷ trọng trả chậm % (81.7)
-            rate = rowNums[2];
+            rate = rowNums[rowNums.length - 1];
           } else if (rowNums.length >= 1) {
             rate = rowNums[rowNums.length - 1];
           }
