@@ -1472,13 +1472,36 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
   // Removed visibilitychange reload for performance — data is already real-time and auto-reacts to store changes
 
+  const effectiveStaffInputThuc = React.useMemo(() => {
+    if (marketFilter && marketFilter !== 'ALL' && allStoresCache?.[marketFilter]?.staffInputThuc) {
+      return allStoresCache[marketFilter].staffInputThuc;
+    }
+    const storeKey = marketFilter !== 'ALL' ? marketFilter : (tenSieuThi || stName || '');
+    const cleanStore = storeKey ? storeKey.replace(/\D/g, '') : '';
+    if (cleanStore) {
+      const local = localStorage.getItem(`real_dthu_nv_raw_thuc_${cleanStore}`);
+      if (local && local.trim()) return local;
+    }
+    if (storeKey) {
+      const local = localStorage.getItem(`cauhinh_${storeKey}_dt_thuc_nv`);
+      if (local && local.trim()) return local;
+    }
+    const anyCached = Object.values(allStoresCache || {}).find((s: any) => (s as any)?.staffInputThuc?.trim()) as any;
+    if (anyCached?.staffInputThuc) return anyCached.staffInputThuc;
+    try {
+      const latest = localStorage.getItem('real_dthu_nv_raw_thuc_latest');
+      if (latest && latest.trim()) return latest;
+    } catch {}
+    return '';
+  }, [marketFilter, allStoresCache, tenSieuThi, stName]);
+
   // Use KHAI BÁO inputs (DOANH THU + THI ĐUA NV) when available, otherwise use DB data
   const biRevenueData = React.useMemo(() => {
     if (staffInput) {
-      return parseStaffRankData(staffInput);
+      return parseStaffRankData(staffInput, effectiveStaffInputThuc);
     }
     return dbBiRevenueData;
-  }, [staffInput, dbBiRevenueData]);
+  }, [staffInput, effectiveStaffInputThuc, dbBiRevenueData]);
 
   const thiDuaNv = React.useMemo(() => {
     if (staffCategoryInput && staffCategoryInput.trim()) return staffCategoryInput;

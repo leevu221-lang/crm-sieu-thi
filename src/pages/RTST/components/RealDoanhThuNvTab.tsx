@@ -340,6 +340,12 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
     try {
       const saved = localStorage.getItem(`real_dthu_nv_raw_thuc_${cleanStore}`);
       if (saved && saved.trim()) return saved;
+      if (marketFilter) {
+        const storeSaved = localStorage.getItem(`cauhinh_${marketFilter}_dt_thuc_nv`);
+        if (storeSaved && storeSaved.trim()) return storeSaved;
+      }
+      const latest = localStorage.getItem('real_dthu_nv_raw_thuc_latest');
+      if (latest && latest.trim()) return latest;
     } catch (e) {}
     return '';
   });
@@ -1024,11 +1030,11 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                 currentStaffLine = null;
                 currentValues = [];
               }
-              // Cột thứ 2 từ trái sang là cols[1] (cho tragop), Cột thứ 3 từ trái sang là cols[2] (cho thuc)
+              // Cột thứ 2 từ trái sang là cols[1] (cho tragop), Cột thứ 3 từ trái sang là cols[2] (cho thuc va qd)
               let targetRev: number | undefined = undefined;
               if (mode === 'tragop') {
                 targetRev = parseNum(cols[1]);
-              } else if (mode === 'thuc' && cols.length >= 3) {
+              } else if ((mode === 'thuc' || mode === 'qd') && cols.length >= 3) {
                 targetRev = parseNum(cols[2]);
               }
               pushStaff(cols[0], cols.slice(1), targetRev);
@@ -1043,7 +1049,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
               let targetRev: number | undefined = undefined;
               if (mode === 'tragop') {
                 targetRev = parseNum(cols[2]);
-              } else if (mode === 'thuc') {
+              } else if (mode === 'thuc' || mode === 'qd') {
                 targetRev = parseNum(cols[3] !== undefined ? cols[3] : cols[2]);
               }
               pushStaff(cols[1], cols.slice(2), targetRev);

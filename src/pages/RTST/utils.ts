@@ -1710,7 +1710,143 @@ export const extractCategoriesFromStoreThiDua = (
   return { categories, categoryObjects, totalCat: categories.length };
 };
 
-export const parseStaffRankData = (input: string): StaffData[] => {
+export const extractStaffRevFromReport = (text: string): Map<string, { id: string; name: string; revenue: number }> => {
+  const map = new Map<string, { id: string; name: string; revenue: number }>();
+  if (!text || !text.trim()) return map;
+
+  const cleanNum = (s: string) => {
+    if (!s) return 0;
+    let str = String(s).trim();
+    if (!str) return 0;
+    if (str.includes('%')) {
+      str = str.replace(/%/g, '').replace(/,/g, '.').trim();
+      const n = parseFloat(str);
+      return isNaN(n) ? 0 : n;
+    }
+    let cleaned = str.replace(/[^\d,.-]/g, '');
+    const lastComma = cleaned.lastIndexOf(',');
+    const lastDot = cleaned.lastIndexOf('.');
+    if (lastComma !== -1 && lastDot !== -1) {
+      if (lastComma > lastDot) cleaned = cleaned.replace(/\./g, '').replace(/,/g, '.');
+      else cleaned = cleaned.replace(/,/g, '');
+    } else if (lastComma !== -1) {
+      const parts = cleaned.split(',');
+      if (parts.length > 1 && parts.slice(1).every(p => p.length === 3)) cleaned = cleaned.replace(/,/g, '');
+      else cleaned = cleaned.replace(/,/g, '.');
+    } else if (lastDot !== -1) {
+      const parts = cleaned.split('.');
+      if (parts.length > 1 && parts.slice(1).every(p => p.length === 3)) cleaned = cleaned.replace(/\./g, '');
+    }
+    const result = parseFloat(cleaned);
+    return isNaN(result) ? 0 : result;
+  };
+
+  const rawLines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const biWebHeaders = new Set(["nhân viên", "số lượng", "doanh thu qđ", "% tỉ trọng", "doanh thu", "target", "% ht target", "tb 3 tháng", "% tt", "dt dự kiến", "dt trả góp", "% trả góp", "dt thực"]);
+  const lines = rawLines.filter(l => !biWebHeaders.has(l.toLowerCase()));
+
+  const isStaffName = (str: string) => {
+    return /^\d+\s*[-–—]\s*[A-ZĐÀ-ỹa-z]/i.test(str) || 
+           /^[A-ZĐÀ-ỹa-z\s]+[\s-–—]+\d{4,8}$/i.test(str) ||
+           /^(online|administrator)\s*[-–—]/i.test(str);
+  };
+
+  const parseIdName = (str: string) => {
+    const m1 = str.match(/(.+)[\s-–—]+(\d{4,8})$/);
+    const m2 = str.match(/^(\d{4,8})[\s-–—]+(.+)$/);
+    let id = '';
+    let name = '';
+    if (m1) {
+      name = m1[1].replace(/[-_]+$/, '').trim();
+      id = m1[2].trim();
+    } else if (m2) {
+      id = m2[1].trim();
+      name = m2[2].replace(/[-_]+$/, '').trim();
+    } else {
+      const numMatch = str.match(/\b\d{4,8}\b/);
+      if (numMatch) {
+        id = numMatch[0];
+        name = str.replace(id, '').replace(/[-_–—]+/g, ' ').trim();
+      } else {
+        id = str.trim();
+        name = str.trim();
+      }
+    }
+    return { id, name: name.toUpperCase() };
+  };
+
+  const pushEntry = (staffStr: string, tokens: string[], col3Val?: number) => {
+    const { id, name } = parseIdName(staffStr);
+    if (!id) return;
+
+    let revenue = 0;
+    if (col3Val !== undefined && !isNaN(col3Val)) {
+      revenue = col3Val;
+    } else if (tokens.length >= 2) {
+      // Cột 1: Nhân viên, Cột 2: Số lượng (tokens[0]), Cột 3: Doanh thu (tokens[1])
+      revenue = cleanNum(tokens[1]);
+    } else if (tokens.length === 1) {
+      revenue = cleanNum(tokens[0]);
+    }
+
+    map.set(id, { id, name, revenue });
+  };
+
+  let currentStaffLine: string | null = null;
+  let currentTokens: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.toUpperCase().startsWith('TỔNG (') || line === 'Tổng' || line.startsWith('Tổng ') ||
+        (line.includes('1-') && line.includes('/ Tổng')) || line.includes('Đơn vị:') || line.includes('Tỉ trọng tính')) {
+      break;
+    }
+
+    if (line.includes('\t')) {
+      const cols = line.split('\t').map(c => c.trim()).filter(Boolean);
+      if (cols.length >= 2) {
+        if (isStaffName(cols[0])) {
+          if (currentStaffLine) {
+            pushEntry(currentStaffLine, currentTokens);
+            currentStaffLine = null;
+            currentTokens = [];
+          }
+          // Cột 3 từ trái sang là cols[2]
+          const col3 = cols.length >= 3 ? cleanNum(cols[2]) : cleanNum(cols[1]);
+          pushEntry(cols[0], cols.slice(1), col3);
+          continue;
+        } else if (cols.length >= 3 && isStaffName(cols[1])) {
+          if (currentStaffLine) {
+            pushEntry(currentStaffLine, currentTokens);
+            currentStaffLine = null;
+            currentTokens = [];
+          }
+          const col3 = cols.length >= 4 ? cleanNum(cols[3]) : cleanNum(cols[2]);
+          pushEntry(cols[1], cols.slice(2), col3);
+          continue;
+        }
+      }
+    }
+
+    if (isStaffName(line)) {
+      if (currentStaffLine) {
+        pushEntry(currentStaffLine, currentTokens);
+      }
+      currentStaffLine = line;
+      currentTokens = [];
+    } else if (currentStaffLine) {
+      currentTokens.push(line);
+    }
+  }
+
+  if (currentStaffLine) {
+    pushEntry(currentStaffLine, currentTokens);
+  }
+
+  return map;
+};
+
+export const parseStaffRankData = (input: string, inputThuc?: string): StaffData[] => {
   const val = input.trim();
   if (!val) return [];
   console.log('[Utils] Parsing Staff Rank Data, length:', val.length);
@@ -2004,6 +2140,49 @@ export const parseStaffRankData = (input: string): StaffData[] => {
       }
     }
   });
+
+  // Map với Doanh Thu Thực từ ô "D.THU THỰC NHÂN VIÊN" để tính HQ.QĐ: (DT.QĐ - DT.THỰC) / DT.THỰC * 100
+  let thucText = inputThuc;
+  if (!thucText && typeof window !== 'undefined') {
+    try {
+      const activeStore = localStorage.getItem('currentStoreId') || '';
+      const cleanStore = activeStore.replace(/\D/g, '');
+      thucText = (cleanStore && localStorage.getItem(`real_dthu_nv_raw_thuc_${cleanStore}`)) ||
+                 (activeStore && localStorage.getItem(`cauhinh_${activeStore}_dt_thuc_nv`)) ||
+                 localStorage.getItem('real_dthu_nv_raw_thuc_latest') || '';
+    } catch {}
+  }
+
+  if (thucText && thucText.trim()) {
+    const thucMap = extractStaffRevFromReport(thucText);
+    if (thucMap.size > 0) {
+      const norm = (str: string) => 
+        (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+
+      for (const staff of staffMap.values()) {
+        let matchThuc = thucMap.get(staff.fullId);
+        if (!matchThuc) {
+          const staffNorm = norm(staff.displayName);
+          for (const item of thucMap.values()) {
+            const itemNorm = norm(item.name);
+            if (itemNorm && (itemNorm === staffNorm || staffNorm.includes(itemNorm) || itemNorm.includes(staffNorm))) {
+              matchThuc = item;
+              break;
+            }
+          }
+        }
+
+        if (matchThuc) {
+          staff.actualVal = matchThuc.revenue;
+          staff.effVal = staff.actualVal > 0 
+            ? Math.round(((staff.virtualVal - staff.actualVal) / staff.actualVal) * 1000) / 10 
+            : 0;
+          staff.rate = staff.effVal;
+        }
+      }
+    }
+  }
+
   return Array.from(staffMap.values());
 };
 

@@ -679,6 +679,7 @@ const InputSection: React.FC<InputSectionProps> = ({
     }
     try {
       localStorage.setItem(`cauhinh_${sName}_dt_thuc_nv`, cleanVal);
+      localStorage.setItem('real_dthu_nv_raw_thuc_latest', cleanVal);
     } catch {}
   };
 
