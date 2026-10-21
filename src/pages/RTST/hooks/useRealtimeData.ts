@@ -27,6 +27,7 @@ import {
   isValidStoreName,
   minifyYcxData,
   normalizeStoreId,
+  normalize,
   localYcxDb
 } from '../utils';
 
