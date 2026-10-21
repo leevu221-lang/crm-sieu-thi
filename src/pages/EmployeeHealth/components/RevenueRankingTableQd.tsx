@@ -14,6 +14,7 @@ interface RevenueRankingTableQdQProps {
   onSelectStaff?: (id: string) => void;
   stPercentHTTargetDuKienQD?: number;
   tragopNv?: string;
+  dtThucNv?: string;
 }
 
 const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({ 
@@ -25,7 +26,8 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
   selectedStaffId = null,
   onSelectStaff,
   stPercentHTTargetDuKienQD = 0,
-  tragopNv = ''
+  tragopNv = '',
+  dtThucNv = ''
 }) => {
   // Pre-compute %HT for sorting
   const computePercentHT = (staff: StaffData) => {
@@ -50,24 +52,58 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayDate = yesterday.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
 
-  // Fallback thucMap in case actualVal wasn't attached upstream
+  // Parse Doanh Thu Thực (Cột 3 từ trái sang)
   const thucMap = useMemo(() => {
-    const raw = getStoredStaffThucInput();
+    const raw = (dtThucNv && dtThucNv.trim()) ? dtThucNv : getStoredStaffThucInput();
     return raw ? extractStaffRevFromReport(raw) : new Map();
-  }, []);
+  }, [dtThucNv]);
+
+  // Helper tìm doanh thu thực của nhân viên từ thucMap hoặc staff.actualVal
+  const getStaffActualRevenue = (staff: StaffData): number => {
+    let a = staff.actualVal || 0;
+    if (thucMap.size > 0) {
+      const cleanId = (staff.fullId || '').replace(/\D/g, '');
+      const staffNorm = (staff.displayName || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      let m = (cleanId ? thucMap.get(cleanId) : null) || thucMap.get(staff.fullId);
+      if (!m) {
+        for (const item of thucMap.values()) {
+          const itemCleanId = (item.id || '').replace(/\D/g, '');
+          if (cleanId && itemCleanId && cleanId === itemCleanId) {
+            m = item;
+            break;
+          }
+          const itemNorm = (item.name || item.id || '')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+          if (itemNorm && (staffNorm.includes(itemNorm) || itemNorm.includes(staffNorm))) {
+            m = item;
+            break;
+          }
+        }
+      }
+      if (m && m.revenue > 0) {
+        a = m.revenue;
+      }
+    }
+    return a;
+  };
 
   const totalVirtual = sortedData.reduce((sum, staff) => sum + staff.virtualVal, 0);
   const actualTotalVirtual = Math.abs(totalVirtual) > 1000000 ? totalVirtual : totalVirtual * 1000000;
 
   const totalActual = sortedData.reduce((sum, staff) => {
-    let a = staff.actualVal || 0;
-    if (!a && thucMap.size > 0) {
-      const m = thucMap.get(staff.fullId) || Array.from(thucMap.values()).find(item => 
-        staff.displayName.toLowerCase().includes(item.name.toLowerCase()) || 
-        item.name.toLowerCase().includes(staff.displayName.toLowerCase())
-      );
-      if (m) a = m.revenue;
-    }
+    const a = getStaffActualRevenue(staff);
     const aNorm = Math.abs(a) > 1000000 ? a : a * 1000000;
     return sum + aNorm;
   }, 0);
@@ -339,18 +375,8 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
             <tbody>
               {sortedData.length > 0 ? (
                 sortedData.map((staff, index) => {
-                  // Resolve Doanh thu Thực (actualVal) with thucMap fallback if needed
-                  let actualVal = staff.actualVal || 0;
-                  if (!actualVal && thucMap.size > 0) {
-                    const match = thucMap.get(staff.fullId) || 
-                      Array.from(thucMap.values()).find(item => 
-                        staff.displayName.toLowerCase().includes(item.name.toLowerCase()) || 
-                        item.name.toLowerCase().includes(staff.displayName.toLowerCase())
-                      );
-                    if (match) {
-                      actualVal = match.revenue;
-                    }
-                  }
+                  // Resolve Doanh thu Thực (actualVal) from Cột 3 từ trái sang ô "D.THU THỰC NHÂN VIÊN"
+                  const actualVal = getStaffActualRevenue(staff);
 
                   // HQ.QĐ = (DOANH THU QĐ - DOANH THU THỰC) / DOANH THU THỰC × 100
                   const vNorm = Math.abs(staff.virtualVal || 0) > 1000000 ? (staff.virtualVal || 0) : (staff.virtualVal || 0) * 1000000;

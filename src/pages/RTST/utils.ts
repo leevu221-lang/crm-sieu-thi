@@ -1725,7 +1725,7 @@ export const getStoredStaffThucInput = (storeKey?: string): string => {
 
       for (const k of candidates) {
         const v = localStorage.getItem(k);
-        if (v && v.trim().length > 10) return v.trim();
+        if (v && v.trim().length > 5) return v.trim();
       }
 
       // Fuzzy match on storeKey
@@ -1733,11 +1733,11 @@ export const getStoredStaffThucInput = (storeKey?: string): string => {
       if (normTarget) {
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
-          if (k && (k.includes('dt_thuc_nv') || k.includes('raw_thuc'))) {
+          if (k && (k.includes('dt_thuc_nv') || k.includes('raw_thuc') || k.includes('dt_thuc'))) {
             const normK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
             if (normK.includes(normTarget) || normTarget.includes(normK)) {
               const v = localStorage.getItem(k);
-              if (v && v.trim().length > 10) return v.trim();
+              if (v && v.trim().length > 5) return v.trim();
             }
           }
         }
@@ -1745,7 +1745,7 @@ export const getStoredStaffThucInput = (storeKey?: string): string => {
     }
 
     // 2. Active store from localStorage
-    const activeStore = localStorage.getItem('currentStoreId') || '';
+    const activeStore = localStorage.getItem('currentStoreId') || localStorage.getItem('rtst_ma_kho') || '';
     if (activeStore && activeStore !== storeKey) {
       const cleanStore = activeStore.replace(/\D/g, '');
       const candidates = [
@@ -1756,26 +1756,29 @@ export const getStoredStaffThucInput = (storeKey?: string): string => {
       ].filter(Boolean);
       for (const k of candidates) {
         const v = localStorage.getItem(k);
-        if (v && v.trim().length > 10) return v.trim();
+        if (v && v.trim().length > 5) return v.trim();
       }
     }
 
     // 3. Latest pasted
     const latest = localStorage.getItem('real_dthu_nv_raw_thuc_latest');
-    if (latest && latest.trim().length > 10) return latest.trim();
+    if (latest && latest.trim().length > 5) return latest.trim();
 
-    // 4. Scan any key in localStorage containing dt_thuc_nv or raw_thuc with largest content
+    // 4. Scan any key in localStorage containing thuc and (dt or nv or raw or dthu) with largest content
     let bestVal = '';
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && (k.includes('dt_thuc_nv') || k.includes('raw_thuc'))) {
-        const v = localStorage.getItem(k);
-        if (v && v.trim().length > bestVal.length) {
-          bestVal = v.trim();
+      if (k) {
+        const lk = k.toLowerCase();
+        if (lk.includes('thuc') && (lk.includes('dt') || lk.includes('nv') || lk.includes('raw') || lk.includes('dthu'))) {
+          const v = localStorage.getItem(k);
+          if (v && v.trim().length > bestVal.length) {
+            bestVal = v.trim();
+          }
         }
       }
     }
-    if (bestVal.length > 10) return bestVal;
+    if (bestVal.length > 5) return bestVal;
   } catch (e) {
     console.error('[getStoredStaffThucInput] Error:', e);
   }
@@ -1813,17 +1816,42 @@ export const extractStaffRevFromReport = (text: string): Map<string, { id: strin
     return isNaN(result) ? 0 : result;
   };
 
-  const rawLines = text.split('\n').map(l => l.trim().replace(/\u00A0/g, ' ')).filter(Boolean);
-  const biWebHeaders = new Set(["nhân viên", "số lượng", "doanh thu qđ", "% tỉ trọng", "doanh thu", "target", "% ht target", "tb 3 tháng", "% tt", "dt dự kiến", "dt trả góp", "% trả góp", "dt thực"]);
-  const lines = rawLines.filter(l => !biWebHeaders.has(l.toLowerCase()));
+  const norm = (str: string) => 
+    (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  const isHeaderLine = (line: string) => {
+    const upper = line.trim().toUpperCase();
+    return (
+      upper.startsWith('TỔNG') || upper.startsWith('1-') || upper.includes('/ TỔNG') ||
+      upper.includes('ĐƠN VỊ:') || upper.includes('TỈ TRỌNG TÍNH') || upper.includes('CẬP NHẬT LÚC') ||
+      upper.includes('XUẤT EXCEL') || upper.includes('XUẤT THEO MẪU') || upper.includes('LŨY KẾ') ||
+      upper.includes('REALTIME') || upper.includes('TẤT CẢ VÙNG') || upper.includes('TỶ TRỌNG TRẢ') ||
+      upper.includes('HOMECREDIT') || upper.includes('FECREDIT') || upper.includes('KREDIVO') ||
+      upper.includes('MWG PAYLATER') || upper.includes('PAYLATER') || upper.includes('THEO NGÀNH') ||
+      upper.includes('TỶ LỆ DUYỆT') || upper.includes('CHI TIẾT THEO') || upper.includes('DASHBOARDS') ||
+      upper.includes('DANH MỤC') || upper.includes('DOANH THU') || upper.includes('THI ĐUA') ||
+      upper.includes('GIỜ CÔNG') || upper.includes('LƯỢT BILL') || upper.includes('CHI PHÍ') ||
+      upper.includes('TÌM BÁO CÁO') || upper.includes('EMPLOYEE') || upper.includes('TRANG') ||
+      upper.includes('TARGET') || upper.includes('TB 3 THÁNG') || upper === 'XEM' || upper === 'TGDD' ||
+      upper === 'S' || upper === 'NHÂN VIÊN' || upper.startsWith('NHÂN VIÊN\t') || upper === 'VÙNG' ||
+      upper === 'KHU VỰC' || upper === 'SIÊU THỊ' || upper === 'STT' || upper.startsWith('STT\t')
+    );
+  };
 
   const isStaffLine = (str: string) => {
     if (!str) return false;
     const s = str.trim();
-    if (s.startsWith('Tổng') || s.startsWith('TỔNG') || s.startsWith('1-') || s.includes('Đơn vị:') || s.includes('Tỉ trọng tính')) return false;
+    if (isHeaderLine(s)) return false;
+    // Dạng 1: có ID và chữ (vd: 97734 - HUỲNH HOÀNG PHÚC hoặc HUỲNH HOÀNG PHÚC - 97734)
     const hasId = /\b\d{4,8}\b/.test(s);
     const hasLetters = /[a-zA-ZÀ-ỹ]/.test(s);
-    return hasId && hasLetters;
+    if (hasId && hasLetters) return true;
+    // Dạng 2: Tên nhân viên tiếng Việt thuần túy không có ID (>= 2 từ, >= 4 ký tự)
+    if (/^[a-zA-ZÀ-ỹ\s]+$/.test(s)) {
+      const words = s.split(/\s+/).filter(Boolean);
+      if (words.length >= 2 && s.length >= 4) return true;
+    }
+    return false;
   };
 
   const parseIdName = (str: string) => {
@@ -1839,29 +1867,38 @@ export const extractStaffRevFromReport = (text: string): Map<string, { id: strin
 
   const pushEntry = (staffStr: string, tokens: string[], col3Val?: number) => {
     const { id, name } = parseIdName(staffStr);
-    if (!id) return;
+    if (!id && !name) return;
 
     let revenue = 0;
     if (col3Val !== undefined && !isNaN(col3Val)) {
       revenue = col3Val;
     } else if (tokens.length >= 2) {
-      // Line separated: tokens[0] is Số lượng, tokens[1] is Doanh thu (Cột 3)
+      // Cột 1: Nhân viên, Cột 2: Số lượng (tokens[0]), Cột 3: Doanh thu thực (tokens[1])
       revenue = cleanNum(tokens[1]);
     } else if (tokens.length === 1) {
       revenue = cleanNum(tokens[0]);
     }
 
-    map.set(id, { id, name, revenue });
+    const entry = { id: id || norm(name), name, revenue };
+    if (id) {
+      map.set(id, entry);
+      const cleanDigits = id.replace(/\D/g, '');
+      if (cleanDigits) map.set(cleanDigits, entry);
+    }
+    if (name) {
+      map.set(name, entry);
+      map.set(norm(name), entry);
+    }
   };
 
+  const rawLines = text.split('\n').map(l => l.trim().replace(/\u00A0/g, ' ')).filter(Boolean);
   let currentStaffLine: string | null = null;
   let currentTokens: string[] = [];
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.toUpperCase().startsWith('TỔNG (') || line === 'Tổng' || line.startsWith('Tổng ') ||
-        (line.includes('1-') && line.includes('/ Tổng')) || line.includes('Đơn vị:') || line.includes('Tỉ trọng tính')) {
-      break;
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i];
+    if (isHeaderLine(line)) {
+      continue;
     }
 
     let cols = line.split('\t').map(c => c.trim()).filter(Boolean);
@@ -1877,10 +1914,22 @@ export const extractStaffRevFromReport = (text: string): Map<string, { id: strin
           currentStaffLine = null;
           currentTokens = [];
         }
-        // Cột 3 từ trái sang tính từ cột nhân viên (Cột 1: Nhân viên, Cột 2: Số lượng, Cột 3: Doanh thu)
-        const dataCols = cols.slice(staffIdx + 1);
-        const col3Val = dataCols.length >= 2 ? cleanNum(dataCols[1]) : cleanNum(dataCols[0]);
-        pushEntry(cols[staffIdx], dataCols, col3Val);
+        // Cột 3 từ trái sang:
+        // Nếu cols[0] là Nhân viên -> Cột 3 là cols[2]
+        // Nếu cols[0] là STT (staffIdx === 1) -> Cột 3 là cols[2] hoặc Cột 4 là cols[3]
+        let col3Val = 0;
+        if (staffIdx === 0 && cols.length >= 3) {
+          col3Val = cleanNum(cols[2]);
+        } else if (staffIdx === 1 && cols.length >= 4) {
+          const val3 = cleanNum(cols[3]);
+          const val2 = cleanNum(cols[2]);
+          col3Val = (val3 > 0 && (val3 > val2 || val2 < 100)) ? val3 : val2;
+        } else if (cols.length >= 3) {
+          col3Val = cleanNum(cols[2]);
+        } else {
+          col3Val = cleanNum(cols[cols.length - 1]);
+        }
+        pushEntry(cols[staffIdx], cols.slice(staffIdx + 1), col3Val);
         continue;
       }
     }
@@ -2208,12 +2257,18 @@ export const parseStaffRankData = (input: string, inputThuc?: string): StaffData
         (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
 
       for (const staff of staffMap.values()) {
-        let matchThuc = thucMap.get(staff.fullId);
+        const cleanId = (staff.fullId || '').replace(/\D/g, '');
+        const staffNorm = norm(staff.displayName);
+        let matchThuc = (cleanId ? thucMap.get(cleanId) : null) || thucMap.get(staff.fullId);
         if (!matchThuc) {
-          const staffNorm = norm(staff.displayName);
           for (const item of thucMap.values()) {
-            const itemNorm = norm(item.name);
-            if (itemNorm && (itemNorm === staffNorm || staffNorm.includes(itemNorm) || itemNorm.includes(staffNorm))) {
+            const itemCleanId = (item.id || '').replace(/\D/g, '');
+            if (cleanId && itemCleanId && cleanId === itemCleanId) {
+              matchThuc = item;
+              break;
+            }
+            const itemNorm = norm(item.name || item.id);
+            if (itemNorm && (staffNorm.includes(itemNorm) || itemNorm.includes(staffNorm))) {
               matchThuc = item;
               break;
             }

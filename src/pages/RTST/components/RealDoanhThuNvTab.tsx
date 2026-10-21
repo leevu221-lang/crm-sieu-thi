@@ -620,7 +620,17 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
     isEditingRef.current = true;
     setRawInputThuc(text);
     try {
-      localStorage.setItem(`real_dthu_nv_raw_thuc_${cleanStore}`, text);
+      if (cleanStore) {
+        localStorage.setItem(`real_dthu_nv_raw_thuc_${cleanStore}`, text);
+        localStorage.setItem(`cauhinh_${cleanStore}_dt_thuc_nv`, text);
+      }
+      if (marketFilter) {
+        localStorage.setItem(`cauhinh_${marketFilter}_dt_thuc_nv`, text);
+      }
+      localStorage.setItem('real_dthu_nv_raw_thuc_latest', text);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('staff_thuc_updated', { detail: { storeName: cleanStore || marketFilter, value: text } }));
+      }
     } catch (e) {}
     triggerCloudSave(rawInput, text, rawInputTraGop, immediate);
   };

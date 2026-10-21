@@ -1510,12 +1510,18 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
 
     return baseList.map(staff => {
-      let match = thucMap.get(staff.fullId);
+      const cleanId = (staff.fullId || '').replace(/\D/g, '');
+      const staffNorm = norm(staff.displayName);
+      let match = (cleanId ? thucMap.get(cleanId) : null) || thucMap.get(staff.fullId);
       if (!match) {
-        const staffNorm = norm(staff.displayName);
         for (const item of thucMap.values()) {
-          const itemNorm = norm(item.name);
-          if (itemNorm && (itemNorm === staffNorm || staffNorm.includes(itemNorm) || itemNorm.includes(staffNorm))) {
+          const itemCleanId = (item.id || '').replace(/\D/g, '');
+          if (cleanId && itemCleanId && cleanId === itemCleanId) {
+            match = item;
+            break;
+          }
+          const itemNorm = norm(item.name || item.id);
+          if (itemNorm && (staffNorm.includes(itemNorm) || itemNorm.includes(staffNorm))) {
             match = item;
             break;
           }
@@ -4585,6 +4591,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                       totalDays={totalDays}
                       stPercentHTTargetDuKienQD={marketPercentQD}
                       tragopNv={effectiveTragopNv}
+                      dtThucNv={effectiveStaffInputThuc}
                     />
                   </div>
                 </motion.div>
