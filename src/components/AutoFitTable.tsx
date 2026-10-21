@@ -33,8 +33,8 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
 
   const calculateFit = useCallback(() => {
     if (disabled) {
-      setScale(1);
-      setNaturalHeight(null);
+      setScale(prev => prev === 1 ? prev : 1);
+      setNaturalHeight(prev => prev === null ? prev : null);
       return;
     }
 
@@ -44,8 +44,8 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
       (document.body.classList.contains('capturing-screenshot') ||
         document.body.classList.contains('export-short-mode'))
     ) {
-      setScale(1);
-      setNaturalHeight(null);
+      setScale(prev => prev === 1 ? prev : 1);
+      setNaturalHeight(prev => prev === null ? prev : null);
       return;
     }
 
@@ -59,29 +59,30 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
     // Chiều rộng chuẩn của bảng desktop
     const naturalW = minWidth;
 
+    // Nếu khung chứa rộng hơn hoặc bằng độ rộng chuẩn (Desktop), không cần scale
+    if (containerWidth >= naturalW) {
+      setScale(prev => prev === 1 ? prev : 1);
+      setNaturalHeight(prev => prev === null ? prev : null);
+      return;
+    }
+
     // Chiều cao tự nhiên thật của bảng
     const tableEl = content.querySelector('table');
     const naturalH = tableEl ? tableEl.scrollHeight : content.scrollHeight;
-
-    // Nếu khung chứa rộng hơn hoặc bằng độ rộng chuẩn (Desktop), không cần scale
-    if (containerWidth >= naturalW) {
-      setScale(1);
-      setNaturalHeight(null);
-      return;
-    }
 
     // Tính tỉ lệ thu nhỏ trên mobile để vừa vặn 100% chiều rộng
     const rawScale = containerWidth / naturalW;
     const targetScale = Math.max(minScale, Math.min(1, rawScale));
 
-    setScale(targetScale);
-    setNaturalHeight(naturalH);
+    // STRICT THRESHOLD GUARD: chỉ update state nếu thay đổi thực sự có ý nghĩa
+    // Ngăn chặn 100% hiện tượng rung lắc/infinite render loop
+    setScale(prev => Math.abs(prev - targetScale) > 0.005 ? targetScale : prev);
+    setNaturalHeight(prev => (prev !== null && Math.abs(prev - naturalH) <= 2) ? prev : naturalH);
   }, [disabled, minWidth, minScale]);
 
-  // Lắng nghe thay đổi kích thước của container và content (ResizeObserver)
+  // Lắng nghe thay đổi kích thước của container (ResizeObserver)
   useEffect(() => {
     const container = containerRef.current;
-    const content = contentRef.current;
     if (!container || typeof ResizeObserver === 'undefined') return;
 
     let rafId: number;
@@ -90,10 +91,8 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
       rafId = requestAnimationFrame(calculateFit);
     });
 
+    // Chỉ observe container ngoài cùng (không observe content để tránh loop khi transform: scale)
     ro.observe(container);
-    if (content) {
-      ro.observe(content);
-    }
 
     const onResize = () => {
       cancelAnimationFrame(rafId);
@@ -110,12 +109,6 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
       window.removeEventListener('orientationchange', onResize);
     };
   }, [calculateFit]);
-
-  // Đo lại khi children (dữ liệu, số hàng, filter) thay đổi
-  useEffect(() => {
-    const rafId = requestAnimationFrame(calculateFit);
-    return () => cancelAnimationFrame(rafId);
-  }, [children, minWidth, calculateFit]);
 
   // Lắng nghe class trên body khi chụp ảnh
   useEffect(() => {

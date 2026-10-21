@@ -6312,7 +6312,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
   // Track data update timestamp: only updates when data changes or arrives from DB
   const dataUpdatedTimeRef = useRef<Date>(lastUpdated || new Date());
-  const prevCategoriesHashRef = useRef<string>('');
+  const prevDataSignatureRef = useRef<string>('');
 
   useEffect(() => {
     if (lastUpdated) {
@@ -6321,13 +6321,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   }, [lastUpdated]);
 
   useEffect(() => {
-    if (!processedData?.categories || processedData.categories.length === 0) return;
-    const currentHash = JSON.stringify(processedData.categories.map(c => [c.name, c.revenue, c.target, c.type, c.rate]));
-    if (prevCategoriesHashRef.current && prevCategoriesHashRef.current !== currentHash) {
+    const signature = `${categoryInput?.length || 0}_${categoryRevenueInput?.length || 0}_${marketInput?.length || 0}`;
+    if (prevDataSignatureRef.current && prevDataSignatureRef.current !== signature) {
       dataUpdatedTimeRef.current = new Date();
     }
-    prevCategoriesHashRef.current = currentHash;
-  }, [processedData?.categories]);
+    prevDataSignatureRef.current = signature;
+  }, [categoryInput, categoryRevenueInput, marketInput]);
 
   const formatTimeToSeconds = (d: Date) => {
     const pad = (n: number) => n.toString().padStart(2, '0');
