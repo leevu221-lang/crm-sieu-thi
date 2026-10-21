@@ -106,7 +106,7 @@ import * as RadixTooltip from '@radix-ui/react-tooltip';
 import * as XLSX from 'xlsx';
 import { domToPng } from 'modern-screenshot';
 import { addWhiteBorderToDataUrl } from '../utils/imageBorderUtil';
-import { isValidStoreName, normalize, normalizeStoreId, cleanNum, parseMarketData } from './RTST/utils';
+import { isValidStoreName, normalize, normalizeStoreId, cleanNum, parseMarketData, resolveRealtimeTraChamRate } from './RTST/utils';
 import { AutoFitTable } from '../components/AutoFitTable';
 
 const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: boolean, onClick: () => void, icon: any, label: string, count?: number }) => (
@@ -6509,7 +6509,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const targetQD = formatCurrencyUnit(dailyTargetQD);
     const actualVirtual = formatCurrencyUnit(parsedMarket.actualVirtual || 0);
     const percentHT = dailyPercentHT;
-    const installmentRate = (parsedMarket.installmentRate || parsedMarket.percentTraGop || 0).toFixed(1);
+    const tcRate = resolveRealtimeTraChamRate(activeDeclared?.name || parsedMarket?.name || '');
+    const installmentRate = (tcRate !== null && !isNaN(tcRate))
+      ? tcRate.toFixed(1)
+      : (((parsedMarket.installmentRate || parsedMarket.percentTraGop || 0) > 0)
+          ? (parsedMarket.installmentRate || parsedMarket.percentTraGop).toFixed(1)
+          : '0.0');
     const luotBill = Math.round(parsedMarket.luotBillThuHo || 0);
 
     const valQd = resolveQdPercent(parsedMarket, activeDeclared?.name || parsedMarket?.name || '');
@@ -7373,7 +7378,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               />
                               <StatCard
                                 title="Tỷ Trọng Trả Góp"
-                                value={`${(parsedMarket.installmentRate || parsedMarket.percentTraGop || 0).toFixed(1)}%`}
+                                value={(() => {
+                                  const tcRate = resolveRealtimeTraChamRate(declaredMarket.name);
+                                  if (tcRate !== null && !isNaN(tcRate)) return `${tcRate.toFixed(1)}%`;
+                                  const fallbackRate = parsedMarket.installmentRate || parsedMarket.percentTraGop || 0;
+                                  return `${(fallbackRate > 0 ? fallbackRate : 0).toFixed(1)}%`;
+                                })()}
                                 subValue=""
                                 icon={ShoppingBag}
                                 color="amber"

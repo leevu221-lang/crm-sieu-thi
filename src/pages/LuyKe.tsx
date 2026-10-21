@@ -31,7 +31,7 @@ import { BonusCalculatorForm } from './BonusCalculatorForm';
 
 import { ConfirmationModal } from './RTST/components/Modals';
 import { getCustomCategoryIndex } from './EmployeeHealth/components/SummaryThiDuaTable';
-import { normalize, isKhoLuuDong, cleanNum } from './RTST/utils';
+import { normalize, isKhoLuuDong, cleanNum, resolveLuykeTraChamRate } from './RTST/utils';
 import BcDtNganhHang from './BcDtNganhHang';
 import SSGBoss from './SSGBoss';
 import ClusterReportTab from './ClusterReportTab';
@@ -1766,7 +1766,12 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     const dtlkVal = targetData?.stDtlk || actualReal || 0;
     const dtqdVal = targetData?.stDtqd || actualVirtual || 0;
     const percentQDVal = dtlkVal > 0 ? ((dtqdVal - dtlkVal) / dtlkVal) * 100 : (market.percentQD || 0);
-    const installmentRate = (market.installmentRate || market.percentTraGop || 0).toFixed(1);
+    const tcRate = resolveLuykeTraChamRate(market.name);
+    const installmentRate = (tcRate !== null && !isNaN(tcRate))
+      ? tcRate.toFixed(1)
+      : (((market.installmentRate || market.percentTraGop || 0) > 0)
+          ? (market.installmentRate || market.percentTraGop).toFixed(1)
+          : '0.0');
     const billCount = market.billCount || 0;
 
     const marketName = market.name || 'SIÊU THỊ';
@@ -2554,7 +2559,12 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                     const dtlkVal = targetData?.stDtlk || actualReal || 0;
                     const dtqdVal = targetData?.stDtqd || actualVirtual || 0;
                     const percentQDVal = dtlkVal > 0 ? ((dtqdVal - dtlkVal) / dtlkVal) * 100 : (market.percentQD || 0);
-                    const installmentRate = (market.installmentRate || market.percentTraGop || 0).toFixed(1);
+                    const tcRate = resolveLuykeTraChamRate(market.name);
+                    const installmentRate = (tcRate !== null && !isNaN(tcRate))
+                      ? tcRate.toFixed(1)
+                      : (((market.installmentRate || market.percentTraGop || 0) > 0)
+                          ? (market.installmentRate || market.percentTraGop).toFixed(1)
+                          : '0.0');
                     const billCount = market.billCount || 0;
                     const storeAddress = (storeSettings as any)?.[market.name]?.address || (storeSettings as any)?.[maKho]?.address || 'LUỸ KẾ THÁNG';
 

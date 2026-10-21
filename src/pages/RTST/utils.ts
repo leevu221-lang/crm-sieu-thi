@@ -1363,6 +1363,191 @@ export const isSupermarketLine = (text: string): boolean => {
   return (hasSupermarketPrefix && !text.includes('Sim') && !text.includes('Thẻ') && !text.includes('thẻ')) || isTotal;
 };
 
+/**
+ * Trích xuất Tỷ Trọng Trả Chậm % từ dữ liệu ô "REALTIME TRẢ CHẬM" hoặc "LUỸ KẾ TRẢ CHẬM"
+ * BC NGÀY > LẤY CỘT "Tỷ trọng trả chậm %" TRONG Ô "REALTIME TRẢ CHẬM"
+ * BC THÁNG > LẤY CỘT "Tỷ trọng trả chậm %" TRONG Ô "LUỸ KẾ TRẢ CHẬM"
+ */
+export function parseTraChamRate(rawInput: string | undefined | null, targetStoreName?: string): number | null {
+  if (!rawInput || typeof rawInput !== 'string') return null;
+  const trimmed = rawInput.trim();
+  if (!trimmed) return null;
+
+  // Single number check (e.g. "25.5" or "25,5%" or "30")
+  if (!trimmed.includes('\t') && !trimmed.includes('\n')) {
+    const num = cleanNum(trimmed);
+    if (!isNaN(num) && num > 0) return num;
+  }
+
+  const lines = trimmed.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length === 0) return null;
+
+  let tcColIdx = -1;
+  let nameColIdx = -1;
+  const storeRows: { name: string; rate: number; isSummary: boolean }[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lowerLine = line.toLowerCase();
+
+    // Check if this is a header row
+    if (
+      lowerLine.includes('tỷ trọng trả chậm') ||
+      lowerLine.includes('tỉ trọng trả chậm') ||
+      lowerLine.includes('tỷ trọng trả góp') ||
+      lowerLine.includes('tỉ trọng trả góp') ||
+      lowerLine.includes('tỷ trọng tc') ||
+      lowerLine.includes('% trả chậm') ||
+      lowerLine.includes('% trả góp') ||
+      lowerLine.includes('trả chậm %') ||
+      lowerLine.includes('trả chậm')
+    ) {
+      const cols = line.split(/\t|\||\s{2,}/).map(c => c.trim());
+      const foundTcIdx = cols.findIndex(c => {
+        const lower = c.toLowerCase().trim();
+        if (
+          lower.includes('+/-') || 
+          lower.includes('chênh lệch') || 
+          lower.includes('tang truong') || 
+          lower.includes('tăng trưởng') ||
+          lower.includes('hôm qua') ||
+          lower.includes('tb 3')
+        ) {
+          return false;
+        }
+        return (
+          lower === 'tỷ trọng trả chậm %' ||
+          lower === 'tỉ trọng trả chậm %' ||
+          lower === 'tỷ trọng trả chậm' ||
+          lower === 'tỉ trọng trả chậm' ||
+          lower.includes('tỷ trọng trả chậm') ||
+          lower.includes('tỉ trọng trả chậm') ||
+          lower === 'tỷ trọng trả góp %' ||
+          lower === 'tỷ trọng trả góp' ||
+          lower.includes('tỷ trọng trả góp') ||
+          lower === '% trả chậm' ||
+          lower === '% trả góp' ||
+          lower.includes('trả chậm %') ||
+          lower === 'tỷ trọng tc %' ||
+          lower === 'tỷ trọng tc' ||
+          lower === '%tc' ||
+          lower === '% tc'
+        );
+      });
+
+      if (foundTcIdx !== -1) {
+        tcColIdx = foundTcIdx;
+        const foundNameIdx = cols.findIndex(c => {
+          const lower = c.toLowerCase().trim();
+          return lower.includes('tên siêu thị') || lower.includes('tên miền') || lower.includes('siêu thị') || lower.includes('tên kho') || lower.includes('mã kho') || lower.includes('kho');
+        });
+        if (foundNameIdx !== -1) {
+          nameColIdx = foundNameIdx;
+        }
+        continue;
+      }
+    }
+
+    if (tcColIdx === -1) {
+      continue;
+    }
+
+    // Data row
+    const cols = line.split(/\t|\||\s{2,}/).map(c => c.trim());
+    if (cols.length > tcColIdx) {
+      let rowName = '';
+      if (nameColIdx !== -1 && cols[nameColIdx]) {
+        rowName = cols[nameColIdx];
+      } else {
+        for (let c = 0; c < Math.min(cols.length, 3); c++) {
+          if (cols[c] && isNaN(Number(cols[c].replace(/,/g, '')))) {
+            rowName = cols[c];
+            break;
+          }
+        }
+      }
+
+      const rateVal = cleanNum(cols[tcColIdx]);
+      if (!isNaN(rateVal) && rateVal >= 0) {
+        const isSum = rowName.toUpperCase().startsWith('TỔNG') || rowName.toUpperCase().includes('TOÀN') || rowName.toUpperCase().includes('CỤM');
+        storeRows.push({
+          name: rowName,
+          rate: rateVal,
+          isSummary: isSum
+        });
+      }
+    }
+  }
+
+  // Fallback if no explicit header matched
+  if (storeRows.length === 0 && lines.length > 0) {
+    for (const line of lines) {
+      const cols = line.split(/\t|\||\s{2,}/).map(c => c.trim());
+      if (cols.length >= 2) {
+        const pctCol = cols.find(c => c.includes('%'));
+        if (pctCol) {
+          const val = cleanNum(pctCol);
+          if (!isNaN(val) && val >= 0 && val <= 100) {
+            let rowName = cols[0] || '';
+            const isSum = rowName.toUpperCase().startsWith('TỔNG');
+            storeRows.push({ name: rowName, rate: val, isSummary: isSum });
+          }
+        }
+      }
+    }
+  }
+
+  if (storeRows.length === 0) return null;
+
+  if (targetStoreName && targetStoreName !== 'ALL') {
+    const cleanTarget = targetStoreName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const targetDigits = (targetStoreName.match(/\d{3,}/) || [''])[0];
+
+    const matched = storeRows.find(r => {
+      const rLower = r.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (cleanTarget && (rLower.includes(cleanTarget) || cleanTarget.includes(rLower))) return true;
+      if (targetDigits) {
+        const rDigits = (r.name.match(/\d{3,}/) || [''])[0];
+        if (rDigits && rDigits === targetDigits) return true;
+      }
+      return false;
+    });
+
+    if (matched) return matched.rate;
+  }
+
+  const summaryRow = storeRows.find(r => r.isSummary);
+  if (summaryRow) return summaryRow.rate;
+  return storeRows[0]?.rate ?? null;
+}
+
+export function resolveRealtimeTraChamRate(targetStoreName?: string): number | null {
+  if (typeof window === 'undefined') return null;
+  const storeKey = targetStoreName && targetStoreName !== 'ALL' ? targetStoreName : '';
+  const digits = storeKey ? (storeKey.match(/\d{3,}/) || [''])[0] : '';
+  
+  const raw = (digits && localStorage.getItem(`rtst_realtime_tra_cham_${digits}`)) ||
+              (storeKey && localStorage.getItem(`rtst_realtime_tra_cham_${storeKey}`)) ||
+              localStorage.getItem('rtst_realtime_tra_cham') ||
+              localStorage.getItem('rt_tra_cham') || '';
+              
+  return parseTraChamRate(raw, targetStoreName);
+}
+
+export function resolveLuykeTraChamRate(targetStoreName?: string): number | null {
+  if (typeof window === 'undefined') return null;
+  const storeKey = targetStoreName && targetStoreName !== 'ALL' ? targetStoreName : '';
+  const digits = storeKey ? (storeKey.match(/\d{3,}/) || [''])[0] : '';
+  
+  const raw = (digits && localStorage.getItem(`rtst_luyke_tra_cham_${digits}`)) ||
+              (storeKey && localStorage.getItem(`rtst_luyke_tra_cham_${storeKey}`)) ||
+              localStorage.getItem('rtst_luyke_tra_cham') ||
+              localStorage.getItem('rt_tra_cham_lk') || '';
+              
+  return parseTraChamRate(raw, targetStoreName);
+}
+
+
 export const parseCategoryData = (input: string, daysPassed: number, totalDays: number, markets: MarketInfo[], mode: 'REALTIME' | 'LUYKE' = 'REALTIME'): CategoryData[] => {
   const val = input.trim();
   if (!val) return [];
