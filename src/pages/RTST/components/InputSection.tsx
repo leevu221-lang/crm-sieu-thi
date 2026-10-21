@@ -1215,13 +1215,6 @@ const InputSection: React.FC<InputSectionProps> = ({
                   colorTheme: 'teal' as const
                 },
                 { 
-                  key: `${storeName}_hq_nv`, 
-                  label: 'HQ BÁN KÈM NV', 
-                  value: cardBanKemNv, 
-                  setter: isActiveCard ? setBanKemNv : undefined,
-                  colorTheme: 'amber' as const
-                },
-                { 
                   key: `${storeName}_tragop`, 
                   label: 'TRẢ GÓP NV', 
                   value: cardTragopNv, 
