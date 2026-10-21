@@ -294,7 +294,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       if (categoryVal) {
         payload.lk_nh_sieu_thi = categoryVal;
-      } else if (fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') {
+      } else if (fieldName === 'LUỸ KẾ THI ĐUA' || fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') {
         payload.lk_nh_sieu_thi = '';
       }
 
@@ -369,7 +369,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       if (categoryVal) {
         clusterLkFieldsToSync.lk_nh_sieu_thi = categoryVal;
-      } else if (fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') {
+      } else if (fieldName === 'LUỸ KẾ THI ĐUA' || fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') {
         clusterLkFieldsToSync.lk_nh_sieu_thi = '';
       }
 
@@ -1733,7 +1733,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             localStorage.removeItem(`rtst_catrev_${shortMaKho}`);
           }
         } catch {}
-      } else if (resolvedFieldName === 'LUỸ KẾ TĐ' || resolvedFieldName === 'rt_catlk') {
+      } else if (resolvedFieldName === 'LUỸ KẾ THI ĐUA' || resolvedFieldName === 'LUỸ KẾ TĐ' || resolvedFieldName === 'rt_catlk') {
         clusterCategoryInputRef.current = '';
         setClusterCategoryInput('');
         try {

@@ -1254,7 +1254,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                 items: [
                   { 
                     id: 'rt_cat', 
-                    label: 'REALTIME TĐ', 
+                    label: 'REALTIME THI ĐUA', 
                     value: categoryInput, 
                     onChange: setCategoryInput, 
                     onBlur: () => onSaveRealtime(false, 'REALTIME TĐ'), 
@@ -1263,7 +1263,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                   },
                   { 
                     id: 'rt_catlk', 
-                    label: 'LUỸ KẾ TĐ', 
+                    label: 'LUỸ KẾ THI ĐUA', 
                     value: categoryTargetInput || clusterCategoryInput, 
                     colorTheme: 'orange',
                     onChange: (val: string) => { 
@@ -1387,11 +1387,11 @@ const InputSection: React.FC<InputSectionProps> = ({
                         } else if (item.label === 'LUỸ KẾ TRẢ CHẬM') {
                           handleSaveLuykeTraCham('');
                           showNotification('Đã xóa dữ liệu LUỸ KẾ TRẢ CHẬM', 'info');
-                        } else if (item.label === 'REALTIME TĐ') {
+                        } else if (item.label === 'REALTIME THI ĐUA' || item.label === 'REALTIME TĐ') {
                           setCategoryInput('');
                           if (clearField) clearField(setCategoryInput, 'REALTIME TĐ');
                           else onSaveRealtime(true, 'REALTIME TĐ');
-                        } else if (item.label === 'LUỸ KẾ TĐ') {
+                        } else if (item.label === 'LUỸ KẾ THI ĐUA' || item.label === 'LUỸ KẾ TĐ') {
                           setCategoryTargetInput('');
                           if (setClusterCategoryInput) setClusterCategoryInput('');
                           try {

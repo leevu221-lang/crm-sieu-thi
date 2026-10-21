@@ -498,7 +498,7 @@ export const useRealtimeData = (maKho: string) => {
         localStorage.removeItem('rtst_market_input');
         if (normalizedMaKho) localStorage.removeItem(`rtst_market_input_${normalizedMaKho}`);
       } catch {}
-    } else if (resolvedFieldName === 'REALTIME TĐ' || resolvedFieldName === 'rt_cat') {
+    } else if (resolvedFieldName === 'REALTIME THI ĐUA' || resolvedFieldName === 'REALTIME TĐ' || resolvedFieldName === 'rt_cat') {
       categoryInputRef.current = '';
       setCategoryInput('');
       try {
@@ -519,7 +519,7 @@ export const useRealtimeData = (maKho: string) => {
           localStorage.removeItem(`rtst_catrev_${normalizedMaKho}`);
         }
       } catch {}
-    } else if (resolvedFieldName === 'LUỸ KẾ TĐ' || resolvedFieldName === 'rt_catlk') {
+    } else if (resolvedFieldName === 'LUỸ KẾ THI ĐUA' || resolvedFieldName === 'LUỸ KẾ TĐ' || resolvedFieldName === 'rt_catlk') {
       categoryTargetInputRef.current = '';
       setCategoryTargetInput('');
       try {
@@ -646,7 +646,7 @@ export const useRealtimeData = (maKho: string) => {
 
       if (categoryVal) {
         payload.rt_nh_cum = categoryVal;
-      } else if (fieldName === 'REALTIME TĐ' || fieldName === 'rt_cat') {
+      } else if (fieldName === 'REALTIME THI ĐUA' || fieldName === 'REALTIME TĐ' || fieldName === 'rt_cat') {
         payload.rt_nh_cum = '';
       }
 
@@ -675,7 +675,7 @@ export const useRealtimeData = (maKho: string) => {
       
       if (categoryTargetVal) {
         payload.lk_nh_sieu_thi = categoryTargetVal;
-      } else if (fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') {
+      } else if (fieldName === 'LUỸ KẾ THI ĐUA' || fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') {
         payload.lk_nh_sieu_thi = '';
       }
 
@@ -724,13 +724,13 @@ export const useRealtimeData = (maKho: string) => {
       else if (fieldName === 'REALTIME DT' || fieldName === 'rt_market') clusterFieldsToSync.rt_bi_tong_quan = '';
 
       if (categoryVal) clusterFieldsToSync.rt_nh_cum = categoryVal;
-      else if (fieldName === 'REALTIME TĐ' || fieldName === 'rt_cat') clusterFieldsToSync.rt_nh_cum = '';
+      else if (fieldName === 'REALTIME THI ĐUA' || fieldName === 'REALTIME TĐ' || fieldName === 'rt_cat') clusterFieldsToSync.rt_nh_cum = '';
 
       if (categoryRevenueVal) clusterFieldsToSync.lk_bi_tong_quan = categoryRevenueVal;
       else if (fieldName === 'LUỸ KẾ DT' || fieldName === 'rt_catrev') clusterFieldsToSync.lk_bi_tong_quan = '';
 
       if (categoryTargetVal) clusterFieldsToSync.lk_nh_sieu_thi = categoryTargetVal;
-      else if (fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') clusterFieldsToSync.lk_nh_sieu_thi = '';
+      else if (fieldName === 'LUỸ KẾ THI ĐUA' || fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') clusterFieldsToSync.lk_nh_sieu_thi = '';
 
       if (Object.keys(clusterFieldsToSync).length > 0) {
         const maKhoNum = parseInt(cleanMaKho, 10);

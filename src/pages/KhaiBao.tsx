@@ -82,12 +82,12 @@ const KhaiBao: React.FC = () => {
     if (fieldName === 'LUỸ KẾ DT' || fieldName === 'rt_catrev' || fieldName === 'LUỸ KẾ DOANH THU QUY ĐỔI') {
       setCategoryRevenueInput('');
       setClusterSummaryInput('');
-    } else if (fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') {
+    } else if (fieldName === 'LUỸ KẾ THI ĐUA' || fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') {
       setCategoryTargetInput('');
       setClusterCategoryInput('');
     } else if (fieldName === 'REALTIME DT' || fieldName === 'rt_market' || fieldName === 'REALTIME DOANH THU QUY ĐỔI') {
       setMarketInput('');
-    } else if (fieldName === 'REALTIME TĐ' || fieldName === 'rt_cat') {
+    } else if (fieldName === 'REALTIME THI ĐUA' || fieldName === 'REALTIME TĐ' || fieldName === 'rt_cat') {
       setCategoryInput('');
     }
     clearRealtimeField(setter, fieldName);
