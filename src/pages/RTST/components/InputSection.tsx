@@ -41,7 +41,7 @@ import {
 import { cn, formatShortCurrency } from '../utils';
 import { cleanBiReportText } from '../../../utils/rtstHelpers';
 import { useNotification } from '../../../contexts/NotificationContext';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
 
 
@@ -718,6 +718,134 @@ const InputSection: React.FC<InputSectionProps> = ({
     showNotification('Đã lưu dữ liệu D.THU THỰC NHÂN VIÊN', 'success');
   };
 
+  // Realtime & Luỹ kế Doanh thu thực
+  const [realtimeDtThuc, setRealtimeDtThuc] = useState(() => {
+    try {
+      return (activeStore && localStorage.getItem(`rtst_realtime_dt_thuc_${activeStore}`)) || localStorage.getItem('rtst_realtime_dt_thuc') || localStorage.getItem('rt_market_thuc') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const [luykeDtThuc, setLuykeDtThuc] = useState(() => {
+    try {
+      return (activeStore && localStorage.getItem(`rtst_luyke_dt_thuc_${activeStore}`)) || localStorage.getItem('rtst_luyke_dt_thuc') || localStorage.getItem('rt_catrev_thuc') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  useEffect(() => {
+    if (!activeStore || activeStore === 'ALL') return;
+    const vRt = localStorage.getItem(`rtst_realtime_dt_thuc_${activeStore}`) || localStorage.getItem('rtst_realtime_dt_thuc') || '';
+    const vLk = localStorage.getItem(`rtst_luyke_dt_thuc_${activeStore}`) || localStorage.getItem('rtst_luyke_dt_thuc') || '';
+    if (vRt) setRealtimeDtThuc(vRt);
+    if (vLk) setLuykeDtThuc(vLk);
+  }, [activeStore]);
+
+  const handleSaveRealtimeDtThuc = (val: string) => {
+    const clean = val ? cleanBiReportText(val) : '';
+    setRealtimeDtThuc(clean);
+    try {
+      if (clean) {
+        localStorage.setItem('rtst_realtime_dt_thuc', clean);
+        localStorage.setItem('rt_market_thuc', clean);
+        if (activeStore && activeStore !== 'ALL') {
+          localStorage.setItem(`rtst_realtime_dt_thuc_${activeStore}`, clean);
+        }
+      } else {
+        localStorage.removeItem('rtst_realtime_dt_thuc');
+        localStorage.removeItem('rt_market_thuc');
+        if (activeStore && activeStore !== 'ALL') {
+          localStorage.removeItem(`rtst_realtime_dt_thuc_${activeStore}`);
+        }
+      }
+    } catch {}
+    try {
+      const docKey = activeStore && activeStore !== 'ALL' ? `realtime_dt_thuc_${activeStore}` : 'realtime_dt_thuc_general';
+      const docRef = doc(db, 'app_settings', docKey);
+      setDoc(docRef, {
+        value: clean,
+        updatedAt: serverTimestamp()
+      }, { merge: true }).catch(() => {});
+    } catch {}
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('realtime_dt_thuc_updated', { detail: { value: clean, activeStore } }));
+      }
+    } catch {}
+  };
+
+  const handleSaveLuykeDtThuc = (val: string) => {
+    const clean = val ? cleanBiReportText(val) : '';
+    setLuykeDtThuc(clean);
+    try {
+      if (clean) {
+        localStorage.setItem('rtst_luyke_dt_thuc', clean);
+        localStorage.setItem('rt_catrev_thuc', clean);
+        if (activeStore && activeStore !== 'ALL') {
+          localStorage.setItem(`rtst_luyke_dt_thuc_${activeStore}`, clean);
+        }
+      } else {
+        localStorage.removeItem('rtst_luyke_dt_thuc');
+        localStorage.removeItem('rt_catrev_thuc');
+        if (activeStore && activeStore !== 'ALL') {
+          localStorage.removeItem(`rtst_luyke_dt_thuc_${activeStore}`);
+        }
+      }
+    } catch {}
+    try {
+      const docKey = activeStore && activeStore !== 'ALL' ? `luyke_dt_thuc_${activeStore}` : 'luyke_dt_thuc_general';
+      const docRef = doc(db, 'app_settings', docKey);
+      setDoc(docRef, {
+        value: clean,
+        updatedAt: serverTimestamp()
+      }, { merge: true }).catch(() => {});
+    } catch {}
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('luyke_dt_thuc_updated', { detail: { value: clean, activeStore } }));
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    try {
+      const docKeyRt = activeStore && activeStore !== 'ALL' ? `realtime_dt_thuc_${activeStore}` : 'realtime_dt_thuc_general';
+      const docKeyLk = activeStore && activeStore !== 'ALL' ? `luyke_dt_thuc_${activeStore}` : 'luyke_dt_thuc_general';
+      const unsub1 = onSnapshot(doc(db, 'app_settings', docKeyRt), (snap) => {
+        if (snap.exists()) {
+          const d = snap.data();
+          if (d?.value !== undefined) {
+            setRealtimeDtThuc(d.value);
+            localStorage.setItem('rtst_realtime_dt_thuc', d.value);
+            localStorage.setItem('rt_market_thuc', d.value);
+            if (activeStore && activeStore !== 'ALL') {
+              localStorage.setItem(`rtst_realtime_dt_thuc_${activeStore}`, d.value);
+            }
+          }
+        }
+      }, () => {});
+      const unsub2 = onSnapshot(doc(db, 'app_settings', docKeyLk), (snap) => {
+        if (snap.exists()) {
+          const d = snap.data();
+          if (d?.value !== undefined) {
+            setLuykeDtThuc(d.value);
+            localStorage.setItem('rtst_luyke_dt_thuc', d.value);
+            localStorage.setItem('rt_catrev_thuc', d.value);
+            if (activeStore && activeStore !== 'ALL') {
+              localStorage.setItem(`rtst_luyke_dt_thuc_${activeStore}`, d.value);
+            }
+          }
+        }
+      }, () => {});
+      return () => {
+        unsub1();
+        unsub2();
+      };
+    } catch {}
+  }, [activeStore]);
+
   const [showTimeSettings, setShowTimeSettings] = useState(true);
   const [showRealtime, setShowRealtime] = useState(true);
   const [showClusterData, setShowClusterData] = useState(true);
@@ -871,8 +999,27 @@ const InputSection: React.FC<InputSectionProps> = ({
                 reportLabel: 'LINK REPORT DT',
                 items: [
                   { 
+                    id: 'rt_market_thuc', 
+                    label: 'REALTIME DOANH THU THỰC', 
+                    value: realtimeDtThuc, 
+                    onChange: handleSaveRealtimeDtThuc, 
+                    onBlur: () => handleSaveRealtimeDtThuc(realtimeDtThuc), 
+                    hasData: !!realtimeDtThuc,
+                    colorTheme: 'emerald'
+                  },
+                  { 
+                    id: 'rt_catrev_thuc', 
+                    label: 'LUỸ KẾ DOANH THU THỰC', 
+                    value: luykeDtThuc, 
+                    colorTheme: 'teal',
+                    onChange: handleSaveLuykeDtThuc, 
+                    onBlur: () => handleSaveLuykeDtThuc(luykeDtThuc), 
+                    hasData: !!luykeDtThuc,
+                    isLuyke: true 
+                  },
+                  { 
                     id: 'rt_market', 
-                    label: 'REALTIME DT', 
+                    label: 'REALTIME DOANH THU QUY ĐỔI', 
                     value: marketInput, 
                     onChange: setMarketInput, 
                     onBlur: () => onSaveRealtime(false, 'REALTIME DT'), 
@@ -881,7 +1028,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                   },
                   { 
                     id: 'rt_catrev', 
-                    label: 'LUỸ KẾ DT', 
+                    label: 'LUỸ KẾ DOANH THU QUY ĐỔI', 
                     value: clusterSummaryInput || categoryRevenueInput, 
                     colorTheme: 'teal',
                     onChange: (val: string) => { 
@@ -999,11 +1146,11 @@ const InputSection: React.FC<InputSectionProps> = ({
                       onBlur={item.onBlur}
                       colorTheme={item.colorTheme as any}
                       onClear={() => {
-                        if (item.label === 'REALTIME DT') {
+                        if (item.label === 'REALTIME DT' || item.label === 'REALTIME DOANH THU QUY ĐỔI') {
                           setMarketInput('');
                           if (clearField) clearField(setMarketInput, 'REALTIME DT');
                           else onSaveRealtime(true, 'REALTIME DT');
-                        } else if (item.label === 'LUỸ KẾ DT') {
+                        } else if (item.label === 'LUỸ KẾ DT' || item.label === 'LUỸ KẾ DOANH THU QUY ĐỔI') {
                           setCategoryRevenueInput('');
                           setClusterSummaryInput('');
                           try {
@@ -1016,6 +1163,12 @@ const InputSection: React.FC<InputSectionProps> = ({
                             onSaveRealtime(true, 'LUỸ KẾ DT');
                             onSaveLuyke(true, 'auto', undefined, undefined, 'LUỸ KẾ DT');
                           }
+                        } else if (item.label === 'REALTIME DOANH THU THỰC') {
+                          handleSaveRealtimeDtThuc('');
+                          showNotification('Đã xóa dữ liệu REALTIME DOANH THU THỰC', 'info');
+                        } else if (item.label === 'LUỸ KẾ DOANH THU THỰC') {
+                          handleSaveLuykeDtThuc('');
+                          showNotification('Đã xóa dữ liệu LUỸ KẾ DOANH THU THỰC', 'info');
                         } else if (item.label === 'REALTIME TĐ') {
                           setCategoryInput('');
                           if (clearField) clearField(setCategoryInput, 'REALTIME TĐ');
