@@ -735,23 +735,35 @@ const InputSection: React.FC<InputSectionProps> = ({
     }
   });
 
+  const realtimeDtThucRef = useRef(realtimeDtThuc);
+  const luykeDtThucRef = useRef(luykeDtThuc);
+  useEffect(() => { realtimeDtThucRef.current = realtimeDtThuc; }, [realtimeDtThuc]);
+  useEffect(() => { luykeDtThucRef.current = luykeDtThuc; }, [luykeDtThuc]);
+
   useEffect(() => {
     if (!activeStore || activeStore === 'ALL') return;
     const vRt = localStorage.getItem(`rtst_realtime_dt_thuc_${activeStore}`) || localStorage.getItem('rtst_realtime_dt_thuc') || '';
     const vLk = localStorage.getItem(`rtst_luyke_dt_thuc_${activeStore}`) || localStorage.getItem('rtst_luyke_dt_thuc') || '';
-    if (vRt) setRealtimeDtThuc(vRt);
-    if (vLk) setLuykeDtThuc(vLk);
+    if (vRt) {
+      realtimeDtThucRef.current = vRt;
+      setRealtimeDtThuc(vRt);
+    }
+    if (vLk) {
+      luykeDtThucRef.current = vLk;
+      setLuykeDtThuc(vLk);
+    }
   }, [activeStore]);
 
   const handleSaveRealtimeDtThuc = (val: string) => {
-    const clean = val ? cleanBiReportText(val) : '';
-    setRealtimeDtThuc(clean);
+    const raw = (val || '').trim();
+    realtimeDtThucRef.current = raw;
+    setRealtimeDtThuc(raw);
     try {
-      if (clean) {
-        localStorage.setItem('rtst_realtime_dt_thuc', clean);
-        localStorage.setItem('rt_market_thuc', clean);
+      if (raw) {
+        localStorage.setItem('rtst_realtime_dt_thuc', raw);
+        localStorage.setItem('rt_market_thuc', raw);
         if (activeStore && activeStore !== 'ALL') {
-          localStorage.setItem(`rtst_realtime_dt_thuc_${activeStore}`, clean);
+          localStorage.setItem(`rtst_realtime_dt_thuc_${activeStore}`, raw);
         }
       } else {
         localStorage.removeItem('rtst_realtime_dt_thuc');
@@ -765,26 +777,27 @@ const InputSection: React.FC<InputSectionProps> = ({
       const docKey = activeStore && activeStore !== 'ALL' ? `realtime_dt_thuc_${activeStore}` : 'realtime_dt_thuc_general';
       const docRef = doc(db, 'app_settings', docKey);
       setDoc(docRef, {
-        value: clean,
+        value: raw,
         updatedAt: serverTimestamp()
-      }, { merge: true }).catch(() => {});
+      }, { merge: true }).catch((err) => console.warn('Firestore write warning:', err));
     } catch {}
     try {
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('realtime_dt_thuc_updated', { detail: { value: clean, activeStore } }));
+        window.dispatchEvent(new CustomEvent('realtime_dt_thuc_updated', { detail: { value: raw, activeStore } }));
       }
     } catch {}
   };
 
   const handleSaveLuykeDtThuc = (val: string) => {
-    const clean = val ? cleanBiReportText(val) : '';
-    setLuykeDtThuc(clean);
+    const raw = (val || '').trim();
+    luykeDtThucRef.current = raw;
+    setLuykeDtThuc(raw);
     try {
-      if (clean) {
-        localStorage.setItem('rtst_luyke_dt_thuc', clean);
-        localStorage.setItem('rt_catrev_thuc', clean);
+      if (raw) {
+        localStorage.setItem('rtst_luyke_dt_thuc', raw);
+        localStorage.setItem('rt_catrev_thuc', raw);
         if (activeStore && activeStore !== 'ALL') {
-          localStorage.setItem(`rtst_luyke_dt_thuc_${activeStore}`, clean);
+          localStorage.setItem(`rtst_luyke_dt_thuc_${activeStore}`, raw);
         }
       } else {
         localStorage.removeItem('rtst_luyke_dt_thuc');
@@ -798,13 +811,13 @@ const InputSection: React.FC<InputSectionProps> = ({
       const docKey = activeStore && activeStore !== 'ALL' ? `luyke_dt_thuc_${activeStore}` : 'luyke_dt_thuc_general';
       const docRef = doc(db, 'app_settings', docKey);
       setDoc(docRef, {
-        value: clean,
+        value: raw,
         updatedAt: serverTimestamp()
-      }, { merge: true }).catch(() => {});
+      }, { merge: true }).catch((err) => console.warn('Firestore write warning:', err));
     } catch {}
     try {
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('luyke_dt_thuc_updated', { detail: { value: clean, activeStore } }));
+        window.dispatchEvent(new CustomEvent('luyke_dt_thuc_updated', { detail: { value: raw, activeStore } }));
       }
     } catch {}
   };
@@ -816,7 +829,8 @@ const InputSection: React.FC<InputSectionProps> = ({
       const unsub1 = onSnapshot(doc(db, 'app_settings', docKeyRt), (snap) => {
         if (snap.exists()) {
           const d = snap.data();
-          if (d?.value !== undefined) {
+          if (d?.value) {
+            realtimeDtThucRef.current = d.value;
             setRealtimeDtThuc(d.value);
             localStorage.setItem('rtst_realtime_dt_thuc', d.value);
             localStorage.setItem('rt_market_thuc', d.value);
@@ -829,7 +843,8 @@ const InputSection: React.FC<InputSectionProps> = ({
       const unsub2 = onSnapshot(doc(db, 'app_settings', docKeyLk), (snap) => {
         if (snap.exists()) {
           const d = snap.data();
-          if (d?.value !== undefined) {
+          if (d?.value) {
+            luykeDtThucRef.current = d.value;
             setLuykeDtThuc(d.value);
             localStorage.setItem('rtst_luyke_dt_thuc', d.value);
             localStorage.setItem('rt_catrev_thuc', d.value);
@@ -1003,7 +1018,10 @@ const InputSection: React.FC<InputSectionProps> = ({
                     label: 'REALTIME DOANH THU THỰC', 
                     value: realtimeDtThuc, 
                     onChange: handleSaveRealtimeDtThuc, 
-                    onBlur: () => handleSaveRealtimeDtThuc(realtimeDtThuc), 
+                    onBlur: () => {
+                      const v = realtimeDtThucRef.current;
+                      if (v) handleSaveRealtimeDtThuc(v);
+                    }, 
                     hasData: !!realtimeDtThuc,
                     colorTheme: 'emerald'
                   },
@@ -1013,7 +1031,10 @@ const InputSection: React.FC<InputSectionProps> = ({
                     value: luykeDtThuc, 
                     colorTheme: 'teal',
                     onChange: handleSaveLuykeDtThuc, 
-                    onBlur: () => handleSaveLuykeDtThuc(luykeDtThuc), 
+                    onBlur: () => {
+                      const v = luykeDtThucRef.current;
+                      if (v) handleSaveLuykeDtThuc(v);
+                    }, 
                     hasData: !!luykeDtThuc,
                     isLuyke: true 
                   },
