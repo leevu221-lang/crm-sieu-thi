@@ -541,14 +541,8 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
     topInstallmentRate = cleanNum(traGopMatch[1]);
   }
 
-  let topDtThuc = 0;
-  const dtThucMatch = val.match(/(?:DT\s+thực|doanh\s+thu\s+thực)[\s:\r\n]+([\d,.]+)/i);
-  if (dtThucMatch) {
-    topDtThuc = cleanNum(dtThucMatch[1]);
-  }
-
   let topDtqd = 0;
-  const dtqdMatch = val.match(/(?:DT\s+quy\s*đổi|doanh\s+thu\s+quy\s*đổi|DT\s+qđ)[\s:\r\n]+([\d,.]+)/i);
+  const dtqdMatch = val.match(/DT\s*quy\s*đổi\s*\n\s*([\d,.]+)/i);
   if (dtqdMatch) {
     topDtqd = cleanNum(dtqdMatch[1]);
   }
@@ -592,27 +586,12 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
   ];
   const biWebKnownHeadersSet = new Set(biWebKnownHeaders);
   
-  const isBiWebHeader = (raw: string) => {
-    const lower = raw.trim().toLowerCase();
-    if (biWebKnownHeadersSet.has(lower)) return true;
-    if (lower.includes("siêu thị") || lower.includes("sieu thi") || lower === "stt") return true;
-    if (lower.includes("số lượng") || lower.includes("so luong") || lower === "sl") return true;
-    if (lower.includes("doanh thu") || lower.includes("dt")) return true;
-    if (lower.includes("tỉ trọng") || lower.includes("tỷ trọng") || lower.includes("ti trong") || lower.includes("ty trong")) return true;
-    if (lower.includes("target") || lower.includes("mục tiêu") || lower.includes("muc tieu")) return true;
-    if (lower.includes("% ht") || lower.includes("tiến độ") || lower.includes("tien do")) return true;
-    if (lower.includes("tb 3") || lower.includes("tb3")) return true;
-    if (lower.includes("% tt") || lower.includes("tăng trưởng") || lower.includes("tang truong")) return true;
-    if (lower.includes("dự kiến") || lower.includes("du kien")) return true;
-    if (lower.includes("trả góp") || lower.includes("tra gop") || lower.includes("trả chậm") || lower.includes("tra cham") || lower.includes("tg") || lower.includes("tc")) return true;
-    return false;
-  };
-
   let biWebHeaderStartIdx = -1;
   let biWebDetectedHeaders: string[] = [];
-
+  
   for (let i = 0; i < rawLines.length; i++) {
-    if (isBiWebHeader(rawLines[i])) {
+    const lower = rawLines[i].trim().toLowerCase();
+    if (biWebKnownHeadersSet.has(lower)) {
       if (biWebHeaderStartIdx === -1) biWebHeaderStartIdx = i;
       biWebDetectedHeaders.push(rawLines[i].trim());
     } else if (biWebHeaderStartIdx !== -1) {
@@ -891,23 +870,23 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
         let luotBillThuHoVal = 0;
         let installmentRateVal = topInstallmentRate;
 
-        // Match columns by named header indices if detected
-        if (actualVirtualIdx !== -1 || actualRealIdx !== -1) {
-          actualVirtualVal = actualVirtualIdx !== -1 && actualVirtualIdx < cols.length ? cleanNum(cols[actualVirtualIdx]) : 0;
-          actualRealVal = actualRealIdx !== -1 && actualRealIdx < cols.length ? cleanNum(cols[actualRealIdx]) : 0;
-          targetQDVal = targetQDIdx !== -1 && targetQDIdx < cols.length ? cleanNum(cols[targetQDIdx]) : 0;
-          percentHTVal = percentHTIdx !== -1 && percentHTIdx < cols.length ? cleanNum(cols[percentHTIdx]) : 0;
-          luotBillBanHangVal = luotBillBanHangIdx !== -1 && luotBillBanHangIdx < cols.length ? cleanNum(cols[luotBillBanHangIdx]) : 0;
-          luotBillThuHoVal = luotBillThuHoIdx !== -1 && luotBillThuHoIdx < cols.length ? cleanNum(cols[luotBillThuHoIdx]) : 0;
-          if (tyTrongTraGopIdx !== -1 && tyTrongTraGopIdx < cols.length) {
-            installmentRateVal = cleanNum(cols[tyTrongTraGopIdx]);
-          }
-        } else if (dataCols.length >= 8 && (dataCols[7]?.includes('%') || dataCols[7]?.includes('+') || dataCols[7]?.includes('-'))) {
+        // New BI Web layout: [SL, DTQĐ, % TT, DT, Target, % HT, TB3T, % TT] (has % TT at index 7)
+        if (dataCols.length >= 8 && (dataCols[7]?.includes('%') || dataCols[7]?.includes('+') || dataCols[7]?.includes('-'))) {
           luotBillBanHangVal = cleanNum(dataCols[0]);
           actualVirtualVal = cleanNum(dataCols[1]);
           actualRealVal = cleanNum(dataCols[3]);
           targetQDVal = cleanNum(dataCols[4]);
           percentHTVal = cleanNum(dataCols[5]);
+        } else if (actualVirtualIdx !== -1 && actualVirtualIdx < cols.length) {
+          actualVirtualVal = cleanNum(cols[actualVirtualIdx]);
+          targetQDVal = targetQDIdx !== -1 && targetQDIdx < cols.length ? cleanNum(cols[targetQDIdx]) : 0;
+          percentHTVal = percentHTIdx !== -1 && percentHTIdx < cols.length ? cleanNum(cols[percentHTIdx]) : 0;
+          actualRealVal = actualRealIdx !== -1 && actualRealIdx < cols.length ? cleanNum(cols[actualRealIdx]) : 0;
+          luotBillBanHangVal = luotBillBanHangIdx !== -1 && luotBillBanHangIdx < cols.length ? cleanNum(cols[luotBillBanHangIdx]) : 0;
+          luotBillThuHoVal = luotBillThuHoIdx !== -1 && luotBillThuHoIdx < cols.length ? cleanNum(cols[luotBillThuHoIdx]) : 0;
+          if (tyTrongTraGopIdx !== -1 && tyTrongTraGopIdx < cols.length) {
+            installmentRateVal = cleanNum(cols[tyTrongTraGopIdx]);
+          }
         } else {
           // Legacy column mapping: [DTQĐ, Target QĐ, % HT, DT, ...]
           actualVirtualVal = nameColIdx + 1 < cols.length ? cleanNum(cols[nameColIdx + 1]) : cleanNum(cols[2]);
@@ -919,14 +898,6 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
           if (nameColIdx + 12 < cols.length) {
             installmentRateVal = cleanNum(cols[nameColIdx + 12]);
           }
-        }
-
-        // Top KPI Card fallbacks if table had missing values
-        if (actualRealVal === 0 && topDtThuc > 0) {
-          actualRealVal = topDtThuc;
-        }
-        if (actualVirtualVal === 0 && topDtqd > 0) {
-          actualVirtualVal = topDtqd;
         }
 
         let tb3ThangVal = tb3ThangIdx !== -1 && tb3ThangIdx < cols.length ? cleanNum(cols[tb3ThangIdx]) : 0;
@@ -1290,37 +1261,6 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
         continue;
       }
     }
-
-  // Fallback if no table rows were parsed but top cards exist in BI text
-  if (results.length === 0 && (topDtqd > 0 || topDtThuc > 0)) {
-    let storeName = "Siêu thị";
-    const stMatch = val.match(/(?:Siêu\s*thị|ST)\s*[:\s]*(\d+\s*[-–—]\s*[^\n\r\t×]+)/i);
-    if (stMatch) {
-      storeName = formatMarketName(stMatch[1].trim());
-    }
-    results.push({
-      name: storeName,
-      targetST: 0,
-      targetQD: topTarget || 0,
-      actualReal: topDtThuc,
-      actualVirtual: topDtqd,
-      dtHomQua: 0,
-      percentHT: topPercentHt || 0,
-      percentQD: 0,
-      installmentRate: topInstallmentRate || 0,
-      luotBillBanHang: 0,
-      luotBillThuHo: 0,
-      dtckThang: 0,
-      luotBill: 0,
-      tb3Thang: 0,
-      percentTT: 0,
-      dtTraGop: 0,
-      percentTraGop: topInstallmentRate || 0,
-      isExplicitTarget: true,
-      isSummary: true
-    });
-  }
-
   return results;
 };
 
