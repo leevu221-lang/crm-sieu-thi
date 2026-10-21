@@ -302,17 +302,16 @@ export const useRealtimeData = (maKho: string) => {
           if (matchThuc) {
             // Lấy cột "DOANH THU" ở ô (REALTIME DOANH THU THỰC)
             let dtThucVal = 0;
-            if (matchThuc.actualReal > 0) {
-              dtThucVal = matchThuc.actualReal;
-            } else if (matchThuc.actualVirtual > 0) {
-              dtThucVal = matchThuc.actualVirtual;
-            }
-
-            // Loại bỏ nếu là DTLK tháng (> 4x doanh thu ngày)
-            if (m.actualVirtual > 0 && dtThucVal > m.actualVirtual * 4) {
-              if (matchThuc.actualVirtual > 0 && matchThuc.actualVirtual < dtThucVal) {
-                dtThucVal = matchThuc.actualVirtual;
+            if (matchThuc.actualReal > 0 && matchThuc.actualVirtual > 0) {
+              const larger = Math.max(matchThuc.actualReal, matchThuc.actualVirtual);
+              const smaller = Math.min(matchThuc.actualReal, matchThuc.actualVirtual);
+              if (m.actualVirtual > 0 && larger > m.actualVirtual * 4) {
+                dtThucVal = smaller;
+              } else {
+                dtThucVal = larger;
               }
+            } else {
+              dtThucVal = matchThuc.actualReal > 0 ? matchThuc.actualReal : (matchThuc.actualVirtual || 0);
             }
 
             if (dtThucVal > 0) {

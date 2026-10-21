@@ -730,7 +730,7 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
 
     const lowerLine = cleanLine.toLowerCase();
     
-    if (lowerLine.includes("stt") || lowerLine.includes("tên siêu thị") || lowerLine.includes("tên miền") || lowerLine.includes("doanh thu qđ") || (lowerLine.includes("siêu thị") && lowerLine.includes("số lượng"))) {
+    if (lowerLine.includes("stt") || lowerLine.includes("tên siêu thị") || lowerLine.includes("tên miền") || lowerLine.includes("doanh thu") || lowerLine.includes("doanh thu qđ") || lowerLine.includes("siêu thị") || lowerLine.includes("mã kho") || lowerLine.includes("tên kho") || (lowerLine.includes("siêu thị") && lowerLine.includes("số lượng"))) {
       const cols = cleanLine.split(/\t|\s{2,}/);
       headerNameIdx = cols.findIndex(c => {
         const lower = c.toLowerCase();
@@ -925,8 +925,13 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
           }
         } else if (dataCols.length >= 8 && (dataCols[7]?.includes('%') || dataCols[7]?.includes('+') || dataCols[7]?.includes('-'))) {
           luotBillBanHangVal = cleanNum(dataCols[0]);
-          actualVirtualVal = cleanNum(dataCols[1]);
-          actualRealVal = cleanNum(dataCols[3]);
+          const primaryRevenue = cleanNum(dataCols[1]);
+          if (actualVirtualIdx !== -1) {
+            actualVirtualVal = primaryRevenue;
+          } else {
+            actualRealVal = primaryRevenue;
+            actualVirtualVal = primaryRevenue;
+          }
           targetQDVal = cleanNum(dataCols[4]);
           percentHTVal = cleanNum(dataCols[5]);
         } else {
