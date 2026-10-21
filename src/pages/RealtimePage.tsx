@@ -20,7 +20,6 @@ import {
   TrendingUp,
   Target,
   ShoppingBag,
-  Clock,
   ChevronRight,
   ChevronDown,
   ChevronUp,
@@ -30,7 +29,6 @@ import {
   ArrowDownRight,
   Filter,
   EyeOff,
-  Calendar,
   Zap,
   RefreshCw,
   Sparkles,
@@ -4660,7 +4658,6 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   }, [activeFilterDropdown, getUniqueValuesForColumn]);
 
   const RAW_PAGE_SIZE = 100;
-  const [currentTime, setCurrentTime] = useState(new Date());
   const categoriesRef = useRef<HTMLDivElement>(null);
   const overviewRef = useRef<HTMLDivElement>(null);
   const categorySLRef = useRef<HTMLDivElement>(null);
@@ -6110,18 +6107,13 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     }
   };
 
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 10000);
-    return () => clearInterval(timer);
-  }, []);
-
   const greetingData = useMemo(() => {
-    const hour = currentTime.getHours();
+    const hour = new Date().getHours();
     if (hour < 10) return { text: 'Chào buổi sáng', icon: '☀️', sub: 'Khởi đầu ngày mới tràn đầy năng lượng!' };
     if (hour < 13) return { text: 'Chào buổi trưa', icon: '🌤️', sub: 'Chúc bạn bữa trưa ngon miệng và tiếp tục năng suất!' };
     if (hour < 18) return { text: 'Chào buổi chiều', icon: '🌅', sub: 'Bứt phá doanh số ca chiều cùng siêu thị!' };
     return { text: 'Chào buổi tối', icon: '🌙', sub: 'Tổng kết ca làm việc và theo dõi số liệu hôm nay!' };
-  }, [currentTime]);
+  }, []);
 
   const greeting = greetingData.text;
 
@@ -6326,7 +6318,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     if (categories.length === 0) return;
 
     const title = type === 'SL' ? 'BÁO CÁO NGÀNH HÀNG (SL)' : 'BÁO CÁO NGÀNH HÀNG (DT)';
-    let commentText = `📊 ${title}\n⏰ Cập nhật: ${currentTime.toLocaleTimeString('vi-VN')}\n\n`;
+    let commentText = `📊 ${title}\n⏰ Cập nhật: ${new Date().toLocaleTimeString('vi-VN')}\n\n`;
 
     categories.forEach(cat => {
       const rate = Math.round(cat.rate || 0);
@@ -6644,27 +6636,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
             </div>
             
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
-                <Calendar size={14} className="text-slate-400" />
-                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-tighter">
-                  {currentTime.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}
+              <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl flex items-center gap-2 shadow-xs">
+                <RefreshCw size={14} className={isLoadingRealtime ? 'animate-spin text-indigo-500' : 'text-emerald-500'} />
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">
+                  {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '---'}
                 </span>
-              </div>
-              
-              <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl flex items-center gap-4 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <Clock size={14} className="text-indigo-500" />
-                  <span className="text-sm font-black font-oswald tracking-wider text-slate-800">
-                    {currentTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-                <div className="w-px h-6 bg-slate-100" />
-                <div className="flex items-center gap-2">
-                  <RefreshCw size={14} className={isLoadingRealtime ? 'animate-spin text-indigo-500' : 'text-emerald-500'} />
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">
-                    {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '---'}
-                  </span>
-                </div>
               </div>
             </div>
           </div>
