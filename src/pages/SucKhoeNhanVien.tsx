@@ -32,7 +32,7 @@ import TongHopNvTable from './EmployeeHealth/components/TongHopNvTable';
 import StaffComparisonModal, { StaffComparisonData } from './EmployeeHealth/components/StaffComparisonModal';
 import { GiaTriDhTab } from './EmployeeHealth/components/GiaTriDhTab';
 import { extractStaffNameAndId } from './EmployeeHealth/utils/staffParserHelper';
-import { cn, parseStaffRankData, parseYcxData, normalizeStoreId, parseStaffValueList, normalize, parseCategoryData, cleanCategoryName, isKhoLuuDong, formatCurrencyValue, extractCategoriesFromStoreThiDua } from './RTST/utils';
+import { cn, parseStaffRankData, parseYcxData, normalizeStoreId, parseStaffValueList, normalize, parseCategoryData, cleanCategoryName, isKhoLuuDong, formatCurrencyValue, extractCategoriesFromStoreThiDua, extractStaffRevFromReport, getStoredStaffThucInput } from './RTST/utils';
 import { useCategoryConfig } from '../hooks/useCategoryConfig';
 
 const removeAccents = (str: string): string => {
@@ -1472,35 +1472,79 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
   // Removed visibilitychange reload for performance — data is already real-time and auto-reacts to store changes
 
+  // Listen for real-time updates when D.THU THỰC NHÂN VIÊN is pasted in Cấu hình siêu thị
+  const [thucVersion, setThucVersion] = useState(0);
+  useEffect(() => {
+    const handleUpdate = () => setThucVersion(v => v + 1);
+    window.addEventListener('staff_thuc_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('staff_thuc_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
   const effectiveStaffInputThuc = React.useMemo(() => {
     if (marketFilter && marketFilter !== 'ALL' && allStoresCache?.[marketFilter]?.staffInputThuc) {
       return allStoresCache[marketFilter].staffInputThuc;
     }
     const storeKey = marketFilter !== 'ALL' ? marketFilter : (tenSieuThi || stName || '');
-    const cleanStore = storeKey ? storeKey.replace(/\D/g, '') : '';
-    if (cleanStore) {
-      const local = localStorage.getItem(`real_dthu_nv_raw_thuc_${cleanStore}`);
-      if (local && local.trim()) return local;
-    }
-    if (storeKey) {
-      const local = localStorage.getItem(`cauhinh_${storeKey}_dt_thuc_nv`);
-      if (local && local.trim()) return local;
-    }
+    const fromStorage = getStoredStaffThucInput(storeKey);
+    if (fromStorage) return fromStorage;
+
     const anyCached = Object.values(allStoresCache || {}).find((s: any) => (s as any)?.staffInputThuc?.trim()) as any;
     if (anyCached?.staffInputThuc) return anyCached.staffInputThuc;
-    try {
-      const latest = localStorage.getItem('real_dthu_nv_raw_thuc_latest');
-      if (latest && latest.trim()) return latest;
-    } catch {}
     return '';
-  }, [marketFilter, allStoresCache, tenSieuThi, stName]);
+  }, [marketFilter, allStoresCache, tenSieuThi, stName, thucVersion]);
 
   // Use KHAI BÁO inputs (DOANH THU + THI ĐUA NV) when available, otherwise use DB data
   const biRevenueData = React.useMemo(() => {
-    if (staffInput) {
-      return parseStaffRankData(staffInput, effectiveStaffInputThuc);
-    }
-    return dbBiRevenueData;
+    const baseList = staffInput ? parseStaffRankData(staffInput, effectiveStaffInputThuc) : dbBiRevenueData;
+    if (!effectiveStaffInputThuc || baseList.length === 0) return baseList;
+
+    // Ensure actualVal and effVal are mapped onto each staff member
+    const thucMap = extractStaffRevFromReport(effectiveStaffInputThuc);
+    if (thucMap.size === 0) return baseList;
+
+    const norm = (str: string) => 
+      (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    return baseList.map(staff => {
+      let match = thucMap.get(staff.fullId);
+      if (!match) {
+        const staffNorm = norm(staff.displayName);
+        for (const item of thucMap.values()) {
+          const itemNorm = norm(item.name);
+          if (itemNorm && (itemNorm === staffNorm || staffNorm.includes(itemNorm) || itemNorm.includes(staffNorm))) {
+            match = item;
+            break;
+          }
+        }
+      }
+
+      if (match && match.revenue > 0) {
+        const vRaw = staff.virtualVal || 0;
+        const aRaw = match.revenue;
+        let actualVal = aRaw;
+        if (Math.abs(vRaw) <= 1000000 && Math.abs(aRaw) > 1000000) {
+          actualVal = Math.round(aRaw / 1000000);
+        } else if (Math.abs(vRaw) > 1000000 && Math.abs(aRaw) <= 1000000) {
+          actualVal = aRaw * 1000000;
+        }
+
+        const vNorm = Math.abs(vRaw) > 1000000 ? vRaw : vRaw * 1000000;
+        const aNorm = Math.abs(aRaw) > 1000000 ? aRaw : aRaw * 1000000;
+        const effVal = aNorm > 0 ? Math.round(((vNorm - aNorm) / aNorm) * 1000) / 10 : 0;
+
+        return {
+          ...staff,
+          actualVal,
+          effVal,
+          rate: effVal
+        };
+      }
+      return staff;
+    });
   }, [staffInput, effectiveStaffInputThuc, dbBiRevenueData]);
 
   const thiDuaNv = React.useMemo(() => {

@@ -678,8 +678,17 @@ const InputSection: React.FC<InputSectionProps> = ({
       } catch {}
     }
     try {
-      localStorage.setItem(`cauhinh_${sName}_dt_thuc_nv`, cleanVal);
+      if (sName) {
+        localStorage.setItem(`real_dthu_nv_raw_thuc_${sName}`, cleanVal);
+        localStorage.setItem(`cauhinh_${sName}_dt_thuc_nv`, cleanVal);
+      }
       localStorage.setItem('real_dthu_nv_raw_thuc_latest', cleanVal);
+    } catch {}
+
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('staff_thuc_updated', { detail: { storeName: sName, value: cleanVal } }));
+      }
     } catch {}
   };
 

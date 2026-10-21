@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Trophy, TrendingDown, Camera } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { StaffData } from '../../RTST/types';
-import { cn, formatCurrencyValue } from '../../RTST/utils';
+import { cn, formatCurrencyValue, extractStaffRevFromReport, getStoredStaffThucInput } from '../../RTST/utils';
 
 interface RevenueRankingTableQdQProps {
   data: StaffData[];
@@ -50,14 +50,33 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayDate = yesterday.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
 
-  const totalActual = sortedData.reduce((sum, staff) => sum + (staff.actualVal || 0), 0);
+  // Fallback thucMap in case actualVal wasn't attached upstream
+  const thucMap = useMemo(() => {
+    const raw = getStoredStaffThucInput();
+    return raw ? extractStaffRevFromReport(raw) : new Map();
+  }, []);
+
   const totalVirtual = sortedData.reduce((sum, staff) => sum + staff.virtualVal, 0);
-  const totalEffQd = totalActual > 0 ? ((totalVirtual - totalActual) / totalActual) * 100 * 100 : 0;
+  const actualTotalVirtual = Math.abs(totalVirtual) > 1000000 ? totalVirtual : totalVirtual * 1000000;
+
+  const totalActual = sortedData.reduce((sum, staff) => {
+    let a = staff.actualVal || 0;
+    if (!a && thucMap.size > 0) {
+      const m = thucMap.get(staff.fullId) || Array.from(thucMap.values()).find(item => 
+        staff.displayName.toLowerCase().includes(item.name.toLowerCase()) || 
+        item.name.toLowerCase().includes(staff.displayName.toLowerCase())
+      );
+      if (m) a = m.revenue;
+    }
+    const aNorm = Math.abs(a) > 1000000 ? a : a * 1000000;
+    return sum + aNorm;
+  }, 0);
+
+  const totalEffQd = totalActual > 0 ? ((actualTotalVirtual - totalActual) / totalActual) * 100 : 0;
   // Lấy đúng giá trị từ cấu hình màn hình BC THÁNG -> THẺ TARGET QUY ĐỔI và chia cho số nhân viên
   const targetQdPerStaff = sortedData.length > 0 ? stTargetQuyDoi / sortedData.length : 0;
   const totalTargetQd = stTargetQuyDoi;
   const actualTotalTargetQd = totalTargetQd > 1000000 ? totalTargetQd : totalTargetQd * 1000000;
-  const actualTotalVirtual = Math.abs(totalVirtual) > 1000000 ? totalVirtual : totalVirtual * 1000000;
   const totalPercentHT = (actualTotalTargetQd > 0 && daysPassed > 0) ? (((actualTotalVirtual / daysPassed) * totalDays) / actualTotalTargetQd) * 100 : 0;
 
   // Parse Trả Góp / Trả Chậm NV data
@@ -320,12 +339,26 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
             <tbody>
               {sortedData.length > 0 ? (
                 sortedData.map((staff, index) => {
-                  // HQ.QĐ = (DOANH THU QĐ - DOANH THU) / DOANH THU × 100
-                  const effQd = (staff.actualVal || 0) > 0 
-                    ? ((staff.virtualVal - (staff.actualVal || 0)) / (staff.actualVal || 0)) * 100 
-                    : 0;
+                  // Resolve Doanh thu Thực (actualVal) with thucMap fallback if needed
+                  let actualVal = staff.actualVal || 0;
+                  if (!actualVal && thucMap.size > 0) {
+                    const match = thucMap.get(staff.fullId) || 
+                      Array.from(thucMap.values()).find(item => 
+                        staff.displayName.toLowerCase().includes(item.name.toLowerCase()) || 
+                        item.name.toLowerCase().includes(staff.displayName.toLowerCase())
+                      );
+                    if (match) {
+                      actualVal = match.revenue;
+                    }
+                  }
+
+                  // HQ.QĐ = (DOANH THU QĐ - DOANH THU THỰC) / DOANH THU THỰC × 100
+                  const vNorm = Math.abs(staff.virtualVal || 0) > 1000000 ? (staff.virtualVal || 0) : (staff.virtualVal || 0) * 1000000;
+                  const aNorm = Math.abs(actualVal || 0) > 1000000 ? (actualVal || 0) : (actualVal || 0) * 1000000;
+                  const effQd = aNorm > 0 ? ((vNorm - aNorm) / aNorm) * 100 : (staff.effVal || 0);
+
                   const actualTargetQdPerStaff = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
-                  const actualVirtualVal = Math.abs(staff.virtualVal || 0) > 1000000 ? (staff.virtualVal || 0) : (staff.virtualVal || 0) * 1000000;
+                  const actualVirtualVal = vNorm;
                   
                   const percentHT = (actualTargetQdPerStaff > 0 && daysPassed > 0) 
                     ? (((actualVirtualVal / daysPassed) * totalDays) / actualTargetQdPerStaff) * 100 
@@ -431,7 +464,7 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                     {Math.round(totalPercentHT)}%
                   </td>
                   <td style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[9.5px] sm:text-[14.5px] whitespace-nowrap bg-[#047857] overflow-hidden">
-                    {stPercentHTTargetDuKienQD > 0 ? `${stPercentHTTargetDuKienQD.toFixed(1)}%` : ''}
+                    {totalEffQd !== 0 ? `${totalEffQd.toFixed(1)}%` : (stPercentHTTargetDuKienQD > 0 ? `${stPercentHTTargetDuKienQD.toFixed(1)}%` : '')}
                   </td>
                   <td style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[9.5px] sm:text-[14.5px] whitespace-nowrap bg-[#047857] overflow-hidden">
                     {validTraChamVals.length > 0 ? `${avgTraCham.toFixed(1)}%` : ''}
