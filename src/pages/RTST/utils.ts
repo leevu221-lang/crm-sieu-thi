@@ -1874,28 +1874,39 @@ export const extractStaffRevFromReport = (text: string): Map<string, { id: strin
     }
     if (!tokens || tokens.length === 0) return 0;
 
-    // Định dạng 11 cột BI: SỐ LƯỢNG (0) | DT QĐ (1) | % TỈ TRỌNG (2) | DOANH THU THỰC (3)
-    if (tokens.length >= 7 && (tokens[2]?.includes('%') || tokens[1]?.includes('%'))) {
-      const val3 = cleanNum(tokens[3]);
-      if (val3 > 0) return val3;
+    // Tách nhỏ mọi token theo tab và khoảng trắng để tránh dính chuỗi '151\t403\t13.2%'
+    const flat: string[] = [];
+    tokens.forEach(t => {
+      const parts = String(t).split(/[\t\s]+/).filter(Boolean);
+      flat.push(...parts);
+    });
+    if (flat.length === 0) return 0;
+
+    // Định dạng 11 cột BI: SỐ LƯỢNG (0) | DT QĐ (1) | % TỈ TRỌNG (2) | DOANH THU THỰC (3) hoặc DOANH THU (4)
+    if (flat.length >= 7) {
+      const pctIdx11 = flat.findIndex(t => t.includes('%'));
+      if (pctIdx11 === 2 || pctIdx11 === 3) {
+        const valAfterPct = cleanNum(flat[pctIdx11 + 1]);
+        if (valAfterPct > 0) return valAfterPct;
+      }
     }
 
-    // Nếu có token chứa '%': số ngay liền trước '%' LUÔN là DOANH THU (vd: [151, 403, '13.2%'] -> 403)
-    const pctIdx = tokens.findIndex(t => t.includes('%'));
+    // Yêu cầu cốt lõi: Cột 3 từ trái sang tên 'DOANH THU'
+    // Cột 1: NHÂN VIÊN | Cột 2: SỐ LƯỢNG (151) | Cột 3: DOANH THU (403) | Cột 4: % TỈ TRỌNG (13.2%)
+    // Quy tắc 1: Nếu có token chứa '%': số ngay liền trước '%' LUÔN là DOANH THU (vd: [151, 403, '13.2%'] -> 403)
+    const pctIdx = flat.findIndex(t => t.includes('%'));
     if (pctIdx > 0) {
-      const valBeforePct = cleanNum(tokens[pctIdx - 1]);
+      const valBeforePct = cleanNum(flat[pctIdx - 1]);
       if (valBeforePct > 0) return valBeforePct;
     }
 
-    // Nếu có từ 2 số trở lên: Cột 0 là SỐ LƯỢNG (151), Cột 1 là DOANH THU (403)
-    if (tokens.length >= 2) {
-      const t0 = cleanNum(tokens[0]);
-      const t1 = cleanNum(tokens[1]);
+    // Quy tắc 2: Nếu có từ 2 số trở lên: Cột 0 là SỐ LƯỢNG (151), Cột 1 là DOANH THU (403)
+    if (flat.length >= 2) {
+      const t1 = cleanNum(flat[1]);
       if (t1 > 0) return t1;
-      if (t0 > 0) return t0;
     }
 
-    return cleanNum(tokens[0]);
+    return cleanNum(flat[0]);
   };
 
   const pushEntry = (staffStr: string, tokens: string[], col3Val?: number) => {
@@ -1947,14 +1958,14 @@ export const extractStaffRevFromReport = (text: string): Map<string, { id: strin
           currentStaffLine = null;
           currentTokens = [];
         }
-        // Cột 3 từ trái sang: DOANH THU = 403 (Cột 1 là NV, Cột 2 là Số lượng, Cột 3 là Doanh thu)
+        // Cột 3 từ trái sang tên 'DOANH THU' = 403 (Cột 1 là NV, Cột 2 là Số lượng, Cột 3 là Doanh thu)
         let col3Val = 0;
         if (staffIdx === 0 && cols.length >= 3) {
+          // cols[0]=NV, cols[1]=Số lượng (151), cols[2]=Doanh thu (403)
           col3Val = cleanNum(cols[2]);
         } else if (staffIdx === 1 && cols.length >= 4) {
-          const val3 = cleanNum(cols[3]);
-          const val2 = cleanNum(cols[2]);
-          col3Val = (val3 > 0 && (val3 > val2 || val2 < 100)) ? val3 : val2;
+          // cols[0]=STT, cols[1]=NV, cols[2]=Số lượng (151), cols[3]=Doanh thu (403)
+          col3Val = cleanNum(cols[3]);
         } else if (cols.length >= 3) {
           col3Val = cleanNum(cols[2]);
         }

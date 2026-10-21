@@ -52,11 +52,22 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayDate = yesterday.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
 
+  const [thucVersion, setThucVersion] = useState(0);
+  useEffect(() => {
+    const handleUpdate = () => setThucVersion(v => v + 1);
+    window.addEventListener('staff_thuc_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('staff_thuc_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
   // Parse Doanh Thu Thực (Cột 3 từ trái sang)
   const thucMap = useMemo(() => {
     const raw = (dtThucNv && dtThucNv.trim()) ? dtThucNv : getStoredStaffThucInput();
     return raw ? extractStaffRevFromReport(raw) : new Map();
-  }, [dtThucNv]);
+  }, [dtThucNv, thucVersion]);
 
   // Helper tìm doanh thu thực của nhân viên từ thucMap hoặc staff.actualVal
   const getStaffActualRevenue = (staff: StaffData): number => {
@@ -364,15 +375,15 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
             }}
           >
             <colgroup>
-              <col style={{ width: isMobile ? '26px' : '40px' }} />
-              <col style={{ width: isMobile ? 'auto' : '230px' }} />
-              <col style={{ width: isMobile ? '38px' : '85px' }} />
+              <col style={{ width: isMobile ? '26px' : '42px' }} />
+              <col style={{ width: isMobile ? 'auto' : '258px' }} />
+              <col style={{ width: isMobile ? '38px' : '80px' }} />
               <col style={{ width: isMobile ? '38px' : '85px' }} />
               <col style={{ width: isMobile ? '38px' : '85px' }} />
               <col style={{ width: isMobile ? '34px' : '75px' }} />
               <col style={{ width: isMobile ? '40px' : '90px' }} />
               <col style={{ width: isMobile ? '40px' : '90px' }} />
-              <col style={{ width: isMobile ? '26px' : '50px' }} />
+              <col style={{ width: isMobile ? '28px' : '55px' }} />
             </colgroup>
             <thead>
               <tr className="text-white font-black text-[9px] sm:text-[13.5px] uppercase tracking-tight h-[34px] sm:h-[44px]">
