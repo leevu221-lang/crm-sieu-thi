@@ -758,11 +758,26 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
         const lower = c.toLowerCase();
         return lower === "target" || lower === "mục tiêu" || (lower.includes("target") && !lower.includes("qđ"));
       });
-      if (pageType === 'RTST') {
+      if (pageType === 'RTST' || !pageType) {
         actualRealIdx = cols.findIndex(c => {
           const lower = c.toLowerCase().trim();
-          return (lower === "doanh thu" || lower === "doanh thu thực" || lower === "dt thực" || lower === "dt thuc" || lower === "dt") &&
-                 !lower.includes("lũy kế") && !lower.includes("luy ke") && !lower.includes("lk") && !lower.includes("qđ") && !lower.includes("qd");
+          if (lower.includes("lũy kế") || lower.includes("luy ke") || lower.includes("lk") || lower.includes("dtlk") ||
+              lower.includes("qđ") || lower.includes("qd") || lower.includes("quy đổi") || lower.includes("quy doi") ||
+              lower.includes("trả góp") || lower.includes("thu hộ") || lower.includes("target") || lower.includes("mục tiêu") ||
+              lower.includes("hôm qua") || lower.includes("hqua") || lower.includes("%") || lower.includes("tiến độ")) {
+            return false;
+          }
+          return lower === "doanh thu" || 
+                 lower === "doanh thu thực" || 
+                 lower === "dt thực" || 
+                 lower === "dt thuc" || 
+                 lower === "dt" ||
+                 lower === "doanh thu ngày" ||
+                 lower === "dt ngày" ||
+                 lower === "doanh thu bán hàng" ||
+                 lower === "dt bán hàng" ||
+                 lower.startsWith("doanh thu (thực") ||
+                 lower.startsWith("dt (thực");
         });
       } else {
         actualRealIdx = cols.findIndex(c => {
@@ -771,8 +786,23 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
         });
       }
       actualVirtualIdx = cols.findIndex(c => {
-        const lower = c.toLowerCase();
-        return lower.includes("dtqđ") || lower.includes("doanh thu quy đổi") || lower.includes("doanh thu qđ") || lower.includes("dt qđ");
+        const lower = c.toLowerCase().trim();
+        if (lower.includes("target") || lower.includes("mục tiêu") || lower.includes("tiến độ") || lower.includes("%") || lower.includes("lũy kế") || lower.includes("lk")) {
+          return false;
+        }
+        return lower === "doanh thu qđ" ||
+               lower === "doanh thu qd" ||
+               lower === "dtqđ" ||
+               lower === "dtqd" ||
+               lower === "doanh thu quy đổi" ||
+               lower === "doanh thu qui đổi" ||
+               lower === "dt qđ" ||
+               lower === "dt qd" ||
+               lower === "dt quy đổi" ||
+               lower === "dt qui đổi" ||
+               lower.includes("doanh thu qđ") ||
+               lower.includes("doanh thu quy đổi") ||
+               lower.includes("dtqđ");
       });
       dtHomQuaIdx = cols.findIndex(c => {
         const lower = c.toLowerCase();
@@ -870,23 +900,35 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
         let luotBillThuHoVal = 0;
         let installmentRateVal = topInstallmentRate;
 
-        // New BI Web layout: [SL, DTQĐ, % TT, DT, Target, % HT, TB3T, % TT] (has % TT at index 7)
-        if (dataCols.length >= 8 && (dataCols[7]?.includes('%') || dataCols[7]?.includes('+') || dataCols[7]?.includes('-'))) {
+        // Ưu tiên cao nhất: Dùng trực tiếp chỉ số cột đã nhận diện từ tiêu đề
+        if (actualVirtualIdx !== -1 || actualRealIdx !== -1) {
+          if (actualVirtualIdx !== -1 && actualVirtualIdx < cols.length) {
+            actualVirtualVal = cleanNum(cols[actualVirtualIdx]);
+          }
+          if (actualRealIdx !== -1 && actualRealIdx < cols.length) {
+            actualRealVal = cleanNum(cols[actualRealIdx]);
+          }
+          if (targetQDIdx !== -1 && targetQDIdx < cols.length) {
+            targetQDVal = cleanNum(cols[targetQDIdx]);
+          }
+          if (percentHTIdx !== -1 && percentHTIdx < cols.length) {
+            percentHTVal = cleanNum(cols[percentHTIdx]);
+          }
+          if (luotBillBanHangIdx !== -1 && luotBillBanHangIdx < cols.length) {
+            luotBillBanHangVal = cleanNum(cols[luotBillBanHangIdx]);
+          }
+          if (luotBillThuHoIdx !== -1 && luotBillThuHoIdx < cols.length) {
+            luotBillThuHoVal = cleanNum(cols[luotBillThuHoIdx]);
+          }
+          if (tyTrongTraGopIdx !== -1 && tyTrongTraGopIdx < cols.length) {
+            installmentRateVal = cleanNum(cols[tyTrongTraGopIdx]);
+          }
+        } else if (dataCols.length >= 8 && (dataCols[7]?.includes('%') || dataCols[7]?.includes('+') || dataCols[7]?.includes('-'))) {
           luotBillBanHangVal = cleanNum(dataCols[0]);
           actualVirtualVal = cleanNum(dataCols[1]);
           actualRealVal = cleanNum(dataCols[3]);
           targetQDVal = cleanNum(dataCols[4]);
           percentHTVal = cleanNum(dataCols[5]);
-        } else if (actualVirtualIdx !== -1 && actualVirtualIdx < cols.length) {
-          actualVirtualVal = cleanNum(cols[actualVirtualIdx]);
-          targetQDVal = targetQDIdx !== -1 && targetQDIdx < cols.length ? cleanNum(cols[targetQDIdx]) : 0;
-          percentHTVal = percentHTIdx !== -1 && percentHTIdx < cols.length ? cleanNum(cols[percentHTIdx]) : 0;
-          actualRealVal = actualRealIdx !== -1 && actualRealIdx < cols.length ? cleanNum(cols[actualRealIdx]) : 0;
-          luotBillBanHangVal = luotBillBanHangIdx !== -1 && luotBillBanHangIdx < cols.length ? cleanNum(cols[luotBillBanHangIdx]) : 0;
-          luotBillThuHoVal = luotBillThuHoIdx !== -1 && luotBillThuHoIdx < cols.length ? cleanNum(cols[luotBillThuHoIdx]) : 0;
-          if (tyTrongTraGopIdx !== -1 && tyTrongTraGopIdx < cols.length) {
-            installmentRateVal = cleanNum(cols[tyTrongTraGopIdx]);
-          }
         } else {
           // Legacy column mapping: [DTQĐ, Target QĐ, % HT, DT, ...]
           actualVirtualVal = nameColIdx + 1 < cols.length ? cleanNum(cols[nameColIdx + 1]) : cleanNum(cols[2]);

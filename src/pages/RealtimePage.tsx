@@ -1947,7 +1947,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     };
   }, []);
 
-  const { ycxData, setYcxData, ycxDataMoi, setYcxDataMoi, ycxFileName, setYcxFileName, ycxFileNameMoi, setYcxFileNameMoi, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, hasLoadedFromDB, processError, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
+  const { ycxData, setYcxData, ycxDataMoi, setYcxDataMoi, ycxFileName, setYcxFileName, ycxFileNameMoi, setYcxFileNameMoi, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, hasLoadedFromDB, processError, activeStore, setActiveStore, marketInput, setMarketInput, realtimeDtThuc, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
 
   const daysRemaining = useMemo(() => {
     if (!userProfile?.expiredAt) return null;
@@ -6362,30 +6362,23 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     });
   };
 
-  // Helper tính % QĐ chuẩn xác: (Doanh thu quy đổi - Doanh thu thực) / Doanh thu thực * 100
+  // Helper tính % QĐ chuẩn xác:
+  // Lấy cột "DOANH THU QĐ" ở ô (REALTIME DOANH THU QUY ĐỔI) - Cột "DOANH THU" ở ô (REALTIME DOANH THU THỰC) / Cột "DOANH THU" ở ô (REALTIME DOANH THU THỰC)
   // Ví dụ: Doanh thu thực 55, Doanh thu quy đổi 70 => (70 - 55) / 55 = 27.2%
   const resolveQdPercent = (pMarket: any, mName: string) => {
+    // 1. CỘT "DOANH THU QĐ" Ở Ô (REALTIME DOANH THU QUY ĐỔI)
     let dtqd = pMarket?.actualVirtual || 0;
-    let dtthuc = pMarket?.actualReal || 0;
-
-    // Nếu dtthuc lớn hơn gấp nhiều lần dtqd (ví dụ 1470 vs 25 hoặc 70), đó là DTLK tháng chứ không phải DT ngày!
-    if (dtthuc > dtqd * 4 && dtqd > 0) {
-      dtthuc = 0;
-    }
-
-    if (dtthuc === 0) {
+    if (dtqd === 0) {
       try {
-        const rawThuc = (selectedMaKho && localStorage.getItem(`rtst_realtime_dt_thuc_${selectedMaKho}`)) ||
-                        localStorage.getItem('rtst_realtime_dt_thuc') ||
-                        localStorage.getItem('rt_market_thuc') || '';
-        if (rawThuc) {
-          const rawNum = cleanNum(rawThuc);
-          if (rawNum > 0 && !rawThuc.includes('\t') && !rawThuc.includes('\n')) {
-            dtthuc = rawNum > 1_000_000 ? Math.round(rawNum / 1_000_000) : rawNum;
+        const rawQd = (marketInput && marketInput.trim()) || localStorage.getItem('rt_market') || '';
+        if (rawQd) {
+          const rawNum = cleanNum(rawQd);
+          if (rawNum > 0 && !rawQd.includes('\t') && !rawQd.includes('\n')) {
+            dtqd = rawNum > 1_000_000 ? Math.round(rawNum / 1_000_000) : rawNum;
           } else {
-            const thucList = parseMarketData(rawThuc, 0, 'RTST');
+            const qdList = parseMarketData(rawQd, 0, 'RTST');
             const targetCode = (mName || '').replace(/\D/g, '');
-            const found = thucList.find(t => {
+            const foundQd = qdList.find(t => {
               const nm1 = normalize(t.name);
               const nm2 = normalize(mName);
               if (nm1 === nm2 || nm1.includes(nm2) || nm2.includes(nm1)) return true;
@@ -6394,25 +6387,66 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                 if (code && code === targetCode) return true;
               }
               return false;
-            });
-            if (found) {
-              let fReal = 0;
-              if (found.actualVirtual > 0 && found.actualReal > found.actualVirtual * 4) {
-                fReal = found.actualVirtual;
-              } else if (found.actualReal > 0 && found.actualVirtual > found.actualReal * 4) {
-                fReal = found.actualReal;
-              } else {
-                fReal = found.actualReal || found.actualVirtual || 0;
-              }
-              dtthuc = fReal;
+            }) || (qdList.length === 1 ? qdList[0] : undefined)
+               || qdList.find(t => t.isSummary || t.name.toUpperCase().startsWith('TỔNG'));
+            if (foundQd) {
+              dtqd = foundQd.actualVirtual > 0 ? foundQd.actualVirtual : foundQd.actualReal;
             }
           }
         }
       } catch {}
     }
 
+    // 2. CỘT "DOANH THU" Ở Ô (REALTIME DOANH THU THỰC)
+    let dtthuc = 0;
+    try {
+      const rawThuc = (realtimeDtThuc && realtimeDtThuc.trim()) ||
+                      (selectedMaKho && localStorage.getItem(`rtst_realtime_dt_thuc_${selectedMaKho}`)) ||
+                      localStorage.getItem('rtst_realtime_dt_thuc') ||
+                      localStorage.getItem('rt_market_thuc') || '';
+      if (rawThuc) {
+        const rawNum = cleanNum(rawThuc);
+        if (rawNum > 0 && !rawThuc.includes('\t') && !rawThuc.includes('\n')) {
+          dtthuc = rawNum > 1_000_000 ? Math.round(rawNum / 1_000_000) : rawNum;
+        } else {
+          const thucList = parseMarketData(rawThuc, 0, 'RTST');
+          const targetCode = (mName || '').replace(/\D/g, '');
+          const foundThuc = thucList.find(t => {
+            const nm1 = normalize(t.name);
+            const nm2 = normalize(mName);
+            if (nm1 === nm2 || nm1.includes(nm2) || nm2.includes(nm1)) return true;
+            if (targetCode && targetCode.length >= 3) {
+              const code = t.name.replace(/\D/g, '');
+              if (code && code === targetCode) return true;
+            }
+            return false;
+          }) || (thucList.length === 1 ? thucList[0] : undefined)
+             || thucList.find(t => t.isSummary || t.name.toUpperCase().startsWith('TỔNG'));
+          if (foundThuc) {
+            // Lấy cột "DOANH THU" ở ô (REALTIME DOANH THU THỰC)
+            let fReal = foundThuc.actualReal > 0 ? foundThuc.actualReal : (foundThuc.actualVirtual > 0 ? foundThuc.actualVirtual : 0);
+            if (dtqd > 0 && fReal > dtqd * 4) {
+              if (foundThuc.actualVirtual > 0 && foundThuc.actualVirtual < fReal) {
+                fReal = foundThuc.actualVirtual;
+              } else {
+                fReal = 0;
+              }
+            }
+            dtthuc = fReal;
+          }
+        }
+      }
+    } catch {}
+
+    // Fallback sang pMarket?.actualReal nếu ô (REALTIME DOANH THU THỰC) trống
+    if (dtthuc === 0 && pMarket?.actualReal > 0) {
+      if (!(dtqd > 0 && pMarket.actualReal > dtqd * 4)) {
+        dtthuc = pMarket.actualReal;
+      }
+    }
+
+    // 3. TÍNH: (CỘT "DOANH THU QĐ" - CỘT "DOANH THU") / CỘT "DOANH THU" * 100
     if (dtthuc > 0 && dtqd > 0) {
-      // Công thức: (Doanh thu quy đổi - Doanh thu thực) / Doanh thu thực * 100
       return ((dtqd - dtthuc) / dtthuc) * 100;
     }
     if (typeof pMarket?.percentQD === 'number' && pMarket.percentQD !== 0 && pMarket.percentQD > -90) {

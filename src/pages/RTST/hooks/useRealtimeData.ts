@@ -296,40 +296,48 @@ export const useRealtimeData = (maKho: string) => {
               if (code && code === targetCode) return true;
             }
             return false;
-          });
+          }) || (thucMarkets.length === 1 ? thucMarkets[0] : undefined)
+             || thucMarkets.find(tm => tm.isSummary || tm.name.toUpperCase().startsWith('TỔNG'));
+
           if (matchThuc) {
-            let realVal = 0;
-            if (matchThuc.actualVirtual > 0 && matchThuc.actualReal > matchThuc.actualVirtual * 4) {
-              realVal = matchThuc.actualVirtual;
-            } else if (matchThuc.actualReal > 0 && matchThuc.actualVirtual > matchThuc.actualReal * 4) {
-              realVal = matchThuc.actualReal;
-            } else if (matchThuc.actualReal > 0) {
-              realVal = matchThuc.actualReal;
-            } else {
-              realVal = matchThuc.actualVirtual || 0;
+            // Lấy cột "DOANH THU" ở ô (REALTIME DOANH THU THỰC)
+            let dtThucVal = 0;
+            if (matchThuc.actualReal > 0) {
+              dtThucVal = matchThuc.actualReal;
+            } else if (matchThuc.actualVirtual > 0) {
+              dtThucVal = matchThuc.actualVirtual;
             }
 
-            if (realVal > 0) {
-              m.actualReal = realVal;
-              if (m.actualVirtual > 0) {
-                // Formula: (Doanh thu quy đổi - Doanh thu thực) / Doanh thu thực * 100
-                m.percentQD = ((m.actualVirtual - realVal) / realVal) * 100;
+            // Loại bỏ nếu là DTLK tháng (> 4x doanh thu ngày)
+            if (m.actualVirtual > 0 && dtThucVal > m.actualVirtual * 4) {
+              if (matchThuc.actualVirtual > 0 && matchThuc.actualVirtual < dtThucVal) {
+                dtThucVal = matchThuc.actualVirtual;
               }
+            }
+
+            if (dtThucVal > 0) {
+              m.actualReal = dtThucVal;
             }
           }
         });
       } else if (realtimeDtThucText) {
         const rawNum = cleanNum(realtimeDtThucText);
         if (rawNum > 0) {
-          const realVal = rawNum > 1_000_000 ? Math.round(rawNum / 1_000_000) : rawNum;
+          const dtThucVal = rawNum > 1_000_000 ? Math.round(rawNum / 1_000_000) : rawNum;
           markets.forEach(m => {
-            m.actualReal = realVal;
-            if (m.actualVirtual > 0) {
-              m.percentQD = ((m.actualVirtual - realVal) / realVal) * 100;
-            }
+            m.actualReal = dtThucVal;
           });
         }
       }
+
+      // Luôn tính % QĐ = (Cột "DOANH THU QĐ" ở ô REALTIME DOANH THU QUY ĐỔI - Cột "DOANH THU" ở ô REALTIME DOANH THU THỰC) / Cột "DOANH THU" ở ô REALTIME DOANH THU THỰC
+      markets.forEach(m => {
+        const dtqd = m.actualVirtual || 0;
+        const dtthuc = m.actualReal || 0;
+        if (dtqd > 0 && dtthuc > 0) {
+          m.percentQD = ((dtqd - dtthuc) / dtthuc) * 100;
+        }
+      });
 
       // If percentQD was not computed from thucMarkets, check if marketInput has both actualVirtual and daily actualReal
       markets.forEach(m => {
