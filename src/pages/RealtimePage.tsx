@@ -80,7 +80,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { doc, onSnapshot, setDoc, getDoc, getDocs, updateDoc, deleteDoc, serverTimestamp, collection, query, where } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { getCachedDoc, setCachedDoc } from '../services/cachedFirestore';
-import { NGANH_DISPLAY } from './BcDtNganhHang';
 import { NHOM_HANG_MAP } from '../utils/categoriesMap';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
@@ -6728,7 +6727,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                 </div>
               </div>
             ) : (
-            <AnimatePresence mode="wait">
+            <AnimatePresence>
               {activeTab === 'summary' && (
                 <motion.div
                   key="summary"

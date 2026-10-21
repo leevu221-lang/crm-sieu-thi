@@ -4509,14 +4509,14 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                 </div>
               </div>
             ) : (
-            <AnimatePresence mode="wait">
+            <AnimatePresence>
               {activeTab === 'DOANH_THU' && (
                 <motion.div
                   key="DOANH_THU"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.2 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.08 }}
                   className="bg-white/95 backdrop-blur-sm rounded-3xl p-3 sm:p-5 shadow-xl shadow-slate-200/30 border border-slate-200/90 max-w-full mx-auto relative overflow-hidden"
                 >
                   {renderLoadingOverlay()}

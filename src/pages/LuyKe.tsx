@@ -2494,14 +2494,14 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
               </div>
             </div>
           ) : (
-          <AnimatePresence mode="wait">
+          <AnimatePresence>
             {activeTab === 'summary' && (
               <motion.div
                 key="summary"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.08 }}
                 className="space-y-6"
                 style={{
                   backgroundColor: '#F0F7FF',

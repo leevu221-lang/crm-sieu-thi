@@ -143,7 +143,7 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
 
   return (
     <div
-      className="min-h-screen min-h-[100dvh] w-full flex items-stretch bg-[#F0F7FF] font-sans relative overflow-x-hidden text-[#0F172A] selection:bg-[#0284C7] selection:text-white"
+      className="min-h-screen min-h-[100dvh] w-full flex items-stretch bg-[#F0F7FF] font-sans relative text-[#0F172A] selection:bg-[#0284C7] selection:text-white"
       style={{
         backgroundImage: `
           radial-gradient(circle at 10% 15%, rgba(224, 242, 254, 0.7) 0%, transparent 40%),

@@ -90,7 +90,6 @@ html {
   font-size: 6.45px;
   overflow-x: hidden;
   overflow-y: auto;
-  overflow-y: overlay; /* Overlay scrollbar - doesn't take layout space */
   overscroll-behavior-x: none;
   scroll-behavior: smooth;
   width: 100%;
@@ -105,10 +104,7 @@ body {
   width: 100%;
   min-height: 100vh;
   min-height: 100dvh;
-  overflow-x: hidden;
-  overscroll-behavior-x: none;
   position: relative;
-  touch-action: pan-y pinch-zoom;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
@@ -120,7 +116,6 @@ body {
   width: 100%;
   margin: 0;
   padding: 0;
-  overflow-x: hidden;
 }
 
 /* Desktop: Zoom nhỏ lại 25% (zoom 75% = 0.75) chỉ áp dụng cho màn hình Desktop (>= 769px) */

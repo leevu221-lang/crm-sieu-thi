@@ -4219,14 +4219,14 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               </div>
             </div>
           ) : (
-          <AnimatePresence mode="wait">
+          <AnimatePresence>
             {activeTab === 'bbkq' && (
               <motion.div
                 key="bbkq"
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                transition={{ duration: 0.2 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.08 }}
               >
                 <BbkqTab />
               </motion.div>
