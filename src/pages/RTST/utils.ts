@@ -608,6 +608,9 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
     return false;
   };
 
+  let biWebHeaderStartIdx = -1;
+  let biWebDetectedHeaders: string[] = [];
+
   for (let i = 0; i < rawLines.length; i++) {
     if (isBiWebHeader(rawLines[i])) {
       if (biWebHeaderStartIdx === -1) biWebHeaderStartIdx = i;
