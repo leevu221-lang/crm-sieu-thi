@@ -293,20 +293,18 @@ export const useRealtimeData = (maKho: string) => {
             if (normTm === normM || normTm.includes(normM) || normM.includes(normTm)) return true;
             if (targetCode && targetCode.length >= 3) {
               const code = tm.name.replace(/\D/g, '');
-              if (code && code === targetCode) return true;
+              if (code && (code === targetCode || code.includes(targetCode) || targetCode.includes(code))) return true;
             }
             return false;
-          });
+          }) || (markets.length === 1 && thucMarkets.length === 1 ? thucMarkets[0] : undefined)
+             || (thucMarkets.find(tm => tm.isSummary || tm.name.toUpperCase().startsWith('TỔNG')));
+
           if (matchThuc) {
-            let realVal = 0;
-            if (matchThuc.actualVirtual > 0 && matchThuc.actualReal > matchThuc.actualVirtual * 4) {
-              realVal = matchThuc.actualVirtual;
-            } else if (matchThuc.actualReal > 0 && matchThuc.actualVirtual > matchThuc.actualReal * 4) {
-              realVal = matchThuc.actualReal;
-            } else if (matchThuc.actualReal > 0) {
-              realVal = matchThuc.actualReal;
-            } else {
-              realVal = matchThuc.actualVirtual || 0;
+            let realVal = matchThuc.actualReal > 0 ? matchThuc.actualReal : (matchThuc.actualVirtual > 0 ? matchThuc.actualVirtual : 0);
+
+            // If realVal looks like monthly DTLK (> 4x of daily virtual), suppress it
+            if (m.actualVirtual > 0 && realVal > m.actualVirtual * 4) {
+              realVal = matchThuc.actualVirtual > 0 && matchThuc.actualVirtual < realVal ? matchThuc.actualVirtual : 0;
             }
 
             if (realVal > 0) {

@@ -6368,7 +6368,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     let dtqd = pMarket?.actualVirtual || 0;
     let dtthuc = pMarket?.actualReal || 0;
 
-    // Nếu dtthuc lớn hơn gấp nhiều lần dtqd (ví dụ 1470 vs 25 hoặc 70), đó là DTLK tháng chứ không phải DT ngày!
+    // Nếu dtthuc lớn hơn gấp 4 lần dtqd (ví dụ 1470 vs 25 hoặc 70), đó là DTLK tháng chứ không phải DT ngày!
     if (dtthuc > dtqd * 4 && dtqd > 0) {
       dtthuc = 0;
     }
@@ -6391,21 +6391,38 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
               if (nm1 === nm2 || nm1.includes(nm2) || nm2.includes(nm1)) return true;
               if (targetCode && targetCode.length >= 3) {
                 const code = t.name.replace(/\D/g, '');
-                if (code && code === targetCode) return true;
+                if (code && (code === targetCode || code.includes(targetCode) || targetCode.includes(code))) return true;
               }
               return false;
-            });
+            }) || (thucList.length === 1 ? thucList[0] : undefined)
+               || thucList.find(t => t.isSummary || t.name.toUpperCase().startsWith('TỔNG'));
             if (found) {
-              let fReal = 0;
-              if (found.actualVirtual > 0 && found.actualReal > found.actualVirtual * 4) {
-                fReal = found.actualVirtual;
-              } else if (found.actualReal > 0 && found.actualVirtual > found.actualReal * 4) {
-                fReal = found.actualReal;
-              } else {
-                fReal = found.actualReal || found.actualVirtual || 0;
-              }
-              dtthuc = fReal;
+              dtthuc = found.actualReal > 0 ? found.actualReal : (found.actualVirtual > 0 ? found.actualVirtual : 0);
             }
+          }
+        }
+      } catch {}
+    }
+
+    if (dtqd === 0) {
+      try {
+        const rawQd = localStorage.getItem('rt_market') || '';
+        if (rawQd) {
+          const qdList = parseMarketData(rawQd, 0, 'RTST');
+          const targetCode = (mName || '').replace(/\D/g, '');
+          const foundQd = qdList.find(t => {
+            const nm1 = normalize(t.name);
+            const nm2 = normalize(mName);
+            if (nm1 === nm2 || nm1.includes(nm2) || nm2.includes(nm1)) return true;
+            if (targetCode && targetCode.length >= 3) {
+              const code = t.name.replace(/\D/g, '');
+              if (code && (code === targetCode || code.includes(targetCode) || targetCode.includes(code))) return true;
+            }
+            return false;
+          }) || (qdList.length === 1 ? qdList[0] : undefined)
+             || qdList.find(t => t.isSummary || t.name.toUpperCase().startsWith('TỔNG'));
+          if (foundQd) {
+            dtqd = foundQd.actualVirtual > 0 ? foundQd.actualVirtual : (foundQd.actualReal > 0 ? foundQd.actualReal : 0);
           }
         }
       } catch {}
@@ -7223,10 +7240,16 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                       .filter(m => marketFilter === 'ALL' || m.name === marketFilter)
                       .map((declaredMarket, mIdx) => {
                         // Find matching parsed store from processedData.markets (parsed from pasted REALTIME DT BI text)
-                        const parsedMarket = processedData.markets.find(pm =>
-                          normalize(pm.name).includes(normalize(declaredMarket.name)) ||
-                          normalize(declaredMarket.name).includes(normalize(pm.name))
-                        ) || {
+                        const declaredCode = declaredMarket.name.replace(/\D/g, '');
+                        const parsedMarket = processedData.markets.find(pm => {
+                          const pmCode = pm.name.replace(/\D/g, '');
+                          if (declaredCode && pmCode && declaredCode.length >= 3 && (pmCode === declaredCode || pmCode.includes(declaredCode) || declaredCode.includes(pmCode))) {
+                            return true;
+                          }
+                          return normalize(pm.name).includes(normalize(declaredMarket.name)) ||
+                                 normalize(declaredMarket.name).includes(normalize(pm.name));
+                        }) || (processedData.markets.length === 1 ? processedData.markets[0] : undefined)
+                          || {
                           name: declaredMarket.name,
                           targetQD: 0,
                           actualVirtual: 0,
