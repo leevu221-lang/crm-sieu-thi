@@ -28,7 +28,7 @@ import { RoadshowManagement } from '../components/RoadshowManagement';
 import BbkqTab from '../components/BbkqTab';
 
 import { STORAGE_KEYS } from './RTST/types';
-import { normalizeStoreId } from './RTST/utils';
+import { normalizeStoreId, isValidStoreName } from './RTST/utils';
 import { useStore } from '../contexts/StoreContext';
 
 export interface AddressFlyerData {
@@ -418,10 +418,25 @@ export interface PosmDeletedCartRecord {
 export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local = false }: { pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean }) {
   const { userProfile } = useAuth();
   const maKho = userProfile?.ma_kho || '';
-  const { currentStoreId, activeToolHoTroTab, setActiveToolHoTroTab } = useStore();
+  const { currentStoreId, activeToolHoTroTab, setActiveToolHoTroTab, availableStores, warehouseCode } = useStore();
   const activeTab = (activeToolHoTroTab === 'bbkq' ? 'all-sticker' : activeToolHoTroTab) || 'all-sticker';
   const setActiveTab = (tab: string) => setActiveToolHoTroTab(tab);
   const { showNotification } = useNotification();
+
+  // Xác định siêu thị đích đồng bộ giỏ in (ưu tiên siêu thị đang chọn -> siêu thị đầu tiên của kho -> tên siêu thị user -> mã kho)
+  const resolveTargetStoreName = useCallback(() => {
+    if (currentStoreId && currentStoreId !== 'ALL' && isValidStoreName(currentStoreId)) {
+      return currentStoreId;
+    }
+    if (availableStores && availableStores.length > 0 && availableStores[0]?.name && isValidStoreName(availableStores[0].name)) {
+      return availableStores[0].name;
+    }
+    if (userProfile?.ten_sieu_thi && isValidStoreName(userProfile.ten_sieu_thi)) {
+      return userProfile.ten_sieu_thi;
+    }
+    const effKho = warehouseCode || maKho;
+    return effKho ? `KHO_${effKho}` : 'DEFAULT_STORE';
+  }, [currentStoreId, availableStores, userProfile, warehouseCode, maKho]);
   
   const [addressFlyerData, setAddressFlyerData] = useState<AddressFlyerData>(DEFAULT_ADDRESS_DATA);
   const [phieuBhData, setPhieuBhData] = useState<PhieuBHData>(DEFAULT_PHIEU_BH);
@@ -738,7 +753,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
   // Real-time Firestore sync cho Giỏ In ALL STICKER & Giỏ In POSM ALL SP theo siêu thị
   useEffect(() => {
-    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+    const targetStore = resolveTargetStoreName();
     const storeDocId = normalizeStoreId(targetStore);
     const localPosmKey = `rtst_posm_cart_${storeDocId}`;
     const localPosmHistoryKey = `rtst_posm_deleted_carts_${storeDocId}`;
@@ -858,7 +873,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     });
 
     return () => unsubscribe();
-  }, [currentStoreId]);
+  }, [currentStoreId, resolveTargetStoreName]);
 
   const posmSyncTimeoutRef = useRef<any>(null);
   const debounceSyncPosmCartToDb = (cartToSync: PosmCartItem[]) => {
@@ -867,7 +882,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     }
     posmSyncTimeoutRef.current = setTimeout(async () => {
       try {
-        const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+        const targetStore = resolveTargetStoreName();
         const storeDocId = normalizeStoreId(targetStore);
         const docRef = doc(db, 'store', storeDocId);
         await setDoc(docRef, {
@@ -887,7 +902,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       posmSyncTimeoutRef.current = null;
       try {
         const currentCart = posmCartItemsRef.current || [];
-        const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+        const targetStore = resolveTargetStoreName();
         const storeDocId = normalizeStoreId(targetStore);
         const docRef = doc(db, 'store', storeDocId);
         await setDoc(docRef, {
@@ -904,7 +919,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   const savePosmCartToDb = async (newCart: PosmCartItem[], notifyText?: string) => {
     posmCartItemsRef.current = newCart;
     setPosmCartItems(newCart);
-    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+    const targetStore = resolveTargetStoreName();
     const storeDocId = normalizeStoreId(targetStore);
     const localKey = `rtst_posm_cart_${storeDocId}`;
     safeLocalStorageSet(localKey, JSON.stringify(newCart));
@@ -931,7 +946,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   const saveEventCartToDb = async (newCart: EventDmxCartItem[], notifyText?: string) => {
     cartItemsRef.current = newCart;
     setCartItems(newCart);
-    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+    const targetStore = resolveTargetStoreName();
     const storeDocId = normalizeStoreId(targetStore);
     safeLocalStorageSet('rtst_sticker_event_dmx_cart', JSON.stringify(newCart));
     safeLocalStorageSet(`rtst_sticker_event_dmx_cart_${storeDocId}`, JSON.stringify(newCart));
@@ -996,7 +1011,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     posmCartItemsRef.current = updatedCart;
     setPosmCartItems(updatedCart);
 
-    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+    const targetStore = resolveTargetStoreName();
     const storeDocId = normalizeStoreId(targetStore);
     safeLocalStorageSet(`rtst_posm_cart_${storeDocId}`, JSON.stringify(updatedCart));
 
@@ -1054,7 +1069,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       addedCount++;
     });
 
-    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'Siêu thị';
+    const targetStore = resolveTargetStoreName();
     savePosmCartToDb(updatedCart, `Đã thêm ${addedCount} sản phẩm vào Giỏ In POSM (${targetStore})!`);
   };
 
@@ -1084,7 +1099,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     if (silent) {
       posmCartItemsRef.current = updated;
       setPosmCartItems(updated);
-      const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+      const targetStore = resolveTargetStoreName();
       const storeDocId = normalizeStoreId(targetStore);
       safeLocalStorageSet(`rtst_posm_cart_${storeDocId}`, JSON.stringify(updated));
       debounceSyncPosmCartToDb(updated);
@@ -1104,7 +1119,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       return;
     }
 
-    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+    const targetStore = resolveTargetStoreName();
     const storeDocId = normalizeStoreId(targetStore);
     const localCartKey = `rtst_posm_cart_${storeDocId}`;
     const localHistoryKey = `rtst_posm_deleted_carts_${storeDocId}`;
@@ -1188,7 +1203,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   const handleDeleteHistoryRecord = async (recordId: string) => {
     const updated = posmDeletedCarts.filter(r => r.id !== recordId);
     setPosmDeletedCarts(updated);
-    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+    const targetStore = resolveTargetStoreName();
     const storeDocId = normalizeStoreId(targetStore);
     const localHistoryKey = `rtst_posm_deleted_carts_${storeDocId}`;
     safeLocalStorageSet(localHistoryKey, JSON.stringify(updated));
@@ -1210,7 +1225,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       return;
     }
     setPosmDeletedCarts([]);
-    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+    const targetStore = resolveTargetStoreName();
     const storeDocId = normalizeStoreId(targetStore);
     const localHistoryKey = `rtst_posm_deleted_carts_${storeDocId}`;
     safeLocalStorageSet(localHistoryKey, JSON.stringify([]));
