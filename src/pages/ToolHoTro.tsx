@@ -467,6 +467,11 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       return [];
     }
   });
+  const cartItemsRef = useRef<EventDmxCartItem[]>([]);
+  useEffect(() => {
+    cartItemsRef.current = cartItems;
+  }, [cartItems]);
+  const [isSavingEventCart, setIsSavingEventCart] = useState<boolean>(false);
   const [isCartModalOpen, setIsCartModalOpen] = useState<boolean>(false);
   const [printSource, setPrintSource] = useState<'table' | 'cart' | 'posm_cart'>('table');
   const [tableCurrentPage, setTableCurrentPage] = useState<number>(1);
@@ -731,19 +736,36 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Real-time Firestore sync cho Giỏ In POSM ALL SP & Lịch sử giỏ đã xóa theo tên siêu thị
+  // Real-time Firestore sync cho Giỏ In ALL STICKER & Giỏ In POSM ALL SP theo siêu thị
   useEffect(() => {
-    if (activeTab !== 'popup-all-sp') return;
     const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
     const storeDocId = normalizeStoreId(targetStore);
-    const localKey = `rtst_posm_cart_${storeDocId}`;
-    const localHistoryKey = `rtst_posm_deleted_carts_${storeDocId}`;
+    const localPosmKey = `rtst_posm_cart_${storeDocId}`;
+    const localPosmHistoryKey = `rtst_posm_deleted_carts_${storeDocId}`;
+    const localEventCartKey = `rtst_sticker_event_dmx_cart_${storeDocId}`;
 
     // 1. Tải cache cục bộ trước
-    const cached = localStorage.getItem(localKey);
-    if (cached) {
+    const cachedEventCart = localStorage.getItem(localEventCartKey) || localStorage.getItem('rtst_sticker_event_dmx_cart');
+    if (cachedEventCart) {
       try {
-        setPosmCartItems(JSON.parse(cached));
+        const parsed = JSON.parse(cachedEventCart);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCartItems(parsed);
+          cartItemsRef.current = parsed;
+        }
+      } catch (e) {
+        console.error('Error parsing cached event cart:', e);
+      }
+    }
+
+    const cachedPosm = localStorage.getItem(localPosmKey);
+    if (cachedPosm) {
+      try {
+        const parsedPosm = JSON.parse(cachedPosm);
+        if (Array.isArray(parsedPosm)) {
+          setPosmCartItems(parsedPosm);
+          posmCartItemsRef.current = parsedPosm;
+        }
       } catch (e) {
         console.error('Error parsing cached posm cart:', e);
       }
@@ -751,7 +773,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       setPosmCartItems([]);
     }
 
-    const cachedHistory = localStorage.getItem(localHistoryKey);
+    const cachedHistory = localStorage.getItem(localPosmHistoryKey);
     if (cachedHistory) {
       try {
         setPosmDeletedCarts(JSON.parse(cachedHistory));
@@ -767,6 +789,32 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
+
+        // Đồng bộ Giỏ In ALL STICKER (Event ĐMX)
+        if (data && data.sticker_event_dmx_cart !== undefined) {
+          try {
+            const parsed = typeof data.sticker_event_dmx_cart === 'string'
+              ? JSON.parse(data.sticker_event_dmx_cart)
+              : data.sticker_event_dmx_cart;
+            if (Array.isArray(parsed)) {
+              setCartItems(parsed);
+              cartItemsRef.current = parsed;
+              safeLocalStorageSet(localEventCartKey, JSON.stringify(parsed));
+              safeLocalStorageSet('rtst_sticker_event_dmx_cart', JSON.stringify(parsed));
+            }
+          } catch (err) {
+            console.error('Lỗi khi đọc sticker_event_dmx_cart từ Firestore:', err);
+          }
+        } else if (cartItemsRef.current && cartItemsRef.current.length > 0) {
+          // Trình duyệt hiện tại đang có dữ liệu trong LocalStorage -> Tự động đẩy lên Firestore
+          setDoc(docRef, {
+            sticker_event_dmx_cart: JSON.stringify(cartItemsRef.current),
+            ten_sieu_thi: targetStore,
+            updated_at: new Date().toISOString()
+          }, { merge: true }).catch(err => console.warn('Lỗi push local event cart lên Firestore:', err));
+        }
+
+        // Đồng bộ Giỏ In POSM ALL SP
         if (data && data.posm_all_sp_cart !== undefined) {
           try {
             const parsed = typeof data.posm_all_sp_cart === 'string'
@@ -774,7 +822,8 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               : data.posm_all_sp_cart;
             if (Array.isArray(parsed)) {
               setPosmCartItems(parsed);
-              safeLocalStorageSet(localKey, JSON.stringify(parsed));
+              posmCartItemsRef.current = parsed;
+              safeLocalStorageSet(localPosmKey, JSON.stringify(parsed));
             }
           } catch (err) {
             console.error('Lỗi khi đọc posm_all_sp_cart từ Firestore:', err);
@@ -788,19 +837,28 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               : data.posm_all_sp_deleted_carts;
             if (Array.isArray(parsedHistory)) {
               setPosmDeletedCarts(parsedHistory);
-              safeLocalStorageSet(localHistoryKey, JSON.stringify(parsedHistory));
+              safeLocalStorageSet(localPosmHistoryKey, JSON.stringify(parsedHistory));
             }
           } catch (err) {
             console.error('Lỗi khi đọc posm_all_sp_deleted_carts từ Firestore:', err);
           }
         }
+      } else {
+        // Doc chưa tồn tại trên Firestore nhưng local có giỏ in -> đẩy lên ngay
+        if (cartItemsRef.current && cartItemsRef.current.length > 0) {
+          setDoc(docRef, {
+            sticker_event_dmx_cart: JSON.stringify(cartItemsRef.current),
+            ten_sieu_thi: targetStore,
+            updated_at: new Date().toISOString()
+          }, { merge: true }).catch(err => console.warn('Lỗi push initial event cart lên Firestore:', err));
+        }
       }
     }, (err) => {
-      console.warn('[Firestore] posm_all_sp_cart onSnapshot listener error:', err);
+      console.warn('[Firestore] cart onSnapshot listener error:', err);
     });
 
     return () => unsubscribe();
-  }, [activeTab, currentStoreId]);
+  }, [currentStoreId]);
 
   const posmSyncTimeoutRef = useRef<any>(null);
   const debounceSyncPosmCartToDb = (cartToSync: PosmCartItem[]) => {
@@ -867,6 +925,33 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       showNotification('Đã lưu cục bộ nhưng lỗi đồng bộ Firestore: ' + (err?.message || ''), 'error');
     } finally {
       setIsSavingPosmCart(false);
+    }
+  };
+
+  const saveEventCartToDb = async (newCart: EventDmxCartItem[], notifyText?: string) => {
+    cartItemsRef.current = newCart;
+    setCartItems(newCart);
+    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+    const storeDocId = normalizeStoreId(targetStore);
+    safeLocalStorageSet('rtst_sticker_event_dmx_cart', JSON.stringify(newCart));
+    safeLocalStorageSet(`rtst_sticker_event_dmx_cart_${storeDocId}`, JSON.stringify(newCart));
+
+    setIsSavingEventCart(true);
+    try {
+      const docRef = doc(db, 'store', storeDocId);
+      await setDoc(docRef, {
+        sticker_event_dmx_cart: JSON.stringify(newCart),
+        ten_sieu_thi: targetStore,
+        updated_at: new Date().toISOString()
+      }, { merge: true });
+      if (notifyText) {
+        showNotification(notifyText, 'success');
+      }
+    } catch (err: any) {
+      console.error('Lỗi lưu Giỏ In ALL STICKER lên Firebase:', err);
+      showNotification('Đã lưu cục bộ nhưng lỗi đồng bộ Firestore: ' + (err?.message || ''), 'error');
+    } finally {
+      setIsSavingEventCart(false);
     }
   };
 
@@ -2075,21 +2160,62 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   const handleAddToCart = (item: any, quantityToPrint: number) => {
     const qty = Math.max(1, quantityToPrint || 1);
     const code = item.maSanPham || item.productCode || (item.name || '').split(' - ')[0].trim();
-    setCartItems(prev => {
-      const existingIdx = prev.findIndex(p => (p.maSanPham || p.productCode) === code);
-      if (existingIdx !== -1) {
-        const updated = [...prev];
-        updated[existingIdx] = {
-          ...updated[existingIdx],
-          quantity: updated[existingIdx].quantity + qty,
-          tonKho: item.tonKho !== undefined ? item.tonKho : updated[existingIdx].tonKho,
-          discountPrice: item.discountPrice || updated[existingIdx].discountPrice,
-          originalPrice: item.originalPrice || updated[existingIdx].originalPrice,
-        };
-        showNotification(`Đã tăng số lượng "${item.name}" trong giỏ in (+${qty} tem)!`, 'success');
-        return updated;
+    const currentCart = cartItemsRef.current || cartItems;
+    const existingIdx = currentCart.findIndex(p => (p.maSanPham || p.productCode) === code);
+    let updated: EventDmxCartItem[];
+    if (existingIdx !== -1) {
+      updated = [...currentCart];
+      updated[existingIdx] = {
+        ...updated[existingIdx],
+        quantity: updated[existingIdx].quantity + qty,
+        tonKho: item.tonKho !== undefined ? item.tonKho : updated[existingIdx].tonKho,
+        discountPrice: item.discountPrice || updated[existingIdx].discountPrice,
+        originalPrice: item.originalPrice || updated[existingIdx].originalPrice,
+      };
+      saveEventCartToDb(updated, `Đã tăng số lượng "${item.name}" trong giỏ in (+${qty} tem)!`);
+    } else {
+      const newItem: EventDmxCartItem = {
+        id: code || `${Date.now()}_${Math.random()}`,
+        maSanPham: code,
+        productCode: item.productCode || code,
+        name: item.name,
+        tonKho: item.tonKho || 0,
+        originalPrice: item.originalPrice || '',
+        discountPrice: item.discountPrice || '',
+        nganhHang: item.nganhHang || '',
+        nhomHang: item.nhomHang || '',
+        qrData: item.qrData || '',
+        quantity: qty,
+        addedAt: new Date().toISOString()
+      };
+      updated = [...currentCart, newItem];
+      saveEventCartToDb(updated, `Đã thêm "${item.name}" vào giỏ in (${qty} tem)!`);
+    }
+  };
+
+  const handleAddSelectedToCart = () => {
+    if (selectedIndices.length === 0) {
+      showNotification('Vui lòng tick chọn ít nhất 1 sản phẩm để thêm vào giỏ in!', 'error');
+      return;
+    }
+    let count = 0;
+    const currentCart = cartItemsRef.current || cartItems;
+    const map = new Map<string, EventDmxCartItem>();
+    currentCart.forEach(p => map.set(p.maSanPham || p.productCode || p.id, { ...p }));
+
+    selectedIndices.forEach(idx => {
+      const item = filteredPriceData[idx];
+      if (!item) return;
+      const code = item.maSanPham || item.productCode || (item.name || '').split(' - ')[0].trim();
+      const qty = Math.max(1, printQuantities[idx] || 1);
+      if (map.has(code)) {
+        const exist = map.get(code)!;
+        exist.quantity = exist.quantity + qty;
+        exist.tonKho = item.tonKho !== undefined ? item.tonKho : exist.tonKho;
+        exist.discountPrice = item.discountPrice || exist.discountPrice;
+        exist.originalPrice = item.originalPrice || exist.originalPrice;
       } else {
-        const newItem: EventDmxCartItem = {
+        map.set(code, {
           id: code || `${Date.now()}_${Math.random()}`,
           maSanPham: code,
           productCode: item.productCode || code,
@@ -2102,60 +2228,19 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           qrData: item.qrData || '',
           quantity: qty,
           addedAt: new Date().toISOString()
-        };
-        showNotification(`Đã thêm "${item.name}" vào giỏ in (${qty} tem)!`, 'success');
-        return [...prev, newItem];
+        });
       }
+      count++;
     });
-  };
-
-  const handleAddSelectedToCart = () => {
-    if (selectedIndices.length === 0) {
-      showNotification('Vui lòng tick chọn ít nhất 1 sản phẩm để thêm vào giỏ in!', 'error');
-      return;
-    }
-    let count = 0;
-    setCartItems(prev => {
-      const map = new Map<string, EventDmxCartItem>();
-      prev.forEach(p => map.set(p.maSanPham || p.productCode || p.id, { ...p }));
-
-      selectedIndices.forEach(idx => {
-        const item = filteredPriceData[idx];
-        if (!item) return;
-        const code = item.maSanPham || item.productCode || (item.name || '').split(' - ')[0].trim();
-        const qty = Math.max(1, printQuantities[idx] || 1);
-        if (map.has(code)) {
-          const exist = map.get(code)!;
-          exist.quantity = exist.quantity + qty;
-          exist.tonKho = item.tonKho !== undefined ? item.tonKho : exist.tonKho;
-          exist.discountPrice = item.discountPrice || exist.discountPrice;
-          exist.originalPrice = item.originalPrice || exist.originalPrice;
-        } else {
-          map.set(code, {
-            id: code || `${Date.now()}_${Math.random()}`,
-            maSanPham: code,
-            productCode: item.productCode || code,
-            name: item.name,
-            tonKho: item.tonKho || 0,
-            originalPrice: item.originalPrice || '',
-            discountPrice: item.discountPrice || '',
-            nganhHang: item.nganhHang || '',
-            nhomHang: item.nhomHang || '',
-            qrData: item.qrData || '',
-            quantity: qty,
-            addedAt: new Date().toISOString()
-          });
-        }
-        count++;
-      });
-      return Array.from(map.values());
-    });
-    showNotification(`Đã thêm ${count} sản phẩm đã chọn vào giỏ hàng in!`, 'success');
+    const updated = Array.from(map.values());
+    saveEventCartToDb(updated, `Đã thêm ${count} sản phẩm đã chọn vào giỏ hàng in!`);
   };
 
   const handleUpdateCartItemQty = (id: string, newQty: number) => {
     const qty = Math.max(1, newQty);
-    setCartItems(prev => prev.map(p => (p.id === id || p.maSanPham === id) ? { ...p, quantity: qty } : p));
+    const currentCart = cartItemsRef.current || cartItems;
+    const updated = currentCart.map(p => (p.id === id || p.maSanPham === id) ? { ...p, quantity: qty } : p);
+    saveEventCartToDb(updated);
   };
 
   const [bulkCartQty, setBulkCartQty] = useState<string>('1');
@@ -2163,20 +2248,22 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
   // Đặt nhanh số lượng in cho toàn bộ sản phẩm trong Giỏ In EVENT ĐMX
   const handleSetAllCartQty = (qty: number) => {
-    if (cartItems.length === 0) return;
+    const currentCart = cartItemsRef.current || cartItems;
+    if (currentCart.length === 0) return;
     const targetQty = Math.max(1, qty);
-    setCartItems(prev => prev.map(p => ({ ...p, quantity: targetQty })));
-    showNotification(`Đã đặt số lượng in của tất cả ${cartItems.length} sản phẩm thành ${targetQty} tem!`, 'success');
+    const updated = currentCart.map(p => ({ ...p, quantity: targetQty }));
+    saveEventCartToDb(updated, `Đã đặt số lượng in của tất cả ${currentCart.length} sản phẩm thành ${targetQty} tem!`);
   };
 
   // Đặt số lượng in theo Tồn kho cho toàn bộ sản phẩm trong Giỏ In EVENT ĐMX
   const handleSetAllCartQtyByTonKho = () => {
-    if (cartItems.length === 0) return;
-    setCartItems(prev => prev.map(p => ({
+    const currentCart = cartItemsRef.current || cartItems;
+    if (currentCart.length === 0) return;
+    const updated = currentCart.map(p => ({
       ...p,
       quantity: Math.max(1, Number(p.tonKho) || 1)
-    })));
-    showNotification(`Đã đặt số lượng in theo tồn kho cho tất cả ${cartItems.length} sản phẩm trong giỏ!`, 'success');
+    }));
+    saveEventCartToDb(updated, `Đã đặt số lượng in theo tồn kho cho tất cả ${currentCart.length} sản phẩm trong giỏ!`);
   };
 
   // Đặt nhanh số lượng in cho toàn bộ sản phẩm trong Giỏ In POSM ALL SP
@@ -2202,16 +2289,16 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   };
 
   const handleRemoveCartItem = (id: string) => {
-    setCartItems(prev => prev.filter(p => p.id !== id && p.maSanPham !== id));
-    showNotification('Đã xóa sản phẩm khỏi giỏ in!', 'info');
+    const currentCart = cartItemsRef.current || cartItems;
+    const updated = currentCart.filter(p => p.id !== id && p.maSanPham !== id);
+    saveEventCartToDb(updated, 'Đã xóa sản phẩm khỏi giỏ in!');
   };
 
   const handleClearCart = () => {
-    if (cartItems.length === 0) return;
+    const currentCart = cartItemsRef.current || cartItems;
+    if (currentCart.length === 0) return;
     if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ sản phẩm trong giỏ hàng in không?')) {
-      setCartItems([]);
-      localStorage.removeItem('rtst_sticker_event_dmx_cart');
-      showNotification('Đã xóa sạch giỏ hàng in!', 'info');
+      saveEventCartToDb([], 'Đã xóa sạch giỏ hàng in!');
     }
   };
 
@@ -6719,7 +6806,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             </button>
                           </>
                         )}
-                        {activeTab === 'sticker-event-dmx' && (
+                        {(activeTab === 'sticker-event-dmx' || activeTab === 'all-sticker' || activeTab === 'sticker-event') && (
                           <>
                             <button
                               type="button"
@@ -7629,9 +7716,13 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                     <span className="bg-slate-950 text-amber-300 text-xs font-black px-2.5 py-0.5 rounded-full shadow-xs">
                       {cartItems.length} sản phẩm
                     </span>
+                    <span className="text-[10px] font-bold text-emerald-950 bg-emerald-200/80 px-2 py-0.5 rounded-lg border border-emerald-400/50 shadow-2xs flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                      <span>Cloud: <strong>{currentStoreId && currentStoreId !== 'ALL' ? currentStoreId : 'Siêu thị'}</strong></span>
+                    </span>
                   </div>
                   <p className="text-[11px] text-slate-900/90 font-semibold mt-0.5">
-                    Lưu trữ bền vững đến khi bấm "Xóa giỏ hàng" • Tổng {totalCartStickers} tem in
+                    Đồng bộ Cloud Realtime trên Firestore • Hiển thị trên mọi thiết bị và trình duyệt • Tổng {totalCartStickers} tem in
                   </p>
                 </div>
               </div>
@@ -7651,7 +7742,9 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 <div className="px-4 sm:px-5 py-2.5 sm:py-3 bg-amber-50/70 border-b border-amber-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs shrink-0">
                   <div className="flex items-center gap-2 text-slate-700 font-medium">
                     <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-                    <span className="text-[11px] sm:text-xs">Dữ liệu giỏ được lưu trên máy này, không bị mất khi lọc dữ liệu hoặc tải lại trang.</span>
+                    <span className="text-[11px] sm:text-xs">
+                      Dữ liệu giỏ in được đồng bộ tự động lên Firebase theo siêu thị <strong>{currentStoreId && currentStoreId !== 'ALL' ? currentStoreId : ''}</strong>, truy cập từ máy tính hoặc điện thoại khác đều hiển thị đầy đủ ngay lập tức.
+                    </span>
                   </div>
                   <button
                     type="button"
