@@ -430,22 +430,49 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                     {/* Tính năng Ẩn khỏi người dùng - CHỈ HIỂN THỊ VỚI USER 43751 */}
                     {isUser43751 && (
                       <button
-                        onClick={() => { setShowHiddenPagesModal(true); setUserDropdownOpen(false); }}
+                        onClick={async () => {
+                          setUserDropdownOpen(false);
+                          if (onToggleHide) {
+                            const nextVal = !pageHiddenState[effectivePageKey];
+                            await onToggleHide(effectivePageKey, nextVal);
+                          }
+                        }}
                         className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] font-bold transition-all cursor-pointer ${
                           pageHiddenState[effectivePageKey]
                             ? 'text-purple-700 bg-purple-50/80 hover:bg-purple-100/80'
                             : 'text-slate-700 hover:bg-purple-50 hover:text-purple-700'
                         }`}
+                        title={pageHiddenState[effectivePageKey] ? 'Bấm để Hiện lại trang/tab này' : 'Bấm để Ẩn ngay trang/tab này khỏi người dùng'}
                       >
-                        <EyeOff size={16} className={pageHiddenState[effectivePageKey] ? 'text-purple-600 shrink-0' : 'text-slate-400 shrink-0'} />
-                        <span>Ẩn khỏi người dùng</span>
+                        {pageHiddenState[effectivePageKey] ? (
+                          <Eye size={16} className="text-purple-600 shrink-0" />
+                        ) : (
+                          <EyeOff size={16} className="text-slate-400 shrink-0" />
+                        )}
+                        <span>{pageHiddenState[effectivePageKey] ? 'Hiện lại trang này' : 'Ẩn khỏi người dùng'}</span>
                         {pageHiddenState[effectivePageKey] ? (
                           <span className="ml-auto px-1.5 py-0.5 text-[9.5px] font-black rounded-md bg-purple-200/90 text-purple-900 uppercase tracking-wider shadow-2xs">
                             Đang ẩn
                           </span>
                         ) : (
-                          <span className="ml-auto text-[10.5px] text-purple-600 font-semibold">
-                            Cấu hình
+                          <span className="ml-auto text-[10.5px] text-purple-600 font-bold">
+                            Ẩn ngay
+                          </span>
+                        )}
+                      </button>
+                    )}
+
+                    {isUser43751 && (
+                      <button
+                        onClick={() => { setShowHiddenPagesModal(true); setUserDropdownOpen(false); }}
+                        className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[11px] font-bold text-slate-500 hover:text-purple-700 hover:bg-purple-50/60 transition-all cursor-pointer"
+                        title="Xem danh sách tất cả các trang/tab đang ẩn"
+                      >
+                        <Settings size={14} className="text-slate-400 shrink-0" />
+                        <span>Danh sách tất cả trang ẩn...</span>
+                        {Object.values(pageHiddenState).filter(Boolean).length > 0 && (
+                          <span className="ml-auto px-1.5 py-0.2 text-[9.5px] font-black rounded-full bg-purple-100 text-purple-700">
+                            {Object.values(pageHiddenState).filter(Boolean).length}
                           </span>
                         )}
                       </button>

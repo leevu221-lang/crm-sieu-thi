@@ -59,6 +59,7 @@ export const ALL_HIDDEN_TARGETS: HiddenTargetItem[] = [
   { key: 'luyke_ssg_boss', name: 'Lũy Kế: SSG Boss', group: 'Tabs Lũy Kế', isSubTab: true, parentPage: 'luyke' },
 
   // Tabs con - TIỆN ÍCH
+  { key: 'tienich_phan-ca-hc', name: 'Tiện Ích: Phân Ca Hành Chính', group: 'Tabs Tiện Ích', isSubTab: true, parentPage: 'tienich' },
   { key: 'tienich_phan-ca-thang', name: 'Tiện Ích: Phân Ca Tháng', group: 'Tabs Tiện Ích', isSubTab: true, parentPage: 'tienich' },
   { key: 'tienich_phan-ca-tuan', name: 'Tiện Ích: Phân Ca Tuần', group: 'Tabs Tiện Ích', isSubTab: true, parentPage: 'tienich' },
   { key: 'tienich_tuong-tac-line', name: 'Tiện Ích: Tương Tác LINE', group: 'Tabs Tiện Ích', isSubTab: true, parentPage: 'tienich' },
@@ -66,6 +67,11 @@ export const ALL_HIDDEN_TARGETS: HiddenTargetItem[] = [
   { key: 'tienich_bien-ban', name: 'Tiện Ích: Biên Bản', group: 'Tabs Tiện Ích', isSubTab: true, parentPage: 'tienich' },
   { key: 'tienich_kiem-ke', name: 'Tiện Ích: Kiểm Kê', group: 'Tabs Tiện Ích', isSubTab: true, parentPage: 'tienich' },
   { key: 'tienich_roadshow', name: 'Tiện Ích: Roadshow', group: 'Tabs Tiện Ích', isSubTab: true, parentPage: 'tienich' },
+
+  // Tabs con - TOOL HỖ TRỢ
+  { key: 'toolhotro_all-sticker', name: 'Tool Hỗ Trợ: All Sticker', group: 'Tabs Tool Hỗ Trợ', isSubTab: true, parentPage: 'toolhotro' },
+  { key: 'toolhotro_in-dia-chi', name: 'Tool Hỗ Trợ: In Địa Chỉ', group: 'Tabs Tool Hỗ Trợ', isSubTab: true, parentPage: 'toolhotro' },
+  { key: 'toolhotro_in-phieu-bh', name: 'Tool Hỗ Trợ: In Phiếu BH', group: 'Tabs Tool Hỗ Trợ', isSubTab: true, parentPage: 'toolhotro' },
 ];
 
 interface HiddenPagesModalProps {

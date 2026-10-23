@@ -593,7 +593,7 @@ function MainApp() {
               if (currentPage === 'tnbleader' && effectiveAllowedPages.includes('tnbleader')) return <TnbLeader pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
               if (currentPage === 'toolhotro' && effectiveAllowedPages.includes('toolhotro')) return <ToolHoTro pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
               if (currentPage === 'bbkq' && effectiveAllowedPages.includes('bbkq')) return <BbkqPage pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
-              if (currentPage === 'tienich' && effectiveAllowedPages.includes('tienich')) return <TienIch pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
+              if (currentPage === 'tienich' && effectiveAllowedPages.includes('tienich')) return <TienIch pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} pageHiddenState={pageHiddenState} />;
               if (currentPage === 'users' && effectiveAllowedPages.includes('users')) {
                 return (
                   <UserManagement onBack={() => {
