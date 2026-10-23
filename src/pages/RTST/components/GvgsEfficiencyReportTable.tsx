@@ -5,6 +5,8 @@ import {
   Check, 
   RotateCcw
 } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import * as htmlToImage from 'html-to-image';
 import { domToPng } from 'modern-screenshot';
 import * as XLSX from 'xlsx';
 import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
@@ -180,7 +182,7 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
       const bannerEl = clone.firstElementChild as HTMLElement;
       if (bannerEl) {
         bannerEl.innerHTML = `
-          <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; flex-direction: column; gap: 6px; font-family: 'UTM Avo', 'Inter', system-ui, sans-serif;">
             <div style="font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; color: #dbeafe; opacity: 0.95;">
               ${dateSubtitle}
             </div>
@@ -194,7 +196,7 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
         bannerEl.style.boxSizing = 'border-box';
       }
 
-      // 3. Triệt tiêu toàn bộ shadow, filter (Zero-Shadow Export)
+      // 3. Triệt tiêu toàn bộ shadow, filter (Zero-Shadow Export theo AGENTS.md)
       const allElements = clone.querySelectorAll('*');
       allElements.forEach((el) => {
         const htmlEl = el as HTMLElement;
@@ -212,21 +214,51 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
         const htmlEl = el as HTMLElement;
         htmlEl.style.overflow = 'visible';
         htmlEl.style.maxHeight = 'none';
+        htmlEl.style.maxWidth = 'none';
       });
 
-      const targetWidthPx = 960;
+      // 5. Cố định cấu trúc bảng chuẩn fixed và hiển thị đầy đủ nội dung ô
+      const tables = clone.querySelectorAll('table');
+      tables.forEach((table) => {
+        const htmlTable = table as HTMLTableElement;
+        htmlTable.style.width = '100%';
+        htmlTable.style.minWidth = '100%';
+        htmlTable.style.maxWidth = '100%';
+        htmlTable.style.tableLayout = 'fixed';
+        htmlTable.style.borderCollapse = 'collapse';
+        htmlTable.style.boxSizing = 'border-box';
+      });
 
-      // 5. Khởi tạo container đệm ngoài viewport với top = 0 chuẩn theo pattern hệ thống
+      clone.querySelectorAll('th, td').forEach((cell) => {
+        const htmlCell = cell as HTMLElement;
+        htmlCell.style.boxSizing = 'border-box';
+        htmlCell.style.overflow = 'visible';
+        htmlCell.style.textOverflow = 'clip';
+      });
+
+      clone.querySelectorAll('.truncate, [class*="line-clamp"]').forEach((el) => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.classList.remove('truncate', 'line-clamp-1', 'line-clamp-2', 'line-clamp-3');
+        htmlEl.style.overflow = 'visible';
+        htmlEl.style.textOverflow = 'clip';
+      });
+
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+      const targetWidthPx = 960;
+      const exportScale = isMobile ? 2 : 2.5;
+
+      // 6. Khởi tạo container đệm đặt tại (0,0) với opacity = 0 và zIndex = -99999 để engine browser tính toán layout 100% chuẩn xác
       tempContainer = document.createElement('div');
-      tempContainer.style.position = 'fixed';
-      tempContainer.style.left = '-9999px';
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.left = '0px';
       tempContainer.style.top = '0px';
+      tempContainer.style.opacity = '0';
       tempContainer.style.width = `${targetWidthPx}px`;
-      tempContainer.style.zIndex = '-9999';
+      tempContainer.style.zIndex = '-99999';
       tempContainer.style.pointerEvents = 'none';
       tempContainer.style.overflow = 'visible';
 
-      // 6. Bọc khung đệm trắng phẳng tuyệt đối
+      // 7. Bọc khung đệm trắng phẳng tuyệt đối (frameWrapper)
       const frameWrapper = document.createElement('div');
       frameWrapper.style.width = `${targetWidthPx}px`;
       frameWrapper.style.minWidth = `${targetWidthPx}px`;
@@ -252,7 +284,7 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
       document.body.appendChild(tempContainer);
 
       // Chờ trình duyệt reflow layout & load font hoàn tất
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 350));
 
       // Tính toán chiều cao chính xác của toàn bộ nội dung
       const exactHeight = Math.ceil(
@@ -261,23 +293,69 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
           frameWrapper.offsetHeight,
           clone.scrollHeight,
           clone.offsetHeight,
-          600
+          500
         )
       );
 
-      // Render ảnh nét cao với tỉ lệ 2.5x
-      const dataUrl = await domToPng(frameWrapper, {
-        scale: 2.5,
-        backgroundColor: '#ffffff',
-        width: targetWidthPx,
-        height: exactHeight,
-        features: {
-          removeControlCharacter: true
+      let dataUrl = '';
+
+      // Tầng 1: html2canvas (Vẽ trực tiếp lên canvas, tương thích 100% iOS Safari & mobile)
+      try {
+        const canvas = await html2canvas(frameWrapper, {
+          scale: exportScale,
+          backgroundColor: '#ffffff',
+          logging: false,
+          useCORS: true,
+          allowTaint: true,
+          width: targetWidthPx,
+          windowWidth: targetWidthPx,
+          height: exactHeight,
+          windowHeight: exactHeight,
+          scrollX: 0,
+          scrollY: 0,
+          x: 0,
+          y: 0,
+        });
+        dataUrl = canvas.toDataURL('image/png');
+        if (!dataUrl || dataUrl === 'data:,' || dataUrl.length < 500) {
+          throw new Error('html2canvas tạo dữ liệu ảnh rỗng');
         }
-      });
+      } catch (h2cErr) {
+        console.warn('[GvgsEfficiencyReportTable] html2canvas không thành công, chuyển sang domToPng:', h2cErr);
+        // Tầng 2: domToPng
+        try {
+          dataUrl = await domToPng(frameWrapper, {
+            scale: exportScale,
+            backgroundColor: '#ffffff',
+            width: targetWidthPx,
+            height: exactHeight,
+            font: false,
+            drawImageInterval: 20,
+            features: {
+              removeControlCharacter: true,
+              copyScrollbar: false,
+            }
+          });
+          if (!dataUrl || dataUrl.length < 500) {
+            throw new Error('domToPng tạo dữ liệu ảnh rỗng');
+          }
+        } catch (domErr) {
+          console.warn('[GvgsEfficiencyReportTable] domToPng không thành công, chuyển sang htmlToImage:', domErr);
+          // Tầng 3: htmlToImage
+          dataUrl = await htmlToImage.toPng(frameWrapper, {
+            backgroundColor: '#ffffff',
+            pixelRatio: exportScale,
+            skipFonts: true,
+            skipAutoScale: true,
+            cacheBust: false,
+            width: targetWidthPx,
+            height: exactHeight,
+          });
+        }
+      }
 
       if (!dataUrl) {
-        throw new Error('domToPng không tạo ra được chuỗi ảnh');
+        throw new Error('Tất cả các phương thức chụp ảnh đều không tạo được ảnh');
       }
 
       setPreviewImage(dataUrl);
