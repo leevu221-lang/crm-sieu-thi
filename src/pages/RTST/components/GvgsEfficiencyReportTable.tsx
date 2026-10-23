@@ -578,30 +578,6 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
                   );
                 })}
               </tbody>
-
-              <tfoot>
-                <tr 
-                  style={{ 
-                    backgroundColor: '#fae1af',
-                    color: '#451a03',
-                  }}
-                >
-                  <td colSpan={3} className="py-3 px-4 text-[13px] font-black uppercase tracking-tight" style={{ border: '1px solid #d4b47d', borderTop: '2px solid #b49767' }}>
-                    TỔNG CỘNG: {displayProducts.length} SẢN PHẨM GVGS
-                  </td>
-                  <td className="py-3 px-2 text-[12.5px] font-black text-right" style={{ border: '1px solid #d4b47d', borderTop: '2px solid #b49767' }}>
-                    {displayProducts.reduce((sum, p) => sum + p.giaNy, 0).toLocaleString('vi-VN')}
-                  </td>
-                  <td className="py-3 px-2 text-[13px] font-black text-right text-red-700" style={{ border: '1px solid #d4b47d', borderTop: '2px solid #b49767' }}>
-                    {displayProducts.reduce((sum, p) => sum + p.giaKm, 0).toLocaleString('vi-VN')}
-                  </td>
-                  <td className="py-3 px-2 text-[12.5px] font-black text-center text-emerald-800" style={{ border: '1px solid #d4b47d', borderTop: '2px solid #b49767' }}>
-                    {displayProducts.length > 0 ? (
-                      `-${Math.round((displayProducts.reduce((sum, p) => sum + (p.giaNy - p.giaKm), 0) / Math.max(1, displayProducts.reduce((sum, p) => sum + p.giaNy, 0))) * 100)}%`
-                    ) : '0%'}
-                  </td>
-                </tr>
-              </tfoot>
             </table>
           </div>
         </div>
