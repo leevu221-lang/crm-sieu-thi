@@ -149,12 +149,16 @@ export default function StickerPrintModal({
   if (!isOpen) return null;
 
   const handlePrint = () => {
-    setIsPreparing(true);
-    setRenderAllPages(true);
-    setTimeout(() => {
+    if (!shouldRenderAll) {
+      setIsPreparing(true);
+      setRenderAllPages(true);
+      setTimeout(() => {
+        window.print();
+        setIsPreparing(false);
+      }, 150);
+    } else {
       window.print();
-      setIsPreparing(false);
-    }, 200);
+    }
   };
 
   const rotateImage90 = (dataUrl: string): Promise<string> => {
@@ -469,44 +473,24 @@ export default function StickerPrintModal({
             min-height: 0 !important;
             overflow: visible !important;
             display: block !important;
-            -webkit-print-color-adjust: exact !important; 
-            print-color-adjust: exact !important; 
-            background: #ffffff !important;
+            -webkit-print-color-adjust: exact; 
+            print-color-adjust: exact; 
           }
           * { box-sizing: border-box; }
           /* Hide everything else when printing */
           body > *:not(.print-modal-container) { display: none !important; }
           #root { display: none !important; }
-          
           .print-modal-container { 
             display: block !important; 
-            position: static !important; 
-            left: auto !important;
-            top: auto !important;
+            position: absolute !important; 
+            left: 0 !important;
+            top: 0 !important;
             width: 100% !important;
             height: auto !important;
             margin: 0 !important;
             padding: 0 !important;
             overflow: visible !important;
-            background: #ffffff !important;
           }
-
-          /* Unset any scroll/max-height wrapper inside print modal to avoid blank pages */
-          .print-modal-container > div {
-            display: block !important;
-            position: static !important;
-            max-height: none !important;
-            height: auto !important;
-            max-width: none !important;
-            width: 100% !important;
-            overflow: visible !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            border-radius: 0 !important;
-            box-shadow: none !important;
-            background: #ffffff !important;
-          }
-
           /* Reset zoom for printing */
           .print-area { 
             zoom: 1 !important; 
@@ -514,65 +498,42 @@ export default function StickerPrintModal({
             width: 100% !important;
             display: block !important;
             overflow: visible !important;
-            margin: 0 !important;
-            padding: 0 !important;
           }
-
           .preview-page-wrapper {
             width: 100% !important;
             max-width: none !important;
-            height: auto !important;
             display: block !important;
-            page-break-after: always !important;
-            break-after: page !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-            margin: 0 !important;
-            padding: 0 !important;
           }
-          .preview-page-wrapper:last-child {
-            page-break-after: avoid !important;
-            break-after: avoid !important;
-          }
-
-          /* CRITICAL: Never use display: contents in print media as Chrome drops rendering */
           .preview-scaler-box {
-            display: block !important;
-            width: 100% !important;
+            display: contents !important;
+            width: auto !important;
             height: auto !important;
             overflow: visible !important;
-            position: static !important;
-            transform: none !important;
             box-shadow: none !important;
             border-radius: 0 !important;
-            background: transparent !important;
           }
-
           .page-break {
-            position: relative !important;
-            top: auto !important;
-            left: auto !important;
+            position: static !important;
             transform: none !important;
             page-break-before: avoid !important;
             break-before: avoid !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
-            width: ${pageDimensionsMm.width}mm !important;
-            min-width: ${pageDimensionsMm.width}mm !important;
-            max-width: ${pageDimensionsMm.width}mm !important;
+            width: ${isA5 ? (layoutStyles.orientation === 'portrait' ? '147.5mm' : '209mm') : (layoutStyles.orientation === 'portrait' ? '210mm' : '297mm')} !important;
+            min-width: 0 !important;
+            max-width: none !important;
             height: ${isA5 
-              ? (isLandscape ? '147mm' : '208mm') 
-              : (isLandscape ? '208mm' : '295mm')} !important;
-            min-height: ${isA5 
-              ? (isLandscape ? '147mm' : '208mm') 
-              : (isLandscape ? '208mm' : '295mm')} !important;
+              ? (layoutStyles.orientation === 'portrait' ? '208.5mm' : '146.5mm') 
+              : (layoutStyles.orientation === 'portrait' ? '295mm' : '205mm')} !important;
             max-height: ${isA5 
-              ? (isLandscape ? '147mm' : '208mm') 
-              : (isLandscape ? '208mm' : '295mm')} !important;
+              ? (layoutStyles.orientation === 'portrait' ? '208.5mm' : '146.5mm') 
+              : (layoutStyles.orientation === 'portrait' ? '295mm' : '205mm')} !important;
             overflow: hidden !important;
             box-sizing: border-box !important;
-            margin: 0 auto !important;
-            box-shadow: none !important;
+          }
+          .page-break:not(:last-child) {
+            page-break-after: always !important;
+            break-after: page !important;
           }
           
           /* Remove borders of grid cells when printing to prevent height calculations from overflowing */
@@ -973,7 +934,7 @@ export default function StickerPrintModal({
                         position: 'absolute',
                         top: 0,
                         left: 0,
-                        padding: (config.style === 'address_flyer' || config.style === 'dcnb') ? '5mm' : ((isA5 || isA4Giasoc || isDisplayA4 || config.style === 'popup_all_sp' || config.style === 'sticker_ce' || config.style === 'sticker_lk' || isA4Ngang) ? '0' : '2mm'),
+                        padding: (config.style === 'address_flyer' || config.style === 'dcnb') ? '5mm' : ((isA5 || isA4Giasoc || isDisplayA4) ? '0' : '2mm'),
                         gridTemplateColumns: `repeat(${layoutStyles.cols}, 1fr)`,
                         gridTemplateRows: `repeat(${layoutStyles.rows}, 1fr)`,
                         margin: 0,
@@ -982,7 +943,7 @@ export default function StickerPrintModal({
                       }}
                     >
                       {page.map((item, index) => (
-                        <div key={index} className="relative overflow-hidden border-dashed border-slate-100 print:border-none flex items-center justify-center min-w-0 min-h-0" style={{ borderWidth: (config.style === 'popup_all_sp' || config.style === 'sticker_ce' || config.style === 'sticker_lk' || isA4Ngang || isA5 || isA4Giasoc || isDisplayA4) ? '0' : '0.5px' }}>
+                        <div key={index} className="relative overflow-hidden border-dashed border-slate-100 print:border-none flex items-center justify-center min-w-0 min-h-0" style={{ borderWidth: '0.5px' }}>
                           <div style={{
                             width: `${baseStickerWidth * layoutStyles.scale}mm`,
                             height: `${baseStickerHeight * layoutStyles.scale}mm`,
@@ -1389,8 +1350,8 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
     const isA4Ngang = layout === 'a4_ngang' || layout === '1_a4';
     const priceStr = formatPrice(item.discountPrice);
     const priceParts = priceStr.split('.');
-    const mainPrice = priceParts.length > 1 ? priceParts.slice(0, -1).join('.') : priceStr;
-    const lastPart = priceParts.length > 1 ? priceParts[priceParts.length - 1] : '';
+    const mainPrice = priceParts.slice(0, -1).join('.');
+    const lastPart = priceParts[priceParts.length - 1];
 
     const productCodeText = item.maSanPham || item.productCode || (item.qrData && item.qrData !== '00000' ? item.qrData : '');
     const codeLen = productCodeText.length;
@@ -1662,29 +1623,16 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                   >
                     {mainPrice}
                   </span>
-                  {lastPart ? (
-                    <span 
-                      className="font-utm-colossalis ml-1 leading-none shrink-0" 
-                      style={{ 
-                        fontFamily: '"UTM Colossalis", sans-serif',
-                        fontSize: `${priceFS.last}px`,
-                        letterSpacing: '-0.02em'
-                      }}
-                    >
-                      .{lastPart}Đ
-                    </span>
-                  ) : (
-                    <span 
-                      className="font-utm-colossalis ml-1 leading-none shrink-0" 
-                      style={{ 
-                        fontFamily: '"UTM Colossalis", sans-serif',
-                        fontSize: `${priceFS.last}px`,
-                        letterSpacing: '-0.02em'
-                      }}
-                    >
-                      Đ
-                    </span>
-                  )}
+                  <span 
+                    className="font-utm-colossalis ml-1 leading-none shrink-0" 
+                    style={{ 
+                      fontFamily: '"UTM Colossalis", sans-serif',
+                      fontSize: `${priceFS.last}px`,
+                      letterSpacing: '-0.02em'
+                    }}
+                  >
+                    .{lastPart}Đ
+                  </span>
                 </div>
               </div>
             </div>
