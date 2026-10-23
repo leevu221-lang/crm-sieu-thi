@@ -6338,6 +6338,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             onMouseEnter={() => setPopupPrintLayout(s.layout as any)}
                             onClick={() => {
                               setPopupPrintLayout(s.layout as any);
+                              setPrintSource('table');
                               setPrintConfig({ 
                                 style: 'popup_all_sp', 
                                 layout: s.layout, 
