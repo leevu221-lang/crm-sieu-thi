@@ -7,7 +7,8 @@ import {
   ChevronRight, LayoutGrid, FileText, Tag, Scan, MapPin, ClipboardList,
   RefreshCw, AlertCircle, Banknote, RotateCcw,
   ShoppingCart, Plus, ShoppingBag, Minus, Search, ExternalLink, FileSpreadsheet,
-  QrCode, Camera, History, Undo2, Clock, Zap, ZapOff, Sparkles, Layers
+  QrCode, Camera, History, Undo2, Clock, Zap, ZapOff, Sparkles, Layers,
+  BarChart3
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
@@ -26,6 +27,7 @@ import LaptopStickerTab from '../components/LaptopStickerTab';
 import InventoryManagement from '../components/InventoryManagement';
 import { RoadshowManagement } from '../components/RoadshowManagement';
 import BbkqTab from '../components/BbkqTab';
+import GvgsEfficiencyReportTable from './RTST/components/GvgsEfficiencyReportTable';
 
 import { STORAGE_KEYS } from './RTST/types';
 import { normalizeStoreId } from './RTST/utils';
@@ -446,6 +448,9 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   const [cePrintLayout, setCePrintLayout] = useState<string>('1');
   const [mlnPrintLayout, setMlnPrintLayout] = useState<string>('1');
   const [gvgsPrintLayout, setGvgsPrintLayout] = useState<string>('1');
+  const [gvgsViewMode, setGvgsViewMode] = useState<'report' | 'print'>(() => {
+    return (localStorage.getItem('gvgs_active_view_mode') as 'report' | 'print') || 'report';
+  });
   const [dcnbPages, setDcnbPages] = useState<number>(1);
   const [eventPrintLayout, setEventPrintLayout] = useState<string>('4');
   const [inventoryFile, setInventoryFile] = useState<File | null>(null);
@@ -4890,7 +4895,54 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 className="space-y-6"
               >
                 {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event' || activeTab === 'sticker-lk' || activeTab === 'popup-all-sp' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dcnb' || activeTab === 'sticker-laptop') && renderSubTabs()}
-                {activeTab === 'sticker-laptop' ? (
+
+                {/* Bộ chuyển đổi chế độ cho Tab GVGS: Bảng tổng hợp theo mẫu vs In tem */}
+                {activeTab === 'sticker-gvgs' && (
+                  <div className="bg-white/95 backdrop-blur-md rounded-2xl p-2 sm:p-2.5 border border-amber-200/90 shadow-xs flex flex-wrap items-center justify-between gap-3 -mt-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGvgsViewMode('report');
+                          safeLocalStorageSet('gvgs_active_view_mode', 'report');
+                        }}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-tight transition-all cursor-pointer ${
+                          gvgsViewMode === 'report'
+                            ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <BarChart3 size={15} />
+                        <span>Bảng Tổng Hợp Theo Mẫu</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGvgsViewMode('print');
+                          safeLocalStorageSet('gvgs_active_view_mode', 'print');
+                        }}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-tight transition-all cursor-pointer ${
+                          gvgsViewMode === 'print'
+                            ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <Printer size={15} />
+                        <span>Công Cụ In Tem Giá GVGS</span>
+                      </button>
+                    </div>
+
+                    <div className="text-[11px] font-bold text-amber-900 hidden sm:flex items-center gap-1.5">
+                      <span>⚡</span>
+                      <span>Chương trình Giờ Vàng Giá Sốc Cụm Cà Mau</span>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'sticker-gvgs' && gvgsViewMode === 'report' ? (
+                  <GvgsEfficiencyReportTable externalProducts={combinedPriceData} />
+                ) : activeTab === 'sticker-laptop' ? (
                   <LaptopStickerTab />
                 ) : (
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
