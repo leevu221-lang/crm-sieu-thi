@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { 
   Camera, 
-  FileSpreadsheet, 
   Edit3, 
   Check, 
   RotateCcw
@@ -332,14 +331,6 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
-          >
-            <FileSpreadsheet size={15} />
-            <span>Xuất Excel</span>
-          </button>
 
           <button
             type="button"
