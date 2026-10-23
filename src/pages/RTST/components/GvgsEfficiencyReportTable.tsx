@@ -508,13 +508,15 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
             </div>
           </div>
 
-          {/* BẢNG DANH SÁCH SẢN PHẨM THEO MẪU THEAD VÀNG CÁT */}
+          {/* BẢNG DANH SÁCH SẢN PHẨM THEO MẪU THEAD VÀNG CÁT CÓ ĐƯỜNG KẺ RÕ RÀNG */}
           <div className="w-full overflow-hidden">
             <table 
               className="w-full border-collapse text-left"
               style={{ 
                 tableLayout: 'fixed',
-                width: '100%'
+                width: '100%',
+                borderCollapse: 'collapse',
+                border: '1.5px solid #94a3b8'
               }}
             >
               <colgroup>
@@ -531,15 +533,14 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
                   style={{ 
                     backgroundColor: '#fae1af',
                     color: '#451a03',
-                    borderBottom: '2px solid #e2c48d'
                   }}
                 >
-                  <th className="py-3 px-2 text-[11px] sm:text-[12px] font-black uppercase tracking-tight text-center">STT</th>
-                  <th className="py-3 px-3 text-[11px] sm:text-[12px] font-black uppercase tracking-tight">MÃ SẢN PHẨM</th>
-                  <th className="py-3 px-3 text-[11px] sm:text-[12px] font-black uppercase tracking-tight">TÊN SẢN PHẨM</th>
-                  <th className="py-3 px-2 text-[11px] sm:text-[12px] font-black uppercase tracking-tight text-right">GIÁ BÁN NY</th>
-                  <th className="py-3 px-2 text-[11px] sm:text-[12px] font-black uppercase tracking-tight text-right text-red-700">GIÁ KM GVGS</th>
-                  <th className="py-3 px-2 text-[11px] sm:text-[12px] font-black uppercase tracking-tight text-center text-emerald-800">% GIẢM</th>
+                  <th className="py-3 px-2 text-[11px] sm:text-[12px] font-black uppercase tracking-tight text-center" style={{ border: '1px solid #d4b47d', borderBottom: '2px solid #b49767' }}>STT</th>
+                  <th className="py-3 px-3 text-[11px] sm:text-[12px] font-black uppercase tracking-tight text-center sm:text-left" style={{ border: '1px solid #d4b47d', borderBottom: '2px solid #b49767' }}>MÃ SẢN PHẨM</th>
+                  <th className="py-3 px-3 text-[11px] sm:text-[12px] font-black uppercase tracking-tight" style={{ border: '1px solid #d4b47d', borderBottom: '2px solid #b49767' }}>TÊN SẢN PHẨM</th>
+                  <th className="py-3 px-2 text-[11px] sm:text-[12px] font-black uppercase tracking-tight text-right" style={{ border: '1px solid #d4b47d', borderBottom: '2px solid #b49767' }}>GIÁ BÁN NY</th>
+                  <th className="py-3 px-2 text-[11px] sm:text-[12px] font-black uppercase tracking-tight text-right text-red-700" style={{ border: '1px solid #d4b47d', borderBottom: '2px solid #b49767' }}>GIÁ KM GVGS</th>
+                  <th className="py-3 px-2 text-[11px] sm:text-[12px] font-black uppercase tracking-tight text-center text-emerald-800" style={{ border: '1px solid #d4b47d', borderBottom: '2px solid #b49767' }}>% GIẢM</th>
                 </tr>
               </thead>
 
@@ -552,26 +553,25 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
                     <tr 
                       key={p.id || idx}
                       style={{ 
-                        borderBottom: '1px solid #f1f5f9',
-                        backgroundColor: idx % 2 === 1 ? '#fafaf9' : '#ffffff'
+                        backgroundColor: idx % 2 === 1 ? '#f8fafc' : '#ffffff'
                       }}
                     >
-                      <td className="py-2.5 px-2 text-[12px] font-bold text-slate-500 text-center">
+                      <td className="py-2.5 px-2 text-[12px] font-bold text-slate-500 text-center" style={{ border: '1px solid #cbd5e1' }}>
                         {idx + 1}
                       </td>
-                      <td className="py-2.5 px-3 text-[11.5px] font-mono font-bold text-indigo-700">
+                      <td className="py-2.5 px-3 text-[11.5px] font-mono font-bold text-indigo-700" style={{ border: '1px solid #cbd5e1' }}>
                         {p.maSp}
                       </td>
-                      <td className="py-2.5 px-3 text-[12px] sm:text-[13px] font-bold text-[#0f172a] whitespace-normal break-words leading-relaxed">
+                      <td className="py-2.5 px-3 text-[12px] sm:text-[13px] font-bold text-[#0f172a] whitespace-normal break-words leading-relaxed" style={{ border: '1px solid #cbd5e1' }}>
                         {p.tenSp}
                       </td>
-                      <td className="py-2.5 px-2 text-[12px] font-medium text-slate-600 text-right whitespace-nowrap">
+                      <td className="py-2.5 px-2 text-[12px] font-medium text-slate-700 text-right whitespace-nowrap" style={{ border: '1px solid #cbd5e1' }}>
                         {p.giaNy > 0 ? p.giaNy.toLocaleString('vi-VN') : '-'}
                       </td>
-                      <td className="py-2.5 px-2 text-[12.5px] font-black text-red-600 text-right whitespace-nowrap">
+                      <td className="py-2.5 px-2 text-[12.5px] font-black text-red-600 text-right whitespace-nowrap" style={{ border: '1px solid #cbd5e1' }}>
                         {p.giaKm > 0 ? p.giaKm.toLocaleString('vi-VN') : '-'}
                       </td>
-                      <td className="py-2.5 px-2 text-[12px] font-black text-emerald-600 text-center whitespace-nowrap">
+                      <td className="py-2.5 px-2 text-[12px] font-black text-emerald-600 text-center whitespace-nowrap" style={{ border: '1px solid #cbd5e1' }}>
                         -{discountRate}%
                       </td>
                     </tr>
@@ -584,19 +584,18 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
                   style={{ 
                     backgroundColor: '#fae1af',
                     color: '#451a03',
-                    borderTop: '2px solid #e2c48d'
                   }}
                 >
-                  <td colSpan={3} className="py-3 px-4 text-[13px] font-black uppercase tracking-tight">
+                  <td colSpan={3} className="py-3 px-4 text-[13px] font-black uppercase tracking-tight" style={{ border: '1px solid #d4b47d', borderTop: '2px solid #b49767' }}>
                     TỔNG CỘNG: {displayProducts.length} SẢN PHẨM GVGS
                   </td>
-                  <td className="py-3 px-2 text-[12.5px] font-black text-right">
+                  <td className="py-3 px-2 text-[12.5px] font-black text-right" style={{ border: '1px solid #d4b47d', borderTop: '2px solid #b49767' }}>
                     {displayProducts.reduce((sum, p) => sum + p.giaNy, 0).toLocaleString('vi-VN')}
                   </td>
-                  <td className="py-3 px-2 text-[13px] font-black text-right text-red-700">
+                  <td className="py-3 px-2 text-[13px] font-black text-right text-red-700" style={{ border: '1px solid #d4b47d', borderTop: '2px solid #b49767' }}>
                     {displayProducts.reduce((sum, p) => sum + p.giaKm, 0).toLocaleString('vi-VN')}
                   </td>
-                  <td className="py-3 px-2 text-[12.5px] font-black text-center text-emerald-800">
+                  <td className="py-3 px-2 text-[12.5px] font-black text-center text-emerald-800" style={{ border: '1px solid #d4b47d', borderTop: '2px solid #b49767' }}>
                     {displayProducts.length > 0 ? (
                       `-${Math.round((displayProducts.reduce((sum, p) => sum + (p.giaNy - p.giaKm), 0) / Math.max(1, displayProducts.reduce((sum, p) => sum + p.giaNy, 0))) * 100)}%`
                     ) : '0%'}
