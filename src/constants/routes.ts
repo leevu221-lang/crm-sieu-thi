@@ -92,8 +92,8 @@ export const buildGuestShareUrl = (
   if (tab && tab !== defaultTab) {
     params.set('tab', tab);
   }
-  // Luôn thêm siêu thị st nếu có để link chia sẻ đồng bộ 100% đúng dữ liệu giỏ in và cấu hình siêu thị
-  if (storeName && storeName !== 'ALL') {
+  // Chỉ thêm siêu thị st nếu kho có nhiều hơn 1 siêu thị và không phải siêu thị đầu tiên
+  if (storeName && storeName !== 'ALL' && !isDefaultStore) {
     params.set('st', storeName);
   }
   const queryStr = params.toString();

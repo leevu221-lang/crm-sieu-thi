@@ -1029,6 +1029,18 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
           let dtTraGopVal = dtTraGopIdx !== -1 && dtTraGopIdx < cols.length ? cleanNum(cols[dtTraGopIdx]) : 0;
           let percentTraGopVal = percentTraGopIdx !== -1 && percentTraGopIdx < cols.length ? cleanNum(cols[percentTraGopIdx]) : (installmentRateVal || 0);
 
+          // Kiểm tra nếu là bảng Trả Chậm (DT trả góp, DT siêu thị, % Trả chậm ở đầu)
+          if (dataCols.length >= 3) {
+            const num0 = cleanNum(dataCols[0]);
+            const num1 = cleanNum(dataCols[1]);
+            const num2 = cleanNum(dataCols[2]);
+            if (num0 > 0 && num1 > 0 && (Math.abs(num2 - ((num0 / num1) * 100)) <= 1.5 || (num2 > 0 && num2 <= 100))) {
+              dtTraGopVal = num0;
+              percentTraGopVal = num2;
+              installmentRateVal = num2;
+            }
+          }
+
           // Explicit user rule: DT TRẢ GÓP = CỘT THỨ 2 BÊN PHẢI SANG
           if (dataCols.length >= 8) {
             const lastIdx = dataCols.length - 1;
@@ -1410,10 +1422,13 @@ function isKnownTcHeader(line: string): boolean {
 }
 
 function isTcWatermark(line: string): boolean {
-  const l = line.trim();
-  // Watermark pattern: 5-6 digits (e.g. "43751") or employee name
+  const l = line.trim().toLowerCase();
+  // Watermark pattern: 5-6 digits (e.g. "43751") or employee name or UI noise
   if (/^\d{5,6}$/.test(l)) return true;
-  if (/^linh\s*võ\s*vũ$/i.test(l)) return true;
+  if (l.includes('linh võ vũ') || l.includes('linh vo vu')) return true;
+  if (l.includes('baocao.dienmayxanh.com')) return true;
+  if (l.includes('cập nhật lúc') || l.includes('tìm báo cáo') || l.includes('toggle theme')) return true;
+  if (l.includes('tổng 1 dòng') || l.includes('trang') || l.includes('dashboard')) return true;
   return false;
 }
 
@@ -1427,13 +1442,13 @@ export function parseTraChamRate(rawInput: string | undefined | null, targetStor
   const trimmed = rawInput.trim();
   if (!trimmed) return null;
 
-  // Single number check (e.g. "25.5" or "81.87" or "25,5%" or "30")
+  // Single number check (e.g. "25.5" or "81.87" or "25,5%" or "39.2")
   if (!trimmed.includes('\t') && !trimmed.includes('\n')) {
     const num = cleanNum(trimmed);
     if (!isNaN(num) && num > 0) return num;
   }
 
-  // Check top KPI card pattern in text (e.g. "Tỷ trọng trả chậm \n 81.8%" or "81.8% \n Tỷ trọng trả chậm")
+  // Check top KPI card pattern in text (e.g. "Tỷ trọng trả chậm \n 39.2%" or "39.2% \n Tỷ trọng trả chậm")
   const normVal = removeAccents(trimmed);
   const m1 = normVal.match(/(?:t[yi]\s*trong\s*tra\s*(?:gop|cham)|t[yi]\s*trong\s*t[gc]|%\s*tra\s*(?:gop|cham))[\s\S]{0,60}?([\d,.]+)\s*%/i) ||
              trimmed.match(/(?:T[ỉiỷy]\s*tr[ọo]ng\s*tr[ảa]\s*(?:g[óo]p|ch[ậa]m)|T[ỉiỷy]\s*tr[ọo]ng\s*t[gc]|%\s*tr[ảa]\s*(?:g[óo]p|ch[ậa]m))[\s\S]{0,60}?([\d,.]+)\s*%/i);
@@ -1448,148 +1463,101 @@ export function parseTraChamRate(rawInput: string | undefined | null, targetStor
     if (r > 0 && r <= 100) return r;
   }
 
-  // Filter out empty lines and watermarks
+  // Helper extracting rate from the standard sequence of numbers in Trả Chậm reports:
+  // nums[0] = DT trả góp (1,320.56 hoặc 45.66)
+  // nums[1] = DT siêu thị (3,368.68 hoặc 55.77)
+  // nums[2] = Tỷ trọng trả chậm % của Siêu thị (39.2 hoặc 81.7 - Cột 4 của bảng)
+  // nums[3..] = Chi tiết đối tác HomeCredit, FECredit, Shinhan, HPL...
+  const extractRateFromNums = (nums: number[]): number => {
+    if (nums.length >= 3) {
+      const dtTg = nums[0];
+      const dtSt = nums[1];
+      const col3Rate = nums[2];
+      if (dtSt > 0 && dtTg > 0) {
+        const calcRate = (dtTg / dtSt) * 100;
+        // Kiểm tra đối chiếu công thức: dtTg / dtSt * 100
+        if (Math.abs(col3Rate - calcRate) <= 1.5 || (col3Rate > 0 && col3Rate <= 100)) {
+          return col3Rate;
+        }
+        return Math.round(calcRate * 10) / 10;
+      }
+      if (col3Rate > 0 && col3Rate <= 100) return col3Rate;
+    }
+    if (nums.length === 2 && nums[0] > 0 && nums[1] > 0) {
+      const calcRate = (nums[0] / nums[1]) * 100;
+      if (calcRate > 0 && calcRate <= 100) return Math.round(calcRate * 10) / 10;
+    }
+    if (nums.length === 1 && nums[0] > 0 && nums[0] <= 100) {
+      return nums[0];
+    }
+    return 0;
+  };
+
+  // Filter lines
   const rawLines = trimmed.split(/\r?\n/).map(l => l.trim()).filter(l => l && !isTcWatermark(l));
   if (rawLines.length === 0) return null;
 
-  // Check if we have horizontal lines with tabs or multiple columns
-  const hasTabs = rawLines.some(l => l.includes('\t') || (l.split(/\s{2,}/).length >= 3 && !isKnownTcHeader(l)));
+  const storeRows: { name: string; rate: number; isSummary: boolean }[] = [];
 
-  let storeRows: { name: string; rate: number; isSummary: boolean }[] = [];
+  // PARSER 1: Check for lines that contain a supermarket name
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i];
+    const isStore = /(ĐML|ĐMM|ĐMS|TGD|BHX|MWG|CMA)/i.test(line) || isSupermarketLine(line);
+    if (!isStore) continue;
 
-  if (hasTabs) {
-    // Standard horizontal table
-    let tcColIdx = -1;
-    let nameColIdx = 0;
+    // A. Check if this line is horizontal (contains numbers on the same line)
+    const lineCols = line.split(/\t|\||\s{2,}/).map(c => c.trim()).filter(Boolean);
+    let rate = 0;
 
-    for (let i = 0; i < rawLines.length; i++) {
-      const line = rawLines[i];
-      const cols = line.split(/\t|\||\s{2,}/).map(c => c.trim());
-      const lowerLine = line.toLowerCase();
-
-      if (lowerLine.includes('tỷ trọng trả chậm') || lowerLine.includes('tỉ trọng trả chậm') || lowerLine.includes('tỷ trọng trả góp') || lowerLine.includes('tỷ trọng tc') || lowerLine.includes('trả chậm %')) {
-        const foundTcIdx = cols.findIndex(c => {
-          const l = c.toLowerCase().trim();
-          if (l.includes('+/-') || l.includes('chênh lệch') || l.includes('tăng trưởng')) return false;
-          return l.includes('tỷ trọng trả chậm') || l.includes('tỉ trọng trả chậm') || l.includes('tỷ trọng trả góp') || l.includes('trả chậm %') || l.includes('tỷ trọng tc');
-        });
-        if (foundTcIdx !== -1) {
-          tcColIdx = foundTcIdx;
-          const foundName = cols.findIndex(c => c.toLowerCase().includes('siêu thị'));
-          if (foundName !== -1) nameColIdx = foundName;
-          continue;
-        }
+    if (lineCols.length >= 3) {
+      const numsOnLine = lineCols.slice(1).map(cleanNum).filter(n => !isNaN(n) && n > 0);
+      if (numsOnLine.length > 0) {
+        rate = extractRateFromNums(numsOnLine);
       }
+    }
 
-      if (cols.length >= 2) {
-        const rowName = cols[nameColIdx] || cols[0];
-        let rateVal = 0;
-
-        // 1. If tab-separated, strictly take tabCols[3] (Cột 4 từ trái sang: % TC)
-        if (line.includes('\t')) {
-          const tabCols = line.split('\t').map(c => c.trim()).filter(Boolean);
-          if (tabCols.length >= 4) {
-            rateVal = cleanNum(tabCols[3]);
-          }
+    // B. If not found horizontally, check subsequent lines vertically (cell-per-line format from web copy)
+    if (!rate || rate <= 0) {
+      const vertNums: number[] = [];
+      for (let j = i + 1; j < rawLines.length; j++) {
+        const nextL = rawLines[j];
+        if (/(ĐML|ĐMM|ĐMS|TGD|BHX|MWG)/i.test(nextL) && nextL !== line && isSupermarketLine(nextL)) break;
+        if (nextL.toUpperCase().startsWith('TỔNG') && !nextL.includes('%')) break;
+        const num = cleanNum(nextL);
+        if (num > 0) {
+          vertNums.push(num);
         }
-
-        // 2. Extract numeric tokens from line.
-        // In standard 4-column BI table (Siêu thị | DT TG | DT ST | % TC):
-        // The numbers are: DT TG (45.66), DT ST (55.77), % TC (81.7). The last number is ALWAYS Cột 4 (% TC)!
-        if (!rateVal || rateVal <= 0 || rateVal > 100) {
-          const numMatches = line.match(/\b\d+(?:[.,]\d+)?%?\b/g);
-          if (numMatches) {
-            const validNums = numMatches.map(cleanNum).filter(n => !isNaN(n) && n > 0);
-            if (validNums.length >= 3) {
-              rateVal = validNums[validNums.length - 1]; // ALWAYS Cột thứ 4 (% TC: 81.7)!
-            } else if (validNums.length === 1 && validNums[0] <= 100) {
-              rateVal = validNums[0];
-            }
-          }
-        }
-
-        // 3. Fallback to rightmost column
-        if (!rateVal || rateVal <= 0 || rateVal > 100) {
-          rateVal = cleanNum(cols[cols.length - 1]);
-        }
-
-        if (rateVal > 0 && rateVal <= 100) {
-          storeRows.push({
-            name: rowName,
-            rate: rateVal,
-            isSummary: rowName.toUpperCase().startsWith('TỔNG')
-          });
-        }
+        if (vertNums.length >= 15) break;
       }
+      if (vertNums.length > 0) {
+        rate = extractRateFromNums(vertNums);
+      }
+    }
+
+    if (rate > 0 && rate <= 100) {
+      storeRows.push({
+        name: line,
+        rate: rate,
+        isSummary: line.toUpperCase().startsWith('TỔNG')
+      });
     }
   }
 
-  // If no storeRows yet, try cell-per-line (vertical table from web copy)
+  // PARSER 2: Fallback horizontal scan across all lines
   if (storeRows.length === 0) {
-    let headerList: string[] = [];
-    let dataStartIdx = 0;
-
     for (let i = 0; i < rawLines.length; i++) {
-      if (isKnownTcHeader(rawLines[i])) {
-        headerList.push(rawLines[i]);
-        dataStartIdx = i + 1;
-      } else if (headerList.length >= 2) {
-        break;
-      }
-    }
-
-    const colCount = Math.max(headerList.length, 4); // Usually 4 columns: Siêu thị, DT trả góp, DT siêu thị, Tỷ trọng trả chậm %
-    const dataLines = rawLines.slice(dataStartIdx);
-
-    // Group data lines into chunks of colCount
-    for (let i = 0; i < dataLines.length; i += colCount) {
-      const chunk = dataLines.slice(i, i + colCount);
-      if (chunk.length >= 4) {
-        const rowName = chunk[0];
-        // Cột 4 từ trái sang: chunk[3] hoặc số cuối cùng trong chunk
-        let rateVal = cleanNum(chunk[3]);
-        if (!rateVal || rateVal <= 0 || rateVal > 100) {
-          const chunkNums = chunk.slice(1).map(c => cleanNum(c)).filter(n => !isNaN(n) && n > 0);
-          if (chunkNums.length >= 3) {
-            rateVal = chunkNums[chunkNums.length - 1]; // Cột 4: 81.7
-          } else if (chunkNums.length >= 1) {
-            rateVal = chunkNums[chunkNums.length - 1];
-          }
-        }
-        if (rateVal > 0 && rateVal <= 100) {
-          storeRows.push({
-            name: rowName,
-            rate: rateVal,
-            isSummary: rowName.toUpperCase().startsWith('TỔNG')
-          });
-        }
-      }
-    }
-
-    // Direct scan fallback: Look for store name followed by numbers
-    if (storeRows.length === 0) {
-      for (let i = 0; i < rawLines.length; i++) {
-        const line = rawLines[i];
-        if (/(ĐML|ĐMM|ĐMS|TGD|BHX|MWG|CMA)/i.test(line)) {
-          const rowNums: number[] = [];
-          for (let j = i + 1; j <= Math.min(i + 8, rawLines.length - 1); j++) {
-            const num = cleanNum(rawLines[j]);
-            if (num > 0) rowNums.push(num);
-          }
-          let rate = 0;
-          if (rowNums.length >= 3) {
-            // rowNums[0] = DT trả góp (45.66)
-            // rowNums[1] = DT siêu thị (55.77)
-            // rowNums[2] = CỘT THỨ 4 TỪ TRÁI SANG: Tỷ trọng trả chậm % (81.7)
-            rate = rowNums[rowNums.length - 1];
-          } else if (rowNums.length >= 1) {
-            rate = rowNums[rowNums.length - 1];
-          }
-          if (rate > 0 && rate <= 100) {
+      const line = rawLines[i];
+      const cols = line.split(/\t|\||\s{2,}/).map(c => c.trim()).filter(Boolean);
+      if (cols.length >= 3) {
+        const numMatches = line.match(/\b\d+(?:[.,]\d+)?%?\b/g);
+        if (numMatches) {
+          const validNums = numMatches.map(cleanNum).filter(n => !isNaN(n) && n > 0);
+          const rateVal = extractRateFromNums(validNums);
+          if (rateVal > 0 && rateVal <= 100) {
             storeRows.push({
-              name: line,
-              rate: rate,
-              isSummary: false
+              name: cols[0],
+              rate: rateVal,
+              isSummary: cols[0].toUpperCase().startsWith('TỔNG')
             });
           }
         }

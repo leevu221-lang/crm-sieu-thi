@@ -6524,9 +6524,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const percentHT = dailyPercentHT;
     const tcRate = resolveRealtimeTraChamRate(activeDeclared?.name || parsedMarket?.name || '');
     const installmentRate = (tcRate !== null && !isNaN(tcRate) && tcRate > 0)
-      ? (Math.floor(tcRate * 10) / 10).toFixed(1)
+      ? (Math.round(tcRate * 10) / 10).toFixed(1)
       : (((parsedMarket.installmentRate || parsedMarket.percentTraGop || 0) > 0)
-          ? (Math.floor((parsedMarket.installmentRate || parsedMarket.percentTraGop) * 10) / 10).toFixed(1)
+          ? (Math.round((parsedMarket.installmentRate || parsedMarket.percentTraGop) * 10) / 10).toFixed(1)
           : '0.0');
     const luotBill = Math.round(parsedMarket.luotBillThuHo || 0);
 
@@ -7394,11 +7394,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 value={(() => {
                                   const tcRate = resolveRealtimeTraChamRate(declaredMarket.name);
                                   if (tcRate !== null && !isNaN(tcRate) && tcRate > 0) {
-                                    const floored = Math.floor(tcRate * 10) / 10;
-                                    return `${floored.toFixed(1)}%`;
+                                    const rounded = Math.round(tcRate * 10) / 10;
+                                    return `${rounded.toFixed(1)}%`;
                                   }
                                   const fallbackRate = parsedMarket.installmentRate || parsedMarket.percentTraGop || 0;
-                                  return `${(fallbackRate > 0 ? (Math.floor(fallbackRate * 10) / 10) : 0).toFixed(1)}%`;
+                                  return `${(fallbackRate > 0 ? (Math.round(fallbackRate * 10) / 10) : 0).toFixed(1)}%`;
                                 })()}
                                 subValue=""
                                 icon={ShoppingBag}
