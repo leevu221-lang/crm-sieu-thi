@@ -22,7 +22,10 @@ import {
   Check,
   ChevronsUpDown,
   CheckSquare,
-  Square
+  Square,
+  User,
+  UserCheck,
+  UserX
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { removeAccents, normalizeStoreId } from '../utils';
@@ -35,6 +38,14 @@ export interface BrandDailyStaffSalesTableProps {
   onCapture?: () => void;
   selectedStaffs?: string[];
   drillFilterStaff?: string[];
+}
+
+export interface StaffOption {
+  staffKey: string;
+  staffId: string;
+  staffName: string;
+  totalQty: number;
+  totalRev: number;
 }
 
 interface SaleItemDetail {
@@ -185,6 +196,13 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [hasLoadedSavedConfig, setHasLoadedSavedConfig] = useState(false);
 
+  // Selected staffs state (Multi-select) - Lưu cấu hình cố định theo siêu thị
+  const [selectedStaffKeys, setSelectedStaffKeys] = useState<string[]>([]);
+  const [hasLoadedSavedStaffConfig, setHasLoadedSavedStaffConfig] = useState(false);
+  const [staffSearchQuery, setStaffSearchQuery] = useState('');
+  const [showStaffFilterModal, setShowStaffFilterModal] = useState(false);
+  const staffDropdownRef = useRef<HTMLDivElement>(null);
+
   // Expanded state for each brand row
   const [expandedBrands, setExpandedBrands] = useState<Record<string, boolean>>({});
 
@@ -204,20 +222,23 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
     totalRev: number;
   } | null>(null);
 
-  // Close brand dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (brandDropdownRef.current && !brandDropdownRef.current.contains(e.target as Node)) {
         setShowBrandFilterModal(false);
       }
+      if (staffDropdownRef.current && !staffDropdownRef.current.contains(e.target as Node)) {
+        setShowStaffFilterModal(false);
+      }
     };
-    if (showBrandFilterModal) {
+    if (showBrandFilterModal || showStaffFilterModal) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showBrandFilterModal]);
+  }, [showBrandFilterModal, showStaffFilterModal]);
 
   // Parse header and indices
   const indices = useMemo(() => {
@@ -286,6 +307,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
     if (!indices || sourceRows.length === 0) {
       return {
         brandList: [] as { brand: string; totalQty: number; totalRev: number; staffCount: number }[],
+        allStaffList: [] as StaffOption[],
         brandSalesMap: new Map<string, Map<string, StaffBrandSales>>(),
         allDateKeysMap: new Map<string, DayColumn>(),
         minDate: null as Date | null,
@@ -297,6 +319,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
 
     const brandStats = new Map<string, { totalQty: number; totalRev: number; staffKeys: Set<string> }>();
     const brandSalesMap = new Map<string, Map<string, StaffBrandSales>>();
+    const allStaffMap = new Map<string, StaffOption>();
     const allDateKeysMap = new Map<string, DayColumn>();
     let minDate: Date | null = null;
     let maxDate: Date | null = null;
@@ -325,6 +348,21 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
       const qty = rawQty > 0 ? rawQty : 1;
       const rawRev = idxRevenue !== -1 ? parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0 : 0;
       const rev = rawRev >= 0 ? rawRev : 0;
+
+      // Track staff totals across entire store
+      if (!allStaffMap.has(staffKey)) {
+        allStaffMap.set(staffKey, {
+          staffKey,
+          staffId,
+          staffName,
+          totalQty: 0,
+          totalRev: 0,
+        });
+      }
+      const sTotalRec = allStaffMap.get(staffKey)!;
+      sTotalRec.totalQty += qty;
+      sTotalRec.totalRev += rev;
+      if (!sTotalRec.staffId && staffId) sTotalRec.staffId = staffId;
 
       // 4. Date info: robust extraction with fallbacks
       let parsedDate: { dateKey: string; dayNum: number; displayDate: string; fullDate: Date } | null = null;
@@ -430,8 +468,12 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
       }))
       .sort((a, b) => b.totalQty - a.totalQty || a.brand.localeCompare(b.brand));
 
+    const allStaffList = Array.from(allStaffMap.values())
+      .sort((a, b) => b.totalQty - a.totalQty || b.totalRev - a.totalRev || a.staffName.localeCompare(b.staffName));
+
     return {
       brandList,
+      allStaffList,
       brandSalesMap,
       allDateKeysMap,
       minDate,
@@ -467,6 +509,34 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
     setHasLoadedSavedConfig(true);
   }, [storeKey, parsedData.brandList]);
 
+  // Load / Restore store-specific saved staff configuration
+  useEffect(() => {
+    if (!parsedData.allStaffList || parsedData.allStaffList.length === 0) return;
+
+    const storageKey = `brandDailyStaffSales_selectedStaffs_${storeKey}`;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Keep only staff that exist in current dataset
+          const valid = parsed.filter(s => parsedData.allStaffList.some(item => item.staffKey === s || item.staffName === s));
+          if (valid.length > 0) {
+            setSelectedStaffKeys(valid);
+            setHasLoadedSavedStaffConfig(true);
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Could not read saved staff filter from localStorage', e);
+    }
+
+    // Default if no saved config: select all staff
+    setSelectedStaffKeys(parsedData.allStaffList.map(s => s.staffKey));
+    setHasLoadedSavedStaffConfig(true);
+  }, [storeKey, parsedData.allStaffList]);
+
   // Helper to update selected brands and save to store config
   const updateSelectedBrands = (newBrands: string[]) => {
     setSelectedBrands(newBrands);
@@ -492,6 +562,33 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
 
   const clearAllBrands = () => {
     updateSelectedBrands([]);
+  };
+
+  // Helper to update selected staff and save to store config
+  const updateSelectedStaffKeys = (newStaffs: string[]) => {
+    setSelectedStaffKeys(newStaffs);
+    const storageKey = `brandDailyStaffSales_selectedStaffs_${storeKey}`;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(newStaffs));
+    } catch (e) {
+      console.warn('Could not save staff filter to localStorage', e);
+    }
+  };
+
+  const toggleStaffSelection = (staffKey: string) => {
+    if (selectedStaffKeys.includes(staffKey)) {
+      updateSelectedStaffKeys(selectedStaffKeys.filter(s => s !== staffKey));
+    } else {
+      updateSelectedStaffKeys([...selectedStaffKeys, staffKey]);
+    }
+  };
+
+  const selectAllStaffs = () => {
+    updateSelectedStaffKeys(parsedData.allStaffList.map(s => s.staffKey));
+  };
+
+  const clearAllStaffs = () => {
+    updateSelectedStaffKeys([]);
   };
 
   // Toggle expand / collapse for a single brand row
@@ -581,7 +678,12 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
       
       let staffList: StaffBrandSales[] = Array.from(staffMap.values());
 
-      // Filter staff by parent filter if any
+      // 1. Filter by internal selectedStaffKeys (LƯU CỐ ĐỊNH THEO TÊN SIÊU THỊ)
+      if (hasLoadedSavedStaffConfig) {
+        staffList = staffList.filter(s => selectedStaffKeys.includes(s.staffKey) || selectedStaffKeys.includes(s.staffName));
+      }
+
+      // 2. Filter staff by parent filter if any
       if (selectedStaffs.length > 0) {
         staffList = staffList.filter(s => selectedStaffs.some(sel => s.staffName.toLowerCase().includes(sel.toLowerCase())));
       }
@@ -589,7 +691,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
         staffList = staffList.filter(s => drillFilterStaff.includes(s.staffName));
       }
 
-      // Filter staff with sales
+      // 3. Filter staff with sales
       if (showOnlyWithSales) {
         staffList = staffList.filter(s => s.totalQty > 0);
       }
@@ -597,7 +699,11 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
       // Sort staff in brand descending
       staffList.sort((s1, s2) => s2.totalQty - s1.totalQty || s2.totalRev - s1.totalRev || s1.staffName.localeCompare(s2.staffName));
 
+      let brandTotalQty = 0;
+      let brandTotalRev = 0;
       staffList.forEach(staff => {
+        brandTotalQty += staff.totalQty;
+        brandTotalRev += staff.totalRev;
         Object.entries(staff.dailyQty).forEach(([dk, q]) => {
           dailyQty[dk] = (dailyQty[dk] || 0) + q;
         });
@@ -610,12 +716,16 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
         brandName: b.brand,
         dailyQty,
         dailyRev,
-        totalQty: b.totalQty,
-        totalRev: b.totalRev,
+        totalQty: brandTotalQty,
+        totalRev: brandTotalRev,
         staffCount: staffList.length,
         staffList,
       };
     });
+
+    const activeBrandRows = showOnlyWithSales 
+      ? brandRows.filter(b => b.totalQty > 0)
+      : brandRows;
 
     // Store total row across all displayed brands
     const storeDailyQty: Record<string, number> = {};
@@ -623,7 +733,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
     let grandTotalQty = 0;
     let grandTotalRev = 0;
 
-    brandRows.forEach(r => {
+    activeBrandRows.forEach(r => {
       grandTotalQty += r.totalQty;
       grandTotalRev += r.totalRev;
       Object.entries(r.dailyQty).forEach(([dk, q]) => {
@@ -635,7 +745,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
     });
 
     return {
-      brandRows,
+      brandRows: activeBrandRows,
       storeDailyQty,
       storeDailyRev,
       grandTotalQty,
@@ -644,6 +754,8 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
   }, [
     parsedData,
     selectedBrands,
+    selectedStaffKeys,
+    hasLoadedSavedStaffConfig,
     brandSearchQuery,
     selectedStaffs,
     drillFilterStaff,
@@ -658,6 +770,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
 
       aoa.push([title]);
       aoa.push([`Các hãng được chọn: ${selectedBrands.join(', ')}`]);
+      aoa.push([`Nhân viên được chọn: ${selectedStaffKeys.length === parsedData.allStaffList.length ? 'Tất cả nhân viên' : selectedStaffKeys.join(', ')}`]);
       aoa.push([]);
 
       // Header row
@@ -796,11 +909,12 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
 
         {/* Filter bar - EXACT SAME STYLE AS HÌNH & USER SCREENSHOT */}
         <div className="flex flex-col gap-2.5 bg-slate-50/90 rounded-2xl p-3 sm:px-5 sm:py-3.5 border border-slate-200/70 no-capture">
-          {/* Top Row: Brand Search & Multi-select Filter Bar */}
-          <div className="w-full flex justify-center pb-0.5">
-            <div className="relative w-full max-w-md sm:max-w-lg" ref={brandDropdownRef}>
+          {/* Top Row: Dual Brand & Staff Multi-select Filter Bar */}
+          <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-3 pb-0.5">
+            {/* 1. BRAND FILTER */}
+            <div className="relative w-full" ref={brandDropdownRef}>
               <div className="relative flex items-center">
-                <Search size={15} className="absolute left-3.5 text-slate-400 pointer-events-none" />
+                <Layers size={15} className="absolute left-3.5 text-emerald-600 pointer-events-none" />
                 <input
                   type="text"
                   value={brandSearchQuery}
@@ -811,13 +925,13 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                   onFocus={() => setShowBrandFilterModal(true)}
                   placeholder={
                     selectedBrands.length === parsedData.brandList.length
-                      ? '🔍 Tìm kiếm hãng (Đang chọn tất cả)...'
-                      : `🔍 Tìm kiếm hãng (Đã chọn ${selectedBrands.length}/${parsedData.brandList.length} hãng)...`
+                      ? '🏷️ Tìm hãng (Đang chọn tất cả)...'
+                      : `🏷️ Tìm hãng (Đã chọn ${selectedBrands.length}/${parsedData.brandList.length} hãng)...`
                   }
                   className="w-full pl-9 pr-24 py-1.5 sm:py-2 text-[12px] sm:text-[13px] bg-white border-2 border-emerald-500 rounded-full shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-slate-800 font-semibold placeholder:text-slate-400 placeholder:font-normal transition-all"
                 />
 
-                {/* Right controls inside search pill */}
+                {/* Right controls inside brand search pill */}
                 <div className="absolute right-2 flex items-center gap-1.5">
                   {brandSearchQuery && (
                     <button
@@ -835,7 +949,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                     className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-[#047857] border border-emerald-300 hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-2xs"
                     title="Mở danh sách chọn hãng"
                   >
-                    <span>{selectedBrands.length}/{parsedData.brandList.length}</span>
+                    <span>{selectedBrands.length}/{parsedData.brandList.length} Hãng</span>
                     <ChevronDown size={11} className={`transition-transform duration-200 ${showBrandFilterModal ? 'rotate-180' : ''}`} />
                   </button>
                 </div>
@@ -851,7 +965,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
                         BỘ LỌC HÃNG HIỂN THỊ
                       </h4>
                       <p className="text-[10px] text-slate-400">
-                        {activeStore ? `Lưu tự động cho siêu thị: ${activeStore}` : 'Lưu cấu hình tự động'}
+                        {activeStore ? `Lưu cố định theo siêu thị: ${activeStore}` : 'Lưu cấu hình cố định theo siêu thị'}
                       </p>
                     </div>
                     <button
@@ -935,10 +1049,180 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
 
                   <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
                     <span className="text-[10px] text-emerald-700 font-bold">
-                      ✓ Đã lưu cấu hình tự động
+                      ✓ Đã lưu cấu hình theo siêu thị
                     </span>
                     <button
                       onClick={() => setShowBrandFilterModal(false)}
+                      className="px-3.5 py-1 rounded-xl bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800 transition-colors"
+                    >
+                      Đóng
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 2. STAFF FILTER */}
+            <div className="relative w-full" ref={staffDropdownRef}>
+              <div className="relative flex items-center">
+                <Users size={15} className="absolute left-3.5 text-indigo-600 pointer-events-none" />
+                <input
+                  type="text"
+                  value={staffSearchQuery}
+                  onChange={(e) => {
+                    setStaffSearchQuery(e.target.value);
+                    setShowStaffFilterModal(true);
+                  }}
+                  onFocus={() => setShowStaffFilterModal(true)}
+                  placeholder={
+                    selectedStaffKeys.length === parsedData.allStaffList.length
+                      ? '👤 Tìm nhân viên (Đang chọn tất cả)...'
+                      : `👤 Tìm nhân viên (Đã chọn ${selectedStaffKeys.length}/${parsedData.allStaffList.length} NV)...`
+                  }
+                  className={`w-full pl-9 pr-24 py-1.5 sm:py-2 text-[12px] sm:text-[13px] bg-white border-2 rounded-full shadow-xs focus:outline-none focus:ring-2 text-slate-800 font-semibold placeholder:text-slate-400 placeholder:font-normal transition-all ${
+                    selectedStaffKeys.length < parsedData.allStaffList.length
+                      ? 'border-indigo-500 focus:ring-indigo-500/20 bg-indigo-50/10'
+                      : 'border-indigo-400 focus:ring-indigo-500/20'
+                  }`}
+                />
+
+                {/* Right controls inside staff search pill */}
+                <div className="absolute right-2 flex items-center gap-1.5">
+                  {staffSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setStaffSearchQuery('')}
+                      className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                      title="Xóa tìm kiếm"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowStaffFilterModal(!showStaffFilterModal)}
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border transition-colors flex items-center gap-1 shadow-2xs ${
+                      selectedStaffKeys.length < parsedData.allStaffList.length
+                        ? 'bg-indigo-100 text-indigo-800 border-indigo-300 hover:bg-indigo-200'
+                        : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                    }`}
+                    title="Mở danh sách chọn nhân viên"
+                  >
+                    <span>{selectedStaffKeys.length}/{parsedData.allStaffList.length} NV</span>
+                    <ChevronDown size={11} className={`transition-transform duration-200 ${showStaffFilterModal ? 'rotate-180' : ''}`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Multi-Select Staff Checklist Modal / Popover */}
+              {showStaffFilterModal && (
+                <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 p-3.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+                    <div>
+                      <h4 className="text-[12px] font-black text-indigo-700 uppercase tracking-wide flex items-center gap-1.5">
+                        <UserCheck size={14} className="text-indigo-600" />
+                        BỘ LỌC NHÂN VIÊN HIỂN THỊ
+                      </h4>
+                      <p className="text-[10px] text-slate-400">
+                        {activeStore ? `Lưu cố định theo siêu thị: ${activeStore}` : 'Lưu cấu hình cố định theo siêu thị'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowStaffFilterModal(false)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  {/* Select All / Deselect All actions */}
+                  <div className="flex items-center justify-between gap-1.5 mb-2 pb-2 border-b border-slate-100 text-[10.5px]">
+                    <button
+                      onClick={selectAllStaffs}
+                      className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold transition-colors"
+                    >
+                      Chọn tất cả ({parsedData.allStaffList.length})
+                    </button>
+                    <button
+                      onClick={clearAllStaffs}
+                      className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-bold transition-colors"
+                    >
+                      Bỏ chọn tất cả
+                    </button>
+                  </div>
+
+                  {/* Checklist Items List */}
+                  <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
+                    {parsedData.allStaffList
+                      .filter(s => 
+                        removeAccents(s.staffName.toLowerCase()).includes(removeAccents(staffSearchQuery.toLowerCase())) ||
+                        (s.staffId && s.staffId.includes(staffSearchQuery.trim()))
+                      )
+                      .map(s => {
+                        const isChecked = selectedStaffKeys.includes(s.staffKey);
+                        return (
+                          <div
+                            key={s.staffKey}
+                            onClick={() => toggleStaffSelection(s.staffKey)}
+                            className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl cursor-pointer transition-colors text-[11.5px] ${
+                              isChecked 
+                                ? 'bg-indigo-50/80 text-indigo-950 font-bold' 
+                                : 'hover:bg-slate-50 text-slate-600'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <span className={`w-4 h-4 rounded-md flex items-center justify-center border transition-colors shrink-0 ${
+                                isChecked 
+                                ? 'bg-indigo-600 border-indigo-600 text-white' 
+                                : 'border-slate-300 bg-white'
+                              }`}>
+                                {isChecked && <Check size={11} strokeWidth={3} />}
+                              </span>
+                              <div className="truncate flex items-center gap-1.5">
+                                <span className="text-slate-400">👤</span>
+                                <span className="truncate">{s.staffName}</span>
+                                {s.staffId && (
+                                  <span className="text-[10px] text-slate-400 font-normal">
+                                    #{s.staffId}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0 ml-2">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  updateSelectedStaffKeys([s.staffKey]);
+                                }}
+                                className="text-[9.5px] px-1.5 py-0.5 rounded bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-medium transition-colors"
+                                title="Chỉ xem riêng nhân viên này"
+                              >
+                                Chỉ chọn
+                              </button>
+                              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white border border-slate-200 text-slate-700 font-black">
+                                {viewMetric === 'qty' ? `${s.totalQty} sp` : `${(s.totalRev / 1000000).toFixed(1)} tr`}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    {parsedData.allStaffList.filter(s => 
+                      removeAccents(s.staffName.toLowerCase()).includes(removeAccents(staffSearchQuery.toLowerCase())) ||
+                      (s.staffId && s.staffId.includes(staffSearchQuery.trim()))
+                    ).length === 0 && (
+                      <div className="py-4 text-center text-[11px] text-slate-400">
+                        Không tìm thấy nhân viên nào khớp với "{staffSearchQuery}"
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-[10px] text-indigo-600 font-bold flex items-center gap-1">
+                      <span>✓ Đã lưu cấu hình theo siêu thị</span>
+                    </span>
+                    <button
+                      onClick={() => setShowStaffFilterModal(false)}
                       className="px-3.5 py-1 rounded-xl bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800 transition-colors"
                     >
                       Đóng
@@ -1010,7 +1294,7 @@ export const BrandDailyStaffSalesTable: React.FC<BrandDailyStaffSalesTableProps>
             </div>
 
             <div className="text-[10.5px] text-slate-400 font-medium">
-              Đang hiển thị <strong className="text-[#047857]">{displayedBrandsData.brandRows.length}</strong> hãng • Tổng sản lượng: <strong className="text-red-600">{displayedBrandsData.grandTotalQty}</strong> sp
+              Đang hiển thị <strong className="text-[#047857]">{displayedBrandsData.brandRows.length}</strong> hãng • <strong className="text-indigo-600">{selectedStaffKeys.length}/{parsedData.allStaffList.length}</strong> NV • Tổng sản lượng: <strong className="text-red-600">{displayedBrandsData.grandTotalQty}</strong> sp
             </div>
           </div>
         </div>
