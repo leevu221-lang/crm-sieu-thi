@@ -157,7 +157,7 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
     }
   };
 
-  // Chụp ảnh Zero-Shadow chuẩn mực
+  // Chụp ảnh Zero-Shadow chuẩn mực, đảm bảo hiển thị 100% banner và bảng sản phẩm
   const handleCaptureImage = async () => {
     if (!productsTableCaptureRef.current) {
       showNotification('Không tìm thấy vùng dữ liệu cần chụp!', 'error');
@@ -165,13 +165,37 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
     }
 
     setIsCapturing(true);
+    let tempContainer: HTMLDivElement | null = null;
+
     try {
       await ensureFontsReady();
 
       const sourceElem = productsTableCaptureRef.current;
       const clone = sourceElem.cloneNode(true) as HTMLElement;
 
-      // Gỡ bỏ toàn bộ shadow & filter (Zero-Shadow Export)
+      // 1. Loại bỏ các thành phần điều khiển không cần chụp (.no-capture)
+      const noCaptureElements = clone.querySelectorAll('.no-capture');
+      noCaptureElements.forEach((el) => el.remove());
+
+      // 2. Chuẩn hóa banner trong clone luôn hiển thị text cố định, sạch đẹp (ngay cả khi đang ở chế độ sửa)
+      const bannerEl = clone.firstElementChild as HTMLElement;
+      if (bannerEl) {
+        bannerEl.innerHTML = `
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; color: #dbeafe; opacity: 0.95;">
+              ${dateSubtitle}
+            </div>
+            <div style="font-size: 26px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em; color: #ffffff; line-height: 1.25;">
+              ${mainTitle}
+            </div>
+          </div>
+        `;
+        bannerEl.style.background = 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 55%, #3b82f6 100%)';
+        bannerEl.style.padding = '24px 32px';
+        bannerEl.style.boxSizing = 'border-box';
+      }
+
+      // 3. Triệt tiêu toàn bộ shadow, filter (Zero-Shadow Export)
       const allElements = clone.querySelectorAll('*');
       allElements.forEach((el) => {
         const htmlEl = el as HTMLElement;
@@ -183,37 +207,79 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
         );
       });
 
-      // Bọc khung đệm độc lập nền trắng phẳng tuyệt đối
+      // 4. Mở rộng tất cả các vùng chứa bị overflow: hidden hoặc scrollable
+      const overflowEls = clone.querySelectorAll('div, table');
+      overflowEls.forEach((el) => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.overflow = 'visible';
+        htmlEl.style.maxHeight = 'none';
+      });
+
+      const targetWidthPx = 960;
+
+      // 5. Khởi tạo container đệm ngoài viewport với top = 0 chuẩn theo pattern hệ thống
+      tempContainer = document.createElement('div');
+      tempContainer.style.position = 'fixed';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.top = '0px';
+      tempContainer.style.width = `${targetWidthPx}px`;
+      tempContainer.style.zIndex = '-9999';
+      tempContainer.style.pointerEvents = 'none';
+      tempContainer.style.overflow = 'visible';
+
+      // 6. Bọc khung đệm trắng phẳng tuyệt đối
       const frameWrapper = document.createElement('div');
-      frameWrapper.style.position = 'fixed';
-      frameWrapper.style.top = '-99999px';
-      frameWrapper.style.left = '-99999px';
-      frameWrapper.style.width = '960px'; // Chiều rộng chuẩn tỉ lệ hình
+      frameWrapper.style.width = `${targetWidthPx}px`;
+      frameWrapper.style.minWidth = `${targetWidthPx}px`;
+      frameWrapper.style.maxWidth = `${targetWidthPx}px`;
       frameWrapper.style.backgroundColor = '#ffffff';
       frameWrapper.style.padding = '0px';
       frameWrapper.style.margin = '0px';
+      frameWrapper.style.boxSizing = 'border-box';
       frameWrapper.style.boxShadow = 'none';
-      frameWrapper.style.overflow = 'hidden';
+      frameWrapper.style.overflow = 'visible';
 
       // Khóa kích thước clone
-      clone.style.width = '960px';
+      clone.style.width = `${targetWidthPx}px`;
+      clone.style.minWidth = `${targetWidthPx}px`;
+      clone.style.maxWidth = `${targetWidthPx}px`;
       clone.style.boxShadow = 'none';
       clone.style.borderRadius = '0px';
       clone.style.border = 'none';
+      clone.style.overflow = 'visible';
 
       frameWrapper.appendChild(clone);
-      document.body.appendChild(frameWrapper);
+      tempContainer.appendChild(frameWrapper);
+      document.body.appendChild(tempContainer);
 
-      // Render ảnh với tỉ lệ 2.5x cực nét
+      // Chờ trình duyệt reflow layout & load font hoàn tất
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Tính toán chiều cao chính xác của toàn bộ nội dung
+      const exactHeight = Math.ceil(
+        Math.max(
+          frameWrapper.scrollHeight,
+          frameWrapper.offsetHeight,
+          clone.scrollHeight,
+          clone.offsetHeight,
+          600
+        )
+      );
+
+      // Render ảnh nét cao với tỉ lệ 2.5x
       const dataUrl = await domToPng(frameWrapper, {
         scale: 2.5,
         backgroundColor: '#ffffff',
+        width: targetWidthPx,
+        height: exactHeight,
         features: {
           removeControlCharacter: true
         }
       });
 
-      document.body.removeChild(frameWrapper);
+      if (!dataUrl) {
+        throw new Error('domToPng không tạo ra được chuỗi ảnh');
+      }
 
       setPreviewImage(dataUrl);
       showNotification('Đã chụp ảnh báo cáo thành công! Sẵn sàng chia sẻ.', 'success');
@@ -221,6 +287,9 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
       console.error('[GvgsEfficiencyReportTable] Lỗi chụp ảnh:', err);
       showNotification('Lỗi khi chụp ảnh báo cáo.', 'error');
     } finally {
+      if (tempContainer && document.body.contains(tempContainer)) {
+        document.body.removeChild(tempContainer);
+      }
       setIsCapturing(false);
     }
   };
