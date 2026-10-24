@@ -118,6 +118,13 @@ function MainApp() {
     });
   }, []);
   const { userProfile, loading, logout, refreshProfile, updateStoreName } = useAuth();
+  const isUser43751Local = String(userProfile?.username || '').trim() === '43751' ||
+                           String(userProfile?.ma_nhan_vien || '').trim() === '43751' ||
+                           String(userProfile?.user_id || '').trim() === '43751' ||
+                           String(userProfile?.username || '').toLowerCase().includes('43751') ||
+                           String(userProfile?.selected_store || '').includes('155A NGUYỄN TẤT THÀNH') ||
+                           String(userProfile?.ten_sieu_thi || '').includes('155A NGUYỄN TẤT THÀNH');
+
   // Bỏ qua màn hình đăng nhập, khai báo và khóa gói cước khi truy cập chế độ xem trực tiếp không cần đăng nhập
   const isGuestOrDirectMode = userProfile?.role === 'guest' || userProfile?.isGuest === true || isDirectDedicatedMode || (typeof window !== 'undefined' && isGuestShareLink());
 
@@ -149,19 +156,6 @@ function MainApp() {
     setShowDeclarationForce(false);
     setDeclarationDismissed(true);
   };
-
-  // Khi "Lịch PG" bị chọn ẩn: nếu tài khoản người dùng khác đang mở trang và KHÔNG truy cập từ link chia sẻ, tự động chuyển về BC Ngày
-  useEffect(() => {
-    if (!loading && currentPage === 'lichpg' && !isUser43751Local) {
-      const isShareLichPg = isShareLinkForLichPg();
-      if (pageHiddenState['lichpg'] && !isShareLichPg) {
-        setCurrentPage('realtime');
-        try {
-          localStorage.setItem('crm_active_page', 'realtime');
-        } catch {}
-      }
-    }
-  }, [loading, currentPage, isUser43751Local, pageHiddenState]);
 
   const isDeclarationRequired = useMemo(() => {
     if (!userProfile) return false;
@@ -367,6 +361,19 @@ function MainApp() {
     }
   };
 
+  // Khi "Lịch PG" bị chọn ẩn: nếu tài khoản người dùng khác đang mở trang và KHÔNG truy cập từ link chia sẻ, tự động chuyển về BC Ngày
+  useEffect(() => {
+    if (!loading && currentPage === 'lichpg' && !isUser43751Local) {
+      const isShareLichPg = isShareLinkForLichPg();
+      if (pageHiddenState['lichpg'] && !isShareLichPg) {
+        setCurrentPage('realtime');
+        try {
+          localStorage.setItem('crm_active_page', 'realtime');
+        } catch {}
+      }
+    }
+  }, [loading, currentPage, isUser43751Local, pageHiddenState]);
+
   // Hard Rule implementation for fallback if userProfile has missing userPermissions (legacy session)
   const isSuperAdminHardcoded = userProfile?.username === '43751' || userProfile?.username === 'ADMIN';
   const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'bbkq', 'tienich', 'users', 'tnb_data', 'tnbleader', 'birthday', 'feedback', 'excelviewer'];
@@ -501,13 +508,6 @@ function MainApp() {
       />
     );
   }
-
-  const isUser43751Local = String(userProfile?.username || '').trim() === '43751' ||
-                           String(userProfile?.ma_nhan_vien || '').trim() === '43751' ||
-                           String(userProfile?.user_id || '').trim() === '43751' ||
-                           String(userProfile?.username || '').toLowerCase().includes('43751') ||
-                           String(userProfile?.selected_store || '').includes('155A NGUYỄN TẤT THÀNH') ||
-                           String(userProfile?.ten_sieu_thi || '').includes('155A NGUYỄN TẤT THÀNH');
 
   const isSuperAdmin = canEditUser;
 
