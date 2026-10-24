@@ -1458,7 +1458,6 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const dtDuKienQD = market.targetQD || 0;
     const percentHT = market.percentHT || 0;
     if (stDtDuKienQD !== dtDuKienQD) setStDtDuKienQD(dtDuKienQD);
-    if (dtDuKienQD > 0 && stTargetQuyDoi !== dtDuKienQD) setStTargetQuyDoi(dtDuKienQD);
     if (stPercentHTTargetDuKienQD !== percentHT) setStPercentHTTargetDuKienQD(percentHT);
 
     const targetDataKey = Object.keys(allStoreTargets || {}).find(k => normalize(k) === normFilter);

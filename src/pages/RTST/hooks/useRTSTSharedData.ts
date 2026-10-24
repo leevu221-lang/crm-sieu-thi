@@ -676,7 +676,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
   // AUTO-CALCULATION: Target Quy Đổi từ stDtDuKienQD (market.targetQD từ dữ liệu báo cáo)
   useEffect(() => {
     if (stDtDuKienQD > 0) {
-      if (stTargetQuyDoi !== stDtDuKienQD) setStTargetQuyDoi(stDtDuKienQD);
+      setStTargetQuyDoi((prev: number) => (prev !== stDtDuKienQD ? stDtDuKienQD : prev));
     }
   }, [stDtDuKienQD]);
 
@@ -684,7 +684,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
   useEffect(() => {
     if (stTargetQuyDoi > 0) {
       const calculated = Math.round(stTargetQuyDoi * (stPercentTarget / 100));
-      if (stTargetSauHeSo !== calculated) setStTargetSauHeSo(calculated);
+      setStTargetSauHeSo((prev: number) => (prev !== calculated ? calculated : prev));
     }
   }, [stTargetQuyDoi, stPercentTarget]);
 

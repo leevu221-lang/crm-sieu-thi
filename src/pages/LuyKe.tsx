@@ -1463,10 +1463,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
 
     const dtDuKienQD = market.targetQD || 0;
     const percentHT = market.percentHT || 0;
-    if (dtDuKienQD > 0) {
-      if (stDtDuKienQD !== dtDuKienQD) setStDtDuKienQD(dtDuKienQD);
-      if (stTargetQuyDoi !== dtDuKienQD) setStTargetQuyDoi(dtDuKienQD);
-    }
+    if (dtDuKienQD > 0 && stDtDuKienQD !== dtDuKienQD) setStDtDuKienQD(dtDuKienQD);
     if (percentHT > 0 && stPercentHTTargetDuKienQD !== percentHT) setStPercentHTTargetDuKienQD(percentHT);
 
     // Sync from DB cache (allStoreTargets) using normalized keys to prevent spacing/underscore mismatches

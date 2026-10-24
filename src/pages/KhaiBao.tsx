@@ -192,9 +192,6 @@ const KhaiBao: React.FC = () => {
         setStDtqd((prev: number) => prev !== (market.actualVirtual || 0) ? (market.actualVirtual || 0) : prev);
         const luykeTarget = market.targetQD || market.targetST || 0;
         setStDtDuKienQD((prev: number) => prev !== luykeTarget ? luykeTarget : prev);
-        if (luykeTarget > 0) {
-          setStTargetQuyDoi((prev: number) => prev !== luykeTarget ? luykeTarget : prev);
-        }
         setStPercentHTTargetDuKienQD((prev: number) => prev !== (market.percentHT || 0) ? (market.percentHT || 0) : prev);
       } else {
         // Reset luyke-specific fields if not found in Luy Ke data
@@ -207,9 +204,6 @@ const KhaiBao: React.FC = () => {
         const percentHT = rtMarket?.percentHT || 0;
         
         setStDtDuKienQD((prev: number) => prev !== dtDuKienQD ? dtDuKienQD : prev);
-        if (dtDuKienQD > 0) {
-          setStTargetQuyDoi((prev: number) => prev !== dtDuKienQD ? dtDuKienQD : prev);
-        }
         setStPercentHTTargetDuKienQD((prev: number) => prev !== percentHT ? percentHT : prev);
       }
     } else if (luykeMarkets.length === 0 && !isLoading && !isLoadingRealtime && !clusterSummaryInput && !categoryRevenueInput) {
@@ -218,7 +212,6 @@ const KhaiBao: React.FC = () => {
       setStDtlk((prev: number) => prev ? 0 : prev);
       setStDtqd((prev: number) => prev ? 0 : prev);
       setStDtDuKienQD((prev: number) => prev ? 0 : prev);
-      setStTargetQuyDoi((prev: number) => prev ? 0 : prev);
       setStPercentHTTargetDuKienQD((prev: number) => prev ? 0 : prev);
     }
   }, [marketFilter, rtProcessedData.luykeMarkets, rtProcessedData.markets, setStName, setStDtlk, setStDtqd, setStDtDuKienQD, setStPercentHTTargetDuKienQD, isLoading, isLoadingRealtime, clusterSummaryInput, categoryRevenueInput]);
