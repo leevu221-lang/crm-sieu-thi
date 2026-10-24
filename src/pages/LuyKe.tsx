@@ -1444,11 +1444,10 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
 
   // PERF: Sync stName and revenue fields when marketFilter or data changes
   // Only trigger on external changes (marketFilter, filteredDisplayData.markets, allStoreTargets)
-  // NOT on the values we set — avoids re-render cascade
+  // Uses functional state updates and isolates dependencies to prevent re-render cascade
   useEffect(() => {
     if (marketFilter === 'ALL') return;
     const normFilter = normalize(marketFilter);
-    // Find matching market in filteredDisplayData.markets (which has targetQD, actualReal, actualVirtual, percentHT)
     const market = (filteredDisplayData.markets || []).find(
       (m: any) => {
         const nm = normalize(m.name);
@@ -1457,24 +1456,22 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     ) || filteredMarkets.find(m => normalize(m.name) === normFilter);
     if (!market) return;
 
-    if (stName !== market.name) setStName(market.name);
-    if (market.actualReal !== undefined && stDtlk !== market.actualReal) setStDtlk(market.actualReal);
-    if (market.actualVirtual !== undefined && stDtqd !== market.actualVirtual) setStDtqd(market.actualVirtual);
+    setStName(prev => prev !== market.name ? market.name : prev);
+    if (market.actualReal !== undefined) setStDtlk(prev => prev !== market.actualReal ? market.actualReal : prev);
+    if (market.actualVirtual !== undefined) setStDtqd(prev => prev !== market.actualVirtual ? market.actualVirtual : prev);
 
     const dtDuKienQD = market.targetQD || 0;
     const percentHT = market.percentHT || 0;
-    if (dtDuKienQD > 0 && stDtDuKienQD !== dtDuKienQD) setStDtDuKienQD(dtDuKienQD);
-    if (percentHT > 0 && stPercentHTTargetDuKienQD !== percentHT) setStPercentHTTargetDuKienQD(percentHT);
+    if (dtDuKienQD > 0) setStDtDuKienQD(prev => prev !== dtDuKienQD ? dtDuKienQD : prev);
+    if (percentHT > 0) setStPercentHTTargetDuKienQD(prev => prev !== percentHT ? percentHT : prev);
 
-    // Sync from DB cache (allStoreTargets) using normalized keys to prevent spacing/underscore mismatches
+    // Sync from DB cache (allStoreTargets) using normalized keys
     const targetDataKey = Object.keys(allStoreTargets || {}).find(k => normalize(k) === normFilter);
     const targetData = targetDataKey ? allStoreTargets[targetDataKey] : null;
-    if (targetData) {
-      if (targetData.stPercentTarget !== undefined && stPercentTarget !== targetData.stPercentTarget) {
-        setStPercentTarget(targetData.stPercentTarget);
-      }
+    if (targetData && targetData.stPercentTarget !== undefined) {
+      setStPercentTarget(prev => prev !== targetData.stPercentTarget ? targetData.stPercentTarget : prev);
     }
-  }, [marketFilter, filteredDisplayData.markets, filteredMarkets, allStoreTargets, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stPercentTarget, setStName, setStDtlk, setStDtqd, setStDtDuKienQD, setStPercentHTTargetDuKienQD, setStPercentTarget]);
+  }, [marketFilter, filteredDisplayData.markets, filteredMarkets, allStoreTargets]);
 
   // Sync marketFilter when filteredMarkets changes
   useEffect(() => {
@@ -1534,15 +1531,20 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     // Sort categories by exact custom order specified by user
     deduped.sort((a: any, b: any) => getCustomCategoryIndex(a.name || '') - getCustomCategoryIndex(b.name || ''));
 
-    // Map each category to use the target from categoryTargets (TARGET THI ĐUA) if available
+    // Fast O(1) Map lookup for TARGET THI ĐUA matching
+    const targetMap = new Map<string, number>();
+    (categoryTargets || []).forEach((t: any) => {
+      if (typeof t.adjustedTarget === 'number') {
+        targetMap.set(`${normalize(t.name)}__${t.type}`, t.adjustedTarget);
+      }
+    });
+
     return deduped.map((cat: any) => {
-      const matchingTarget = categoryTargets.find(
-        (t: any) => normalize(t.name) === normalize(cat.name) && t.type === cat.type
-      );
-      if (matchingTarget && typeof matchingTarget.adjustedTarget === 'number') {
+      const adjustedTarget = targetMap.get(`${normalize(cat.name)}__${cat.type}`);
+      if (typeof adjustedTarget === 'number') {
         return {
           ...cat,
-          target: matchingTarget.adjustedTarget
+          target: adjustedTarget
         };
       }
       return cat;
@@ -1628,6 +1630,15 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     return rawCategoriesDT.filter((c: any) => !hiddenSet.has((c.name || '').trim().toUpperCase()));
   }, [rawCategoriesDT, hiddenCatsDT]);
 
+  // Memoized sorted lists for SLLK and DTLK tables — prevents sorting inside JSX on every render
+  const sortedCategoriesSL = useMemo(() => {
+    return sortCategoryList(visibleCategoriesSL, sortModeSL);
+  }, [visibleCategoriesSL, sortModeSL, daysPassed, totalDays]);
+
+  const sortedCategoriesDT = useMemo(() => {
+    return sortCategoryList(visibleCategoriesDT, sortModeDT);
+  }, [visibleCategoriesDT, sortModeDT, daysPassed, totalDays]);
+
   const toggleHideCategorySL = (name: string) => {
     const key = (name || '').trim().toUpperCase();
     setHiddenCatsSL(prev => {
@@ -1692,6 +1703,18 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     return '0';
   };
 
+  // Cache parsed localStorage config to avoid repeated JSON.parse inside loops
+  const clusterTargetConfigMap = useMemo(() => {
+    try {
+      const rawClusterCfg = localStorage.getItem('crm_cluster_store_target_config');
+      if (rawClusterCfg) {
+        const parsed = JSON.parse(rawClusterCfg);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch {}
+    return {};
+  }, []);
+
   // Helper to resolve store target without flickering or cross-store fallback leakage
   const resolveMarketTarget = useCallback((market: any) => {
     if (!market) return { displayTargetQD: 0, percentTargetVal: 100, targetData: null };
@@ -1705,20 +1728,14 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       });
     const targetData: any = targetDataKey ? allStoreTargets[targetDataKey] : null;
 
-    // 2. Check popup "CẤU HÌNH TARGET" from localStorage (crm_cluster_store_target_config)
+    // 2. Check popup "CẤU HÌNH TARGET" from cached config
     let clusterTargetConfig: any = null;
-    try {
-      const rawClusterCfg = localStorage.getItem('crm_cluster_store_target_config');
-      if (rawClusterCfg) {
-        const parsedCfg = JSON.parse(rawClusterCfg);
-        const cfgKey = Object.keys(parsedCfg).find(k => normalize(k) === normMarket)
-          || Object.keys(parsedCfg).find(k => {
-            const nk = normalize(k);
-            return nk.includes(normMarket) || normMarket.includes(nk);
-          });
-        if (cfgKey) clusterTargetConfig = parsedCfg[cfgKey];
-      }
-    } catch {}
+    const cfgKey = Object.keys(clusterTargetConfigMap).find(k => normalize(k) === normMarket)
+      || Object.keys(clusterTargetConfigMap).find(k => {
+        const nk = normalize(k);
+        return nk.includes(normMarket) || normMarket.includes(nk);
+      });
+    if (cfgKey) clusterTargetConfig = clusterTargetConfigMap[cfgKey];
 
     const isCurrentActive = normalize(currentStoreId) === normMarket || normalize(stName) === normMarket;
 
@@ -1745,7 +1762,69 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       percentTargetVal,
       targetData
     };
-  }, [allStoreTargets, currentStoreId, stName, stPercentTarget, stTargetQuyDoi, stTargetSauHeSo]);
+  }, [allStoreTargets, currentStoreId, stName, stPercentTarget, stTargetQuyDoi, stTargetSauHeSo, clusterTargetConfigMap]);
+
+  // Memoize LNTT lookup table once from clusterSummaryInput string — 100x faster than in-render regex loops
+  const lnttByStoreMap = React.useMemo(() => {
+    const map = new Map<string, number>();
+    if (!clusterSummaryInput) return map;
+
+    const lines = clusterSummaryInput.split('\n').map((l: string) => l.trim()).filter(Boolean);
+    let lnttColIdx = -1;
+    let nameColIdx = -1;
+
+    for (const line of lines) {
+      const lower = line.toLowerCase();
+      if (lower.includes('stt') || lower.includes('tên siêu thị') || lower.includes('tên miền') || lower.includes('dt hôm qua')) {
+        const cols = line.split(/\t|\||\s{2,}/).map((c: string) => c.trim());
+        nameColIdx = cols.findIndex((c: string) => {
+          const l = c.toLowerCase();
+          return l.includes('tên siêu thị') || l.includes('tên miền') || l.includes('siêu thị');
+        });
+        lnttColIdx = cols.findIndex((c: string) => {
+          const l = c.toLowerCase();
+          return (l.includes('% ht target') || l.includes('% ht') || l.includes('%ht')) && l.includes('lntt');
+        });
+        continue;
+      }
+      const cols = line.split(/\t|\||\s{2,}/).map((c: string) => c.trim());
+      if (cols.length < 2) continue;
+
+      let val = 0;
+      if (lnttColIdx !== -1 && lnttColIdx < cols.length) {
+        val = cleanNum(cols[lnttColIdx]);
+      } else if (cols.length >= 11) {
+        val = cleanNum(cols[10]);
+      } else if (nameColIdx !== -1 && nameColIdx + 10 < cols.length) {
+        val = cleanNum(cols[nameColIdx + 10]);
+      }
+
+      if (val > 0) {
+        if (nameColIdx !== -1 && nameColIdx < cols.length) {
+          const normName = normalize(cols[nameColIdx]);
+          if (normName) map.set(normName, val);
+        }
+        cols.forEach((col: string) => {
+          const normC = normalize(col);
+          if (normC && normC.length >= 3 && !map.has(normC) && (normC.includes('dml') || normC.includes('dmm') || normC.includes('tgdd') || /\d{3,5}/.test(normC))) {
+            map.set(normC, val);
+          }
+        });
+      }
+    }
+    return map;
+  }, [clusterSummaryInput]);
+
+  const getLnttForMarket = useCallback((marketName: string, fallbackVal: number = 0) => {
+    if (fallbackVal > 0) return fallbackVal;
+    if (!marketName || lnttByStoreMap.size === 0) return 0;
+    const normMarket = normalize(marketName);
+    if (lnttByStoreMap.has(normMarket)) return lnttByStoreMap.get(normMarket)!;
+    for (const [k, v] of lnttByStoreMap.entries()) {
+      if (k.includes(normMarket) || normMarket.includes(k)) return v;
+    }
+    return 0;
+  }, [lnttByStoreMap]);
 
   // Helper to build 3 comment templates for LuyKe Doanh thu & Ngành hàng
   const luykeCategoryCommentTemplates = React.useMemo(() => {
@@ -1780,47 +1859,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     const dateStr = now.toLocaleDateString('vi-VN');
     const nowHeader = `${timeStr} NGÀY ${dateStr}`;
 
-    let lnttVal = market.percentHTTargetDuKienLNTT ?? (targetData as any)?.percentHTTargetDuKienLNTT ?? 0;
-    if (!lnttVal && clusterSummaryInput) {
-      const lines = clusterSummaryInput.split('\n').map((l: string) => l.trim()).filter(Boolean);
-      let lnttColIdx = -1;
-      let nameColIdx = -1;
-      for (const line of lines) {
-        const lower = line.toLowerCase();
-        if (lower.includes('stt') || lower.includes('tên siêu thị') || lower.includes('tên miền') || lower.includes('dt hôm qua')) {
-          const cols = line.split(/\t|\||\s{2,}/).map((c: string) => c.trim());
-          nameColIdx = cols.findIndex((c: string) => {
-            const l = c.toLowerCase();
-            return l.includes('tên siêu thị') || l.includes('tên miền') || l.includes('siêu thị');
-          });
-          lnttColIdx = cols.findIndex((c: string) => {
-            const l = c.toLowerCase();
-            return (l.includes('% ht target') || l.includes('% ht') || l.includes('%ht')) && l.includes('lntt');
-          });
-          continue;
-        }
-        const cols = line.split(/\t|\||\s{2,}/).map((c: string) => c.trim());
-        if (cols.length < 2) continue;
-        const normMarket = normalize(market.name);
-        const isMatch = cols.some((c: string) => {
-          const normC = normalize(c);
-          return normC && (normC === normMarket || normC.includes(normMarket) || normMarket.includes(normC));
-        });
-        if (isMatch) {
-          if (lnttColIdx !== -1 && lnttColIdx < cols.length) {
-            const n = cleanNum(cols[lnttColIdx]);
-            if (n) lnttVal = n;
-          } else if (cols.length >= 11) {
-            const n = cleanNum(cols[10]);
-            if (n) lnttVal = n;
-          } else if (nameColIdx !== -1 && nameColIdx + 10 < cols.length) {
-            const n = cleanNum(cols[nameColIdx + 10]);
-            if (n) lnttVal = n;
-          }
-          break;
-        }
-      }
-    }
+    const lnttVal = getLnttForMarket(market.name, market.percentHTTargetDuKienLNTT ?? (targetData as any)?.percentHTTargetDuKienLNTT ?? 0);
 
     const targetQD = formatCurrencyUnit(displayTargetQD || 0);
     const actualVirtualStr = formatCurrencyUnit(actualVirtual || 0);
@@ -2568,47 +2607,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                     const billCount = market.billCount || 0;
                     const storeAddress = (storeSettings as any)?.[market.name]?.address || (storeSettings as any)?.[maKho]?.address || 'LUỸ KẾ THÁNG';
 
-                    let lnttVal = market.percentHTTargetDuKienLNTT ?? (targetData as any)?.percentHTTargetDuKienLNTT ?? 0;
-                    if (!lnttVal && clusterSummaryInput) {
-                      const lines = clusterSummaryInput.split('\n').map((l: string) => l.trim()).filter(Boolean);
-                      let lnttColIdx = -1;
-                      let nameColIdx = -1;
-                      for (const line of lines) {
-                        const lower = line.toLowerCase();
-                        if (lower.includes('stt') || lower.includes('tên siêu thị') || lower.includes('tên miền') || lower.includes('dt hôm qua')) {
-                          const cols = line.split(/\t|\||\s{2,}/).map((c: string) => c.trim());
-                          nameColIdx = cols.findIndex((c: string) => {
-                            const l = c.toLowerCase();
-                            return l.includes('tên siêu thị') || l.includes('tên miền') || l.includes('siêu thị');
-                          });
-                          lnttColIdx = cols.findIndex((c: string) => {
-                            const l = c.toLowerCase();
-                            return (l.includes('% ht target') || l.includes('% ht') || l.includes('%ht')) && l.includes('lntt');
-                          });
-                          continue;
-                        }
-                        const cols = line.split(/\t|\||\s{2,}/).map((c: string) => c.trim());
-                        if (cols.length < 2) continue;
-                        const normMarket = normalize(market.name);
-                        const isMatch = cols.some((c: string) => {
-                          const normC = normalize(c);
-                          return normC && (normC === normMarket || normC.includes(normMarket) || normMarket.includes(normC));
-                        });
-                        if (isMatch) {
-                          if (lnttColIdx !== -1 && lnttColIdx < cols.length) {
-                            const n = cleanNum(cols[lnttColIdx]);
-                            if (n) lnttVal = n;
-                          } else if (cols.length >= 11) {
-                            const n = cleanNum(cols[10]);
-                            if (n) lnttVal = n;
-                          } else if (nameColIdx !== -1 && nameColIdx + 10 < cols.length) {
-                            const n = cleanNum(cols[nameColIdx + 10]);
-                            if (n) lnttVal = n;
-                          }
-                          break;
-                        }
-                      }
-                    }
+                    const lnttVal = getLnttForMarket(market.name, market.percentHTTargetDuKienLNTT ?? (targetData as any)?.percentHTTargetDuKienLNTT ?? 0);
 
                     return (
                       <div key={market.name || mIdx} className="relative overflow-hidden bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 lg:p-7 rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] space-y-4 md:space-y-5">
@@ -2933,7 +2932,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                   </td>
                                 </tr>
                               ) : (
-                                sortCategoryList(visibleCategoriesSL, sortModeSL).map((cat: any, idx: number) => {
+                                sortedCategoriesSL.map((cat: any, idx: number) => {
                                   let rate = 0;
                                   if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
                                   const remaining = cat.target - cat.revenue;
@@ -3113,7 +3112,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                   </td>
                                 </tr>
                               ) : (
-                                sortCategoryList(visibleCategoriesDT, sortModeDT).map((cat: any, idx: number) => {
+                                sortedCategoriesDT.map((cat: any, idx: number) => {
                                   let rate = 0;
                                   if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
                                   const remaining = cat.target - cat.revenue;

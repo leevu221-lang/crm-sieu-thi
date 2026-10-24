@@ -100,6 +100,12 @@ function MainApp() {
 
     return 'realtime';
   });
+
+  const handleSetCurrentPage = useCallback((page: any) => {
+    React.startTransition(() => {
+      setCurrentPage(page);
+    });
+  }, []);
   const { userProfile, loading, logout, refreshProfile, updateStoreName } = useAuth();
   // Bỏ qua màn hình đăng nhập, khai báo và khóa gói cước khi truy cập chế độ xem trực tiếp không cần đăng nhập
   const isGuestOrDirectMode = userProfile?.role === 'guest' || userProfile?.isGuest === true || isDirectDedicatedMode || (typeof window !== 'undefined' && isGuestShareLink());
@@ -501,7 +507,7 @@ function MainApp() {
 
   const renderMainContent = () => (
     <LuykeDataProvider>
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         <motion.div
           key={currentPage}
           initial={{ opacity: 0 }}
@@ -650,7 +656,7 @@ function MainApp() {
         setMarketFilter={setMarketFilter}
         availableMarkets={availableMarkets}
         currentPage={currentPage}
-        setCurrentPage={setCurrentPage as any}
+        setCurrentPage={handleSetCurrentPage as any}
         canEditUser={canEditUser}
         navItems={isGuestOrDirectMode ? [] : NAV_ITEMS}
         pageMaintenanceState={pageMaintenanceState}

@@ -584,15 +584,9 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       }
         
-      const categoriesRev = parseCategoryData(summaryToUse, 0, 30, marketsForParsing, 'LUYKE');
+      // Source of truth for categories (both revenue and target) is strictly LUỸ KẾ TĐ.
+      // Removed redundant parsing of summaryToUse (saved 50% CPU parse time on every run).
       const categoriesTarget = parseCategoryData(categoryToUse, 0, 30, marketsForParsing, 'LUYKE');
-      
-      console.log(`[DEBUG] handleProcess categoriesRev parsed: ${categoriesRev.length}`, categoriesRev.slice(0, 3));
-      console.log(`[DEBUG] handleProcess categoriesTarget parsed: ${categoriesTarget.length}`, categoriesTarget.slice(0, 3));
-      
-      // The user requested: "BC THÁNG -> CHI TIẾT NGÀNH HÀNG - SELECT KHAI BÁO -> THI ĐUA CỤM -> LUỸ KẾ TĐ."
-      // This means the source of truth for categories (both revenue and target) is strictly LUỸ KẾ TĐ.
-      // We no longer merge categoriesRev (BÁO CÁO TỔNG HỢP) which was overwriting the accurate data.
       
       const categories = categoriesTarget.map(c => ({
         ...c,
@@ -1014,13 +1008,17 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     console.log(`[LuykeData] loadData → store: "${targetStore}", maKho: ${shortMaKho}`);
     
     try {
+      const decompressCache = new Map<string, string>();
       const sanitizeField = async (val: any) => {
         if (!val) return '';
         let str = String(val).trim();
         if (str.startsWith('GZ:')) {
+          if (decompressCache.has(str)) return decompressCache.get(str)!;
           try {
-            str = await decompressString(str);
-            if (str.startsWith('GZ:')) return '';
+            const decomp = await decompressString(str);
+            const res = decomp.startsWith('GZ:') ? '' : decomp;
+            decompressCache.set(str, res);
+            return res;
           } catch (e) {
             return '';
           }
@@ -1110,9 +1108,12 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       });
       setAllStoresCache({ ...globalAllStoresCache });
-      try {
-        localStorage.setItem('crm_all_stores_cache_v2', JSON.stringify(globalAllStoresCache));
-      } catch {}
+      // Non-blocking background cache save to avoid freezing the UI thread
+      setTimeout(() => {
+        try {
+          localStorage.setItem('crm_all_stores_cache_v2', JSON.stringify(globalAllStoresCache));
+        } catch {}
+      }, 50);
 
       // Find the specific record for targetStore
       let data: any = null;
@@ -1285,12 +1286,19 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // AUTO-REACT: When global currentStoreId changes, auto-load data for new store
   // Placed AFTER loadData and saveLuykeData to prevent Temporal Dead Zone (TDZ) initialization errors
-  const prevStoreIdRef = useRef(currentStoreId);
+  const prevStoreIdRef = useRef('');
+  const hasInitialLoadedRef = useRef(false);
+
   useEffect(() => {
     if (!currentStoreId || currentStoreId === 'ALL') return;
     if (!rawMaKho) return;
-    // Skip if store hasn't actually changed (initial mount or same store)
-    if (prevStoreIdRef.current === currentStoreId && activeStore === currentStoreId) return;
+
+    const isStoreChanged = prevStoreIdRef.current !== currentStoreId;
+    const isWarehouseChanged = prevWarehouseCodeRef.current !== rawMaKho;
+    
+    // Skip if store and warehouse haven't actually changed and already loaded
+    if (!isStoreChanged && !isWarehouseChanged && hasInitialLoadedRef.current) return;
+    hasInitialLoadedRef.current = true;
     
     // SAVE OLD STORE ONLY IF DATA WAS ACTUALLY EDITED (isDirtyRef is true and differs from DB)
     const isSameWarehouse = prevWarehouseCodeRef.current === rawMaKho;
@@ -1319,11 +1327,10 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     
     prevStoreIdRef.current = currentStoreId;
-    
     console.log(`[LuykeData] AUTO-REACT: currentStoreId changed → "${currentStoreId}"`);
     setActiveStore(currentStoreId);
     loadData(currentStoreId);
-  }, [currentStoreId, rawMaKho, hasLoadedFromDB, computeStoreSnapshotKey, loadData]);
+  }, [currentStoreId, rawMaKho, loadData]);
 
 
   // Set up Supabase Realtime subscription for store
