@@ -1,4 +1,4 @@
-import React, { useState, Suspense, lazy, useEffect, useMemo, useRef } from 'react';
+import React, { useState, Suspense, lazy, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Database, BarChart3, Activity, HeartPulse, LogOut, User, Store, Loader2, Users, Shield, Settings, Type, Minus, Plus as PlusIcon, Monitor, Smartphone, LayoutGrid, AlertCircle, Wrench, ShieldAlert, RefreshCw, Zap, ShoppingBag, Globe, Trophy, Gift, X, MessageSquare, CreditCard, FileSpreadsheet, CalendarDays, ExternalLink, Banknote } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from './contexts/AuthContext';
