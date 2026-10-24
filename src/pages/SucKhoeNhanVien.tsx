@@ -1414,16 +1414,17 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       ? Number(clusterTargetConfig.mucTieuPercent)
       : (Number((targetData as any)?.stPercentTarget) || (isCurrentActive ? Number(stPercentTarget) : 100) || 100);
 
+    // 1. Parsed market data from excel or DB cache (allStoreTargets)
+    const dtDuKienQD = currentMarket?.targetQD || 0;
+    if (dtDuKienQD > 0) {
+      return Math.round(dtDuKienQD * (percentTargetVal / 100));
+    }
+
     if (clusterTargetConfig && Number(clusterTargetConfig.targetCungKyNam) > 0) {
       return Math.round(Number(clusterTargetConfig.targetCungKyNam) * (percentTargetVal / 100));
     }
 
-    // 2. Parsed market data from excel or DB cache (allStoreTargets)
-    const dtDuKienQD = currentMarket?.targetQD || 0;
-    const rawTargetQD = dtDuKienQD > 0 
-      ? dtDuKienQD 
-      : (Number((targetData as any)?.stTargetQuyDoi) || (isCurrentActive ? stTargetQuyDoi : 0) || 0);
-
+    const rawTargetQD = Number((targetData as any)?.stTargetQuyDoi) || (isCurrentActive ? stTargetQuyDoi : 0) || 0;
     if (rawTargetQD > 0) {
       return Math.round(rawTargetQD * (percentTargetVal / 100));
     }
@@ -1457,6 +1458,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const dtDuKienQD = market.targetQD || 0;
     const percentHT = market.percentHT || 0;
     if (stDtDuKienQD !== dtDuKienQD) setStDtDuKienQD(dtDuKienQD);
+    if (dtDuKienQD > 0 && stTargetQuyDoi !== dtDuKienQD) setStTargetQuyDoi(dtDuKienQD);
     if (stPercentHTTargetDuKienQD !== percentHT) setStPercentHTTargetDuKienQD(percentHT);
 
     const targetDataKey = Object.keys(allStoreTargets || {}).find(k => normalize(k) === normFilter);

@@ -2470,13 +2470,13 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       : (Number((targetData as any)?.stPercentTarget) || (isCurrentActive ? Number(stPercentTarget) : 100) || 100);
 
     let displayTargetQD = 0;
-    if (clusterTargetConfig && Number(clusterTargetConfig.targetCungKyNam) > 0) {
+    const dtDuKienQD = lkMarket?.targetQD || parsedMarket?.targetQD || 0;
+    if (dtDuKienQD > 0) {
+      displayTargetQD = Math.round(dtDuKienQD * (percentTargetVal / 100));
+    } else if (clusterTargetConfig && Number(clusterTargetConfig.targetCungKyNam) > 0) {
       displayTargetQD = Math.round(Number(clusterTargetConfig.targetCungKyNam) * (percentTargetVal / 100));
     } else {
-      const dtDuKienQD = lkMarket?.targetQD || parsedMarket?.targetQD || 0;
-      const rawTargetQD = dtDuKienQD > 0
-        ? dtDuKienQD
-        : (Number((targetData as any)?.stTargetQuyDoi) || (isCurrentActive ? stTargetQuyDoi : 0) || 0);
+      const rawTargetQD = Number((targetData as any)?.stTargetQuyDoi) || (isCurrentActive ? stTargetQuyDoi : 0) || 0;
 
       displayTargetQD = rawTargetQD > 0
         ? Math.round(rawTargetQD * (percentTargetVal / 100))

@@ -576,6 +576,7 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
     "siêu thị", "tên siêu thị", "stt",
     "số lượng", "so luong", "sl",
     "doanh thu qđ", "doanh thu qd", "dt quy đổi", "dtqđ", "dt qđ",
+    "dt qđ khoản vay", "dt qd khoan vay", "doanh thu qđ khoản vay", "doanh thu qd khoan vay", "khoản vay", "khoan vay", "bhkv",
     "% tỉ trọng", "% ti trong", "% tỷ trọng", "% ty trong", "tỉ trọng", "ti trong", "tỷ trọng", "ty trong",
     "doanh thu", "dtlk", "doanh thu lũy kế",
     "target", "mục tiêu", "target qđ", "target (qđ)",
@@ -593,7 +594,9 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
   
   for (let i = 0; i < rawLines.length; i++) {
     const lower = rawLines[i].trim().toLowerCase();
-    if (biWebKnownHeadersSet.has(lower)) {
+    const isKnown = biWebKnownHeadersSet.has(lower) || 
+      lower.includes('khoản vay') || lower.includes('khoan vay') || lower.includes('bhkv');
+    if (isKnown) {
       if (biWebHeaderStartIdx === -1) biWebHeaderStartIdx = i;
       biWebDetectedHeaders.push(rawLines[i].trim());
     } else if (biWebHeaderStartIdx !== -1) {
@@ -753,11 +756,13 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
                lower.includes("% tc");
       });
       targetQDIdx = cols.findIndex(c => {
-        const lower = c.toLowerCase();
-        return lower.includes("target (qđ)") || lower.includes("target qđ") || lower.includes("mục tiêu qđ");
+        const lower = c.toLowerCase().trim();
+        if (lower.includes("%")) return false;
+        return lower === "target" || lower === "mục tiêu" || lower.includes("target (qđ)") || lower.includes("target qđ") || lower.includes("mục tiêu qđ") || lower.includes("target");
       });
       targetSTIdx = cols.findIndex(c => {
-        const lower = c.toLowerCase();
+        const lower = c.toLowerCase().trim();
+        if (lower.includes("%")) return false;
         return lower === "target" || lower === "mục tiêu" || (lower.includes("target") && !lower.includes("qđ"));
       });
       if (pageType === 'RTST' || !pageType) {
@@ -912,6 +917,8 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
           }
           if (targetQDIdx !== -1 && targetQDIdx < cols.length) {
             targetQDVal = cleanNum(cols[targetQDIdx]);
+          } else if (targetSTIdx !== -1 && targetSTIdx < cols.length) {
+            targetQDVal = cleanNum(cols[targetSTIdx]);
           }
           if (percentHTIdx !== -1 && percentHTIdx < cols.length) {
             percentHTVal = cleanNum(cols[percentHTIdx]);

@@ -1463,7 +1463,10 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
 
     const dtDuKienQD = market.targetQD || 0;
     const percentHT = market.percentHT || 0;
-    if (dtDuKienQD > 0 && stDtDuKienQD !== dtDuKienQD) setStDtDuKienQD(dtDuKienQD);
+    if (dtDuKienQD > 0) {
+      if (stDtDuKienQD !== dtDuKienQD) setStDtDuKienQD(dtDuKienQD);
+      if (stTargetQuyDoi !== dtDuKienQD) setStTargetQuyDoi(dtDuKienQD);
+    }
     if (percentHT > 0 && stPercentHTTargetDuKienQD !== percentHT) setStPercentHTTargetDuKienQD(percentHT);
 
     // Sync from DB cache (allStoreTargets) using normalized keys to prevent spacing/underscore mismatches
@@ -1727,13 +1730,13 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       : (Number((targetData as any)?.stPercentTarget) || (isCurrentActive ? Number(stPercentTarget) : 100) || 100);
 
     let displayTargetQD = 0;
-    if (clusterTargetConfig && Number(clusterTargetConfig.targetCungKyNam) > 0) {
+    const dtDuKienQD = market.targetQD || 0;
+    if (dtDuKienQD > 0) {
+      displayTargetQD = Math.round(dtDuKienQD * (percentTargetVal / 100));
+    } else if (clusterTargetConfig && Number(clusterTargetConfig.targetCungKyNam) > 0) {
       displayTargetQD = Math.round(Number(clusterTargetConfig.targetCungKyNam) * (percentTargetVal / 100));
     } else {
-      const dtDuKienQD = market.targetQD || 0;
-      const rawTargetQD = dtDuKienQD > 0
-        ? dtDuKienQD
-        : (Number((targetData as any)?.stTargetQuyDoi) || (isCurrentActive ? stTargetQuyDoi : 0) || 0);
+      const rawTargetQD = Number((targetData as any)?.stTargetQuyDoi) || (isCurrentActive ? stTargetQuyDoi : 0) || 0;
 
       displayTargetQD = rawTargetQD > 0
         ? Math.round(rawTargetQD * (percentTargetVal / 100))

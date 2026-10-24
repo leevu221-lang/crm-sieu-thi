@@ -673,13 +673,12 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     }
   }, [maKho, lastLoadedMaKho, loadStoreRevenue, stName]);
 
-  // AUTO-CALCULATION: Target Quy Đổi (Only calculate when positive values available, do not wipe valid target to 0)
+  // AUTO-CALCULATION: Target Quy Đổi từ stDtDuKienQD (market.targetQD từ dữ liệu báo cáo)
   useEffect(() => {
-    if (stPercentHTTargetDuKienQD > 0 && stDtDuKienQD > 0) {
-      const calculated = Math.round(stDtDuKienQD / (stPercentHTTargetDuKienQD / 100));
-      if (stTargetQuyDoi !== calculated) setStTargetQuyDoi(calculated);
+    if (stDtDuKienQD > 0) {
+      if (stTargetQuyDoi !== stDtDuKienQD) setStTargetQuyDoi(stDtDuKienQD);
     }
-  }, [stDtDuKienQD, stPercentHTTargetDuKienQD]);
+  }, [stDtDuKienQD]);
 
   // AUTO-CALCULATION: Target Sau Hệ Số (TARGET THỰC TẾ)
   useEffect(() => {

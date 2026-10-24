@@ -670,11 +670,11 @@ function parseClassicClusterSummaryData(
       });
       luyKeQDIdx = cols.findIndex(c => {
         const l = c.toLowerCase();
-        return (l === 'dtqđ' || l.includes('quy đổi') || l.includes('l.kế qđ') || l.includes('l. kế qđ')) && !l.includes('dự kiến') && !l.includes('target') && !l.includes('ck') && !l.includes('lãi');
+        return (l === 'dtqđ' || l === 'dtqd' || l.includes('doanh thu qđ') || l.includes('doanh thu qd') || l.includes('dt qđ') || l.includes('dt qd') || l.includes('quy đổi') || l.includes('l.kế qđ') || l.includes('l. kế qđ')) && !l.includes('dự kiến') && !l.includes('target') && !l.includes('ck') && !l.includes('lãi');
       });
       tarVuotTroiIdx = cols.findIndex(c => {
-        const l = c.toLowerCase();
-        return (l.includes('dt dự kiến (qđ)') || l.includes('dt dự kiến qđ') || l.includes('target (qđ)') || l.includes('target qđ') || l.includes('tar v.trội') || l.includes('vượt trội')) && !l.includes('%');
+        const l = c.toLowerCase().trim();
+        return (l === 'target' || l === 'mục tiêu' || l.includes('dt dự kiến (qđ)') || l.includes('dt dự kiến qđ') || l.includes('target (qđ)') || l.includes('target qđ') || l.includes('target') || l.includes('tar v.trội') || l.includes('vượt trội')) && !l.includes('%');
       });
       percentHtTargetIdx = cols.findIndex(c => {
         const l = c.toLowerCase();
