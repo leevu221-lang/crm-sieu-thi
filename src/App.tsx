@@ -67,7 +67,7 @@ const LoadingSpinner = () => (
   </div>
 );
 
-import { PAGE_URL_MAP, URL_PAGE_MAP, isGuestShareLink, PAGE_DEFAULT_TAB_MAP } from './constants/routes';
+import { PAGE_URL_MAP, URL_PAGE_MAP, isGuestShareLink, PAGE_DEFAULT_TAB_MAP, isShareLinkForLichPg } from './constants/routes';
 
 function MainApp() {
   // Nhận diện CHẾ ĐỘ KHÁCH: Chỉ kích hoạt khi mở từ link chia sẻ (?view=guest hoặc ?share=true)
@@ -82,6 +82,12 @@ function MainApp() {
       if (path === '/posm') {
         return 'toolhotro';
       }
+      if (path === '/lich-pg' || path === '/lichpg') {
+        try {
+          sessionStorage.setItem('crm_opened_via_share_lichpg', 'true');
+        } catch {}
+        return 'lichpg';
+      }
       if (path && URL_PAGE_MAP[path]) {
         return URL_PAGE_MAP[path] as any;
       }
@@ -89,6 +95,11 @@ function MainApp() {
       const params = new URLSearchParams(window.location.search);
       const pageParam = params.get('page');
       const hash = window.location.hash;
+      if (pageParam === 'lichpg') {
+        try {
+          sessionStorage.setItem('crm_opened_via_share_lichpg', 'true');
+        } catch {}
+      }
       if (pageParam && pageParam !== 'bangiasoc') return pageParam as any;
       if (hash.startsWith('#sync_thuong=')) return 'health';
     } catch {}
@@ -138,6 +149,19 @@ function MainApp() {
     setShowDeclarationForce(false);
     setDeclarationDismissed(true);
   };
+
+  // Khi "Lịch PG" bị chọn ẩn: nếu tài khoản người dùng khác đang mở trang và KHÔNG truy cập từ link chia sẻ, tự động chuyển về BC Ngày
+  useEffect(() => {
+    if (!loading && currentPage === 'lichpg' && !isUser43751Local) {
+      const isShareLichPg = isShareLinkForLichPg();
+      if (pageHiddenState['lichpg'] && !isShareLichPg) {
+        setCurrentPage('realtime');
+        try {
+          localStorage.setItem('crm_active_page', 'realtime');
+        } catch {}
+      }
+    }
+  }, [loading, currentPage, isUser43751Local, pageHiddenState]);
 
   const isDeclarationRequired = useMemo(() => {
     if (!userProfile) return false;
@@ -239,6 +263,9 @@ function MainApp() {
           }
           if (params.get('view') === 'guest') {
             queryParams.set('view', 'guest');
+          }
+          if (params.get('share') === 'true' || (currentPage === 'lichpg' && isShare)) {
+            queryParams.set('share', 'true');
           }
         } else {
           // Phiên đã đăng nhập: URL giữ sạch và tinh gọn, không nhồi tham số kho
@@ -518,7 +545,8 @@ function MainApp() {
         >
           <Suspense fallback={<LoadingSpinner />}>
             {(() => {
-              const isHiddenBlocked = !isUser43751Local && pageHiddenState[currentPage];
+              const isLichPgSharedAccess = currentPage === 'lichpg' && isShareLinkForLichPg();
+              const isHiddenBlocked = !isUser43751Local && pageHiddenState[currentPage] && !isLichPgSharedAccess;
               if (isHiddenBlocked) {
                 return (
                   <div className="flex items-center justify-center h-full p-6 mt-12">

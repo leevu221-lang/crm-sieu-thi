@@ -101,15 +101,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const params = new URLSearchParams(window.location.search);
     const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
     const isPosmRoute = path === '/posm';
-    const khoParam = params.get('kho') || params.get('k') || params.get('makho') || params.get('store') || (isPosmRoute ? '1841' : '');
-    const isShare = isGuestShareLink(window.location.search) || isPosmRoute;
+    const isLichPgRoute = path === '/lich-pg' || path === '/lichpg';
+    const storedUser = localStorage.getItem('userProfile');
+    const khoParam = params.get('kho') || params.get('k') || params.get('makho') || params.get('store') || ((isPosmRoute || (isLichPgRoute && !storedUser)) ? (localStorage.getItem('rtst_ma_kho') || '1841') : '');
+    const isShare = isGuestShareLink(window.location.search) || isPosmRoute || (isLichPgRoute && !storedUser);
     
-    // Only persist rtst_ma_kho from URL parameter if accessing via an explicit guest share link or /posm
-    if (khoParam && (isShare || isPosmRoute)) {
+    // Only persist rtst_ma_kho from URL parameter if accessing via an explicit guest share link or /posm or /lich-pg
+    if (khoParam && (isShare || isPosmRoute || isLichPgRoute)) {
       localStorage.setItem('rtst_ma_kho', khoParam);
     }
-
-    const storedUser = localStorage.getItem('userProfile');
 
     const ALL_SHARED_PAGES = ['realtime', 'luyke', 'health', 'lichpg', 'diemdanhhop', 'toolhotro', 'tienich', 'birthday', 'khaibao', 'feedback', 'excelviewer'];
 

@@ -2464,7 +2464,7 @@ const LichLamViecPG: React.FC = () => {
   const [copiedLink, setCopiedLink] = useState(false);
 
   const handleShareLink = () => {
-    const currentKho = userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '';
+    const currentKho = userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '1841';
     if (!currentKho) return;
     const isDefaultStore = !availableStores || availableStores.length <= 1 || 
                            (availableStores.length > 0 && availableStores[0]?.name === activeStoreName);
@@ -2476,6 +2476,12 @@ const LichLamViecPG: React.FC = () => {
       }).catch(() => {});
     }
   };
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('crm_opened_via_share_lichpg', 'true');
+    } catch {}
+  }, []);
   const originalDataRef = useRef<{ ictRoster: PGInfo[]; dtdlgdRoster: PGInfo[]; weekData: any; customShifts: string[] } | null>(null);
   const editingRef = useRef(editing);
   editingRef.current = editing;

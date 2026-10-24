@@ -96,6 +96,10 @@ export const buildGuestShareUrl = (
   if (storeName && storeName !== 'ALL' && !isDefaultStore) {
     params.set('st', storeName);
   }
+  // Với Lịch PG: thêm cờ share=true để đảm bảo nhận diện 100% link chia sẻ trên mọi thiết bị và trình duyệt
+  if (pageId === 'lichpg') {
+    params.set('share', 'true');
+  }
   const queryStr = params.toString();
   return `${origin}${pathname}${queryStr ? `?${queryStr}` : ''}`;
 };
@@ -103,10 +107,10 @@ export const buildGuestShareUrl = (
 // Helper kiểm tra xem URL có phải là link chia sẻ chế độ khách hay không
 export const isGuestShareLink = (search: string = ''): boolean => {
   try {
-    // 0. Đường dẫn trực tiếp /posm (chế độ xem POSM nhanh)
+    // 0. Đường dẫn trực tiếp /posm (chế độ xem POSM nhanh) hoặc /lich-pg, /lichpg (chế độ xem Lịch PG trực tiếp)
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
-      if (path === '/posm') {
+      if (path === '/posm' || path === '/lich-pg' || path === '/lichpg') {
         const storedUser = localStorage.getItem('userProfile');
         // Chưa đăng nhập -> tự động vào xem trực tiếp chế độ khách
         if (!storedUser) return true;
@@ -165,3 +169,68 @@ export const isGuestShareLink = (search: string = ''): boolean => {
     return false;
   }
 };
+
+// Helper kiểm tra xem lượt truy cập hiện tại vào Lịch PG có phải là từ link chia sẻ hay không
+// (Bao gồm: khách mở link chia sẻ, người dùng đã đăng nhập mở link chia sẻ qua Zalo/URL, link có ?share=true hoặc ?kho=..., hoặc mở qua /lich-pg)
+export const isShareLinkForLichPg = (search: string = ''): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+    const isLichPgRoute = path === '/lich-pg' || path === '/lichpg';
+
+    const rawSearch = search || (typeof window !== 'undefined' ? (window.location.search || window.location.hash || '') : '');
+    const queryPart = rawSearch.includes('?') ? rawSearch.substring(rawSearch.indexOf('?')) : (rawSearch.startsWith('#') ? rawSearch.substring(1) : rawSearch);
+    const params = new URLSearchParams(queryPart);
+
+    // 1. Cờ chia sẻ tường minh (?share=true, ?view=guest...)
+    if (
+      params.get('view') === 'guest' || 
+      params.get('share') === 'true' || 
+      params.get('share') === '1' || 
+      params.has('share') || 
+      params.get('guest') === 'true' || 
+      params.get('guest') === '1' || 
+      params.get('mode') === 'guest' || 
+      params.get('mode') === 'share'
+    ) {
+      return true;
+    }
+
+    // 2. Có tham số mã kho trong URL (?kho=... hoặc ?k=...)
+    if (params.get('kho') || params.get('k') || params.get('makho') || params.get('store')) {
+      return true;
+    }
+
+    // 3. Có tham số page=lichpg
+    if (params.get('page') === 'lichpg') {
+      return true;
+    }
+
+    // 4. Đường dẫn trực tiếp /lich-pg hoặc /lichpg từ thanh địa chỉ / link gửi ngoài
+    if (isLichPgRoute) {
+      return true;
+    }
+
+    // 5. Phiên làm việc hiện tại là tài khoản khách (Guest mode)
+    const storedUser = localStorage.getItem('userProfile');
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        if (parsed.role === 'guest' || parsed.isGuest) return true;
+      } catch {}
+    } else {
+      // Chưa đăng nhập mà đang trên route lichpg -> chắc chắn là xem qua link chia sẻ
+      if (isLichPgRoute) return true;
+    }
+
+    // 6. Đã từng được mở từ link chia sẻ trong phiên tab hiện tại
+    if (sessionStorage.getItem('crm_opened_via_share_lichpg') === 'true') {
+      return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+};
+
