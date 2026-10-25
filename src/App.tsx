@@ -325,7 +325,11 @@ function MainApp() {
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'system_settings', 'maintenance_status'), (docSnap) => {
       if (docSnap.exists()) {
-        setPageMaintenanceState(docSnap.data() || {});
+        const data = (docSnap.data() || {}) as Record<string, boolean>;
+        setPageMaintenanceState(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(data)) return prev;
+          return data;
+        });
       }
     });
     return () => unsub();
@@ -336,7 +340,10 @@ function MainApp() {
     const unsub = onSnapshot(doc(db, 'system_settings', 'hidden_pages'), (docSnap) => {
       if (docSnap.exists()) {
         const data = (docSnap.data() || {}) as Record<string, boolean>;
-        setPageHiddenState(data);
+        setPageHiddenState(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(data)) return prev;
+          return data;
+        });
         try {
           localStorage.setItem('crm_hidden_pages', JSON.stringify(data));
         } catch {}
@@ -362,37 +369,33 @@ function MainApp() {
   };
 
   // Khi "Lịch PG" bị chọn ẩn: nếu tài khoản người dùng khác đang mở trang và KHÔNG truy cập từ link chia sẻ, tự động chuyển về BC Ngày
+  const isLichPgHidden = pageHiddenState?.['lichpg'];
   useEffect(() => {
     if (!loading && currentPage === 'lichpg' && !isUser43751Local) {
       const isShareLichPg = isShareLinkForLichPg();
-      if (pageHiddenState['lichpg'] && !isShareLichPg) {
+      if (isLichPgHidden && !isShareLichPg) {
         setCurrentPage('realtime');
         try {
           localStorage.setItem('crm_active_page', 'realtime');
         } catch {}
       }
     }
-  }, [loading, currentPage, isUser43751Local, pageHiddenState]);
+  }, [loading, currentPage, isUser43751Local, isLichPgHidden]);
 
   // Hard Rule implementation for fallback if userProfile has missing userPermissions (legacy session)
   const isSuperAdminHardcoded = userProfile?.username === '43751' || userProfile?.username === 'ADMIN';
-  const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'bbkq', 'tienich', 'users', 'tnb_data', 'tnbleader', 'birthday', 'feedback', 'excelviewer'];
-  
+  const ALL_PAGES = useMemo(() => ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'bbkq', 'tienich', 'users', 'tnb_data', 'tnbleader', 'birthday', 'feedback', 'excelviewer'], []);
+  const DEFAULT_FALLBACK_PAGES = useMemo(() => ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'bbkq', 'tienich', 'birthday'], []);
+
   // Compute allowed pages
   const canEditUser = userProfile?.userPermissions?.canEditUser ?? isSuperAdminHardcoded;
-  let allowedPages = isSuperAdminHardcoded ? ALL_PAGES : userProfile?.userPermissions?.allowedPages;
-  
-  if (!allowedPages) {
-    allowedPages = isSuperAdminHardcoded ? ALL_PAGES : ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'bbkq', 'tienich', 'birthday']; // fallback for legacy normal users to not break the app completely without relogin
-  }
-  
+  const userAllowedPages = userProfile?.userPermissions?.allowedPages;
+  const allowedPages = isSuperAdminHardcoded ? ALL_PAGES : (userAllowedPages || DEFAULT_FALLBACK_PAGES);
+
   const is7611 = userProfile?.username === '7611' || userProfile?.ma_nhan_vien === '7611';
-  if (is7611) {
-    allowedPages = ['tnbleader'];
-  }
-  
+
   const effectiveAllowedPages = useMemo(() => {
-    let pages = canEditUser && !allowedPages.includes('users') ? [...allowedPages, 'users'] : allowedPages;
+    let pages = is7611 ? ['tnbleader'] : (canEditUser && !allowedPages.includes('users') ? [...allowedPages, 'users'] : allowedPages);
     // Lịch PG: mở cho tất cả user (PG001 vẫn xem được nhưng không có quyền chỉnh sửa — xem LichLamViecPG.tsx)
     if (!pages.includes('lichpg')) {
       pages = [...pages, 'lichpg'];
@@ -406,7 +409,7 @@ function MainApp() {
       pages = [...pages, 'tienich'];
     }
     return pages;
-  }, [canEditUser, allowedPages, userProfile?.username]);
+  }, [canEditUser, allowedPages, is7611]);
   // Thêm dòng này sau dòng 46
   // console.log('--- PERMISSION DEBUG ---');
   // console.log('Effective Allowed Pages:', effectiveAllowedPages);
@@ -433,17 +436,17 @@ function MainApp() {
 
   useEffect(() => {
     // Redirect if we are on a page that is not allowed
-    if (userProfile) {
+    if (userProfile && !loading) {
       if (currentPage !== 'users' && !effectiveAllowedPages.includes(currentPage)) {
         if (effectiveAllowedPages.length > 0) {
           const firstAllowedNavPage = effectiveAllowedPages.find(p => p !== 'users');
-          if (firstAllowedNavPage) {
+          if (firstAllowedNavPage && firstAllowedNavPage !== currentPage) {
             setCurrentPage(firstAllowedNavPage as any);
           }
         }
       }
     }
-  }, [userProfile, currentPage, effectiveAllowedPages]);
+  }, [loading, currentPage, effectiveAllowedPages]);
 
   // Listen for custom navigation events from child components
   useEffect(() => {

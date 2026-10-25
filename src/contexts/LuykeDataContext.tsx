@@ -211,10 +211,10 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       Object.keys(globalAllStoresCache).forEach(k => delete globalAllStoresCache[k]);
       globalPendingSaves.clear();
       prevStoreIdRef.current = '';
-      prevWarehouseCodeRef.current = rawMaKho;
       setAllStoresCache({});
       setHasLoadedFromDB(false);
     }
+    prevWarehouseCodeRef.current = rawMaKho;
   }, [rawMaKho]);
 
 
@@ -823,6 +823,9 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [clusterSummaryInput, clusterCategoryInput, staffInput, activeStore, saveLuykeData]);
 
+  const handleProcessRef = useRef(handleProcess);
+  useEffect(() => { handleProcessRef.current = handleProcess; }, [handleProcess]);
+
   // ═══════════════════════════════════════════════════════
   // AUTO-SYNC: When handleProcess generates new categoryTargets from cluster data,
   // immediately save them to DB for the active store.
@@ -970,7 +973,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const loadData = useCallback(async (storeName?: string) => {
     if (!rawMaKho) { setIsLoading(false); return; }
     
-    const targetStore = storeName || activeStore;
+    const targetStore = storeName || activeStoreRef.current;
     
     // MULTI-STORE: Cache-first store switching to prevent UI white-screens/delays
     const cachedData = globalAllStoresCache[targetStore];
@@ -988,7 +991,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setCategoryTargets(cachedData.categoryTargets || []);
       
       // Process synchronously to instantly display cached data without 300ms wait
-      handleProcess(
+      (handleProcessRef.current || handleProcess)(
         cachedData.categoryTargets || [],
         cachedData.clusterSummaryInput || '',
         cachedData.clusterCategoryInput || '',
@@ -1245,7 +1248,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         clusterCategory = warehouseFallbackCategory;
         if (clusterSummary) setClusterSummaryInput(clusterSummary);
         if (clusterCategory) setClusterCategoryInput(clusterCategory);
-        handleProcess([], clusterSummary || clusterSummaryInputRef.current, clusterCategory || clusterCategoryInputRef.current, '');
+        (handleProcessRef.current || handleProcess)([], clusterSummary || clusterSummaryInputRef.current, clusterCategory || clusterCategoryInputRef.current, '');
 
         // CLEAR all per-store fields so NOTHING from previous store bleeds through!
         setStaffInput('');
@@ -1282,7 +1285,10 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       isDirtyRef.current = false;
       setStoreReady(true);
     }
-  }, [rawMaKho, warehouseCodes, activeStore, handleProcess, setStoreReady, computeStoreSnapshotKey]);
+  }, [rawMaKho, warehouseCodes, setStoreReady, computeStoreSnapshotKey]);
+
+  const loadDataRef = useRef(loadData);
+  useEffect(() => { loadDataRef.current = loadData; }, [loadData]);
 
   // AUTO-REACT: When global currentStoreId changes, auto-load data for new store
   // Placed AFTER loadData and saveLuykeData to prevent Temporal Dead Zone (TDZ) initialization errors
@@ -1299,6 +1305,8 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // Skip if store and warehouse haven't actually changed and already loaded
     if (!isStoreChanged && !isWarehouseChanged && hasInitialLoadedRef.current) return;
     hasInitialLoadedRef.current = true;
+    prevStoreIdRef.current = currentStoreId;
+    prevWarehouseCodeRef.current = rawMaKho;
     
     // SAVE OLD STORE ONLY IF DATA WAS ACTUALLY EDITED (isDirtyRef is true and differs from DB)
     const isSameWarehouse = prevWarehouseCodeRef.current === rawMaKho;
@@ -1326,11 +1334,12 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     }
     
-    prevStoreIdRef.current = currentStoreId;
     console.log(`[LuykeData] AUTO-REACT: currentStoreId changed → "${currentStoreId}"`);
-    setActiveStore(currentStoreId);
-    loadData(currentStoreId);
-  }, [currentStoreId, rawMaKho, loadData]);
+    setActiveStore(prev => prev !== currentStoreId ? currentStoreId : prev);
+    if (loadDataRef.current) {
+      loadDataRef.current(currentStoreId);
+    }
+  }, [currentStoreId, rawMaKho]);
 
 
   // Set up Supabase Realtime subscription for store

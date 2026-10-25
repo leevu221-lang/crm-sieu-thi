@@ -140,6 +140,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
   const updateAllStoreTargets = useCallback((updater: any) => {
     setAllStoreTargets(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (prev === next) return prev;
       // Merge into global cache
       Object.assign(globalAllStoreTargets, next);
       return next;

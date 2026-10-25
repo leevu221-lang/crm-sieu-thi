@@ -216,14 +216,12 @@ const KhaiBao: React.FC = () => {
     }
   }, [marketFilter, rtProcessedData.luykeMarkets, rtProcessedData.markets, setStName, setStDtlk, setStDtqd, setStDtDuKienQD, setStPercentHTTargetDuKienQD, isLoading, isLoadingRealtime, clusterSummaryInput, categoryRevenueInput]);
 
-  // Restore % TARGET per-store when switching stores
-  // Separate effect to avoid blocking user input on the % TARGET field
   React.useEffect(() => {
     if (marketFilter === 'ALL') return;
     const targetEntry = Object.entries(allStoreTargets || {}).find(([name]) => normalize(name) === normalize(marketFilter));
     const savedTarget = targetEntry ? targetEntry[1] : null;
     const newPercent = savedTarget?.stPercentTarget ?? 100;
-    setStPercentTarget(newPercent);
+    setStPercentTarget((prev: number) => prev !== newPercent ? newPercent : prev);
   }, [marketFilter, allStoreTargets]);
 
   // Sync category targets from processed data
