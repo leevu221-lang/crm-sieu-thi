@@ -4518,10 +4518,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.08 }}
-                  className="bg-white/95 backdrop-blur-sm rounded-3xl p-3 sm:p-5 shadow-xl shadow-slate-200/30 border border-slate-200/90 max-w-full mx-auto relative overflow-hidden"
+                  className="bg-white/95 backdrop-blur-sm rounded-3xl p-2.5 sm:p-5 shadow-xl shadow-slate-200/30 border border-slate-200/90 max-w-full mx-auto relative overflow-hidden"
                 >
                   {renderLoadingOverlay()}
-                  <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2.5 mb-3 sm:mb-4">
+                  <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2.5 mb-3 sm:mb-4 w-full">
                       <button
                         onClick={handleCapture}
                         disabled={isCapturing}
