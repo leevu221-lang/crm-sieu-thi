@@ -1573,7 +1573,7 @@ const ImportExcelShiftModal: React.FC<{
               </div>
 
               <div className="overflow-x-auto max-h-[320px]">
-                <table className="w-full text-xs border-collapse">
+                <table className="w-full text-xs border-collapse" style={{ minWidth: '950px' }}>
                   <thead className="bg-slate-50 sticky top-0 border-b border-slate-200 z-10">
                     <tr>
                       <th className="px-2 py-2 text-center font-black text-slate-600 w-10">STT</th>

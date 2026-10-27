@@ -1591,7 +1591,7 @@ const BcDtNganhHang: React.FC<{ isUser43751?: boolean }> = ({ isUser43751 = fals
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse border border-slate-200/50 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-200/50 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap font-sans" style={{ borderSpacing: 0 }}>
+              <table className="w-full border-collapse border border-slate-200/50 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-200/50 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap font-sans" style={{ borderSpacing: 0, minWidth: '1100px' }}>
                 <thead>
                   <tr className={`bg-slate-50 border-b border-slate-300 text-slate-800 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase`}>
                     <th rowSpan={2} className="py-2.5 px-4 text-left bg-slate-50 min-w-[240px] border-r border-slate-200/50 font-black align-middle">CHI TIẾT NGÀNH HÀNG</th>

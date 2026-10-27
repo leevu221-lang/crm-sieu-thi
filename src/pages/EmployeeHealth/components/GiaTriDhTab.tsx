@@ -3326,7 +3326,7 @@ export const GiaTriDhTab: React.FC<GiaTriDhTabProps> = ({
 
             <div className="overflow-x-auto rounded-2xl border border-slate-200">
               <table
-                style={{ fontFamily: "'UTM Avo Black', 'UTM Avo', var(--font-sans), Inter, sans-serif", tableLayout: 'fixed' }}
+                style={{ fontFamily: "'UTM Avo Black', 'UTM Avo', var(--font-sans), Inter, sans-serif", tableLayout: 'fixed', minWidth: '880px' }}
                 className="w-full border-collapse"
               >
                 <colgroup>
@@ -3589,7 +3589,13 @@ export const GiaTriDhTab: React.FC<GiaTriDhTabProps> = ({
 
               <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
                 <table
-                  style={{ fontFamily: "'UTM Avo Black', 'UTM Avo', var(--font-sans), Inter, sans-serif", tableLayout: 'fixed' }}
+                  style={{
+                    fontFamily: "'UTM Avo Black', 'UTM Avo', var(--font-sans), Inter, sans-serif",
+                    tableLayout: 'fixed',
+                    minWidth: ctktnvData.visCols.length === 0
+                      ? '600px'
+                      : `${288 + ctktnvData.visCols.reduce((sum, col) => sum + (col.label === 'DTQĐ TẠO RA TRÊN MỖI GIỜ CÔNG' || col.label.length > 20 ? 150 : (col.label.startsWith('BÁN KÈM') || col.label.startsWith('KHAI THÁC') || col.label.startsWith('TỈ TRỌNG') ? 135 : (col.label === 'GIỜ CÔNG' ? 100 : 120))), 0)}px`
+                  }}
                   className="border-collapse w-full"
                 >
                   {ctktnvData.visCols.length === 0 ? (

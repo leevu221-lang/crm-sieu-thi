@@ -2572,7 +2572,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
             {/* Store Target Table */}
             <div className="px-6 py-4 overflow-y-auto max-h-[56vh] space-y-3">
               <div className="overflow-x-auto w-full border border-slate-200 rounded-2xl shadow-2xs">
-                <table className="w-full border-collapse font-sans text-left">
+                <table className="w-full border-collapse font-sans text-left" style={{ minWidth: '700px' }}>
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-600">
                       <th className="py-3 px-3 text-center w-12 border-r border-slate-200">STT</th>

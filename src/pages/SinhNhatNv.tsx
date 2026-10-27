@@ -878,7 +878,7 @@ const SinhNhatNv: React.FC = () => {
               </div>
             ) : (
               <div className="overflow-x-auto no-scrollbar">
-                <table className="w-full text-left border-collapse table-auto">
+                <table className="w-full text-left border-collapse table-auto" style={{ minWidth: '700px' }}>
                   <thead>
                     <tr className="border-b border-slate-100">
                       <th className="pb-3 text-xs font-black uppercase text-slate-400 tracking-wider w-10 pl-2">STT</th>

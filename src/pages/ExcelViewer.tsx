@@ -428,9 +428,9 @@ export const ExcelViewer = () => {
             </div>
 
             {/* Table Area */}
-            <div className="w-full overflow-x-auto p-4 md:p-6" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <div ref={tableRef} className="bg-white p-8 w-full inline-block min-w-full">
-                <table className="w-full border-collapse font-sans text-[14px]">
+            <div className="w-full overflow-x-auto p-2 sm:p-4 md:p-6" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <div ref={tableRef} className="bg-white p-3 sm:p-8 w-full inline-block min-w-full">
+                <table className="w-full border-collapse font-sans text-[13px] sm:text-[14px]">
                   <thead>
                     {/* Main Header Row */}
                     <tr>

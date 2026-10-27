@@ -813,8 +813,8 @@ export const StaffComparisonModal: React.FC<StaffComparisonModalProps> = ({
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-xs table-container-wrapper">
-                <table className="w-full text-xs font-sans border-collapse" style={{ tableLayout: 'fixed' }}>
+              <div className="rounded-2xl border border-slate-200 overflow-x-auto bg-white shadow-xs table-container-wrapper">
+                <table className="w-full text-xs font-sans border-collapse" style={{ tableLayout: 'fixed', minWidth: '520px' }}>
                   <colgroup>
                     <col style={{ width: '32%' }} />
                     <col style={{ width: '13%' }} />

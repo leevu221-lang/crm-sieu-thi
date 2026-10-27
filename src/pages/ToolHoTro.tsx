@@ -4712,7 +4712,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                         </div>
                       </div>
                       <div className="overflow-auto flex-1 p-0">
-                        <table className="w-full text-left border-collapse border border-slate-200">
+                        <table className="w-full text-left border-collapse border border-slate-200 min-w-[800px]">
                           <thead className="sticky top-0 z-10">
                             <tr className="bg-slate-100 shadow-sm">
                               <th className="py-2.5 px-3 text-[10px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 w-10 text-center">
