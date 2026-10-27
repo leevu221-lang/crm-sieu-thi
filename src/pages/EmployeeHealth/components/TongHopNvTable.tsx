@@ -669,8 +669,8 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
 
       <div ref={captureRef} className="w-full bg-white border border-slate-200/90 p-2.5 sm:p-4 rounded-2xl shadow-sm flex flex-col">
         {/* Top Header Banner: Emerald Gradient with Gold/Yellow Title */}
-        <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 sm:p-5 rounded-2xl text-white relative shrink-0 mb-3 text-center flex flex-col items-center justify-center">
-          <h2 style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }} className="text-[20px] sm:text-[25px] md:text-[28px] font-black text-[#FEF08A] uppercase tracking-wide leading-tight">
+        <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-2.5 sm:p-5 rounded-xl sm:rounded-2xl text-white relative shrink-0 mb-2.5 sm:mb-3 text-center flex flex-col items-center justify-center">
+          <h2 style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }} className="text-[15px] sm:text-[25px] md:text-[28px] font-black text-[#FEF08A] uppercase tracking-wide leading-tight">
             BẢNG THI ĐUA NGÀNH HÀNG NHÂN VIÊN {dateStr}
           </h2>
           {storeDisplayName && (

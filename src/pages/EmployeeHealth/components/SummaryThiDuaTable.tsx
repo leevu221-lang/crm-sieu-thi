@@ -1415,12 +1415,12 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   return (
     <div ref={tableRef} className="card-thi-dua bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
       {/* ═══ Premium Gradient Banner Header (like BẢNG XẾP HẠNG DOANH THU) ═══ */}
-      <div className="relative bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] px-5 md:px-8 py-5 md:py-6 rounded-2xl mb-4 sm:mb-5 shadow-xs">
+      <div className="relative bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] px-3.5 sm:px-6 md:px-8 py-3.5 sm:py-5 md:py-6 rounded-xl sm:rounded-2xl mb-3 sm:mb-5 shadow-xs">
         <div className="flex flex-col items-center justify-center text-center">
-          <h2 className="text-[26px] sm:text-[32px] md:text-[36px] font-black text-[#FEF08A] uppercase tracking-wide leading-tight mb-2.5 sm:mb-3.5" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, textShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+          <h2 className="text-[16px] sm:text-[26px] md:text-[32px] font-black text-[#FEF08A] uppercase tracking-wide leading-tight mb-1 sm:mb-2.5" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, textShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
             TỔNG HỢP THI ĐUA
           </h2>
-          <div className="flex items-center justify-center flex-wrap gap-2 sm:gap-3 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+          <div className="flex items-center justify-center flex-wrap gap-1.5 sm:gap-3 text-[10px] sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
             <span className="flex items-center gap-1.5 whitespace-nowrap">
               ✨ Luỹ kế dự kiến đến ngày: {yesterdayStr}
             </span>
@@ -1429,23 +1429,44 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
               DỰ KIẾN
             </span>
           </div>
+
+          {/* Action Buttons on Mobile - centered below subtitle, no overlap */}
+          <div className="no-capture flex sm:hidden items-center justify-center gap-2 mt-2">
+            <button 
+              onClick={() => {
+                generateThiDuaComment(commentTemplate);
+                setIsCommentOpen(true);
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
+            >
+              <Sparkles size={11} className="animate-pulse" />
+              <span>NHẬN XÉT</span>
+            </button>
+            <button 
+              onClick={handleExport}
+              className="flex items-center gap-1 px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white border border-white/25 rounded-lg text-[10px] font-black uppercase tracking-wider backdrop-blur-md transition-all cursor-pointer"
+            >
+              <Download size={11} />
+              <span>XUẤT ẢNH</span>
+            </button>
+          </div>
         </div>
 
-        {/* Action Buttons - positioned top-right */}
-        <div className="absolute right-3 top-3 flex items-center gap-1.5 z-30">
+        {/* Action Buttons - positioned top-right on tablet/desktop */}
+        <div className="no-capture hidden sm:flex absolute right-3.5 top-1/2 -translate-y-1/2 items-center gap-1.5 z-30">
           <button 
             onClick={() => {
               generateThiDuaComment(commentTemplate);
               setIsCommentOpen(true);
             }}
-            className="no-capture flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
           >
             <Sparkles size={12} className="animate-pulse" />
             <span>NHẬN XÉT</span>
           </button>
           <button 
             onClick={handleExport}
-            className="no-capture flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white border border-white/25 rounded-xl text-[10px] font-black uppercase tracking-wider backdrop-blur-md transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white border border-white/25 rounded-xl text-[10px] font-black uppercase tracking-wider backdrop-blur-md transition-all cursor-pointer"
           >
             <Download size={12} />
             <span>XUẤT ẢNH</span>

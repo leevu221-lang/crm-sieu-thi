@@ -110,7 +110,7 @@ const CategoryCard = React.memo<CategoryCardProps>(({
       </div>
 
       {/* Header Banner: Emerald Gradient Banner with Switcher Dropdown on Title */}
-      <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] text-white p-3.5 sm:p-4 text-center flex flex-col items-center justify-center rounded-2xl relative overflow-visible w-full mb-2.5">
+      <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] text-white p-2.5 sm:p-4 text-center flex flex-col items-center justify-center rounded-xl sm:rounded-2xl relative overflow-visible w-full mb-2 sm:mb-2.5">
         <div className="relative inline-flex items-center justify-center group max-w-full">
           <button
             type="button"
@@ -119,7 +119,7 @@ const CategoryCard = React.memo<CategoryCardProps>(({
               setIsSwitcherOpen(prev => !prev);
               setSwitcherSearchTerm('');
             }}
-            className="inline-flex items-center justify-center gap-1 sm:gap-1.5 text-[#FEF08A] font-black uppercase cursor-pointer text-center outline-none transition-all py-0.5 px-1 max-w-full hover:opacity-90 leading-tight break-words text-[19px] sm:text-[23px] md:text-[26px]"
+            className="inline-flex items-center justify-center gap-1 sm:gap-1.5 text-[#FEF08A] font-black uppercase cursor-pointer text-center outline-none transition-all py-0.5 px-1 max-w-full hover:opacity-90 leading-tight break-words text-[16px] sm:text-[23px] md:text-[26px]"
             style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}
             title="Bấm để đổi ngành hàng cho bảng này"
           >
