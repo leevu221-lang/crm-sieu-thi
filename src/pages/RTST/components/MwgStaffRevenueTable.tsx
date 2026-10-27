@@ -404,7 +404,7 @@ export const MwgStaffRevenueTable: React.FC<MwgStaffRevenueTableProps> = ({
       {/* ── THE REALTIME STAFF REVENUE TABLE ── */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
         <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse" style={{ minWidth: '650px' }}>
             <thead>
               <tr className="bg-slate-900 text-slate-200 select-none">
                 <th className="px-3 sm:px-4 py-4 text-[10.5px] font-black uppercase tracking-wider text-center w-12 sm:w-14">

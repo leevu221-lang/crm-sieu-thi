@@ -5606,7 +5606,7 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
                         </div>
                       )}
                       <div ref={chiTietTableRef} className={isExporting ? 'bg-white p-6 w-max inline-block' : 'w-full overflow-hidden shadow-lg shadow-slate-200/50 rounded-xl border border-slate-200'}>
-                      <div className="w-full">
+                      <div className="w-full overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
                         <table className="w-full border-collapse text-[15px] bg-white" style={{ fontFamily: "'UTM Avo', 'UTM Avo Black', 'Inter', sans-serif", fontWeight: 900 }}>
                           <thead className="sticky top-0 z-20">
                             <tr>
@@ -5730,7 +5730,7 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
                       )}
 
                       <div ref={xepHangTableRef} className={`w-full overflow-hidden ${isExporting ? 'bg-white p-6' : 'shadow-lg shadow-slate-200/50 rounded-xl border border-slate-200'}`}>
-                        <div className="w-full">
+                        <div className="w-full overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
                           <table className="w-full border-collapse text-[15px] bg-white" style={{ fontFamily: "'UTM Avo', 'UTM Avo Black', 'Inter', sans-serif", fontWeight: 900 }}>
                             <thead className="sticky top-0 z-20">
                               <tr>
@@ -6502,7 +6502,7 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
                   <p className="font-bold text-sm">Không tìm thấy dòng dữ liệu nào khớp với tìm kiếm</p>
                 </div>
               ) : (
-                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                <div className="border border-slate-200 rounded-2xl overflow-x-auto shadow-sm">
                   <table className="w-full text-xs text-left border-collapse">
                     <thead className="bg-slate-100 text-slate-700 uppercase font-black sticky top-0 z-10 border-b border-slate-200">
                       <tr>

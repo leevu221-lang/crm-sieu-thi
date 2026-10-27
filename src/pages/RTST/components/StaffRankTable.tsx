@@ -56,7 +56,7 @@ const StaffRankTable: React.FC<StaffRankTableProps> = ({
 
       <div ref={captureRef} className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
         <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse" style={{ minWidth: '540px' }}>
             <thead>
               <tr className="bg-slate-900">
                 <th className="px-4 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Hạng</th>

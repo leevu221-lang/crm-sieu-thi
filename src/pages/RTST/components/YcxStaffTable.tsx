@@ -28,7 +28,7 @@ const YcxStaffTable: React.FC<YcxStaffTableProps> = ({ ycxData }) => {
         </h2>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+        <table className="w-full text-left border-collapse" style={{ minWidth: '480px' }}>
           <thead>
             <tr className="text-[10px] text-slate-400 uppercase tracking-widest border-b border-slate-100">
               <th className="p-2">NGƯỜI TẠO</th>

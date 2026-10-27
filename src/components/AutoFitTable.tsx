@@ -138,7 +138,8 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
           data-autofit-sizing="true"
           className="autofit-sizing-box mx-auto"
           style={{
-            width: '100%',
+            width: `${Math.ceil(minWidth * scale)}px`,
+            minWidth: '100%',
             height: `${Math.ceil(naturalHeight * scale)}px`,
             position: 'relative',
             overflow: 'hidden',
@@ -148,7 +149,7 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
           <div
             ref={contentRef}
             data-autofit-content="true"
-            className="autofit-content-box"
+            className="autofit-content-box no-mobile-zoom"
             style={{
               width: `${minWidth}px`,
               minWidth: `${minWidth}px`,
@@ -163,7 +164,7 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
           </div>
         </div>
       ) : (
-        <div ref={contentRef} data-autofit-content="true" className="autofit-content-unscaled w-full">
+        <div ref={contentRef} data-autofit-content="true" className="autofit-content-unscaled no-mobile-zoom w-full">
           {children}
         </div>
       )}
