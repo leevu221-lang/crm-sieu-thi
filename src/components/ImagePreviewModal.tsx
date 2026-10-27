@@ -123,30 +123,30 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
           className="relative bg-white rounded-2xl sm:rounded-3xl w-full max-w-[96vw] sm:max-w-xl md:max-w-3xl lg:max-w-5xl h-auto max-h-[92dvh] sm:max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden shrink-0" 
           onClick={e => e.stopPropagation()}
         >
-          {/* Header Bar */}
+          {/* Header Bar: Clean single-row layout */}
           <div className={`px-3 sm:px-4 py-2 sm:py-2.5 border-b flex items-center justify-between shrink-0 z-10 transition-colors duration-300 ${
             copySuccess 
               ? 'bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-emerald-200' 
-              : 'bg-blue-50 border-blue-200'
+              : 'bg-slate-50 border-slate-200'
           }`}>
             <div className="flex items-center gap-2 min-w-0">
-              <div className={`p-1.5 text-white rounded-lg shadow-xs shrink-0 transition-colors ${
-                copySuccess ? 'bg-emerald-600' : 'bg-blue-600'
+              <div className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-white rounded-xl shadow-2xs shrink-0 transition-colors ${
+                copySuccess ? 'bg-emerald-600' : 'bg-slate-800'
               }`}>
-                {copySuccess ? <Check size={15} strokeWidth={2.5} /> : <Copy size={15} strokeWidth={2.5} />}
+                {copySuccess ? <Check size={16} strokeWidth={2.5} /> : <Copy size={15} strokeWidth={2.5} />}
               </div>
               <div className="min-w-0">
-                <h3 className={`text-xs sm:text-sm font-black uppercase tracking-tight truncate ${
-                  copySuccess ? 'text-emerald-900' : 'text-blue-900'
+                <h3 className={`text-[12px] sm:text-sm font-black uppercase tracking-tight truncate ${
+                  copySuccess ? 'text-emerald-900' : 'text-slate-900'
                 }`}>
                   {copySuccess 
-                    ? '✅ ĐÃ TỰ ĐỘNG COPY ẢNH VÀO CLIPBOARD' 
-                    : 'CHẠM GIỮ ẢNH ĐỂ SAO CHÉP (COPY)'}
+                    ? 'ĐÃ TỰ ĐỘNG COPY ẢNH VÀO CLIPBOARD' 
+                    : 'XEM TRƯỚC ẢNH BÁO CÁO'}
                 </h3>
-                <p className="text-[10px] sm:text-[11px] font-medium text-slate-500 truncate hidden sm:block">
+                <p className="text-[10.5px] sm:text-[11px] font-medium text-slate-500 truncate hidden sm:block">
                   {copySuccess 
                     ? 'Bạn có thể dán (Paste / Ctrl+V) ngay vào Zalo, Viber hoặc tin nhắn' 
-                    : 'Trên điện thoại chạm giữ 1-2 giây để chọn Sao chép / Chia sẻ'}
+                    : 'Chạm giữ 1-2 giây trên ảnh để chọn Sao chép hoặc dùng nút bên dưới'}
                 </p>
               </div>
             </div>
@@ -157,33 +157,33 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               {canShare && (
                 <button
                   onClick={handleShare}
-                  className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-black text-xs transition-all shadow-xs active:scale-95 cursor-pointer"
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-black text-xs transition-all shadow-xs active:scale-95 cursor-pointer"
                   title="Gửi hoặc chia sẻ trực tiếp qua Zalo / Tin nhắn"
                 >
                   <Share2 size={13} />
-                  <span className="hidden xs:inline">GỬI ZALO</span>
+                  <span>GỬI ZALO</span>
                 </button>
               )}
 
               {/* Manual Copy Button */}
               <button
                 onClick={handleManualCopy}
-                className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs transition-all border shadow-xs active:scale-95 cursor-pointer ${
+                className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-all border shadow-xs active:scale-95 cursor-pointer ${
                   isManualCopied || copySuccess
                     ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700'
-                    : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
+                    : 'bg-slate-900 hover:bg-slate-800 text-white border-slate-900'
                 }`}
                 title="Sao chép lại ảnh vào Clipboard"
               >
-                {isManualCopied ? (
+                {isManualCopied || copySuccess ? (
                   <>
                     <Check size={13} className="text-white" />
-                    <span className="hidden xs:inline">ĐÃ COPY!</span>
+                    <span>ĐÃ COPY!</span>
                   </>
                 ) : (
                   <>
                     <Copy size={13} />
-                    <span className="hidden xs:inline">SAO CHÉP</span>
+                    <span>SAO CHÉP</span>
                   </>
                 )}
               </button>
@@ -191,7 +191,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               {/* Download Button */}
               <button
                 onClick={handleDownload}
-                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-xs transition-all border border-slate-300 shadow-xs active:scale-95 cursor-pointer"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs transition-all border border-slate-300 shadow-2xs active:scale-95 cursor-pointer"
                 title="Tải ảnh về máy"
               >
                 <Download size={13} />
@@ -201,7 +201,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               {/* Close Button */}
               <button
                 onClick={() => setPreviewImage(null)}
-                className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-full transition-all border border-slate-300 shadow-2xs cursor-pointer active:scale-95"
+                className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-full transition-all border border-slate-300/80 shadow-2xs cursor-pointer active:scale-95"
                 title="Đóng"
               >
                 <X size={15} strokeWidth={2.5} />
@@ -209,18 +209,20 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             </div>
           </div>
           
-          {/* Image Body: Automatically fit image inside popup container */}
-          <div className="flex-1 min-h-0 w-full p-2 sm:p-3.5 bg-slate-100/90 flex items-center justify-center overflow-auto custom-scrollbar touch-pan-x touch-pan-y relative">
-            <img 
-              src={previewImage} 
-              alt="Báo cáo" 
-              style={{ 
-                userSelect: 'auto', 
-                WebkitTouchCallout: 'default' as any,
-                pointerEvents: 'auto'
-              }}
-              className="max-w-full max-h-full w-auto h-auto object-contain block mx-auto shadow-md rounded-xl border border-slate-300/90 select-all cursor-pointer" 
-            />
+          {/* Image Body: Scrollable true-ratio preview without distortion */}
+          <div className="flex-1 min-h-0 w-full p-2 sm:p-4 bg-slate-100/90 overflow-y-auto overflow-x-hidden custom-scrollbar touch-pan-y relative flex flex-col items-center justify-start">
+            <div className="my-auto py-1 max-w-full flex justify-center">
+              <img 
+                src={previewImage} 
+                alt="Báo cáo" 
+                style={{ 
+                  userSelect: 'auto', 
+                  WebkitTouchCallout: 'default' as any,
+                  pointerEvents: 'auto',
+                }}
+                className="max-w-full h-auto w-auto object-contain block mx-auto shadow-md rounded-xl sm:rounded-2xl border border-slate-200/90 bg-white select-all cursor-pointer" 
+              />
+            </div>
 
             {/* Floating Toast Notification on Copy */}
             <AnimatePresence>
@@ -241,12 +243,13 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             </AnimatePresence>
           </div>
 
-          {/* Mobile Bottom Quick Action Bar — Always accessible on phone screen */}
-          <div className="sm:hidden p-2.5 bg-white border-t border-slate-200 flex items-center gap-2 shrink-0 z-10">
+          {/* Mobile Bottom Action Bar — Standardized buttons, uniform height, high-contrast colors */}
+          <div className="sm:hidden px-3 py-2.5 bg-white border-t border-slate-200/90 flex items-center justify-between gap-2 shrink-0 z-10 pb-safe">
             {canShare ? (
               <button
                 onClick={handleShare}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 bg-gradient-to-r from-blue-600 to-indigo-600 active:scale-98 text-white rounded-xl font-black text-xs shadow-md shadow-blue-500/20 cursor-pointer"
+                className="flex-1 flex items-center justify-center gap-1.5 h-11 px-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 active:scale-95 text-white rounded-xl font-black text-xs shadow-md shadow-blue-500/20 border border-blue-500/30 cursor-pointer"
+                title="Gửi trực tiếp qua Zalo"
               >
                 <Share2 size={15} />
                 <span>GỬI QUA ZALO</span>
@@ -255,11 +258,12 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
 
             <button
               onClick={handleManualCopy}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-black text-xs transition-all shadow-xs active:scale-98 cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-1.5 h-11 px-2.5 active:scale-95 text-white rounded-xl font-black text-xs shadow-xs transition-all cursor-pointer ${
                 isManualCopied || copySuccess
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-slate-800 text-white'
+                  ? 'bg-emerald-600 border border-emerald-600'
+                  : 'bg-slate-900 hover:bg-slate-800 border border-slate-900'
               }`}
+              title="Sao chép ảnh vào bộ nhớ tạm"
             >
               {isManualCopied || copySuccess ? (
                 <>
@@ -276,10 +280,13 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
 
             <button
               onClick={handleDownload}
-              className="flex items-center justify-center p-2.5 bg-slate-100 active:bg-slate-200 text-slate-700 rounded-xl border border-slate-300 shrink-0 cursor-pointer"
-              title="Lưu ảnh về máy"
+              className={`flex items-center justify-center gap-1.5 h-11 px-3 bg-slate-100 active:bg-slate-200 text-slate-800 rounded-xl border border-slate-300 font-bold text-xs shrink-0 cursor-pointer ${
+                !canShare ? 'flex-1' : ''
+              }`}
+              title="Tải ảnh về máy"
             >
-              <Download size={16} />
+              <Download size={15} />
+              <span className="hidden xs:inline">TẢI ẢNH</span>
             </button>
           </div>
         </motion.div>

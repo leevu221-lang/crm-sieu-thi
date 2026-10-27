@@ -452,7 +452,7 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
   const captureElementHelper = async (element: HTMLElement) => {
     ensureSharedCaptureStyle();
     const tempContainer = document.createElement('div');
-    tempContainer.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:hidden;pointer-events:none;z-index:-9999;background:#ffffff;';
+    tempContainer.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:visible;pointer-events:none;z-index:-9999;background:#ffffff;';
 
     // Frame wrapper to ensure 100% white background and no clipping
     const frameWrapper = document.createElement('div');
@@ -488,7 +488,7 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
 
     try {
       await ensureFontsReady();
-      const frameHeight = frameWrapper.offsetHeight || frameWrapper.scrollHeight || 1200;
+      const frameHeight = Math.max(800, (frameWrapper.offsetHeight || frameWrapper.scrollHeight || 1200) + 4);
       
       let dataUrl: string = '';
       try {

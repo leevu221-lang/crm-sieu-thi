@@ -788,7 +788,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   type CaptureStrategy = 'htmlToImage' | 'domToPng' | 'html2canvas';
 
   const runCaptureStrategy = async (frameWrapper: HTMLElement, strategy: CaptureStrategy, scale: number = 1.75): Promise<Blob | string> => {
-    const frameHeight = frameWrapper.offsetHeight || frameWrapper.scrollHeight || 1200;
+    const frameHeight = Math.max(800, (frameWrapper.offsetHeight || frameWrapper.scrollHeight || 1200) + 4);
     if (strategy === 'htmlToImage') {
       const blob = await htmlToImage.toBlob(frameWrapper, {
         backgroundColor: '#ffffff',
@@ -878,7 +878,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
   const captureSingleEmployeeCard = async (element: HTMLElement, order: CaptureStrategy[] = DEFAULT_CAPTURE_ORDER): Promise<Blob | string> => {
     const tempContainer = document.createElement('div');
-    tempContainer.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:hidden;pointer-events:none;z-index:-9999;background:#ffffff;';
+    tempContainer.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:visible;pointer-events:none;z-index:-9999;background:#ffffff;';
     const { frameWrapper } = buildCaptureFrame(element);
     tempContainer.appendChild(frameWrapper);
     document.body.appendChild(tempContainer);
@@ -923,7 +923,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const fragment = document.createDocumentFragment();
     for (let w = 0; w < CONCURRENCY; w++) {
       const wc = document.createElement('div');
-      wc.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:hidden;pointer-events:none;z-index:-9999;background:#ffffff;';
+      wc.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:visible;pointer-events:none;z-index:-9999;background:#ffffff;';
       fragment.appendChild(wc);
       workerContainers.push(wc);
     }

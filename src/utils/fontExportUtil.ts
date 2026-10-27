@@ -79,9 +79,13 @@ export async function preloadFontDataCache(): Promise<string> {
  * Eliminates DOM insertion overhead and avoids style leaks.
  */
 export function ensureSharedCaptureStyle(): void {
-  if (typeof document === 'undefined' || document.getElementById('export-isolated-card-shared-style')) return;
-  const style = document.createElement('style');
-  style.id = 'export-isolated-card-shared-style';
+  if (typeof document === 'undefined') return;
+  let style = document.getElementById('export-isolated-card-shared-style') as HTMLStyleElement | null;
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'export-isolated-card-shared-style';
+    document.head.appendChild(style);
+  }
   style.textContent = `
     ${getPreloadedFontCss()}
     .export-isolated-card * {
@@ -113,12 +117,125 @@ export function ensureSharedCaptureStyle(): void {
       width: 100% !important;
       box-shadow: none !important;
     }
-    .export-isolated-card [class*="grid-cols"] {
-      display: grid !important;
-      grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
-      width: 100% !important;
+    
+    /* Executive Card Wrapper & Layout */
+    .export-isolated-card {
+      font-family: 'UTM Avo', 'Inter', sans-serif !important;
+      background-color: #ffffff !important;
+      color: #0F172A !important;
       box-sizing: border-box !important;
     }
+
+    /* Outer Container Padding */
+    .export-isolated-card > div,
+    .export-isolated-card [id^="employee-detail-"] > div {
+      padding: 24px !important;
+      gap: 16px !important;
+      border-radius: 24px !important;
+      border: 1px solid #E2E8F0 !important;
+      background-color: #FFFFFF !important;
+    }
+
+    /* Top Header Banner */
+    .export-isolated-card [id^="employee-detail-"] .bg-gradient-to-r:first-child,
+    .export-isolated-card .bg-gradient-to-r:first-of-type {
+      padding: 22px 28px !important;
+      border-radius: 20px !important;
+      background: linear-gradient(to right, #047857, #059669, #10B981) !important;
+    }
+    .export-isolated-card h2 {
+      font-size: 26px !important;
+      font-weight: 900 !important;
+      line-height: 1.3 !important;
+      color: #FEF08A !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.03em !important;
+      text-align: center !important;
+      margin: 0 0 8px 0 !important;
+    }
+    .export-isolated-card h2 + div {
+      font-size: 13.5px !important;
+      font-weight: 700 !important;
+      color: rgba(255, 255, 255, 0.95) !important;
+      gap: 12px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      flex-wrap: wrap !important;
+    }
+
+    /* 6 StatCards Dashboard Grid */
+    .export-isolated-card [class*="grid-cols-6"],
+    .export-isolated-card [class*="grid-cols"] {
+      display: grid !important;
+      grid-template-columns: repeat(6, 1fr) !important;
+      gap: 10px !important;
+      width: 100% !important;
+      margin: 4px 0 !important;
+      box-sizing: border-box !important;
+    }
+    .export-isolated-card [class*="grid-cols-6"] > div,
+    .export-isolated-card [class*="grid-cols"] > div {
+      padding: 12px 6px !important;
+      border-radius: 16px !important;
+      background-color: rgba(236, 253, 245, 0.6) !important;
+      border: 1.5px solid rgba(167, 243, 208, 0.9) !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      min-height: 76px !important;
+      box-sizing: border-box !important;
+    }
+    .export-isolated-card [class*="grid-cols-6"] > div > span:first-child,
+    .export-isolated-card [class*="grid-cols"] > div > span:first-child {
+      font-size: 11px !important;
+      font-weight: 900 !important;
+      color: #64748B !important;
+      letter-spacing: 0.05em !important;
+      text-transform: uppercase !important;
+      white-space: nowrap !important;
+      line-height: 1.2 !important;
+    }
+    .export-isolated-card [class*="grid-cols-6"] > div > span:last-child,
+    .export-isolated-card [class*="grid-cols"] > div > span:last-child {
+      font-size: 23px !important;
+      font-weight: 900 !important;
+      margin-top: 4px !important;
+      line-height: 1.2 !important;
+      text-align: center !important;
+    }
+
+    /* SectionTable Container */
+    .export-isolated-card .border-emerald-300\/80 {
+      border-radius: 18px !important;
+      border: 1.5px solid rgba(110, 231, 183, 0.9) !important;
+      overflow: hidden !important;
+      margin-top: 6px !important;
+    }
+    .export-isolated-card .border-emerald-300\/80 > div:first-child {
+      padding: 11px 20px !important;
+      background: linear-gradient(to right, #047857, #059669, #10B981) !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+    }
+    .export-isolated-card .border-emerald-300\/80 > div:first-child span:first-child {
+      font-size: 14.5px !important;
+      font-weight: 900 !important;
+      color: #FEF08A !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.03em !important;
+    }
+    .export-isolated-card .border-emerald-300\/80 > div:first-child span:last-child {
+      font-size: 12.5px !important;
+      font-weight: 700 !important;
+      color: rgba(255, 255, 255, 0.95) !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.04em !important;
+    }
+
+    /* Table Typography & Rows */
     .export-isolated-card table {
       width: 100% !important;
       min-width: 100% !important;
@@ -128,13 +245,77 @@ export function ensureSharedCaptureStyle(): void {
       border-collapse: collapse !important;
     }
     .export-isolated-card colgroup col:nth-child(1) { width: 55px !important; }
-    .export-isolated-card colgroup col:nth-child(2) { width: 480px !important; }
-    .export-isolated-card colgroup col:nth-child(3) { width: 125px !important; }
-    .export-isolated-card colgroup col:nth-child(4) { width: 125px !important; }
-    .export-isolated-card colgroup col:nth-child(5) { width: 125px !important; }
-    .export-isolated-card colgroup col:nth-child(6) { width: 150px !important; }
+    .export-isolated-card colgroup col:nth-child(2) { width: 505px !important; }
+    .export-isolated-card colgroup col:nth-child(3) { width: 130px !important; }
+    .export-isolated-card colgroup col:nth-child(4) { width: 130px !important; }
+    .export-isolated-card colgroup col:nth-child(5) { width: 120px !important; }
+    .export-isolated-card colgroup col:nth-child(6) { width: 140px !important; }
+
+    .export-isolated-card thead tr {
+      height: 40px !important;
+    }
+    .export-isolated-card thead th {
+      font-size: 13px !important;
+      font-weight: 900 !important;
+      padding: 6px 4px !important;
+      letter-spacing: 0.02em !important;
+      text-transform: uppercase !important;
+    }
+    .export-isolated-card tbody tr {
+      height: 38px !important;
+      border-bottom: 1px solid rgba(209, 250, 229, 0.9) !important;
+    }
+    .export-isolated-card tbody td {
+      font-size: 13.5px !important;
+      font-weight: 900 !important;
+      padding: 6px 4px !important;
+    }
+    .export-isolated-card tbody td:nth-child(2) {
+      padding-left: 14px !important;
+      padding-right: 14px !important;
+      font-size: 13.5px !important;
+      font-weight: 900 !important;
+      text-transform: uppercase !important;
+      line-height: 1.3 !important;
+    }
+    .export-isolated-card tbody td:nth-child(2) span {
+      font-size: 13.5px !important;
+      -webkit-line-clamp: unset !important;
+      line-clamp: unset !important;
+      white-space: normal !important;
+    }
+    .export-isolated-card tbody td:nth-child(3) {
+      font-size: 13.5px !important;
+      font-weight: 700 !important;
+      color: #1E293B !important;
+    }
+    .export-isolated-card tbody td:nth-child(4) {
+      font-size: 13.5px !important;
+      font-weight: 900 !important;
+      color: #E11D48 !important;
+    }
+    .export-isolated-card tbody td:nth-child(5) span {
+      font-size: 12.5px !important;
+      font-weight: 900 !important;
+      padding: 3px 10px !important;
+      border-radius: 6px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+    }
+    .export-isolated-card tbody td:nth-child(6) {
+      font-size: 13.5px !important;
+      font-weight: 900 !important;
+    }
+    .export-isolated-card tbody td:nth-child(6) .w-4 {
+      width: 22px !important;
+      height: 22px !important;
+    }
+    .export-isolated-card tbody td:nth-child(6) svg {
+      width: 13px !important;
+      height: 13px !important;
+    }
   `;
-  document.head.appendChild(style);
 }
 
 /**
