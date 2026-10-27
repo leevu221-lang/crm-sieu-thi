@@ -116,32 +116,32 @@ const SectionTable: React.FC<{
   const reachedCount = rowData.filter(r => r.percentHT >= 100).length;
 
   return (
-    <div className="w-full flex flex-col rounded-2xl border border-emerald-300/80 overflow-hidden shadow-xs">
+    <div className="w-full flex flex-col rounded-xl sm:rounded-2xl border border-emerald-300/80 overflow-hidden shadow-2xs">
       {/* Section header Banner */}
-      <div className="flex items-center justify-between bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] px-3.5 sm:px-4 py-2 text-white">
-        <span className="text-[13px] sm:text-[14.5px] font-black uppercase tracking-wide text-[#FEF08A]">{title}</span>
-        <span className="text-[11px] sm:text-[12px] font-bold text-white/95 uppercase tracking-wider">
+      <div className="flex items-center justify-between bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] px-2.5 sm:px-4 py-1.5 sm:py-2 text-white">
+        <span className="text-[11.5px] sm:text-[14.5px] font-black uppercase tracking-wide text-[#FEF08A]">{title}</span>
+        <span className="text-[10px] sm:text-[12px] font-bold text-white/95 uppercase tracking-wider">
           ⚡ ĐẠT: {reachedCount}/{rowData.length} || {rowData.length > 0 ? ((reachedCount / rowData.length) * 100).toFixed(0) : 0}%
         </span>
       </div>
-      <div className="overflow-x-auto w-full bg-white">
-        <table className="w-full border-separate border-spacing-0 table-fixed bg-white text-[12px] sm:text-[14px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900, minWidth: '580px' }}>
+      <div className="overflow-x-auto w-full bg-white custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <table className="w-full border-separate border-spacing-0 table-fixed bg-white text-[11px] sm:text-[14px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900, minWidth: '360px', width: '100%' }}>
           <colgroup>
-            <col style={{ width: '6%' }} />
-            <col style={{ width: '40%' }} />
-            <col style={{ width: '13.5%' }} />
-            <col style={{ width: '13.5%' }} />
-            <col style={{ width: '13.5%' }} />
-            <col style={{ width: '13.5%' }} />
+            <col style={{ width: '6.5%', minWidth: '22px' }} />
+            <col style={{ width: '36%', minWidth: '115px' }} />
+            <col style={{ width: '14%', minWidth: '46px' }} />
+            <col style={{ width: '14.5%', minWidth: '48px' }} />
+            <col style={{ width: '13%', minWidth: '44px' }} />
+            <col style={{ width: '16%', minWidth: '52px' }} />
           </colgroup>
           <thead>
-            <tr className="text-white font-black text-[12px] sm:text-[13px] uppercase tracking-tight h-[38px]">
-              <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-600 bg-[#047857] text-white">STT</th>
-              <th style={{ fontWeight: 900 }} className="px-3 py-0 text-left border-r border-b border-emerald-600 bg-[#059669] text-white">NGÀNH HÀNG</th>
-              <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-600 bg-[#047857] text-white">TARGET</th>
-              <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-600 bg-[#047857] text-white">LUỸ KẾ</th>
-              <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-600 bg-[#059669] text-white">% HT</th>
-              <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-b border-emerald-600 bg-[#047857] text-white">CÒN LẠI</th>
+            <tr className="text-white font-black text-[10.5px] sm:text-[13px] uppercase tracking-tight h-[34px] sm:h-[38px]">
+              <th style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-b border-emerald-600 bg-[#047857] text-white">STT</th>
+              <th style={{ fontWeight: 900 }} className="px-1.5 sm:px-3 py-0 text-left border-r border-b border-emerald-600 bg-[#059669] text-white">NGÀNH HÀNG</th>
+              <th style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-b border-emerald-600 bg-[#047857] text-white">TARGET</th>
+              <th style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-b border-emerald-600 bg-[#047857] text-white">LUỸ KẾ</th>
+              <th style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-b border-emerald-600 bg-[#059669] text-white">% HT</th>
+              <th style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-b border-emerald-600 bg-[#047857] text-white">CÒN LẠI</th>
             </tr>
           </thead>
           <tbody>
@@ -151,48 +151,50 @@ const SectionTable: React.FC<{
                 <tr
                   key={row.name}
                   className={cn(
-                    "transition-colors h-[36px] border-b border-emerald-100/90",
+                    "transition-colors h-[34px] sm:h-[36px] border-b border-emerald-100/90",
                     isEven ? "bg-white" : "bg-emerald-50/20",
                     "hover:bg-emerald-50/70"
                   )}
                 >
-                  <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 text-[12px] sm:text-[14px] font-black text-slate-700 bg-emerald-50/40 whitespace-nowrap">
+                  <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 text-[10.5px] sm:text-[14px] font-black text-slate-700 bg-emerald-50/40 whitespace-nowrap">
                     #{index + 1}
                   </td>
                   <td style={{ fontWeight: 900 }} className={cn(
-                    "px-3 py-0 border-r border-b border-emerald-100/90 text-left text-[12.5px] sm:text-[14px] font-black uppercase truncate",
+                    "px-1.5 sm:px-3 py-0.5 border-r border-b border-emerald-100/90 text-left text-[10.5px] sm:text-[14px] font-black uppercase break-words leading-tight",
                     row.percentHT < 100 ? "text-rose-600" : "text-slate-900"
                   )}>
-                    {row.name}
+                    <span className="line-clamp-2" title={row.name}>
+                      {row.name}
+                    </span>
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 text-[12.5px] sm:text-[14px] font-bold text-slate-800 whitespace-nowrap">
+                  <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 text-[11px] sm:text-[14px] font-bold text-slate-800 whitespace-nowrap">
                     {row.target.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 text-[12.5px] sm:text-[14px] font-black text-rose-600 whitespace-nowrap">
+                  <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 text-[11px] sm:text-[14px] font-black text-rose-600 whitespace-nowrap">
                     {row.accumulated.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                   </td>
                   <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
                     <span className={cn(
-                      "inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[13px] leading-none",
+                      "inline-flex items-center justify-center px-1 sm:px-1.5 py-0.5 rounded-md font-black text-[10px] sm:text-[13px] leading-none",
                       row.percentHT >= 100 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-600"
                     )}>
                       {row.percentHT.toFixed(0)}%
                     </span>
                   </td>
                   <td style={{ fontWeight: 900 }} className={cn(
-                    "px-1 py-0 text-center border-b border-emerald-100/90 text-[12.5px] sm:text-[14px] font-black whitespace-nowrap",
+                    "px-0.5 py-0 text-center border-b border-emerald-100/90 text-[10.5px] sm:text-[14px] font-black whitespace-nowrap",
                     row.remainingVal >= 0 ? "text-emerald-700" : "text-rose-600 font-bold"
                   )}>
-                    <div className="flex items-center justify-center h-[36px] w-full gap-1">
+                    <div className="flex items-center justify-center h-[34px] sm:h-[36px] w-full gap-0.5 sm:gap-1">
                       {row.remainingVal >= 0 ? (
-                        <span className="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center">
-                          <Check size={12} className="text-white" strokeWidth={3} />
+                        <span className="w-4 h-4 sm:w-5 sm:h-5 bg-emerald-500 rounded-full flex items-center justify-center shrink-0">
+                          <Check size={11} className="text-white" strokeWidth={3} />
                         </span>
                       ) : (
                         <>
-                          <span>{Math.abs(row.remainingVal).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}</span>
+                          <span className="tabular-nums">{Math.abs(row.remainingVal).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}</span>
                           <button
-                            className="no-capture text-amber-500 hover:text-amber-700 transition-colors shrink-0"
+                            className="no-capture text-amber-500 hover:text-amber-700 transition-colors shrink-0 cursor-pointer p-0.5"
                             title="Xem nhận xét"
                             onClick={() => {
                               const comment = generateComment(row.name, row.remainingVal, row.percentHT);
@@ -201,7 +203,7 @@ const SectionTable: React.FC<{
                               setCopiedComment(false);
                             }}
                           >
-                            <MessageCircle size={13} strokeWidth={2.5} />
+                            <MessageCircle size={12} strokeWidth={2.5} />
                           </button>
                         </>
                       )}
@@ -571,17 +573,17 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
   };
 
   return (
-    <div id={`employee-detail-${staffName}`} className="w-full flex justify-center p-1 sm:p-2.5" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
-      <div className="w-full max-w-[960px] bg-white border border-slate-200/90 p-2.5 sm:p-4 rounded-2xl shadow-sm flex flex-col space-y-3">
+    <div id={`employee-detail-${staffName}`} className="w-full flex justify-center p-0.5 sm:p-2.5" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
+      <div className="w-full max-w-[960px] bg-white border border-slate-200/90 p-2 sm:p-4 rounded-xl sm:rounded-2xl shadow-xs flex flex-col space-y-2.5 sm:space-y-3">
         
         {/* Top Header Banner: Emerald & Gold Gradient */}
-        <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 sm:p-5 rounded-2xl text-white relative shrink-0 text-center flex flex-col items-center justify-center">
-          <h2 className="text-[20px] sm:text-[25px] md:text-[28px] font-black text-[#FEF08A] uppercase tracking-wide leading-tight text-center w-full" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+        <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-3 sm:p-5 rounded-xl sm:rounded-2xl text-white relative shrink-0 text-center flex flex-col items-center justify-center">
+          <h2 className="text-[16px] sm:text-[24px] md:text-[28px] font-black text-[#FEF08A] uppercase tracking-wide leading-tight text-center w-full break-words" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
             CHI TIẾT NHÂN VIÊN: {staffName}
           </h2>
           
           {/* Dòng luỹ kế ngang hàng với nút Xuất ảnh */}
-          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 mt-2 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+          <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2.5 mt-1.5 sm:mt-2 text-[10.5px] sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
             <span className="flex items-center gap-1 whitespace-nowrap">
               ⚡ Luỹ kế dự kiến đến ngày: {yesterdayDate}
             </span>
@@ -595,17 +597,17 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
             <button 
               onClick={handleExport}
               disabled={isCapturing}
-              className="no-capture inline-flex items-center gap-1.5 px-3 py-1 bg-white/25 hover:bg-white/35 text-[#FEF08A] hover:text-white rounded-xl font-black text-xs transition-all active:scale-95 border border-white/30 cursor-pointer shadow-xs disabled:opacity-75"
+              className="no-capture inline-flex items-center gap-1 px-2.5 sm:px-3 py-1 bg-white/25 hover:bg-white/35 text-[#FEF08A] hover:text-white rounded-lg sm:rounded-xl font-black text-[11px] sm:text-xs transition-all active:scale-95 border border-white/30 cursor-pointer shadow-xs disabled:opacity-75"
               title="Xuất ảnh báo cáo chi tiết nhân viên"
             >
               {isCapturing ? (
                 <>
-                  <Loader2 size={13} className="text-[#FEF08A] animate-spin" />
+                  <Loader2 size={12} className="text-[#FEF08A] animate-spin" />
                   <span>ĐANG XUẤT...</span>
                 </>
               ) : (
                 <>
-                  <Camera size={13} className="text-[#FEF08A]" />
+                  <Camera size={12} className="text-[#FEF08A]" />
                   <span>XUẤT ẢNH</span>
                 </>
               )}
@@ -615,10 +617,10 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
             {onOpenCompare && (
               <button 
                 onClick={() => onOpenCompare(staffId)}
-                className="no-capture inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400/25 hover:bg-amber-400/35 text-amber-200 hover:text-white rounded-xl font-black text-xs transition-all active:scale-95 border border-amber-300/40 cursor-pointer shadow-xs"
+                className="no-capture inline-flex items-center gap-1 px-2.5 sm:px-3 py-1 bg-amber-400/25 hover:bg-amber-400/35 text-amber-200 hover:text-white rounded-lg sm:rounded-xl font-black text-[11px] sm:text-xs transition-all active:scale-95 border border-amber-300/40 cursor-pointer shadow-xs"
                 title="So sánh đối đầu nhân viên này với nhân viên khác"
               >
-                <Swords size={13} className="text-amber-300" />
+                <Swords size={12} className="text-amber-300" />
                 <span>SO SÁNH</span>
               </button>
             )}
@@ -627,10 +629,10 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
 
         {/* 6 StatCards Dashboard Row */}
         {(staffTargetQd > 0 || staffDtqd !== 0) && (
-          <div className="grid grid-cols-6 gap-1.5 sm:gap-2 w-full">
-            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
-              <span className="text-[9px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-wider text-center">TARGET QĐ</span>
-              <span className="text-[17px] sm:text-[23px] font-black text-slate-800 mt-0.5">
+          <div className="grid grid-cols-6 gap-1 sm:gap-2 w-full">
+            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-1 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
+              <span className="text-[7.5px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">TARGET QĐ</span>
+              <span className="text-[12.5px] sm:text-[23px] font-black text-slate-800 mt-0.5 text-center leading-tight">
                 {(() => {
                   const inMillions = staffTargetQd > 1000000 ? staffTargetQd / 1000000 : staffTargetQd;
                   if (inMillions >= 1000) return Math.round(inMillions).toLocaleString('vi-VN');
@@ -639,24 +641,24 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
                 })()}
               </span>
             </div>
-            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
-              <span className="text-[9px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-wider text-center">DTQĐ</span>
-              <span className="text-[17px] sm:text-[23px] font-black text-rose-600 mt-0.5">
+            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-1 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
+              <span className="text-[7.5px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">DTQĐ</span>
+              <span className="text-[12.5px] sm:text-[23px] font-black text-rose-600 mt-0.5 text-center leading-tight">
                 {(() => {
                   const inMillions = Math.abs(staffDtqd) > 1000000 ? staffDtqd / 1000000 : staffDtqd;
                   return Math.round(inMillions).toLocaleString('vi-VN');
                 })()}
               </span>
             </div>
-            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
-              <span className="text-[9px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-wider text-center">% HT</span>
-              <span className={cn("text-[17px] sm:text-[23px] font-black mt-0.5", staffPercentHT >= 100 ? "text-emerald-700" : "text-rose-600")}>
+            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-1 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
+              <span className="text-[7.5px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">% HT</span>
+              <span className={cn("text-[12.5px] sm:text-[23px] font-black mt-0.5 text-center leading-tight", staffPercentHT >= 100 ? "text-emerald-700" : "text-rose-600")}>
                 {Math.round(staffPercentHT)}%
               </span>
             </div>
-            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
-              <span className="text-[9px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-wider text-center">% QĐ</span>
-              <span className={cn("text-[17px] sm:text-[23px] font-black mt-0.5", (staffHieuQuaQd !== null && staffHieuQuaQd !== undefined) ? "text-indigo-600" : "text-slate-400")}>
+            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-1 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
+              <span className="text-[7.5px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">% QĐ</span>
+              <span className={cn("text-[12.5px] sm:text-[23px] font-black mt-0.5 text-center leading-tight", (staffHieuQuaQd !== null && staffHieuQuaQd !== undefined) ? "text-indigo-600" : "text-slate-400")}>
                 {(() => {
                   if (staffHieuQuaQd !== null && staffHieuQuaQd !== undefined) {
                     const val = typeof staffHieuQuaQd === 'number' ? staffHieuQuaQd : parseFloat(String(staffHieuQuaQd).replace(/,/g, '').replace(/%/g, ''));
@@ -671,17 +673,17 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
                 })()}
               </span>
             </div>
-            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
-              <span className="text-[9px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-wider text-center">TRẢ CHẬM</span>
-              <span className={cn("text-[17px] sm:text-[23px] font-black mt-0.5", (staffInstallmentPercent !== null && staffInstallmentPercent !== undefined) ? "text-emerald-700" : "text-slate-400")}>
+            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-1 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
+              <span className="text-[7.5px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">TRẢ CHẬM</span>
+              <span className={cn("text-[12.5px] sm:text-[23px] font-black mt-0.5 text-center leading-tight", (staffInstallmentPercent !== null && staffInstallmentPercent !== undefined) ? "text-emerald-700" : "text-slate-400")}>
                 {(staffInstallmentPercent !== null && staffInstallmentPercent !== undefined)
                   ? `${staffInstallmentPercent.toFixed(1)}%`
                   : '-'}
               </span>
             </div>
-            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
-              <span className="text-[9px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-wider text-center">THƯỞNG</span>
-              <span className={cn("text-[17px] sm:text-[23px] font-black mt-0.5", (staffBonusHientai !== null && staffBonusHientai !== undefined) ? "text-rose-600" : "text-slate-400")}>
+            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-1 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
+              <span className="text-[7.5px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">THƯỞNG</span>
+              <span className={cn("text-[12.5px] sm:text-[23px] font-black mt-0.5 text-center leading-tight", (staffBonusHientai !== null && staffBonusHientai !== undefined) ? "text-rose-600" : "text-slate-400")}>
                 {(() => {
                   if (staffBonusHientai === null || staffBonusHientai === undefined) return '-';
                   if (staffBonusHientai === 0) return '0';
