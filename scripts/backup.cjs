@@ -62,7 +62,8 @@ try {
     '*.DS_Store',
     '*/*.DS_Store',
     '.vite/*',
-    '*/.vite/*'
+    '*/.vite/*',
+    '*.zip'
   ];
 
   const excludeArg = excludePatterns.map(p => `"${p}"`).join(' ');
