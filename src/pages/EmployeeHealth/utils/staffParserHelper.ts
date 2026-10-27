@@ -8,8 +8,53 @@ export const excludedKeywords = [
   'bp all in one', 'bp trưởng ca', 'bp truong ca', 'hỗ trợ bi', 'ho tro bi',
   'copyright', 'dashboard', 'bc ', 'hd sử dụng', 'hd su dung', 'trang chủ',
   'trang chu', 'báo cáo', 'bao cao', 'khối kinh doanh', 'khoi kinh doanh',
-  'logo bi', 'avatar', 'phòng ban', 'phong ban'
+  'logo bi', 'avatar', 'phòng ban', 'phong ban',
+  'copy all', 'copy', 'sao chép', 'sao chep', 'xuat excel', 'xuất excel',
+  'download', 'tải về', 'tai ve', 'export', 'select all', 'copy all row', 'copy all data'
 ];
+
+/**
+ * Checks if a string represents an action button, command, or non-staff text
+ * like "(⚡ COPY ALL)", "⚡ COPY ALL", "COPY ALL", "Copy all", "COPY", etc.
+ */
+export const isNonStaffName = (rawStr: string): boolean => {
+  if (!rawStr) return false;
+  const s = rawStr.trim().toLowerCase();
+  if (!s) return false;
+
+  // Clean special symbols, emojis (like ⚡), brackets, parentheses, quotes
+  const clean = s.replace(/[⚡\(\)\[\]\{\}\*'"\-–—_\/\\#@!]/g, '').trim();
+
+  if (
+    clean === 'copy all' ||
+    clean === 'copy' ||
+    clean === 'all' ||
+    clean.includes('copy all') ||
+    clean.startsWith('copy ') ||
+    clean.endsWith(' copy') ||
+    clean.includes('sao chép') ||
+    clean.includes('sao chep') ||
+    clean.includes('xuat excel') ||
+    clean.includes('xuất excel') ||
+    clean.includes('download') ||
+    clean.includes('tải về') ||
+    clean.includes('tai ve') ||
+    clean.includes('export') ||
+    clean === 'tổng' ||
+    clean === 'tong' ||
+    clean === 'tổng cộng' ||
+    clean === 'tong cong' ||
+    clean === 'stt' ||
+    clean === 'nhan vien' ||
+    clean === 'nhân viên' ||
+    s.includes('copy all') ||
+    s.includes('copy')
+  ) {
+    return true;
+  }
+
+  return excludedKeywords.some(ex => s.includes(ex));
+};
 
 /**
  * Checks whether a string looks like an employee name/ID column or row.
@@ -18,9 +63,14 @@ export const isEmpNameStr = (str: string): boolean => {
   if (!str) return false;
   const s = str.trim();
   if (!s) return false;
+  if (isNonStaffName(s)) return false;
+
   const lower = s.toLowerCase();
   if (excludedKeywords.some(ex => lower.includes(ex))) return false;
-  if (/[-–—]\s*\d{4,8}\b/.test(s) || /\b\d{4,8}\s*[-–—]/.test(s) || (s.includes(' - ') && /\d/.test(s))) return true;
+  if (/[-–—]\s*\d{4,8}\b/.test(s) || /\b\d{4,8}\s*[-–—]/.test(s) || (s.includes(' - ') && /\d/.test(s))) {
+    if (isNonStaffName(s)) return false;
+    return true;
+  }
 
   // Header and non-employee keywords
   const headerWords = [
@@ -28,7 +78,8 @@ export const isEmpNameStr = (str: string): boolean => {
     'doanh thu', 'so luong', 'số lượng', 'hang', 'hạng', 'target', 'chi tieu', 'chỉ tiêu',
     'tong', 'tổng', 'tong cong', 'tổng cộng', 'ty le', 'tỷ lệ', 'ngay', 'ngày',
     'thang', 'tháng', 'quy doi', 'quy đổi', 'dtqd', 'dtlk', 'sllk', 'tra cham', 'trả chậm',
-    'ti le', 'tỉ lệ', 'du kien', 'dự kiến', 'thuc hien', 'thực hiện', 'sieu thi', 'siêu thị'
+    'ti le', 'tỉ lệ', 'du kien', 'dự kiến', 'thuc hien', 'thực hiện', 'sieu thi', 'siêu thị',
+    'copy all', 'copy', 'sao chep', 'sao chép'
   ];
   if (headerWords.some(hw => lower === hw || lower.startsWith(hw + ':') || lower.startsWith(hw + ' '))) return false;
   if (/^[\d\s,.\-+/%:()]+$/.test(s)) return false;
@@ -43,7 +94,7 @@ export const isEmpNameStr = (str: string): boolean => {
  * and regardless of dash types (-, –, —, /, |).
  */
 export const extractStaffNameAndId = (rawStr: string): { name: string; id: string; shortName: string } => {
-  if (!rawStr) return { name: '', id: '', shortName: '' };
+  if (!rawStr || isNonStaffName(rawStr)) return { name: '', id: '', shortName: '' };
 
   const str = rawStr.trim();
 
@@ -77,6 +128,10 @@ export const extractStaffNameAndId = (rawStr: string): { name: string; id: strin
 
   // Clean any residual punctuation in the name
   name = name.replace(/^[-–—\s/|:;]+|[-–—\s/|:;]+$/g, '').trim();
+
+  if (isNonStaffName(name)) {
+    return { name: '', id: '', shortName: '' };
+  }
 
   const nameWords = name.split(/\s+/).filter(Boolean);
   const shortName = nameWords.length > 0 ? nameWords[nameWords.length - 1].toUpperCase() : '';

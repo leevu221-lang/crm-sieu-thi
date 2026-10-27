@@ -2343,11 +2343,13 @@ export const parseStaffRankData = (input: string, inputThuc?: string): StaffData
   let rawLines = val.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   
   // Preprocessing: Detect BI web line-separated header format and skip individual header lines
-  const biWebStaffHeaders = new Set(["nhân viên", "số lượng", "doanh thu qđ", "% tỉ trọng", "doanh thu", "target", "% ht target", "tb 3 tháng", "% tt", "dt dự kiến", "dt trả góp", "% trả góp"]);
+  const biWebStaffHeaders = new Set(["nhân viên", "số lượng", "doanh thu qđ", "% tỉ trọng", "doanh thu", "target", "% ht target", "tb 3 tháng", "% tt", "dt dự kiến", "dt trả góp", "% trả góp", "copy all", "⚡ copy all", "(⚡ copy all)", "copy"]);
   rawLines = rawLines.filter(l => !biWebStaffHeaders.has(l.trim().toLowerCase()));
   
   // Preprocessing: Combine standalone staff name lines with following tab-separated data line
   const isStaffName = (text: string) => {
+    const lower = text.toLowerCase();
+    if (lower.includes('copy all') || lower.includes('copy') || lower.includes('sao chép') || lower.includes('sao chep')) return false;
     return /^\d+\s*[-–—]\s*[A-ZĐÀ-ỹa-z]/.test(text) || /^(online|administrator)\s*[-–—]/i.test(text) || text.toUpperCase().startsWith('TỔNG');
   };
   
@@ -2451,6 +2453,8 @@ export const parseStaffRankData = (input: string, inputThuc?: string): StaffData
         const name = m1 ? m1[1] : m2![2];
         
         if (id.length >= 4 && name.match(/[a-zA-ZÀ-ỹ]/)) {
+          const lowerName = name.toLowerCase();
+          if (lowerName.includes('copy all') || lowerName.includes('copy') || lowerName.includes('sao chép') || lowerName.includes('sao chep')) continue;
           staffPart = col;
           staffColIdx = i;
           break;
@@ -2467,6 +2471,8 @@ export const parseStaffRankData = (input: string, inputThuc?: string): StaffData
         
         if (m1 || m2) {
           const name = m1 ? m1[1] : m2![2];
+          const lowerName = name.toLowerCase();
+          if (lowerName.includes('copy all') || lowerName.includes('copy') || lowerName.includes('sao chép') || lowerName.includes('sao chep')) continue;
           if (name.match(/[a-zA-ZÀ-ỹ]/)) {
             staffPart = col;
             staffColIdx = i;
@@ -3948,7 +3954,7 @@ export const parseStaffValueList = (text: string, targetHeaderKeyword?: string):
 
   const ignoredKeywords = [
     'tong', 'tong cong', 'total', 'nhan vien', 'ho ten', 'msnv', 'ma nv', 'dtqd', 'thu nhap',
-    'stt', 'luong', 'thuong', 'doanh thu', 'he so'
+    'stt', 'luong', 'thuong', 'doanh thu', 'he so', 'copy all', 'copy', 'sao chep', 'sao chép'
   ];
 
   const isColumn3Mode = targetHeaderKeyword === 'COLUMN_3' || targetHeaderKeyword === 'COL_3' || targetHeaderKeyword === 'TRA_CHAM';
@@ -3974,7 +3980,7 @@ export const parseStaffValueList = (text: string, targetHeaderKeyword?: string):
         'tat ca vung', 'nhan vien', 'dt tra gop', 'dt sieu thi', 'ty trong tra cham',
         'homecredit', 'fecredit', 'smartpos', 'mwg paylater', 'tra gop kredivo',
         'tong', 'tong cong', 'total', 'dong', 'trang', 'stt', 'he so', 'dt', 'thang', 'nam', 'ngay',
-        'dml', 'cma', 'nguyen tat thanh'
+        'dml', 'cma', 'nguyen tat thanh', 'copy all', 'copy', 'sao chep', 'sao chep tat ca', 'select all'
       ];
 
       if (blacklist.some(b => norm === b || norm.startsWith(b + ' ') || norm.endsWith(' ' + b) || norm.includes(b))) {

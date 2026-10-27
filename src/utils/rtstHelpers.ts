@@ -536,6 +536,8 @@ export const parseStaffRankData = (input: string): StaffData[] => {
     const match = line.match(/(.+) - (\d+)/);
     if (match) {
       const fullName = match[1].trim();
+      const lower = fullName.toLowerCase();
+      if (lower.includes('copy all') || lower.includes('copy') || lower.includes('sao chep') || lower.includes('sao chép')) return;
       const id = match[2];
       const numbers = line.substring(match[0].length).match(/-?[\d,.]+/g);
       if (numbers && numbers.length >= 3) {

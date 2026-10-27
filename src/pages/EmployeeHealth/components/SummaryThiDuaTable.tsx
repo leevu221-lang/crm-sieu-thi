@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { motion } from 'framer-motion';
 import { parseCategoryData, cn, cleanCategoryName } from '../../RTST/utils';
 import { StaffMatrixData, CategoryData } from '../../RTST/types';
-import { extractStaffNameAndId, isEmpNameStr, excludedKeywords } from '../utils/staffParserHelper';
+import { extractStaffNameAndId, isEmpNameStr, excludedKeywords, isNonStaffName } from '../utils/staffParserHelper';
 import { Download, Copy, Check, MessageSquare, MessageCircle, ChevronDown, Search, X, Sparkles, Filter, Layers } from 'lucide-react';
 import { domToPng } from 'modern-screenshot';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -322,8 +322,9 @@ export const parseStaffMatrixDataRefined = (
         }
 
         if (nameStr) {
+          if (isNonStaffName(nameStr)) continue;
           const { id, name, shortName } = extractStaffNameAndId(nameStr);
-          if (!id && !name) continue;
+          if ((!id && !name) || isNonStaffName(name) || isNonStaffName(id)) continue;
 
           const cleanId = id ? id.trim().toLowerCase() : '';
           const cleanName = name ? name.trim().toLowerCase() : '';
@@ -465,7 +466,9 @@ export const parseStaffMatrixDataRefined = (
       targetPerStaffPerCat[clean] = staffCount > 0 ? baseTarget / staffCount : baseTarget;
     });
 
-    const staffMatrixResults: StaffMatrixData[] = Array.from(staffMap.values()).map(staff => {
+    const staffMatrixResults: StaffMatrixData[] = Array.from(staffMap.values())
+      .filter(staff => !isNonStaffName(staff.displayName) && !isNonStaffName(staff.name) && !isNonStaffName(staff.id))
+      .map(staff => {
       const values: number[] = [];
       const projectedRates: number[] = [];
       const actualPercentHTs: number[] = [];
@@ -559,6 +562,7 @@ export const parseStaffMatrixDataRefined = (
   const rawStaffResults: { id: string; name: string; shortName: string; parts: number[] }[] = [];
 
   const addOrAccumulateStaffResult = (id: string, name: string, shortName: string, rawInputValues: number[]) => {
+    if ((!id && !name) || isNonStaffName(name) || isNonStaffName(id) || isNonStaffName(shortName)) return;
     const cleanId = id ? id.trim().toLowerCase() : '';
     const cleanName = name ? name.trim().toLowerCase() : '';
 
@@ -638,7 +642,9 @@ export const parseStaffMatrixDataRefined = (
       if (nameIdx === -1) continue;
 
       const namePart = parts[nameIdx];
+      if (isNonStaffName(namePart)) continue;
       const { name, id, shortName } = extractStaffNameAndId(namePart);
+      if ((!id && !name) || isNonStaffName(name) || isNonStaffName(id)) continue;
 
       const rawInputValues = parts.slice(nameIdx + 1).map(v => {
         if (!v || v.trim() === '') return 0;
@@ -701,7 +707,9 @@ export const parseStaffMatrixDataRefined = (
       if (nameIdx === -1) continue;
 
       const namePart = parts[nameIdx];
+      if (isNonStaffName(namePart)) continue;
       const { name, id, shortName } = extractStaffNameAndId(namePart);
+      if ((!id && !name) || isNonStaffName(name) || isNonStaffName(id)) continue;
 
       const rawInputValues = parts.slice(nameIdx + 1).map(v => {
         if (!v || v.trim() === '') return 0;
@@ -798,6 +806,7 @@ export const parseStaffMatrixDataRefined = (
   const results: StaffMatrixData[] = [];
 
   for (const staffRow of rawStaffResults) {
+    if (isNonStaffName(staffRow.name) || isNonStaffName(staffRow.id) || isNonStaffName(staffRow.shortName)) continue;
     const rawInputValues = staffRow.parts || [];
     const values: number[] = [];
     const valuesMap: Record<string, number> = {};
@@ -978,7 +987,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   }, [thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays, categoryConfig]);
 
   const sortedStaffMatrix = React.useMemo(() => {
-    const matrix = [...staffMatrix];
+    const matrix = staffMatrix.filter(s => !isNonStaffName(s.displayName) && !isNonStaffName(s.name) && !isNonStaffName(s.fullId));
     
     if (sortColumn.type === 'default') {
       return matrix.sort((a, b) => b.rate - a.rate);
@@ -1164,7 +1173,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
     cat.toLowerCase().includes(catSearchTerm.toLowerCase())
   );
 
-  const filteredStaffMatrix = selectedStaffIds && selectedStaffIds.length > 0 
+  const filteredStaffMatrix = (selectedStaffIds && selectedStaffIds.length > 0 
     ? sortedStaffMatrix.filter(s => {
         const sId = (s.fullId || '').trim().toLowerCase();
         const sName = (s.name || '').trim().toLowerCase();
@@ -1173,7 +1182,8 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
           return cleanSel === sId || sId.includes(cleanSel) || cleanSel.includes(sId) || sName.includes(cleanSel);
         });
       })
-    : sortedStaffMatrix;
+    : sortedStaffMatrix
+  ).filter(s => !isNonStaffName(s.displayName) && !isNonStaffName(s.name) && !isNonStaffName(s.fullId));
 
   const handleCopyStaff = (staff: StaffMatrixData) => {
     let text = `📊 BÁO CÁO THI ĐUA: ${staff.shortName}\n`;
