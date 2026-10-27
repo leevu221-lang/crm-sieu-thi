@@ -24,8 +24,8 @@ const StaffDetailTable: React.FC<StaffDetailTableProps> = ({
   if (!staffData) return null;
 
   return (
-    <div className="bg-white p-8 mt-8 border border-slate-300 shadow-xl rounded-2xl">
-      <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-6 text-center">
+    <div className="bg-white p-3 sm:p-8 mt-4 sm:mt-8 border border-slate-300 shadow-xl rounded-xl sm:rounded-2xl">
+      <h2 className="text-base sm:text-2xl font-black text-slate-900 uppercase tracking-tight mb-3 sm:mb-6 text-center">
         CHI TIẾT NHÂN VIÊN: {staffData.displayName}
       </h2>
       <div className="overflow-x-auto">

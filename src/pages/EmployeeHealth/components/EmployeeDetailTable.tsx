@@ -323,8 +323,8 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
 
   if (!staffData || detailCategories.length === 0) {
     return (
-      <div className="bg-white p-4 border border-slate-300 shadow-xl rounded-2xl" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
-        <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-4 border-b border-slate-300 pb-2">
+      <div className="bg-white p-2.5 sm:p-4 border border-slate-300 shadow-xl rounded-xl sm:rounded-2xl" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
+        <h2 className="text-[13px] sm:text-xl font-black text-slate-900 uppercase tracking-tight mb-2 sm:mb-4 border-b border-slate-300 pb-2">
           CHI TIẾT NHÂN VIÊN: {staffName}
         </h2>
         <p className="text-sm text-slate-500 font-bold uppercase tracking-widest text-center py-8">
@@ -578,13 +578,13 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
       <div className="w-full max-w-[960px] bg-white border border-slate-200/90 p-2 sm:p-4 rounded-xl sm:rounded-2xl shadow-xs flex flex-col space-y-2.5 sm:space-y-3">
         
         {/* Top Header Banner: Emerald & Gold Gradient */}
-        <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-3 sm:p-5 rounded-xl sm:rounded-2xl text-white relative shrink-0 text-center flex flex-col items-center justify-center">
-          <h2 className="text-[16px] sm:text-[24px] md:text-[28px] font-black text-[#FEF08A] uppercase tracking-wide leading-tight text-center w-full break-words" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+        <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] py-2 px-2.5 sm:p-5 rounded-xl sm:rounded-2xl text-white relative shrink-0 text-center flex flex-col items-center justify-center">
+          <h2 className="text-[12.5px] sm:text-[24px] md:text-[28px] font-black text-[#FEF08A] uppercase tracking-wide leading-tight text-center w-full break-words" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
             CHI TIẾT NHÂN VIÊN: {staffName}
           </h2>
           
           {/* Dòng luỹ kế ngang hàng với nút Xuất ảnh */}
-          <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2.5 mt-1.5 sm:mt-2 text-[10.5px] sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+          <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2.5 mt-1 sm:mt-2 text-[9.5px] sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
             <span className="flex items-center gap-1 whitespace-nowrap">
               ⚡ Luỹ kế dự kiến đến ngày: {yesterdayDate}
             </span>
@@ -598,17 +598,17 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
             <button 
               onClick={handleExport}
               disabled={isCapturing}
-              className="no-capture inline-flex items-center gap-1 px-2.5 sm:px-3 py-1 bg-white/25 hover:bg-white/35 text-[#FEF08A] hover:text-white rounded-lg sm:rounded-xl font-black text-[11px] sm:text-xs transition-all active:scale-95 border border-white/30 cursor-pointer shadow-xs disabled:opacity-75"
+              className="no-capture inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 bg-white/25 hover:bg-white/35 text-[#FEF08A] hover:text-white rounded-lg sm:rounded-xl font-black text-[10px] sm:text-xs transition-all active:scale-95 border border-white/30 cursor-pointer shadow-xs disabled:opacity-75"
               title="Xuất ảnh báo cáo chi tiết nhân viên"
             >
               {isCapturing ? (
                 <>
-                  <Loader2 size={12} className="text-[#FEF08A] animate-spin" />
+                  <Loader2 size={11} className="text-[#FEF08A] animate-spin" />
                   <span>ĐANG XUẤT...</span>
                 </>
               ) : (
                 <>
-                  <Camera size={12} className="text-[#FEF08A]" />
+                  <Camera size={11} className="text-[#FEF08A]" />
                   <span>XUẤT ẢNH</span>
                 </>
               )}
@@ -618,10 +618,10 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
             {onOpenCompare && (
               <button 
                 onClick={() => onOpenCompare(staffId)}
-                className="no-capture inline-flex items-center gap-1 px-2.5 sm:px-3 py-1 bg-amber-400/25 hover:bg-amber-400/35 text-amber-200 hover:text-white rounded-lg sm:rounded-xl font-black text-[11px] sm:text-xs transition-all active:scale-95 border border-amber-300/40 cursor-pointer shadow-xs"
+                className="no-capture inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 bg-amber-400/25 hover:bg-amber-400/35 text-amber-200 hover:text-white rounded-lg sm:rounded-xl font-black text-[10px] sm:text-xs transition-all active:scale-95 border border-amber-300/40 cursor-pointer shadow-xs"
                 title="So sánh đối đầu nhân viên này với nhân viên khác"
               >
-                <Swords size={12} className="text-amber-300" />
+                <Swords size={11} className="text-amber-300" />
                 <span>SO SÁNH</span>
               </button>
             )}
@@ -630,10 +630,10 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
 
         {/* 6 StatCards Dashboard Row */}
         {(staffTargetQd > 0 || staffDtqd !== 0) && (
-          <div className="grid grid-cols-6 gap-1 sm:gap-2 w-full">
-            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-1 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
-              <span className="text-[7.5px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">TARGET QĐ</span>
-              <span className="text-[12.5px] sm:text-[23px] font-black text-slate-800 mt-0.5 text-center leading-tight">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2 w-full">
+            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs min-h-[56px] sm:min-h-0">
+              <span className="text-[10px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">TARGET QĐ</span>
+              <span className="text-[17px] sm:text-[23px] font-black text-slate-800 mt-0.5 text-center leading-tight">
                 {(() => {
                   const inMillions = staffTargetQd > 1000000 ? staffTargetQd / 1000000 : staffTargetQd;
                   if (inMillions >= 1000) return Math.round(inMillions).toLocaleString('vi-VN');
@@ -642,24 +642,24 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
                 })()}
               </span>
             </div>
-            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-1 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
-              <span className="text-[7.5px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">DTQĐ</span>
-              <span className="text-[12.5px] sm:text-[23px] font-black text-rose-600 mt-0.5 text-center leading-tight">
+            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs min-h-[56px] sm:min-h-0">
+              <span className="text-[10px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">DTQĐ</span>
+              <span className="text-[17px] sm:text-[23px] font-black text-rose-600 mt-0.5 text-center leading-tight">
                 {(() => {
                   const inMillions = Math.abs(staffDtqd) > 1000000 ? staffDtqd / 1000000 : staffDtqd;
                   return Math.round(inMillions).toLocaleString('vi-VN');
                 })()}
               </span>
             </div>
-            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-1 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
-              <span className="text-[7.5px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">% HT</span>
-              <span className={cn("text-[12.5px] sm:text-[23px] font-black mt-0.5 text-center leading-tight", staffPercentHT >= 100 ? "text-emerald-700" : "text-rose-600")}>
+            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs min-h-[56px] sm:min-h-0">
+              <span className="text-[10px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">% HT</span>
+              <span className={cn("text-[17px] sm:text-[23px] font-black mt-0.5 text-center leading-tight", staffPercentHT >= 100 ? "text-emerald-700" : "text-rose-600")}>
                 {Math.round(staffPercentHT)}%
               </span>
             </div>
-            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-1 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
-              <span className="text-[7.5px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">% QĐ</span>
-              <span className={cn("text-[12.5px] sm:text-[23px] font-black mt-0.5 text-center leading-tight", (staffHieuQuaQd !== null && staffHieuQuaQd !== undefined) ? "text-indigo-600" : "text-slate-400")}>
+            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs min-h-[56px] sm:min-h-0">
+              <span className="text-[10px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">% QĐ</span>
+              <span className={cn("text-[17px] sm:text-[23px] font-black mt-0.5 text-center leading-tight", (staffHieuQuaQd !== null && staffHieuQuaQd !== undefined) ? "text-indigo-600" : "text-slate-400")}>
                 {(() => {
                   if (staffHieuQuaQd !== null && staffHieuQuaQd !== undefined) {
                     const val = typeof staffHieuQuaQd === 'number' ? staffHieuQuaQd : parseFloat(String(staffHieuQuaQd).replace(/,/g, '').replace(/%/g, ''));
@@ -674,17 +674,17 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
                 })()}
               </span>
             </div>
-            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-1 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
-              <span className="text-[7.5px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">TRẢ CHẬM</span>
-              <span className={cn("text-[12.5px] sm:text-[23px] font-black mt-0.5 text-center leading-tight", (staffInstallmentPercent !== null && staffInstallmentPercent !== undefined) ? "text-emerald-700" : "text-slate-400")}>
+            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs min-h-[56px] sm:min-h-0">
+              <span className="text-[10px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">TRẢ CHẬM</span>
+              <span className={cn("text-[17px] sm:text-[23px] font-black mt-0.5 text-center leading-tight", (staffInstallmentPercent !== null && staffInstallmentPercent !== undefined) ? "text-emerald-700" : "text-slate-400")}>
                 {(staffInstallmentPercent !== null && staffInstallmentPercent !== undefined)
                   ? `${staffInstallmentPercent.toFixed(1)}%`
                   : '-'}
               </span>
             </div>
-            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-1 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
-              <span className="text-[7.5px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">THƯỞNG</span>
-              <span className={cn("text-[12.5px] sm:text-[23px] font-black mt-0.5 text-center leading-tight", (staffBonusHientai !== null && staffBonusHientai !== undefined) ? "text-rose-600" : "text-slate-400")}>
+            <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs min-h-[56px] sm:min-h-0">
+              <span className="text-[10px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-tight text-center leading-tight whitespace-nowrap">THƯỞNG</span>
+              <span className={cn("text-[17px] sm:text-[23px] font-black mt-0.5 text-center leading-tight", (staffBonusHientai !== null && staffBonusHientai !== undefined) ? "text-rose-600" : "text-slate-400")}>
                 {(() => {
                   if (staffBonusHientai === null || staffBonusHientai === undefined) return '-';
                   if (staffBonusHientai === 0) return '0';
