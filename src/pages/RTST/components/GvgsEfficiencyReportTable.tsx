@@ -10,7 +10,7 @@ import * as htmlToImage from 'html-to-image';
 import { domToPng } from 'modern-screenshot';
 import * as XLSX from 'xlsx';
 import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
-import { ensureFontsReady } from '../../../utils/fontExportUtil';
+import { ensureFontsReady, preloadFontDataCache, injectFontStyleIntoClone, getPreloadedFontCss, EXPORT_FONT_STYLE } from '../../../utils/fontExportUtil';
 import { useNotification } from '../../../contexts/NotificationContext';
 
 export interface GvgsProductItem {
@@ -283,8 +283,11 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
       tempContainer.appendChild(frameWrapper);
       document.body.appendChild(tempContainer);
 
-      // Chờ trình duyệt reflow layout & load font hoàn tất
-      await new Promise((resolve) => setTimeout(resolve, 350));
+      // Chờ nạp font UTM Avo hoàn tất & inject style vào clone
+      await ensureFontsReady();
+      const fontCss = await preloadFontDataCache();
+      await injectFontStyleIntoClone(frameWrapper);
+      await new Promise((resolve) => setTimeout(resolve, 150));
 
       // Tính toán chiều cao chính xác của toàn bộ nội dung
       const exactHeight = Math.ceil(
@@ -329,7 +332,7 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
             backgroundColor: '#ffffff',
             width: targetWidthPx,
             height: exactHeight,
-            font: false,
+            font: { cssText: fontCss },
             drawImageInterval: 20,
             features: {
               removeControlCharacter: true,
@@ -345,11 +348,13 @@ export const GvgsEfficiencyReportTable: React.FC<GvgsEfficiencyReportTableProps>
           dataUrl = await htmlToImage.toPng(frameWrapper, {
             backgroundColor: '#ffffff',
             pixelRatio: exportScale,
-            skipFonts: true,
+            skipFonts: false,
+            fontEmbedCSS: fontCss,
             skipAutoScale: true,
             cacheBust: false,
             width: targetWidthPx,
             height: exactHeight,
+            style: { ...EXPORT_FONT_STYLE },
           });
         }
       }

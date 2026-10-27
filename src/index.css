@@ -1,32 +1,106 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Lexend:wght@300;400;500;600;700;800;900&family=Oswald:wght@400;500;600;700;900&family=Poppins:wght@300;400;500;600;700;800;900&family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,700;1,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
+/* UTM Avo - Regular Weights (300, 400, 500, normal) */
 @font-face {
   font-family: "UTM Avo";
-  src: url("/fonts/UTM Avo.ttf") format("truetype");
+  src: url("/fonts/UTM%20Avo.ttf") format("truetype"),
+       url("/fonts/UTM Avo.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
   font-family: "UTM Avo";
-  src: url("/fonts/UTM Avo Bold.ttf") format("truetype");
+  src: url("/fonts/UTM%20Avo.ttf") format("truetype"),
+       url("/fonts/UTM Avo.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "UTM Avo";
+  src: url("/fonts/UTM%20Avo.ttf") format("truetype"),
+       url("/fonts/UTM Avo.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* UTM Avo - Bold & Heavy Weights (600, 700, 800, 900, bold) */
+@font-face {
+  font-family: "UTM Avo";
+  src: url("/fonts/UTM%20Avo%20Bold.ttf") format("truetype"),
+       url("/fonts/UTM Avo Bold.ttf") format("truetype");
   font-weight: 700;
   font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
   font-family: "UTM Avo";
-  src: url("/fonts/UTM Avo Italic.ttf") format("truetype");
+  src: url("/fonts/UTM%20Avo%20Bold.ttf") format("truetype"),
+       url("/fonts/UTM Avo Bold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "UTM Avo";
+  src: url("/fonts/UTM%20Avo%20Bold.ttf") format("truetype"),
+       url("/fonts/UTM Avo Bold.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "UTM Avo";
+  src: url("/fonts/UTM%20Avo%20Bold.ttf") format("truetype"),
+       url("/fonts/UTM Avo Bold.ttf") format("truetype");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* UTM Avo - Italic Weights */
+@font-face {
+  font-family: "UTM Avo";
+  src: url("/fonts/UTM%20Avo%20Italic.ttf") format("truetype"),
+       url("/fonts/UTM Avo Italic.ttf") format("truetype");
   font-weight: 400;
   font-style: italic;
+  font-display: swap;
 }
 
 @font-face {
   font-family: "UTM Avo";
-  src: url("/fonts/UTM Avo Bold Italic.ttf") format("truetype");
+  src: url("/fonts/UTM%20Avo%20Bold%20Italic.ttf") format("truetype"),
+       url("/fonts/UTM Avo Bold Italic.ttf") format("truetype");
   font-weight: 700;
   font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "UTM Avo";
+  src: url("/fonts/UTM%20Avo%20Bold%20Italic.ttf") format("truetype"),
+       url("/fonts/UTM Avo Bold Italic.ttf") format("truetype");
+  font-weight: 800;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "UTM Avo";
+  src: url("/fonts/UTM%20Avo%20Bold%20Italic.ttf") format("truetype"),
+       url("/fonts/UTM Avo Bold Italic.ttf") format("truetype");
+  font-weight: 900;
+  font-style: italic;
+  font-display: swap;
 }
 
 @font-face {

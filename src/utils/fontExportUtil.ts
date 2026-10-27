@@ -5,15 +5,25 @@
  */
 
 // Base64 font embedding cache (populated on first call)
-let _fontDataCache: { regular: string; bold: string } | null = null;
+interface FontDataCache {
+  regular: string;
+  bold: string;
+  italic: string;
+  boldItalic: string;
+}
+
+let _fontDataCache: FontDataCache | null = null;
 let _cachedFontCss: string | null = null;
+let _preloadPromise: Promise<string> | null = null;
 
 /**
  * Convert a font file URL to a base64 data URI for inline embedding.
+ * Supports primary URL with automatic fallback.
  */
-async function fetchFontAsBase64(url: string): Promise<string> {
-  try {
+async function fetchFontAsBase64(primaryUrl: string, fallbackUrl?: string): Promise<string> {
+  const tryFetch = async (url: string): Promise<string> => {
     const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const blob = await response.blob();
     return await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -28,50 +38,149 @@ async function fetchFontAsBase64(url: string): Promise<string> {
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
+  };
+
+  try {
+    return await tryFetch(primaryUrl);
   } catch (e) {
-    console.warn('[FontUtil] Failed to fetch font as base64:', url, e);
+    if (fallbackUrl) {
+      try {
+        return await tryFetch(fallbackUrl);
+      } catch (err) {
+        console.warn(`[FontUtil] Fallback font fetch failed for ${fallbackUrl}:`, err);
+      }
+    }
+    console.warn(`[FontUtil] Failed to fetch font ${primaryUrl}:`, e);
     return '';
   }
 }
 
-// Preload fonts in the background as soon as module loads
+// Preload fonts immediately in the background
 if (typeof window !== 'undefined') {
   setTimeout(() => {
     preloadFontDataCache().catch(() => {});
-  }, 1000);
+  }, 200);
 }
 
 /**
  * Preload base64 font files and compile the inline font CSS once in memory.
+ * Covers all weights (300, 400, 500, 600, 700, 800, 900) so Safari iOS never falls back.
  */
 export async function preloadFontDataCache(): Promise<string> {
   if (_cachedFontCss) return _cachedFontCss;
+  if (_preloadPromise) return _preloadPromise;
 
-  if (!_fontDataCache) {
-    const [regular, bold] = await Promise.all([
-      fetchFontAsBase64('/fonts/UTM Avo.ttf'),
-      fetchFontAsBase64('/fonts/UTM Avo Bold.ttf'),
-    ]);
-    _fontDataCache = { regular, bold };
-  }
+  _preloadPromise = (async () => {
+    try {
+      if (!_fontDataCache) {
+        const [regular, bold, italic, boldItalic] = await Promise.all([
+          fetchFontAsBase64('/fonts/UTM%20Avo.ttf', '/fonts/UTM Avo.ttf'),
+          fetchFontAsBase64('/fonts/UTM%20Avo%20Bold.ttf', '/fonts/UTM Avo Bold.ttf'),
+          fetchFontAsBase64('/fonts/UTM%20Avo%20Italic.ttf', '/fonts/UTM Avo Italic.ttf'),
+          fetchFontAsBase64('/fonts/UTM%20Avo%20Bold%20Italic.ttf', '/fonts/UTM Avo Bold Italic.ttf'),
+        ]);
+        _fontDataCache = { regular, bold, italic, boldItalic };
+      }
 
-  if (_fontDataCache.regular || _fontDataCache.bold) {
-    _cachedFontCss = `
-      @font-face {
-        font-family: "UTM Avo";
-        src: url("${_fontDataCache.regular}") format("truetype");
-        font-weight: 400;
-        font-style: normal;
+      const reg = _fontDataCache.regular;
+      const bld = _fontDataCache.bold || reg;
+      const itl = _fontDataCache.italic || reg;
+      const bit = _fontDataCache.boldItalic || bld;
+
+      if (reg || bld) {
+        _cachedFontCss = `
+          /* UTM Avo - Regular Weights (300, 400, 500, normal) */
+          @font-face {
+            font-family: "UTM Avo";
+            src: url("${reg}") format("truetype");
+            font-weight: 400;
+            font-style: normal;
+          }
+          @font-face {
+            font-family: "UTM Avo";
+            src: url("${reg}") format("truetype");
+            font-weight: 300;
+            font-style: normal;
+          }
+          @font-face {
+            font-family: "UTM Avo";
+            src: url("${reg}") format("truetype");
+            font-weight: 500;
+            font-style: normal;
+          }
+          @font-face {
+            font-family: "UTM Avo";
+            src: url("${reg}") format("truetype");
+            font-weight: normal;
+            font-style: normal;
+          }
+
+          /* UTM Avo - Bold & Heavy Weights (600, 700, 800, 900, bold, bolder) */
+          @font-face {
+            font-family: "UTM Avo";
+            src: url("${bld}") format("truetype");
+            font-weight: 700;
+            font-style: normal;
+          }
+          @font-face {
+            font-family: "UTM Avo";
+            src: url("${bld}") format("truetype");
+            font-weight: 600;
+            font-style: normal;
+          }
+          @font-face {
+            font-family: "UTM Avo";
+            src: url("${bld}") format("truetype");
+            font-weight: 800;
+            font-style: normal;
+          }
+          @font-face {
+            font-family: "UTM Avo";
+            src: url("${bld}") format("truetype");
+            font-weight: 900;
+            font-style: normal;
+          }
+          @font-face {
+            font-family: "UTM Avo";
+            src: url("${bld}") format("truetype");
+            font-weight: bold;
+            font-style: normal;
+          }
+
+          /* UTM Avo - Italic Weights */
+          @font-face {
+            font-family: "UTM Avo";
+            src: url("${itl}") format("truetype");
+            font-weight: 400;
+            font-style: italic;
+          }
+          @font-face {
+            font-family: "UTM Avo";
+            src: url("${bit}") format("truetype");
+            font-weight: 700;
+            font-style: italic;
+          }
+          @font-face {
+            font-family: "UTM Avo";
+            src: url("${bit}") format("truetype");
+            font-weight: 800;
+            font-style: italic;
+          }
+          @font-face {
+            font-family: "UTM Avo";
+            src: url("${bit}") format("truetype");
+            font-weight: 900;
+            font-style: italic;
+          }
+        `;
       }
-      @font-face {
-        font-family: "UTM Avo";
-        src: url("${_fontDataCache.bold}") format("truetype");
-        font-weight: 700;
-        font-style: normal;
-      }
-    `;
-  }
-  return _cachedFontCss || '';
+    } catch (e) {
+      console.warn('[FontUtil] Failed to build preload font cache:', e);
+    }
+    return _cachedFontCss || '';
+  })();
+
+  return _preloadPromise;
 }
 
 /**
@@ -81,13 +190,16 @@ export async function preloadFontDataCache(): Promise<string> {
 export function ensureSharedCaptureStyle(): void {
   if (typeof document === 'undefined') return;
   let style = document.getElementById('export-isolated-card-shared-style') as HTMLStyleElement | null;
+  const isNew = !style;
   if (!style) {
     style = document.createElement('style');
     style.id = 'export-isolated-card-shared-style';
     document.head.appendChild(style);
   }
-  style.textContent = `
-    ${getPreloadedFontCss()}
+  const fontCss = getPreloadedFontCss();
+  if (isNew || (fontCss && !style.textContent?.includes('data:font/'))) {
+    style.textContent = `
+    ${fontCss}
     .export-isolated-card * {
       box-shadow: none !important;
       text-shadow: none !important;
@@ -316,6 +428,7 @@ export function ensureSharedCaptureStyle(): void {
       height: 13px !important;
     }
   `;
+  }
 }
 
 /**
@@ -333,61 +446,65 @@ export function getPreloadedFontCss(): string {
  */
 export async function ensureFontsReady(): Promise<boolean> {
   try {
-    // Fast path: If UTM Avo fonts are already confirmed loaded, return instantly in 0ms
+    // 1. Always ensure base64 font data cache is preloaded and ready
+    const fontCachePromise = preloadFontDataCache().catch(() => '');
+
+    // 2. Native CSS Font Loading API: load all required font weights in parallel
     if (typeof document !== 'undefined' && document.fonts) {
-      if (document.fonts.check('700 16px "UTM Avo"') && document.fonts.check('400 16px "UTM Avo"')) {
-        return true;
+      try {
+        await Promise.all([
+          document.fonts.load('400 16px "UTM Avo"'),
+          document.fonts.load('600 16px "UTM Avo"'),
+          document.fonts.load('700 16px "UTM Avo"'),
+          document.fonts.load('800 16px "UTM Avo"'),
+          document.fonts.load('900 16px "UTM Avo"'),
+          document.fonts.load('italic 400 16px "UTM Avo"'),
+          document.fonts.load('italic 700 16px "UTM Avo"'),
+          document.fonts.load('italic 900 16px "UTM Avo"'),
+          document.fonts.load('600 16px "Plus Jakarta Sans"'),
+          document.fonts.load('700 16px "Plus Jakarta Sans"'),
+          document.fonts.load('800 16px "Plus Jakarta Sans"'),
+        ]);
+        await document.fonts.ready;
+      } catch (fontErr) {
+        console.warn('[FontUtil] Native document.fonts.load warning:', fontErr);
       }
     }
 
-    // 1. Preload base64 font cache in background immediately
-    const fontCachePromise = preloadFontDataCache().catch(() => '');
+    // 3. Fallback DOM probe check if UTM Avo is not yet detected by document.fonts
+    if (typeof document !== 'undefined' && document.fonts) {
+      const isBoldLoaded = document.fonts.check('700 16px "UTM Avo"');
+      const isRegularLoaded = document.fonts.check('400 16px "UTM Avo"');
+      if (!isBoldLoaded || !isRegularLoaded) {
+        console.warn('[FontUtil] UTM Avo not yet verified via check(). Probing DOM...');
+        const probe = document.createElement('span');
+        probe.style.fontFamily = '"UTM Avo", monospace';
+        probe.style.fontWeight = '700';
+        probe.style.fontSize = '16px';
+        probe.style.position = 'absolute';
+        probe.style.left = '-9999px';
+        probe.style.top = '-9999px';
+        probe.style.visibility = 'hidden';
+        probe.textContent = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        document.body.appendChild(probe);
 
-    // 2. Wait for all browser font loading to complete
-    if (document.fonts) {
-      await document.fonts.ready;
+        await new Promise(r => setTimeout(r, 40));
+        await document.fonts.ready;
+        probe.remove();
+      }
     }
 
-    // 3. Force-load UTM Avo & Plus Jakarta Sans if not already loaded
-    const fontFamilies = [
-      { family: 'UTM Avo', weight: '400' },
-      { family: 'UTM Avo', weight: '700' },
-      { family: 'Plus Jakarta Sans', weight: '600' },
-      { family: 'Plus Jakarta Sans', weight: '700' },
-      { family: 'Plus Jakarta Sans', weight: '800' },
-    ];
+    // 4. Await base64 cache completion
+    const fontCss = await fontCachePromise;
 
-    for (const { family, weight } of fontFamilies) {
-      try {
-        const isLoaded = document.fonts.check(`${weight} 16px "${family}"`);
-        if (!isLoaded) {
-          console.warn(`[FontUtil] Font "${family}" weight ${weight} not detected. Attempting force-load...`);
-          const probe = document.createElement('span');
-          probe.style.fontFamily = `"${family}", monospace`;
-          probe.style.fontWeight = weight;
-          probe.style.fontSize = '16px';
-          probe.style.position = 'absolute';
-          probe.style.left = '-9999px';
-          probe.style.top = '-9999px';
-          probe.style.visibility = 'hidden';
-          probe.textContent = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-          document.body.appendChild(probe);
-          
-          await new Promise(r => setTimeout(r, 60));
-          if (document.fonts) await document.fonts.ready;
-          document.body.removeChild(probe);
-        }
-      } catch (e) {}
-    }
+    // 5. Update shared stylesheet in head so it definitely has base64 fonts
+    ensureSharedCaptureStyle();
 
-    // 4. Final confirmation wait & ensure font cache is completed
-    if (document.fonts) {
-      await document.fonts.ready;
-    }
-    await fontCachePromise;
+    const verified = (typeof document !== 'undefined' && document.fonts)
+      ? (document.fonts.check('700 16px "UTM Avo"') || document.fonts.check('400 16px "UTM Avo"'))
+      : Boolean(fontCss);
 
-    const verified = document.fonts.check('700 16px "UTM Avo"');
-    return verified;
+    return verified || Boolean(fontCss);
   } catch (e) {
     console.warn('[FontUtil] Font readiness check failed:', e);
     return false;
@@ -397,13 +514,19 @@ export async function ensureFontsReady(): Promise<boolean> {
 /**
  * Inject inline @font-face CSS into a cloned element tree for export.
  * This ensures the font definition is available inside the SVG foreignObject
- * that htmlToImage creates, which is critical on mobile where fonts may not
- * be accessible from within the SVG context.
+ * that htmlToImage and domToPng create, which is critical on mobile Safari iOS
+ * where fonts are isolated from the document context.
  */
 export async function injectFontStyleIntoClone(container: HTMLElement): Promise<void> {
   try {
     const css = await preloadFontDataCache();
     if (!css) return;
+
+    // Remove any previous injected font style to prevent duplicates
+    const existing = container.querySelector('style[data-font-inject="true"]');
+    if (existing) {
+      existing.remove();
+    }
 
     const styleEl = document.createElement('style');
     styleEl.setAttribute('data-font-inject', 'true');

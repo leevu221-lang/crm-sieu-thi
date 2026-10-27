@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as htmlToImage from 'html-to-image';
 import { domToPng, domToBlob } from 'modern-screenshot';
 import html2canvas from 'html2canvas';
-import { ensureFontsReady, EXPORT_FONT_STYLE, ensureSharedCaptureStyle, getPreloadedFontCss } from '../utils/fontExportUtil';
+import { ensureFontsReady, EXPORT_FONT_STYLE, ensureSharedCaptureStyle, getPreloadedFontCss, injectFontStyleIntoClone, preloadFontDataCache } from '../utils/fontExportUtil';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -789,12 +789,15 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
   const runCaptureStrategy = async (frameWrapper: HTMLElement, strategy: CaptureStrategy, scale: number = 1.75): Promise<Blob | string> => {
     const frameHeight = Math.max(800, (frameWrapper.offsetHeight || frameWrapper.scrollHeight || 1200) + 4);
+    const fontCss = getPreloadedFontCss() || await preloadFontDataCache();
+    await injectFontStyleIntoClone(frameWrapper);
+
     if (strategy === 'htmlToImage') {
       const blob = await htmlToImage.toBlob(frameWrapper, {
         backgroundColor: '#ffffff',
         pixelRatio: scale,
-        skipFonts: true,
-        fontEmbedCSS: getPreloadedFontCss(),
+        skipFonts: false,
+        fontEmbedCSS: fontCss,
         skipAutoScale: true,
         cacheBust: false,
         width: 1120,
@@ -808,7 +811,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       const dataUrl = await domToPng(frameWrapper, {
         backgroundColor: '#ffffff',
         scale: scale,
-        font: false,
+        font: { cssText: fontCss },
         width: 1120,
         height: frameHeight,
         drawImageInterval: 20,

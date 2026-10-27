@@ -5,9 +5,8 @@ import * as htmlToImage from 'html-to-image';
 import { domToPng } from 'modern-screenshot';
 import html2canvas from 'html2canvas';
 import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay';
-import { ensureFontsReady, EXPORT_FONT_STYLE, ensureSharedCaptureStyle, getPreloadedFontCss } from '../../../utils/fontExportUtil';
-import { parseCategoryData } from '../../RTST/utils';
-import { cn } from '../../RTST/utils';
+import { ensureFontsReady, EXPORT_FONT_STYLE, ensureSharedCaptureStyle, getPreloadedFontCss, injectFontStyleIntoClone, preloadFontDataCache } from '../../../utils/fontExportUtil';
+import { parseCategoryData, cn } from '../../RTST/utils';
 import { CategoryData, StaffMatrixData } from '../../RTST/types';
 import { parseStaffMatrixDataRefined } from './SummaryThiDuaTable';
 import { extractStaffNameAndId } from '../utils/staffParserHelper';
@@ -488,6 +487,8 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
 
     try {
       await ensureFontsReady();
+      const fontCss = await preloadFontDataCache();
+      await injectFontStyleIntoClone(frameWrapper);
       const frameHeight = Math.max(800, (frameWrapper.offsetHeight || frameWrapper.scrollHeight || 1200) + 4);
       
       let dataUrl: string = '';
@@ -495,7 +496,7 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
         dataUrl = await domToPng(frameWrapper, {
           backgroundColor: '#ffffff',
           scale: 2,
-          font: false,
+          font: { cssText: fontCss },
           width: 1120,
           height: frameHeight,
           drawImageInterval: 20,
@@ -511,8 +512,8 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
           dataUrl = await htmlToImage.toPng(frameWrapper, {
             backgroundColor: '#ffffff',
             pixelRatio: 2,
-            skipFonts: true,
-            fontEmbedCSS: getPreloadedFontCss(),
+            skipFonts: false,
+            fontEmbedCSS: fontCss,
             skipAutoScale: true,
             cacheBust: false,
             width: 1120,
