@@ -11,7 +11,7 @@ import html2canvas from 'html2canvas';
 import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
 import { startCaptureSession, endCaptureSession } from '../utils/captureUtil';
 import { 
-  RefreshCw, ShoppingBag, TrendingUp, Camera, LayoutGrid, Activity, Globe, ChevronDown, Zap, Upload, Trash2, 
+  RefreshCw, ShoppingBag, ShoppingCart, Clock, PieChart, FileText, TrendingUp, Camera, LayoutGrid, Activity, Globe, ChevronDown, Zap, Upload, Trash2, 
   HelpCircle, FileSpreadsheet, X, AlertCircle, Trophy, Target, BarChart3, CreditCard, Calendar, ArrowUpRight, 
   ArrowDownRight, MessageSquare, Layers, Store, Smartphone, Watch, Monitor, Award, Filter, Sparkles, Loader2, Copy, Check,
   Eye, EyeOff, Search, SlidersHorizontal, RotateCcw
@@ -2785,57 +2785,100 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                     {/* 2 Tables Grid */}
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5 sm:gap-4">
                       {/* Left Table: SLLK */}
-                      <div ref={captureRefs.categorySL} className="bg-white/95 rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] overflow-hidden min-w-0 flex flex-col p-1 sm:p-3.5 self-start h-auto">
-                        {/* Unified Sky Blue Gradient Header Banner */}
-                        <div className="bg-gradient-to-r from-[#0284C7] via-[#0EA5E9] to-[#38BDF8] p-2 sm:p-4 rounded-xl sm:rounded-2xl text-white relative shrink-0 mb-1.5 sm:mb-2.5 shadow-md shadow-sky-500/20">
-                          <div className="flex flex-col items-center justify-center text-center">
-                            <h2 className="text-[15px] sm:text-[23px] md:text-[27px] font-black text-white uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
-                              NGÀNH HÀNG (SL)
-                            </h2>
-                            <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-1.5 sm:gap-2 mt-0.5 sm:mt-1.5 text-[9px] sm:text-xs md:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
-                              <span className="flex items-center gap-1 whitespace-nowrap">
-                                ⚡ Luỹ kế: {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
-                              </span>
-                              <span className="opacity-70">||</span>
-                              <span className="text-white font-extrabold whitespace-nowrap">
-                                ĐẠT : {visibleCategoriesSL.filter((c: any) => {
-                                  let rate = 0;
-                                  if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
-                                  return Math.round(rate) >= 100;
-                                }).length}/{visibleCategoriesSL.length}
-                              </span>
-                              <span className="opacity-70">||</span>
-                              <span className="text-sky-100 font-bold whitespace-nowrap">
-                                TGSD: {daysPassed}/{totalDays}
-                              </span>
+                      <div ref={captureRefs.categorySL} className="bg-white rounded-2xl md:rounded-3xl border border-slate-200/90 shadow-[0_4px_20px_-4px_rgba(11,37,69,0.06)] overflow-hidden min-w-0 flex flex-col p-2.5 sm:p-4 self-start h-auto">
+                        {/* Executive Dashboard Header Banner */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 mb-2.5 sm:mb-3.5 pb-0.5">
+                          {/* Left: Cart Icon + Title + Subtitle */}
+                          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-13 md:h-13 rounded-xl sm:rounded-2xl bg-[#0B4F9C] flex items-center justify-center text-white shrink-0 shadow-sm shadow-blue-900/20">
+                              <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={2.2} />
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <h2 className="text-[17px] sm:text-[21px] md:text-[23px] font-black text-[#0B2545] uppercase tracking-wide leading-tight truncate" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                NGÀNH HÀNG (SL)
+                              </h2>
+                              <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 mt-0.5 text-[9.5px] sm:text-xs text-slate-500 font-bold" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                <span className="flex items-center gap-1 whitespace-nowrap">
+                                  <Clock size={12} className="text-slate-400 shrink-0" />
+                                  Realtime: {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} – {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                                </span>
+                                <span className="text-slate-300 font-normal">|</span>
+                                <span className="text-[#0B2545] font-black whitespace-nowrap">
+                                  ĐẠT: {visibleCategoriesSL.filter((c: any) => {
+                                    let rate = 0;
+                                    if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
+                                    return Math.round(rate) >= 100;
+                                  }).length}/{visibleCategoriesSL.length}
+                                </span>
+                                <span className="text-slate-300 font-normal">|</span>
+                                <span className="text-slate-600 font-bold whitespace-nowrap">
+                                  TGSD: {daysPassed}/{totalDays}
+                                </span>
+                              </div>
                             </div>
                           </div>
 
-                          {/* Filter Button next to Camera */}
-                          <button
-                            onClick={() => {
-                              setCategoryFilterActiveTab('SL');
-                              setIsCategoryFilterModalOpen(true);
-                            }}
-                            className="no-capture absolute right-9 sm:right-12 top-2 sm:top-3 p-1.5 sm:p-2 bg-white/20 hover:bg-white/30 rounded-lg sm:rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
-                            title="Bộ lọc ẩn/hiện ngành hàng SL"
-                          >
-                            <Filter size={14} className="sm:w-4 sm:h-4" />
-                            {hiddenCatsSL.length > 0 && (
-                              <span className="absolute -top-1 -right-1 min-w-[14px] sm:min-w-[16px] h-3.5 sm:h-4 px-1 bg-rose-500 text-white text-[8px] sm:text-[9px] font-black rounded-full flex items-center justify-center border border-white">
-                                {hiddenCatsSL.length}
-                              </span>
-                            )}
-                          </button>
+                          {/* Right: Summary KPI Badge & Action Buttons */}
+                          <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+                            {/* Dark Navy Executive KPI Badge */}
+                            <div className="relative overflow-hidden bg-gradient-to-br from-[#0B2545] to-[#081B33] rounded-xl sm:rounded-2xl px-3 py-1 sm:px-4 sm:py-1.5 text-white flex items-center gap-2.5 sm:gap-3.5 shadow-sm border border-slate-700/30">
+                              <div className="absolute -top-6 -left-6 w-14 h-14 bg-blue-500/15 rounded-full blur-md pointer-events-none" />
+                              
+                              {/* 3-bar chart indicator */}
+                              <div className="flex items-end gap-[2px] h-5 sm:h-5.5 text-sky-400 shrink-0">
+                                <div className="w-[3px] h-2 bg-sky-400 rounded-xs" />
+                                <div className="w-[3px] h-3.5 bg-sky-400 rounded-xs" />
+                                <div className="w-[3px] h-5 bg-sky-400 rounded-xs" />
+                              </div>
 
-                          {/* Camera Capture Button */}
-                          <button
-                            onClick={() => captureElement(captureRefs.categorySL, 'NganhHang_SL_LuyKe')}
-                            className="no-capture absolute right-2 sm:right-3 top-2 sm:top-3 p-1.5 sm:p-2 bg-white/20 hover:bg-white/30 rounded-lg sm:rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
-                            title="Chụp ảnh bảng Ngành hàng SL"
-                          >
-                            <Camera size={14} className="sm:w-4 sm:h-4" />
-                          </button>
+                              {/* Total Categories Metric */}
+                              <div className="flex flex-col items-center">
+                                <span className="text-[7.5px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-300 whitespace-nowrap">TỔNG NGÀNH HÀNG</span>
+                                <span className="text-base sm:text-xl font-black text-white leading-none mt-0.5">{visibleCategoriesSL.length}</span>
+                              </div>
+
+                              {/* Vertical separator */}
+                              <div className="w-[1px] h-5.5 sm:h-6 bg-white/20" />
+
+                              {/* Reached Metric */}
+                              <div className="flex flex-col items-center">
+                                <span className="text-[7.5px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-300 whitespace-nowrap">ĐẠT</span>
+                                <span className="text-base sm:text-xl font-black text-[#10B981] leading-none mt-0.5">
+                                  {visibleCategoriesSL.filter((c: any) => {
+                                    let rate = 0;
+                                    if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
+                                    return Math.round(rate) >= 100;
+                                  }).length}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Toolbar Action Buttons (no-capture) */}
+                            <div className="no-capture flex items-center gap-1 sm:gap-1.5">
+                              <button
+                                onClick={() => {
+                                  setCategoryFilterActiveTab('SL');
+                                  setIsCategoryFilterModalOpen(true);
+                                }}
+                                className="relative p-1.5 sm:p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-all cursor-pointer border border-slate-200 active:scale-95"
+                                title="Bộ lọc ẩn/hiện ngành hàng SL"
+                              >
+                                <Filter size={14} className="sm:w-4 sm:h-4" />
+                                {hiddenCatsSL.length > 0 && (
+                                  <span className="absolute -top-1 -right-1 min-w-[14px] sm:min-w-[16px] h-3.5 sm:h-4 px-1 bg-rose-500 text-white text-[8px] sm:text-[9px] font-black rounded-full flex items-center justify-center border border-white">
+                                    {hiddenCatsSL.length}
+                                  </span>
+                                )}
+                              </button>
+                              <button
+                                onClick={() => captureElement(captureRefs.categorySL, 'NganhHang_SL_LuyKe')}
+                                className="p-1.5 sm:p-2 bg-blue-50 hover:bg-blue-100 text-[#0B4F9C] rounded-xl transition-all cursor-pointer border border-blue-200 active:scale-95"
+                                title="Chụp ảnh bảng Ngành hàng SL"
+                              >
+                                <Camera size={14} className="sm:w-4 sm:h-4" />
+                              </button>
+                            </div>
+                          </div>
                         </div>
 
                         {hiddenCatsSL.length > 0 && (
@@ -2876,44 +2919,51 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                           </div>
                         )}
 
-                        <div className="overflow-x-auto w-full grow rounded-xl sm:rounded-2xl border border-sky-300/80">
-                          <table className="w-full min-w-[350px] sm:min-w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                        {/* Executive Data Table */}
+                        <div className="overflow-x-auto w-full rounded-xl sm:rounded-2xl border border-slate-200/90 shadow-2xs custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
+                          <table className="w-full min-w-[500px] sm:min-w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                             <colgroup>
-                              <col className="w-[22px] sm:w-[32px] md:w-[40px]" />
-                              <col className="w-auto" />
-                              <col className="w-[44px] sm:w-[50px] md:w-[62px]" />
-                              <col className="w-[46px] sm:w-[52px] md:w-[62px]" />
-                              <col className="w-[42px] sm:w-[50px] md:w-[58px]" />
-                              <col className="w-[42px] sm:w-[50px] md:w-[58px]" />
+                              <col style={{ width: '45px', minWidth: '40px' }} />
+                              <col style={{ width: 'auto', minWidth: '160px' }} />
+                              <col style={{ width: '68px', minWidth: '58px' }} />
+                              <col style={{ width: '68px', minWidth: '58px' }} />
+                              <col style={{ width: '120px', minWidth: '105px' }} />
+                              <col style={{ width: '68px', minWidth: '58px' }} />
                             </colgroup>
                             <thead>
-                              <tr className="text-white h-[28px] sm:h-[38px] md:h-[44px]">
-                                <th className="px-0.5 py-0 text-[8px] sm:text-[11px] md:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] whitespace-nowrap overflow-hidden">STT</th>
-                                <th className="px-1 sm:px-2 py-0 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] font-black uppercase text-left border-r border-b border-sky-500 bg-[#0369A1] whitespace-nowrap overflow-hidden">NGÀNH HÀNG</th>
-                                <th className="px-0.5 sm:px-1 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] tracking-tight whitespace-nowrap overflow-hidden">TARGET</th>
-                                <th className="px-0.5 sm:px-1 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] tracking-tight whitespace-nowrap overflow-hidden">LUỸ KẾ</th>
+                              <tr className="text-white h-10 sm:h-11 bg-[#0F3A66]">
+                                <th className="px-1 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">STT</th>
+                                <th className="px-3 py-0 text-[10.5px] sm:text-[12px] font-black uppercase text-left border-r border-blue-900/60 whitespace-nowrap overflow-hidden">NGÀNH HÀNG</th>
+                                <th className="px-1.5 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">
+                                  <span className="inline-flex items-center justify-center gap-1"><Target size={12} className="text-white/80 shrink-0" />TARGET</span>
+                                </th>
+                                <th className="px-1.5 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">
+                                  <span className="inline-flex items-center justify-center gap-1"><BarChart3 size={12} className="text-white/80 shrink-0" />LUỸ KẾ</span>
+                                </th>
                                 <th 
                                   onClick={() => setSortModeSL(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
-                                  className={`px-0.5 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b border-sky-500 cursor-pointer select-none transition-colors tracking-tight whitespace-nowrap overflow-hidden ${
-                                    sortModeSL.startsWith('HT') ? 'bg-[#075985] hover:bg-[#0c4a6e]' : 'bg-[#0369A1] hover:bg-[#0284C7]'
+                                  className={`px-2 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 cursor-pointer select-none transition-colors whitespace-nowrap overflow-hidden ${
+                                    sortModeSL.startsWith('HT') ? 'bg-[#0A2847]' : 'hover:bg-white/10'
                                   }`}
                                   title="Bấm để sắp xếp %HT (Giảm dần / Tăng dần)"
                                 >
-                                  <div className="flex items-center justify-center gap-0.5">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <PieChart size={12} className="text-white/80 shrink-0" />
                                     <span>%HT</span>
-                                    <span className="text-[7px] sm:text-[9px] md:text-[10.5px] opacity-90">{sortModeSL === 'HT_DESC' ? '▼' : (sortModeSL === 'HT_ASC' ? '▲' : '⇅')}</span>
+                                    <span className="text-[9px] opacity-80">{sortModeSL === 'HT_DESC' ? '▼' : (sortModeSL === 'HT_ASC' ? '▲' : '⇅')}</span>
                                   </div>
                                 </th>
                                 <th 
                                   onClick={() => setSortModeSL(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
-                                  className={`px-0.5 py-0 text-[7px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-b border-sky-500 cursor-pointer select-none transition-colors tracking-tight whitespace-nowrap overflow-hidden ${
-                                    sortModeSL.startsWith('CONLAI') ? 'bg-amber-600 hover:bg-amber-700' : 'bg-[#0284C7] hover:bg-[#0369A1]'
+                                  className={`px-1.5 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center cursor-pointer select-none transition-colors whitespace-nowrap overflow-hidden ${
+                                    sortModeSL.startsWith('CONLAI') ? 'bg-amber-700/80' : 'hover:bg-white/10'
                                   }`}
                                   title="Bấm để sắp xếp theo C.LẠI (Còn lại nhiều nhất / ít nhất)"
                                 >
-                                  <div className="flex items-center justify-center gap-0.5">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <FileText size={12} className="text-white/80 shrink-0" />
                                     <span>C.LẠI</span>
-                                    <span className="text-[7px] sm:text-[9px] md:text-[10.5px] opacity-90">{sortModeSL === 'CONLAI_DESC' ? '▼' : (sortModeSL === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
+                                    <span className="text-[9px] opacity-80">{sortModeSL === 'CONLAI_DESC' ? '▼' : (sortModeSL === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
                                   </div>
                                 </th>
                               </tr>
@@ -2921,7 +2971,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                             <tbody>
                               {visibleCategoriesSL.length === 0 ? (
                                 <tr>
-                                  <td colSpan={6} className="py-8 text-center text-xs font-bold text-slate-500 bg-white">
+                                  <td colSpan={6} className="py-8 text-center text-slate-400 font-bold text-xs bg-white">
                                     Tất cả ngành hàng SL đang bị ẩn bởi bộ lọc.
                                     <button
                                       onClick={showAllCategoriesSL}
@@ -2935,25 +2985,52 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                 sortedCategoriesSL.map((cat: any, idx: number) => {
                                   let rate = 0;
                                   if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
+                                  const roundedRate = Math.round(rate);
                                   const remaining = cat.target - cat.revenue;
+                                  const isReached = roundedRate >= 100;
+                                  const isZero = roundedRate === 0;
                                   const isEven = idx % 2 === 0;
+                                  const rowBg = isZero ? 'bg-[#FFF8F8]' : (isEven ? 'bg-white' : 'bg-[#F8FAFC]');
+
                                   return (
-                                    <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-sky-50/25'} hover:bg-sky-50/70 transition-colors h-[28px] sm:h-[36px] md:h-[40px]`}>
-                                      <td className="px-0.5 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-black text-slate-700 text-center border-r border-b border-sky-100/90 bg-sky-50/40 whitespace-nowrap overflow-hidden">{idx + 1}</td>
-                                      <td className={`px-1 sm:px-2 py-0.5 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] font-black uppercase border-r border-b border-sky-100/90 leading-[1.12] tracking-tight overflow-hidden ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>
-                                        <div className="line-clamp-2 break-words leading-[1.12] text-left overflow-hidden" title={cat.name}>
+                                    <tr key={idx} className={`${rowBg} hover:bg-blue-50/40 transition-colors h-11 sm:h-12 border-b border-slate-100`}>
+                                      <td className="px-1 py-1 text-center border-r border-slate-100 whitespace-nowrap">
+                                        <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-[#EBF3FC] text-[#0B4F9C] font-black text-[11px] sm:text-xs flex items-center justify-center mx-auto shadow-2xs">
+                                          {idx + 1}
+                                        </span>
+                                      </td>
+                                      <td className="px-2.5 sm:px-3 py-1 text-left border-r border-slate-100" title={cat.name}>
+                                        <div className={`font-black uppercase text-[11px] sm:text-[12.5px] md:text-[13px] leading-snug break-words ${isReached ? 'text-slate-900' : (isZero ? 'text-[#E11D48]' : 'text-slate-800')}`} title={cat.name}>
                                           {cat.name}
                                         </div>
                                       </td>
-                                      <td className="px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-r border-b border-sky-100/90 text-slate-800 whitespace-nowrap overflow-hidden">{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
-                                      <td className="px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-black text-center border-r border-b border-sky-100/90 text-sky-700 whitespace-nowrap overflow-hidden">{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
-                                      <td className="px-0.5 py-0.5 text-center border-r border-b border-sky-100/90 whitespace-nowrap overflow-hidden">
-                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded font-black leading-none text-[8px] sm:text-[10.5px] md:text-[13px] ${Math.round(rate) >= 100 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-rose-100 text-rose-600'}`}>
-                                          {Math.round(rate)}%
-                                        </span>
+                                      <td className="px-1.5 py-1 text-[12.5px] sm:text-[14px] font-extrabold text-center border-r border-slate-100 text-slate-800 whitespace-nowrap">
+                                        {cat.target > 0 ? Math.round(cat.target).toLocaleString('vi-VN') : "-"}
                                       </td>
-                                      <td className={`px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-b border-sky-100/90 ${sortModeSL.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600 whitespace-nowrap overflow-hidden`}>
-                                        {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
+                                      <td className="px-1.5 py-1 text-[12.5px] sm:text-[14px] font-black text-center border-r border-slate-100 text-[#0B4F9C] whitespace-nowrap">
+                                        {cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString('vi-VN') : "-"}
+                                      </td>
+                                      <td className="px-1.5 sm:px-2 py-1 text-center border-r border-slate-100 whitespace-nowrap">
+                                        <div className="inline-flex items-center justify-center gap-1.5 sm:gap-2">
+                                          <span className={`px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[12px] min-w-[42px] sm:min-w-[46px] text-center leading-none ${
+                                            isReached ? 'bg-[#DCFCE7] text-[#16A34A]' : 'bg-[#FFE4E6] text-[#E11D48]'
+                                          }`}>
+                                            {roundedRate}%
+                                          </span>
+                                          <div className="w-10 sm:w-14 h-2 rounded-full bg-slate-100 overflow-hidden shrink-0 flex items-center">
+                                            {isReached ? (
+                                              <div className="w-full h-full bg-[#10B981] rounded-full" />
+                                            ) : roundedRate > 0 ? (
+                                              <div 
+                                                className="h-full bg-[#E11D48] rounded-full" 
+                                                style={{ width: `${Math.min(roundedRate, 100)}%` }} 
+                                              />
+                                            ) : null}
+                                          </div>
+                                        </div>
+                                      </td>
+                                      <td className={`px-1.5 py-1 text-[12.5px] sm:text-[14px] font-bold text-center border-slate-100 ${sortModeSL.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-[#E11D48] whitespace-nowrap`}>
+                                        {remaining > 0 ? Math.round(remaining).toLocaleString('vi-VN') : "-"}
                                       </td>
                                     </tr>
                                   );
@@ -2965,57 +3042,100 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                       </div>
 
                       {/* Right Table: DTLK */}
-                      <div ref={captureRefs.categoryDT} className="bg-white/95 rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] overflow-hidden min-w-0 flex flex-col p-1 sm:p-3.5 self-start h-auto">
-                        {/* Unified Sky Blue Gradient Header Banner */}
-                        <div className="bg-gradient-to-r from-[#0284C7] via-[#0EA5E9] to-[#38BDF8] p-2 sm:p-4 rounded-xl sm:rounded-2xl text-white relative shrink-0 mb-1.5 sm:mb-2.5 shadow-md shadow-sky-500/20">
-                          <div className="flex flex-col items-center justify-center text-center">
-                            <h2 className="text-[15px] sm:text-[23px] md:text-[27px] font-black text-white uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
-                              NGÀNH HÀNG (DT)
-                            </h2>
-                            <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-1.5 sm:gap-2 mt-0.5 sm:mt-1.5 text-[9px] sm:text-xs md:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
-                              <span className="flex items-center gap-1 whitespace-nowrap">
-                                ⚡ Luỹ kế: {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
-                              </span>
-                              <span className="opacity-70">||</span>
-                              <span className="text-white font-extrabold whitespace-nowrap">
-                                ĐẠT : {visibleCategoriesDT.filter((c: any) => {
-                                  let rate = 0;
-                                  if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
-                                  return Math.round(rate) >= 100;
-                                }).length}/{visibleCategoriesDT.length}
-                              </span>
-                              <span className="opacity-70">||</span>
-                              <span className="text-sky-100 font-bold whitespace-nowrap">
-                                TGSD: {daysPassed}/{totalDays}
-                              </span>
+                      <div ref={captureRefs.categoryDT} className="bg-white rounded-2xl md:rounded-3xl border border-slate-200/90 shadow-[0_4px_20px_-4px_rgba(11,37,69,0.06)] overflow-hidden min-w-0 flex flex-col p-2.5 sm:p-4 self-start h-auto">
+                        {/* Executive Dashboard Header Banner */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 mb-2.5 sm:mb-3.5 pb-0.5">
+                          {/* Left: TrendingUp Icon + Title + Subtitle */}
+                          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-13 md:h-13 rounded-xl sm:rounded-2xl bg-[#0B4F9C] flex items-center justify-center text-white shrink-0 shadow-sm shadow-blue-900/20">
+                              <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={2.2} />
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <h2 className="text-[17px] sm:text-[21px] md:text-[23px] font-black text-[#0B2545] uppercase tracking-wide leading-tight truncate" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                NGÀNH HÀNG (DT)
+                              </h2>
+                              <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 mt-0.5 text-[9.5px] sm:text-xs text-slate-500 font-bold" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                <span className="flex items-center gap-1 whitespace-nowrap">
+                                  <Clock size={12} className="text-slate-400 shrink-0" />
+                                  Realtime: {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} – {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                                </span>
+                                <span className="text-slate-300 font-normal">|</span>
+                                <span className="text-[#0B2545] font-black whitespace-nowrap">
+                                  ĐẠT: {visibleCategoriesDT.filter((c: any) => {
+                                    let rate = 0;
+                                    if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
+                                    return Math.round(rate) >= 100;
+                                  }).length}/{visibleCategoriesDT.length}
+                                </span>
+                                <span className="text-slate-300 font-normal">|</span>
+                                <span className="text-slate-600 font-bold whitespace-nowrap">
+                                  TGSD: {daysPassed}/{totalDays}
+                                </span>
+                              </div>
                             </div>
                           </div>
 
-                          {/* Filter Button next to Camera */}
-                          <button
-                            onClick={() => {
-                              setCategoryFilterActiveTab('DT');
-                              setIsCategoryFilterModalOpen(true);
-                            }}
-                            className="no-capture absolute right-9 sm:right-12 top-2 sm:top-3 p-1.5 sm:p-2 bg-white/20 hover:bg-white/30 rounded-lg sm:rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
-                            title="Bộ lọc ẩn/hiện ngành hàng DT"
-                          >
-                            <Filter size={14} className="sm:w-4 sm:h-4" />
-                            {hiddenCatsDT.length > 0 && (
-                              <span className="absolute -top-1 -right-1 min-w-[14px] sm:min-w-[16px] h-3.5 sm:h-4 px-1 bg-rose-500 text-white text-[8px] sm:text-[9px] font-black rounded-full flex items-center justify-center border border-white">
-                                {hiddenCatsDT.length}
-                              </span>
-                            )}
-                          </button>
+                          {/* Right: Summary KPI Badge & Action Buttons */}
+                          <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+                            {/* Dark Navy Executive KPI Badge */}
+                            <div className="relative overflow-hidden bg-gradient-to-br from-[#0B2545] to-[#081B33] rounded-xl sm:rounded-2xl px-3 py-1 sm:px-4 sm:py-1.5 text-white flex items-center gap-2.5 sm:gap-3.5 shadow-sm border border-slate-700/30">
+                              <div className="absolute -top-6 -left-6 w-14 h-14 bg-blue-500/15 rounded-full blur-md pointer-events-none" />
+                              
+                              {/* 3-bar chart indicator */}
+                              <div className="flex items-end gap-[2px] h-5 sm:h-5.5 text-sky-400 shrink-0">
+                                <div className="w-[3px] h-2 bg-sky-400 rounded-xs" />
+                                <div className="w-[3px] h-3.5 bg-sky-400 rounded-xs" />
+                                <div className="w-[3px] h-5 bg-sky-400 rounded-xs" />
+                              </div>
 
-                          {/* Camera Capture Button */}
-                          <button
-                            onClick={() => captureElement(captureRefs.categoryDT, 'NganhHang_DT_LuyKe')}
-                            className="no-capture absolute right-2 sm:right-3 top-2 sm:top-3 p-1.5 sm:p-2 bg-white/20 hover:bg-white/30 rounded-lg sm:rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
-                            title="Chụp ảnh bảng Ngành hàng DT"
-                          >
-                            <Camera size={14} className="sm:w-4 sm:h-4" />
-                          </button>
+                              {/* Total Categories Metric */}
+                              <div className="flex flex-col items-center">
+                                <span className="text-[7.5px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-300 whitespace-nowrap">TỔNG NGÀNH HÀNG</span>
+                                <span className="text-base sm:text-xl font-black text-white leading-none mt-0.5">{visibleCategoriesDT.length}</span>
+                              </div>
+
+                              {/* Vertical separator */}
+                              <div className="w-[1px] h-5.5 sm:h-6 bg-white/20" />
+
+                              {/* Reached Metric */}
+                              <div className="flex flex-col items-center">
+                                <span className="text-[7.5px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-300 whitespace-nowrap">ĐẠT</span>
+                                <span className="text-base sm:text-xl font-black text-[#10B981] leading-none mt-0.5">
+                                  {visibleCategoriesDT.filter((c: any) => {
+                                    let rate = 0;
+                                    if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
+                                    return Math.round(rate) >= 100;
+                                  }).length}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Toolbar Action Buttons (no-capture) */}
+                            <div className="no-capture flex items-center gap-1 sm:gap-1.5">
+                              <button
+                                onClick={() => {
+                                  setCategoryFilterActiveTab('DT');
+                                  setIsCategoryFilterModalOpen(true);
+                                }}
+                                className="relative p-1.5 sm:p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-all cursor-pointer border border-slate-200 active:scale-95"
+                                title="Bộ lọc ẩn/hiện ngành hàng DT"
+                              >
+                                <Filter size={14} className="sm:w-4 sm:h-4" />
+                                {hiddenCatsDT.length > 0 && (
+                                  <span className="absolute -top-1 -right-1 min-w-[14px] sm:min-w-[16px] h-3.5 sm:h-4 px-1 bg-rose-500 text-white text-[8px] sm:text-[9px] font-black rounded-full flex items-center justify-center border border-white">
+                                    {hiddenCatsDT.length}
+                                  </span>
+                                )}
+                              </button>
+                              <button
+                                onClick={() => captureElement(captureRefs.categoryDT, 'NganhHang_DT_LuyKe')}
+                                className="p-1.5 sm:p-2 bg-blue-50 hover:bg-blue-100 text-[#0B4F9C] rounded-xl transition-all cursor-pointer border border-blue-200 active:scale-95"
+                                title="Chụp ảnh bảng Ngành hàng DT"
+                              >
+                                <Camera size={14} className="sm:w-4 sm:h-4" />
+                              </button>
+                            </div>
+                          </div>
                         </div>
 
                         {hiddenCatsDT.length > 0 && (
@@ -3056,44 +3176,51 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                           </div>
                         )}
 
-                        <div className="overflow-x-auto w-full grow rounded-xl sm:rounded-2xl border border-sky-300/80">
-                          <table className="w-full min-w-[350px] sm:min-w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                        {/* Executive Data Table */}
+                        <div className="overflow-x-auto w-full rounded-xl sm:rounded-2xl border border-slate-200/90 shadow-2xs custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
+                          <table className="w-full min-w-[500px] sm:min-w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                             <colgroup>
-                              <col className="w-[22px] sm:w-[32px] md:w-[40px]" />
-                              <col className="w-auto" />
-                              <col className="w-[44px] sm:w-[50px] md:w-[62px]" />
-                              <col className="w-[46px] sm:w-[52px] md:w-[62px]" />
-                              <col className="w-[42px] sm:w-[50px] md:w-[58px]" />
-                              <col className="w-[42px] sm:w-[50px] md:w-[58px]" />
+                              <col style={{ width: '45px', minWidth: '40px' }} />
+                              <col style={{ width: 'auto', minWidth: '160px' }} />
+                              <col style={{ width: '68px', minWidth: '58px' }} />
+                              <col style={{ width: '68px', minWidth: '58px' }} />
+                              <col style={{ width: '120px', minWidth: '105px' }} />
+                              <col style={{ width: '68px', minWidth: '58px' }} />
                             </colgroup>
                             <thead>
-                              <tr className="text-white h-[28px] sm:h-[38px] md:h-[44px]">
-                                <th className="px-0.5 py-0 text-[8px] sm:text-[11px] md:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] whitespace-nowrap overflow-hidden">STT</th>
-                                <th className="px-1 sm:px-2 py-0 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] font-black uppercase text-left border-r border-b border-sky-500 bg-[#0369A1] whitespace-nowrap overflow-hidden">NGÀNH HÀNG</th>
-                                <th className="px-0.5 sm:px-1 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] tracking-tight whitespace-nowrap overflow-hidden">TARGET</th>
-                                <th className="px-0.5 sm:px-1 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] tracking-tight whitespace-nowrap overflow-hidden">LUỸ KẾ</th>
+                              <tr className="text-white h-10 sm:h-11 bg-[#0F3A66]">
+                                <th className="px-1 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">STT</th>
+                                <th className="px-3 py-0 text-[10.5px] sm:text-[12px] font-black uppercase text-left border-r border-blue-900/60 whitespace-nowrap overflow-hidden">NGÀNH HÀNG</th>
+                                <th className="px-1.5 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">
+                                  <span className="inline-flex items-center justify-center gap-1"><Target size={12} className="text-white/80 shrink-0" />TARGET</span>
+                                </th>
+                                <th className="px-1.5 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">
+                                  <span className="inline-flex items-center justify-center gap-1"><BarChart3 size={12} className="text-white/80 shrink-0" />LUỸ KẾ</span>
+                                </th>
                                 <th 
                                   onClick={() => setSortModeDT(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
-                                  className={`px-0.5 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b border-sky-500 cursor-pointer select-none transition-colors tracking-tight whitespace-nowrap overflow-hidden ${
-                                    sortModeDT.startsWith('HT') ? 'bg-[#075985] hover:bg-[#0c4a6e]' : 'bg-[#0369A1] hover:bg-[#0284C7]'
+                                  className={`px-2 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 cursor-pointer select-none transition-colors whitespace-nowrap overflow-hidden ${
+                                    sortModeDT.startsWith('HT') ? 'bg-[#0A2847]' : 'hover:bg-white/10'
                                   }`}
                                   title="Bấm để sắp xếp %HT (Giảm dần / Tăng dần)"
                                 >
-                                  <div className="flex items-center justify-center gap-0.5">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <PieChart size={12} className="text-white/80 shrink-0" />
                                     <span>%HT</span>
-                                    <span className="text-[7px] sm:text-[9px] md:text-[10.5px] opacity-90">{sortModeDT === 'HT_DESC' ? '▼' : (sortModeDT === 'HT_ASC' ? '▲' : '⇅')}</span>
+                                    <span className="text-[9px] opacity-80">{sortModeDT === 'HT_DESC' ? '▼' : (sortModeDT === 'HT_ASC' ? '▲' : '⇅')}</span>
                                   </div>
                                 </th>
                                 <th 
                                   onClick={() => setSortModeDT(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
-                                  className={`px-0.5 py-0 text-[7px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-b border-sky-500 cursor-pointer select-none transition-colors tracking-tight whitespace-nowrap overflow-hidden ${
-                                    sortModeDT.startsWith('CONLAI') ? 'bg-amber-600 hover:bg-amber-700' : 'bg-[#0284C7] hover:bg-[#0369A1]'
+                                  className={`px-1.5 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center cursor-pointer select-none transition-colors whitespace-nowrap overflow-hidden ${
+                                    sortModeDT.startsWith('CONLAI') ? 'bg-amber-700/80' : 'hover:bg-white/10'
                                   }`}
                                   title="Bấm để sắp xếp theo C.LẠI (Còn lại nhiều nhất / ít nhất)"
                                 >
-                                  <div className="flex items-center justify-center gap-0.5">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <FileText size={12} className="text-white/80 shrink-0" />
                                     <span>C.LẠI</span>
-                                    <span className="text-[7px] sm:text-[9px] md:text-[10.5px] opacity-90">{sortModeDT === 'CONLAI_DESC' ? '▼' : (sortModeDT === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
+                                    <span className="text-[9px] opacity-80">{sortModeDT === 'CONLAI_DESC' ? '▼' : (sortModeDT === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
                                   </div>
                                 </th>
                               </tr>
@@ -3101,7 +3228,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                             <tbody>
                               {visibleCategoriesDT.length === 0 ? (
                                 <tr>
-                                  <td colSpan={6} className="py-8 text-center text-xs font-bold text-slate-500 bg-white">
+                                  <td colSpan={6} className="py-8 text-center text-slate-400 font-bold text-xs bg-white">
                                     Tất cả ngành hàng DT đang bị ẩn bởi bộ lọc.
                                     <button
                                       onClick={showAllCategoriesDT}
@@ -3115,25 +3242,52 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                 sortedCategoriesDT.map((cat: any, idx: number) => {
                                   let rate = 0;
                                   if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
+                                  const roundedRate = Math.round(rate);
                                   const remaining = cat.target - cat.revenue;
+                                  const isReached = roundedRate >= 100;
+                                  const isZero = roundedRate === 0;
                                   const isEven = idx % 2 === 0;
+                                  const rowBg = isZero ? 'bg-[#FFF8F8]' : (isEven ? 'bg-white' : 'bg-[#F8FAFC]');
+
                                   return (
-                                    <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-sky-50/25'} hover:bg-sky-50/70 transition-colors h-[28px] sm:h-[36px] md:h-[40px]`}>
-                                      <td className="px-0.5 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-black text-slate-700 text-center border-r border-b border-sky-100/90 bg-sky-50/40 whitespace-nowrap overflow-hidden">{idx + 1}</td>
-                                      <td className={`px-1 sm:px-2 py-0.5 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] font-black uppercase border-r border-b border-sky-100/90 leading-[1.12] tracking-tight overflow-hidden ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>
-                                        <div className="line-clamp-2 break-words leading-[1.12] text-left overflow-hidden" title={cat.name}>
+                                    <tr key={idx} className={`${rowBg} hover:bg-blue-50/40 transition-colors h-11 sm:h-12 border-b border-slate-100`}>
+                                      <td className="px-1 py-1 text-center border-r border-slate-100 whitespace-nowrap">
+                                        <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-[#EBF3FC] text-[#0B4F9C] font-black text-[11px] sm:text-xs flex items-center justify-center mx-auto shadow-2xs">
+                                          {idx + 1}
+                                        </span>
+                                      </td>
+                                      <td className="px-2.5 sm:px-3 py-1 text-left border-r border-slate-100" title={cat.name}>
+                                        <div className={`font-black uppercase text-[11px] sm:text-[12.5px] md:text-[13px] leading-snug break-words ${isReached ? 'text-slate-900' : (isZero ? 'text-[#E11D48]' : 'text-slate-800')}`} title={cat.name}>
                                           {cat.name}
                                         </div>
                                       </td>
-                                      <td className="px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-r border-b border-sky-100/90 text-slate-800 whitespace-nowrap overflow-hidden">{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
-                                      <td className="px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-black text-center border-r border-b border-sky-100/90 text-sky-700 whitespace-nowrap overflow-hidden">{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
-                                      <td className="px-0.5 py-0.5 text-center border-r border-b border-sky-100/90 whitespace-nowrap overflow-hidden">
-                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded font-black leading-none text-[8px] sm:text-[10.5px] md:text-[13px] ${Math.round(rate) >= 100 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-rose-100 text-rose-600'}`}>
-                                          {Math.round(rate)}%
-                                        </span>
+                                      <td className="px-1.5 py-1 text-[12.5px] sm:text-[14px] font-extrabold text-center border-r border-slate-100 text-slate-800 whitespace-nowrap">
+                                        {cat.target > 0 ? Math.round(cat.target).toLocaleString('vi-VN') : "-"}
                                       </td>
-                                      <td className={`px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-b border-sky-100/90 ${sortModeDT.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600 whitespace-nowrap overflow-hidden`}>
-                                        {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
+                                      <td className="px-1.5 py-1 text-[12.5px] sm:text-[14px] font-black text-center border-r border-slate-100 text-[#0B4F9C] whitespace-nowrap">
+                                        {cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString('vi-VN') : "-"}
+                                      </td>
+                                      <td className="px-1.5 sm:px-2 py-1 text-center border-r border-slate-100 whitespace-nowrap">
+                                        <div className="inline-flex items-center justify-center gap-1.5 sm:gap-2">
+                                          <span className={`px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[12px] min-w-[42px] sm:min-w-[46px] text-center leading-none ${
+                                            isReached ? 'bg-[#DCFCE7] text-[#16A34A]' : 'bg-[#FFE4E6] text-[#E11D48]'
+                                          }`}>
+                                            {roundedRate}%
+                                          </span>
+                                          <div className="w-10 sm:w-14 h-2 rounded-full bg-slate-100 overflow-hidden shrink-0 flex items-center">
+                                            {isReached ? (
+                                              <div className="w-full h-full bg-[#10B981] rounded-full" />
+                                            ) : roundedRate > 0 ? (
+                                              <div 
+                                                className="h-full bg-[#E11D48] rounded-full" 
+                                                style={{ width: `${Math.min(roundedRate, 100)}%` }} 
+                                              />
+                                            ) : null}
+                                          </div>
+                                        </div>
+                                      </td>
+                                      <td className={`px-1.5 py-1 text-[12.5px] sm:text-[14px] font-bold text-center border-slate-100 ${sortModeDT.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-[#E11D48] whitespace-nowrap`}>
+                                        {remaining > 0 ? Math.round(remaining).toLocaleString('vi-VN') : "-"}
                                       </td>
                                     </tr>
                                   );
