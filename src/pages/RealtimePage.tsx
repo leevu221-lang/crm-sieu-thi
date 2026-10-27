@@ -7701,7 +7701,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         return (
                                           <tr 
                                             key={idx} 
-                                            className={cn(rowBg, "hover:bg-blue-50/40 transition-colors h-11 sm:h-12 border-b border-slate-100")}
+                                            className={`${rowBg} hover:bg-blue-50/40 transition-colors h-11 sm:h-12 border-b border-slate-100`}
                                           >
                                             {/* STT */}
                                             <td className="px-1 py-1 text-center border-r border-slate-100 whitespace-nowrap">
@@ -7713,10 +7713,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                             {/* NGÀNH HÀNG */}
                                             <td className="px-2.5 sm:px-3 py-1 text-left border-r border-slate-100">
                                               <div 
-                                                className={cn(
-                                                  "font-black uppercase text-[11px] sm:text-[12.5px] md:text-[13px] leading-snug break-words",
-                                                  isReached ? "text-slate-900" : (isZero ? "text-[#E11D48]" : "text-slate-800")
-                                                )} 
+                                                className={`font-black uppercase text-[11px] sm:text-[12.5px] md:text-[13px] leading-snug break-words ${isReached ? "text-slate-900" : (isZero ? "text-[#E11D48]" : "text-slate-800")}`} 
                                                 title={cat.name}
                                               >
                                                 {cat.name}
@@ -7736,12 +7733,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                             {/* %HT with Progress Bar */}
                                             <td className="px-1.5 sm:px-2 py-1 text-center border-r border-slate-100 whitespace-nowrap">
                                               <div className="inline-flex items-center justify-center gap-1.5 sm:gap-2">
-                                                <span className={cn(
-                                                  "px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[12px] min-w-[42px] sm:min-w-[46px] text-center leading-none",
-                                                  isReached 
-                                                    ? "bg-[#DCFCE7] text-[#16A34A]" 
-                                                    : "bg-[#FFE4E6] text-[#E11D48]"
-                                                )}>
+                                                <span className={`px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[12px] min-w-[42px] sm:min-w-[46px] text-center leading-none ${isReached ? "bg-[#DCFCE7] text-[#16A34A]" : "bg-[#FFE4E6] text-[#E11D48]"}`}>
                                                   {rate}%
                                                 </span>
                                                 <div className="w-10 sm:w-14 h-2 rounded-full bg-slate-100 overflow-hidden shrink-0 flex items-center">
@@ -7777,10 +7769,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                               if (!lkCat || lkCat.target === 0) return <td className="px-1.5 py-1 text-center font-bold text-slate-400 whitespace-nowrap">-</td>;
                                               const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
                                               return (
-                                                <td className={cn(
-                                                  "px-1.5 py-1 text-center font-black text-[12.5px] sm:text-[14px] whitespace-nowrap",
-                                                  mucTieu > 0 ? "text-[#E11D48]" : "text-[#10B981]"
-                                                )}>
+                                                <td className={`px-1.5 py-1 text-center font-black text-[12.5px] sm:text-[14px] whitespace-nowrap ${mucTieu > 0 ? "text-[#E11D48]" : "text-[#10B981]"}`}>
                                                   {mucTieu > 0 ? Math.round(mucTieu).toLocaleString('vi-VN') : "-"}
                                                 </td>
                                               );
@@ -7983,7 +7972,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         return (
                                           <tr 
                                             key={idx} 
-                                            className={cn(rowBg, "hover:bg-blue-50/40 transition-colors h-11 sm:h-12 border-b border-slate-100")}
+                                            className={`${rowBg} hover:bg-blue-50/40 transition-colors h-11 sm:h-12 border-b border-slate-100`}
                                           >
                                             {/* STT */}
                                             <td className="px-1 py-1 text-center border-r border-slate-100 whitespace-nowrap">
@@ -7995,10 +7984,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                             {/* NGÀNH HÀNG */}
                                             <td className="px-2.5 sm:px-3 py-1 text-left border-r border-slate-100">
                                               <div 
-                                                className={cn(
-                                                  "font-black uppercase text-[11px] sm:text-[12.5px] md:text-[13px] leading-snug break-words",
-                                                  isReached ? "text-slate-900" : (isZero ? "text-[#E11D48]" : "text-slate-800")
-                                                )} 
+                                                className={`font-black uppercase text-[11px] sm:text-[12.5px] md:text-[13px] leading-snug break-words ${isReached ? "text-slate-900" : (isZero ? "text-[#E11D48]" : "text-slate-800")}`} 
                                                 title={cat.name}
                                               >
                                                 {cat.name}
@@ -8018,12 +8004,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                             {/* %HT with Progress Bar */}
                                             <td className="px-1.5 sm:px-2 py-1 text-center border-r border-slate-100 whitespace-nowrap">
                                               <div className="inline-flex items-center justify-center gap-1.5 sm:gap-2">
-                                                <span className={cn(
-                                                  "px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[12px] min-w-[42px] sm:min-w-[46px] text-center leading-none",
-                                                  isReached 
-                                                    ? "bg-[#DCFCE7] text-[#16A34A]" 
-                                                    : "bg-[#FFE4E6] text-[#E11D48]"
-                                                )}>
+                                                <span className={`px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[12px] min-w-[42px] sm:min-w-[46px] text-center leading-none ${isReached ? "bg-[#DCFCE7] text-[#16A34A]" : "bg-[#FFE4E6] text-[#E11D48]"}`}>
                                                   {rate}%
                                                 </span>
                                                 <div className="w-10 sm:w-14 h-2 rounded-full bg-slate-100 overflow-hidden shrink-0 flex items-center">
@@ -8059,10 +8040,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                               if (!lkCat || lkCat.target === 0) return <td className="px-1.5 py-1 text-center font-bold text-slate-400 whitespace-nowrap">-</td>;
                                               const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
                                               return (
-                                                <td className={cn(
-                                                  "px-1.5 py-1 text-center font-black text-[12.5px] sm:text-[14px] whitespace-nowrap",
-                                                  mucTieu > 0 ? "text-[#E11D48]" : "text-[#10B981]"
-                                                )}>
+                                                <td className={`px-1.5 py-1 text-center font-black text-[12.5px] sm:text-[14px] whitespace-nowrap ${mucTieu > 0 ? "text-[#E11D48]" : "text-[#10B981]"}`}>
                                                   {mucTieu > 0 ? Math.round(mucTieu).toLocaleString('vi-VN') : "-"}
                                                 </td>
                                               );
