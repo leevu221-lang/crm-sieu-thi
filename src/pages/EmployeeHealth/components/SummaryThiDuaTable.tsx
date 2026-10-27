@@ -1694,7 +1694,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
 
       {/* ═══ Table ═══ */}
       <div className="overflow-x-auto rounded-2xl border border-slate-200/80 shadow-xs">
-        <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
+        <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0', fontWeight: 900, minWidth: 'max-content' }}>
           <colgroup>
             <col style={{ width: '50px' }} />
             <col style={{ width: '320px' }} />

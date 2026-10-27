@@ -118,8 +118,8 @@ body {
   padding: 0;
 }
 
-/* Desktop: Zoom nhỏ lại 25% (zoom 75% = 0.75) chỉ áp dụng cho màn hình Desktop (>= 769px) */
-@media (min-width: 769px) {
+/* Desktop: Zoom nhỏ lại 25% (zoom 75% = 0.75) chỉ áp dụng cho màn hình Desktop (>= 768px) */
+@media (min-width: 768px) {
   body {
     zoom: 0.75;
     width: 100%;
@@ -128,8 +128,8 @@ body {
   }
 }
 
-/* Mobile: Không zoom (zoom: 1), auto responsive tự nhiên cho điện thoại */
-@media (max-width: 768px) {
+/* Mobile: Không zoom (zoom: 1), auto responsive tự nhiên cho điện thoại (< 768px) */
+@media (max-width: 767px) {
   body {
     zoom: 1;
     margin: 0;
@@ -242,7 +242,7 @@ table td {
 }
 
 /* Default table typography on desktop if not explicitly set */
-@media (min-width: 769px) {
+@media (min-width: 768px) {
   table th:not([class*="text-"]) {
     font-size: 13.5px;
     font-weight: 900;
@@ -253,14 +253,20 @@ table td {
   }
 }
 
+/* Prevent double-scaling for tables wrapped in AutoFitTable */
+.autofit-table-container table,
+.autofit-content-box table {
+  zoom: 1 !important;
+}
+
 /* ========================================
    RESPONSIVE TABLE SYSTEM - Mobile First
    Auto zoom tables on mobile to eliminate oversized typography and clipping
    ======================================== */
 
 /* All tables on mobile: auto responsive scaling */
-@media (max-width: 768px) {
-  table:not(.no-mobile-zoom) {
+@media (max-width: 767px) {
+  table:not(.no-mobile-zoom):not(.autofit-table-container table):not(.autofit-content-box table) {
     zoom: 0.84;
     -webkit-text-size-adjust: 100%;
   }

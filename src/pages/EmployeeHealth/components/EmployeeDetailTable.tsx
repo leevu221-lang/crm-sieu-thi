@@ -125,7 +125,7 @@ const SectionTable: React.FC<{
         </span>
       </div>
       <div className="overflow-x-auto w-full bg-white">
-        <table className="w-full border-separate border-spacing-0 table-fixed bg-white text-[12px] sm:text-[14px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
+        <table className="w-full border-separate border-spacing-0 table-fixed bg-white text-[12px] sm:text-[14px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900, minWidth: '580px' }}>
           <colgroup>
             <col style={{ width: '6%' }} />
             <col style={{ width: '40%' }} />

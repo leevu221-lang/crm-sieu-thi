@@ -258,7 +258,7 @@ const ProfessionalDashboardTable: React.FC<Props> = ({ data, title = "DASHBOARD 
 
       {/* Table Section */}
       <div className="overflow-x-auto no-scrollbar">
-        <table className="w-full border-collapse">
+        <table className="w-full border-collapse" style={{ minWidth: '600px' }}>
           <thead>
             {table.getHeaderGroups().map(headerGroup => (
               <tr key={headerGroup.id} className="bg-slate-50/50">

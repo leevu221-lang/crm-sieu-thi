@@ -281,7 +281,7 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
         )}
 
         {/* Page Content */}
-        <main className="flex-1 relative z-10 w-full py-1.5 sm:py-2 pb-28 md:pb-6 px-1 sm:px-1.5 md:px-2">
+        <main className="flex-1 relative z-10 w-full py-1.5 sm:py-2 pb-[96px] md:pb-6 px-1 sm:px-1.5 md:px-2">
           <div className="w-full min-w-0">
             {children}
           </div>
@@ -289,7 +289,7 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
 
         {/* Footer (Ẩn khi mở từ link chia sẻ) */}
         {!isShareOrGuest && (
-          <footer className="relative z-10 w-full border-t border-[#BAE6FD]/70 bg-white/90 backdrop-blur-md px-2 sm:px-3 md:px-[15px] py-4 sm:py-5 pb-24 md:pb-5 print:hidden">
+          <footer className="relative z-10 w-full border-t border-[#BAE6FD]/70 bg-white/90 backdrop-blur-md px-2 sm:px-3 md:px-[15px] py-4 sm:py-5 pb-[96px] md:pb-5 print:hidden">
             <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
                 <span className="bg-gradient-to-r from-[#0284C7] to-[#0EA5E9] bg-clip-text text-transparent font-black">CRM SIÊU THỊ</span>
@@ -309,7 +309,7 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
       {/* ── Mobile Bottom Floating Navigation (Ẩn khi mở từ link chia sẻ) ── */}
       {!isShareOrGuest && navItems.length > 0 && (
         <nav
-          className="md:hidden fixed bottom-4 left-3 right-3 bg-white/95 backdrop-blur-md border border-slate-200/90 z-[100] px-2 py-2 rounded-3xl shadow-xl ring-1 ring-slate-900/5 print:hidden"
+          className="md:hidden fixed bottom-4 left-3 right-3 bg-white/95 backdrop-blur-md border border-slate-200/90 z-40 px-2 py-2 rounded-3xl shadow-xl ring-1 ring-slate-900/5 print:hidden"
           style={{ willChange: 'transform', transform: 'translateZ(0)' }}
         >
         <div className="flex items-center justify-around relative overflow-x-auto no-scrollbar py-1">

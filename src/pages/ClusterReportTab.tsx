@@ -1788,7 +1788,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
             </div>
 
             {/* KHOẢNG TRẮNG CÁCH TIÊU ĐỀ CỘT & CONTAINER CHO BẢNG */}
-            <div className="overflow-x-auto w-full rounded-2xl border border-slate-200/90 overflow-hidden shadow-xs">
+            <div className="overflow-x-auto w-full rounded-2xl border border-slate-200/90 shadow-xs">
               {!showFull11Cols ? (
                 /* 9-COLUMN TABLE: 100% IDENTICAL TO USER IMAGE (TONE MÀU HÌNH 2) */
                 <table

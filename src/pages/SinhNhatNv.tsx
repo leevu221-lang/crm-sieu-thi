@@ -731,7 +731,7 @@ const SinhNhatNv: React.FC = () => {
                   <li>Link Google Sheet phải đặt chế độ <strong className="text-rose-600 uppercase">"Công Khai"</strong> (Bất kỳ ai có liên kết).</li>
                 </ul>
                 
-                <div className="mt-4 border border-emerald-200/60 rounded overflow-hidden shadow-sm overflow-x-auto">
+                <div className="mt-4 border border-emerald-200/60 rounded shadow-sm overflow-x-auto">
                   <table className="w-full min-w-max text-left bg-white text-xs">
                     <thead>
                       <tr className="bg-emerald-100/50 text-emerald-800 text-center border-b border-emerald-200/60">
