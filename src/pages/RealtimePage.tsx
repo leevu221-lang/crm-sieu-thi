@@ -3444,6 +3444,59 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       htmlBanner.style.setProperty('align-items', 'stretch', 'important');
       htmlBanner.style.setProperty('justify-content', 'space-between', 'important');
       htmlBanner.style.setProperty('overflow', 'hidden', 'important');
+      htmlBanner.style.setProperty('zoom', '1', 'important');
+
+      htmlBanner.querySelectorAll('.exec-banner-left').forEach(el => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.setProperty('padding', '14px 18px', 'important');
+        htmlEl.style.setProperty('gap', '16px', 'important');
+      });
+      htmlBanner.querySelectorAll('.exec-banner-icon').forEach(el => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.setProperty('width', '52px', 'important');
+        htmlEl.style.setProperty('height', '52px', 'important');
+        htmlEl.style.setProperty('border-radius', '16px', 'important');
+      });
+      htmlBanner.querySelectorAll('.exec-banner-icon svg').forEach(el => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.setProperty('width', '26px', 'important');
+        htmlEl.style.setProperty('height', '26px', 'important');
+      });
+      htmlBanner.querySelectorAll('h2').forEach(el => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.setProperty('font-size', '26px', 'important');
+        htmlEl.style.setProperty('font-weight', '900', 'important');
+        htmlEl.style.setProperty('line-height', '1.15', 'important');
+        htmlEl.style.setProperty('color', '#0B2545', 'important');
+        htmlEl.style.setProperty('font-family', "'UTM Avo', sans-serif", 'important');
+      });
+      htmlBanner.querySelectorAll('.exec-banner-sub, .exec-banner-sub span').forEach(el => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.setProperty('font-size', '13px', 'important');
+        htmlEl.style.setProperty('line-height', '1.3', 'important');
+      });
+      htmlBanner.querySelectorAll('.exec-banner-sub svg').forEach(el => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.setProperty('width', '13px', 'important');
+        htmlEl.style.setProperty('height', '13px', 'important');
+      });
+      htmlBanner.querySelectorAll('.exec-banner-slash').forEach(el => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.setProperty('width', '52px', 'important');
+      });
+      htmlBanner.querySelectorAll('.exec-banner-right').forEach(el => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.setProperty('padding', '10px 22px 10px 14px', 'important');
+        htmlEl.style.setProperty('gap', '18px', 'important');
+      });
+      htmlBanner.querySelectorAll('.exec-banner-kpi-label').forEach(el => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.setProperty('font-size', '9.5px', 'important');
+      });
+      htmlBanner.querySelectorAll('.exec-banner-kpi-val').forEach(el => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.setProperty('font-size', '28px', 'important');
+      });
     });
 
     // 2. Banner Titles: Force 26px font size, UTM Avo, bold, white, centered

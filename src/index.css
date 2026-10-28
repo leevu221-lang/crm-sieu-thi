@@ -543,51 +543,53 @@ body.capturing-screenshot .exec-header-banner {
 }
 
 body.capturing-screenshot .exec-header-banner .exec-banner-left {
-  padding: 12px 16px !important;
-  gap: 14px !important;
+  padding: 14px 18px !important;
+  gap: 16px !important;
 }
 
 body.capturing-screenshot .exec-header-banner .exec-banner-icon {
-  width: 48px !important;
-  height: 48px !important;
+  width: 52px !important;
+  height: 52px !important;
   border-radius: 16px !important;
 }
 
 body.capturing-screenshot .exec-header-banner .exec-banner-icon svg {
-  width: 24px !important;
-  height: 24px !important;
+  width: 26px !important;
+  height: 26px !important;
 }
 
 body.capturing-screenshot .exec-header-banner h2 {
-  font-size: 22px !important;
-  line-height: 1.2 !important;
+  font-size: 26px !important;
+  line-height: 1.15 !important;
+  font-weight: 900 !important;
 }
 
-body.capturing-screenshot .exec-header-banner .exec-banner-sub {
-  font-size: 12px !important;
+body.capturing-screenshot .exec-header-banner .exec-banner-sub,
+body.capturing-screenshot .exec-header-banner .exec-banner-sub span {
+  font-size: 13px !important;
   gap: 8px !important;
 }
 
 body.capturing-screenshot .exec-header-banner .exec-banner-sub svg {
-  width: 12px !important;
-  height: 12px !important;
+  width: 13px !important;
+  height: 13px !important;
 }
 
 body.capturing-screenshot .exec-header-banner .exec-banner-slash {
-  width: 48px !important;
+  width: 52px !important;
 }
 
 body.capturing-screenshot .exec-header-banner .exec-banner-right {
-  padding: 8px 20px 8px 12px !important;
-  gap: 16px !important;
+  padding: 10px 22px 10px 14px !important;
+  gap: 18px !important;
 }
 
 body.capturing-screenshot .exec-header-banner .exec-banner-kpi-label {
-  font-size: 8.5px !important;
+  font-size: 9.5px !important;
 }
 
 body.capturing-screenshot .exec-header-banner .exec-banner-kpi-val {
-  font-size: 24px !important;
+  font-size: 28px !important;
 }
 
 body.capturing-screenshot table td,
@@ -614,7 +616,7 @@ body.capturing-screenshot table td span[class*="rounded"] {
 body.capturing-screenshot [class*="from-[#0284C7]"] h2,
 body.capturing-screenshot [class*="from-[#1E40AF]"] h2,
 body.capturing-screenshot [class*="from-[#047857]"] h2,
-body.capturing-screenshot .bg-gradient-to-r h2,
+body.capturing-screenshot .bg-gradient-to-r:not(.exec-header-banner):not(.exec-banner-right) h2,
 body.capturing-screenshot .banner-title {
   font-size: 26px !important;
   line-height: 1.25 !important;
@@ -624,7 +626,7 @@ body.capturing-screenshot .banner-title {
 body.capturing-screenshot [class*="from-[#0284C7]"] > div,
 body.capturing-screenshot [class*="from-[#1E40AF]"] > div,
 body.capturing-screenshot [class*="from-[#047857]"] > div,
-body.capturing-screenshot .bg-gradient-to-r > div {
+body.capturing-screenshot .bg-gradient-to-r:not(.exec-header-banner):not(.exec-banner-right) > div {
   font-size: 13px !important;
   font-weight: 700 !important;
   white-space: nowrap !important;
@@ -633,7 +635,7 @@ body.capturing-screenshot .bg-gradient-to-r > div {
 body.capturing-screenshot [class*="from-[#0284C7]"] > div *,
 body.capturing-screenshot [class*="from-[#1E40AF]"] > div *,
 body.capturing-screenshot [class*="from-[#047857]"] > div *,
-body.capturing-screenshot .bg-gradient-to-r > div * {
+body.capturing-screenshot .bg-gradient-to-r:not(.exec-header-banner):not(.exec-banner-right) > div * {
   font-size: 13px !important;
 }
 
