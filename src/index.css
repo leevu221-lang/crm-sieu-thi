@@ -472,7 +472,7 @@ body.capturing-screenshot .overflow-x-auto {
   display: block !important;
 }
 
-body.capturing-screenshot .overflow-hidden {
+body.capturing-screenshot .overflow-hidden:not(.keep-overflow-hidden) {
   overflow: visible !important;
 }
 
@@ -509,13 +509,24 @@ body.capturing-screenshot .mobile-compact-table {
   font-size: 14px !important;
 }
 
-body.capturing-screenshot table th,
-body.capturing-screenshot .mobile-compact-table th {
+body.capturing-screenshot table:not(.exec-cat-table) th,
+body.capturing-screenshot .mobile-compact-table:not(.exec-cat-table) th {
   font-size: 13.5px !important;
   font-weight: 900 !important;
   line-height: 1.25 !important;
   height: 42px !important;
   padding: 6px 4px !important;
+}
+
+body.capturing-screenshot table.exec-cat-table th {
+  font-size: 11.5px !important;
+  font-weight: 900 !important;
+  line-height: 1.2 !important;
+  height: 42px !important;
+  padding: 6px 4px !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
 }
 
 body.capturing-screenshot table td,

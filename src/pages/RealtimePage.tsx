@@ -3433,14 +3433,23 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       htmlEl.style.setProperty('transform', 'none', 'important');
     });
 
-    // 1. Remove mobile compact class
+    // 1. Remove mobile compact class & ensure Executive Header Banner stays in desktop horizontal row layout
     root.querySelectorAll('.mobile-compact-table').forEach(el => {
       el.classList.remove('mobile-compact-table');
     });
+    root.querySelectorAll('.exec-header-banner').forEach(banner => {
+      const htmlBanner = banner as HTMLElement;
+      htmlBanner.style.setProperty('display', 'flex', 'important');
+      htmlBanner.style.setProperty('flex-direction', 'row', 'important');
+      htmlBanner.style.setProperty('align-items', 'stretch', 'important');
+      htmlBanner.style.setProperty('justify-content', 'space-between', 'important');
+      htmlBanner.style.setProperty('overflow', 'hidden', 'important');
+    });
 
     // 2. Banner Titles: Force 26px font size, UTM Avo, bold, white, centered
-    root.querySelectorAll('[class*="from-[#0284C7]"] h2, [class*="from-[#1E40AF]"] h2, [class*="from-[#047857]"] h2, .bg-gradient-to-r h2').forEach(h2 => {
+    root.querySelectorAll('[class*="from-[#0284C7]"] h2, [class*="from-[#1E40AF]"] h2, [class*="from-[#047857]"] h2, .bg-gradient-to-r:not(.exec-header-banner) h2').forEach(h2 => {
       const el = h2 as HTMLElement;
+      if (el.closest('.exec-header-banner')) return;
       el.style.setProperty('font-size', '26px', 'important');
       el.style.setProperty('font-weight', '900', 'important');
       el.style.setProperty('line-height', '1.25', 'important');
@@ -3451,8 +3460,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     });
 
     // 3. Banner Subtitles: Force 13px font size, bold, white, nowrap
-    root.querySelectorAll('[class*="from-[#0284C7]"] > div, [class*="from-[#1E40AF]"] > div, [class*="from-[#047857]"] > div, .bg-gradient-to-r > div').forEach(sub => {
+    root.querySelectorAll('[class*="from-[#0284C7]"] > div, [class*="from-[#1E40AF]"] > div, [class*="from-[#047857]"] > div, .bg-gradient-to-r:not(.exec-header-banner) > div').forEach(sub => {
       const htmlSub = sub as HTMLElement;
+      if (htmlSub.closest('.exec-header-banner')) return;
       htmlSub.style.setProperty('font-size', '13px', 'important');
       htmlSub.style.setProperty('font-weight', '700', 'important');
       htmlSub.style.setProperty('white-space', 'nowrap', 'important');
@@ -3465,10 +3475,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       });
     });
 
-    // 4. Force Table Headers (th): Desktop typography (13.5px, font-black, height 42px, comfortable padding)
+    // 4. Force Table Headers (th): Desktop typography, zero clipping
     root.querySelectorAll('table th').forEach(th => {
       const htmlTh = th as HTMLElement;
-      htmlTh.style.setProperty('font-size', '13.5px', 'important');
+      const isExecCat = Boolean(htmlTh.closest('table.exec-cat-table'));
+      htmlTh.style.setProperty('font-size', isExecCat ? '11.5px' : '13.5px', 'important');
       htmlTh.style.setProperty('font-weight', '900', 'important');
       htmlTh.style.setProperty('line-height', '1.25', 'important');
       htmlTh.style.setProperty('height', '42px', 'important');
@@ -3476,36 +3487,51 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       htmlTh.style.setProperty('padding-top', '6px', 'important');
       htmlTh.style.setProperty('padding-bottom', '6px', 'important');
       htmlTh.style.setProperty('padding-right', '4px', 'important');
-      htmlTh.style.setProperty('padding-left', isLeftHeader ? '16px' : '4px', 'important');
+      htmlTh.style.setProperty('padding-left', isLeftHeader ? (isExecCat ? '12px' : '16px') : '4px', 'important');
       htmlTh.style.setProperty('box-sizing', 'border-box', 'important');
       htmlTh.style.setProperty('font-family', "'UTM Avo', sans-serif", 'important');
+      htmlTh.style.setProperty('white-space', 'nowrap', 'important');
+      htmlTh.style.setProperty('overflow', 'visible', 'important');
+      htmlTh.style.setProperty('text-overflow', 'clip', 'important');
     });
 
-    // 5. Force Table Cells (td): Desktop typography (14px, font-extrabold, height 38px, comfortable padding)
+    // 5. Force Table Cells (td): Desktop typography (14px, font-extrabold, comfortable padding)
     root.querySelectorAll('table td').forEach(td => {
       const htmlTd = td as HTMLElement;
+      const isExecCat = Boolean(htmlTd.closest('table.exec-cat-table'));
+      const isNameCell = isExecCat && (htmlTd.classList.contains('text-left') || (htmlTd as HTMLTableCellElement).cellIndex === 1);
       htmlTd.style.setProperty('font-size', '14px', 'important');
       htmlTd.style.setProperty('font-weight', '800', 'important');
-      htmlTd.style.setProperty('line-height', '1.25', 'important');
-      htmlTd.style.setProperty('height', '38px', 'important');
+      htmlTd.style.setProperty('line-height', '1.3', 'important');
+      htmlTd.style.setProperty('height', isNameCell ? 'auto' : '42px', 'important');
+      htmlTd.style.setProperty('min-height', '42px', 'important');
 
       // Preserve hierarchical indentation for drill-down / tree cells (thụt lề theo cấp danh mục)
       const depthAttr = htmlTd.getAttribute('data-depth');
       const origPaddingLeft = htmlTd.style.paddingLeft || htmlTd.getAttribute('data-padding-left');
 
-      htmlTd.style.setProperty('padding-top', '6px', 'important');
-      htmlTd.style.setProperty('padding-bottom', '6px', 'important');
-      htmlTd.style.setProperty('padding-right', '4px', 'important');
+      htmlTd.style.setProperty('padding-top', '7px', 'important');
+      htmlTd.style.setProperty('padding-bottom', '7px', 'important');
+      htmlTd.style.setProperty('padding-right', isNameCell ? '10px' : '4px', 'important');
 
       if (depthAttr !== null && depthAttr !== undefined && depthAttr !== '') {
         const d = parseInt(depthAttr, 10);
         htmlTd.style.setProperty('padding-left', `${16 + (isNaN(d) ? 0 : d) * 20}px`, 'important');
       } else if (origPaddingLeft && origPaddingLeft !== '4px' && origPaddingLeft !== '0px') {
         htmlTd.style.setProperty('padding-left', origPaddingLeft, 'important');
+      } else if (isNameCell) {
+        htmlTd.style.setProperty('padding-left', '12px', 'important');
       } else if (htmlTd.classList.contains('pl-6') || (htmlTd.textContent || '').trim() === 'TỔNG') {
         htmlTd.style.setProperty('padding-left', '16px', 'important');
       } else {
         htmlTd.style.setProperty('padding-left', '4px', 'important');
+      }
+
+      if (isNameCell) {
+        htmlTd.style.setProperty('white-space', 'normal', 'important');
+        htmlTd.style.setProperty('word-break', 'break-word', 'important');
+        htmlTd.style.setProperty('overflow', 'visible', 'important');
+        htmlTd.style.setProperty('text-overflow', 'clip', 'important');
       }
 
       htmlTd.style.setProperty('box-sizing', 'border-box', 'important');
@@ -3516,11 +3542,16 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     root.querySelectorAll('table td div, table td span').forEach(el => {
       const htmlEl = el as HTMLElement;
       htmlEl.style.setProperty('font-size', '13.5px', 'important');
-      htmlEl.style.setProperty('line-height', '1.25', 'important');
+      htmlEl.style.setProperty('line-height', '1.3', 'important');
       if (htmlEl.classList.contains('line-clamp-2') || htmlEl.classList.contains('break-words')) {
-        htmlEl.style.setProperty('font-size', '13.5px', 'important');
-        htmlEl.style.setProperty('line-height', '1.25', 'important');
+        htmlEl.style.setProperty('font-size', '13px', 'important');
+        htmlEl.style.setProperty('line-height', '1.35', 'important');
         htmlEl.style.setProperty('font-weight', '900', 'important');
+        htmlEl.style.setProperty('white-space', 'normal', 'important');
+        htmlEl.style.setProperty('word-break', 'break-word', 'important');
+        htmlEl.style.setProperty('overflow', 'visible', 'important');
+        htmlEl.style.setProperty('display', 'block', 'important');
+        (htmlEl.style as any).webkitLineClamp = 'unset';
       }
     });
 
@@ -3528,14 +3559,14 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     root.querySelectorAll('table td span[class*="rounded"]').forEach(el => {
       const htmlEl = el as HTMLElement;
       htmlEl.style.setProperty('font-size', '13px', 'important');
-      htmlEl.style.setProperty('padding', '2px 8px', 'important');
+      htmlEl.style.setProperty('padding', '3px 8px', 'important');
       htmlEl.style.setProperty('font-weight', '900', 'important');
       htmlEl.style.setProperty('display', 'inline-flex', 'important');
       htmlEl.style.setProperty('align-items', 'center', 'important');
       htmlEl.style.setProperty('justify-content', 'center', 'important');
     });
 
-    // 8. Force Table Columns to Desktop Widths (preserving generous width for NHÂN VIÊN)
+    // 8. Force Table Columns to Desktop Widths (preserving generous width for NHÂN VIÊN and Category headers)
     root.querySelectorAll('table').forEach(table => {
       const cols = table.querySelectorAll('colgroup col');
       if (cols.length === 0) return;
@@ -3566,10 +3597,10 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         });
       } else if (isCatTable && cols.length >= 6 && cols.length <= 8) {
         const desktopColWidths = cols.length === 8 
-          ? [44, 225, 66, 62, 115, 62, 70, 78]
+          ? [44, 235, 84, 70, 68, 74, 92, 128]
           : cols.length === 7 
-          ? [44, 245, 70, 66, 120, 66, 82]
-          : [44, 275, 75, 70, 125, 70];
+          ? [44, 255, 86, 74, 72, 78, 128]
+          : [44, 285, 88, 86, 76, 84];
 
         cols.forEach((col, idx) => {
           const htmlCol = col as HTMLElement;
@@ -3857,12 +3888,23 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         cells.forEach(cell => {
           const htmlCell = cell as HTMLElement;
           htmlCell.style.boxSizing = 'border-box';
-          htmlCell.style.whiteSpace = 'nowrap';
           const isStaffCell = staffColIdx >= 0 && htmlCell.matches(`td:nth-child(${staffColIdx + 1})`);
-          if (isStaffCell) {
+          const isExecCatNameCell = htmlTable.classList.contains('exec-cat-table') && htmlCell.tagName === 'TD' && (htmlCell.classList.contains('text-left') || (htmlCell as HTMLTableCellElement).cellIndex === 1);
+          if (htmlCell.tagName === 'TH') {
+            htmlCell.style.whiteSpace = 'nowrap';
+            htmlCell.style.overflow = 'visible';
+            htmlCell.style.textOverflow = 'clip';
+          } else if (isExecCatNameCell) {
+            htmlCell.style.whiteSpace = 'normal';
+            htmlCell.style.wordBreak = 'break-word';
+            htmlCell.style.overflow = 'visible';
+            htmlCell.style.textOverflow = 'clip';
+          } else if (isStaffCell) {
+            htmlCell.style.whiteSpace = 'nowrap';
             htmlCell.style.overflow = 'visible';
             htmlCell.style.textOverflow = 'clip';
           } else {
+            htmlCell.style.whiteSpace = 'nowrap';
             htmlCell.style.overflow = 'hidden';
             htmlCell.style.textOverflow = 'ellipsis';
           }
@@ -3896,9 +3938,10 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         htmlNum.style.whiteSpace = 'nowrap';
       });
 
-      // Explicitly style pastel blue table banner headers with crisp white text
-      clone.querySelectorAll('.bg-gradient-to-r h2, [class*="from-[#0284C7]"] h2, [class*="from-[#1E40AF]"] h2, [class*="from-[#047857]"] h2').forEach(h2 => {
+      // Explicitly style pastel blue table banner headers with crisp white text (excluding .exec-header-banner)
+      clone.querySelectorAll('.bg-gradient-to-r:not(.exec-header-banner) h2, [class*="from-[#0284C7]"] h2, [class*="from-[#1E40AF]"] h2, [class*="from-[#047857]"] h2').forEach(h2 => {
         const el = h2 as HTMLElement;
+        if (el.closest('.exec-header-banner')) return;
         el.style.color = '#ffffff';
         el.style.fontFamily = "'UTM Avo', sans-serif";
         el.style.fontWeight = '900';
@@ -3910,6 +3953,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       // Explicitly ensure section titles (like "CHI TIẾT NGÀNH HÀNG" and Store Name) are SOLID BLACK & explicitly named
       clone.querySelectorAll('h2, h3').forEach(header => {
         const el = header as HTMLElement;
+        if (el.closest('.exec-header-banner')) return;
         const text = (el.textContent || '').trim().normalize('NFC').toUpperCase();
         if (text.includes('CHI TIẾT NGÀNH')) {
           el.textContent = 'CHI TIẾT NGÀNH HÀNG';
@@ -3928,9 +3972,10 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         }
       });
 
-      // Ensure subtitle lines in banners are white and visible
-      clone.querySelectorAll('.bg-gradient-to-r span, .bg-gradient-to-r p, .bg-gradient-to-r div, [class*="from-[#0284C7]"] span, [class*="from-[#1E40AF]"] span, [class*="from-[#047857]"] span').forEach(node => {
+      // Ensure subtitle lines in banners are white and visible (excluding .exec-header-banner)
+      clone.querySelectorAll('.bg-gradient-to-r:not(.exec-header-banner) span, .bg-gradient-to-r:not(.exec-header-banner) p, .bg-gradient-to-r:not(.exec-header-banner) div, [class*="from-[#0284C7]"] span, [class*="from-[#1E40AF]"] span, [class*="from-[#047857]"] span').forEach(node => {
         const el = node as HTMLElement;
+        if (el.closest('.exec-header-banner')) return;
         if (el.textContent && (el.textContent.includes('Luỹ kế:') || el.textContent.includes('Realtime:') || el.textContent.includes('ĐẠT') || el.textContent.includes('TGSD'))) {
           el.style.color = '#ffffff';
           el.style.fontFamily = "'UTM Avo', sans-serif";
@@ -6081,7 +6126,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         return await captureDirectHelper(ref);
       }
 
-      const targetWidth = isOverview ? '1850px' : '820px';
+      const targetWidth = isOverview ? '1850px' : '900px';
       const dataUrl = await captureOffscreenHelper(ref.current, {
         width: targetWidth,
         minWidth: targetWidth,
@@ -6751,7 +6796,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         /* Ensure no elements inside the capturing target crop their content */
         .capturing-screenshot .capturing-target,
         .capturing-screenshot .capturing-target *,
-        .capturing-screenshot .overflow-hidden {
+        .capturing-screenshot .overflow-hidden:not(.keep-overflow-hidden) {
           overflow: visible !important;
         }
       `}} />
@@ -7517,20 +7562,20 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               className="bg-white rounded-2xl md:rounded-3xl border border-slate-200/90 shadow-[0_4px_20px_-4px_rgba(11,37,69,0.06)] overflow-hidden min-w-0 flex flex-col p-2.5 sm:p-4 self-start h-auto"
                             >
                               {/* Executive Dashboard Header Banner */}
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 mb-2.5 sm:mb-3.5 pb-0.5">
+                              <div className="exec-header-banner keep-overflow-hidden rounded-2xl border border-slate-200/90 bg-gradient-to-r from-[#F8FAFC] via-white to-[#F0F7FF] shadow-[0_2px_10px_-2px_rgba(11,37,69,0.06)] overflow-hidden flex items-stretch justify-between mb-3">
                                 {/* Left: Cart Icon + Title + Subtitle */}
-                                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                                  <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-13 md:h-13 rounded-xl sm:rounded-2xl bg-[#0B4F9C] flex items-center justify-center text-white shrink-0 shadow-sm shadow-blue-900/20">
-                                    <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={2.2} />
+                                <div className="px-3 py-2.5 sm:px-4 sm:py-3 flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+                                  <div className="w-11 h-11 sm:w-13 sm:h-13 rounded-2xl bg-gradient-to-br from-[#1E62B5] to-[#0B458C] flex items-center justify-center text-white shrink-0 shadow-sm">
+                                    <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={2.3} />
                                   </div>
                                   <div className="flex flex-col min-w-0">
                                     <h2 className="text-[17px] sm:text-[21px] md:text-[23px] font-black text-[#0B2545] uppercase tracking-wide leading-tight truncate" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                       NGÀNH HÀNG (SL)
                                     </h2>
-                                    <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 mt-0.5 text-[9.5px] sm:text-xs text-slate-500 font-bold" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                    <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 mt-0.5 text-[10px] sm:text-xs text-slate-600 font-semibold" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                                       <span className="flex items-center gap-1 whitespace-nowrap">
-                                        <Clock size={12} className="text-slate-400 shrink-0" />
-                                        Realtime: {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} – {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                                        <Clock size={12} className="text-[#1E4B7A] shrink-0" />
+                                        Realtime: {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} - {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }).replace(/\//g, '-')}
                                       </span>
                                       <span className="text-slate-300 font-normal">|</span>
                                       <span className="text-[#0B2545] font-black whitespace-nowrap">
@@ -7538,41 +7583,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                       </span>
                                     </div>
                                   </div>
-                                </div>
-
-                                {/* Right: Summary KPI Badge & Action Buttons */}
-                                <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
-                                  {/* Dark Navy Executive KPI Badge */}
-                                  <div className="relative overflow-hidden bg-gradient-to-br from-[#0B2545] to-[#081B33] rounded-xl sm:rounded-2xl px-3 py-1 sm:px-4 sm:py-1.5 text-white flex items-center gap-2.5 sm:gap-3.5 shadow-sm border border-slate-700/30">
-                                    <div className="absolute -top-6 -left-6 w-14 h-14 bg-blue-500/15 rounded-full blur-md pointer-events-none" />
-                                    
-                                    {/* 3-bar chart icon */}
-                                    <div className="flex items-end gap-[2px] h-5 sm:h-5.5 text-sky-400 shrink-0">
-                                      <div className="w-[3px] h-2 bg-sky-400 rounded-xs" />
-                                      <div className="w-[3px] h-3.5 bg-sky-400 rounded-xs" />
-                                      <div className="w-[3px] h-5 bg-sky-400 rounded-xs" />
-                                    </div>
-
-                                    {/* Total Categories Metric */}
-                                    <div className="flex flex-col items-center">
-                                      <span className="text-[7.5px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-300 whitespace-nowrap">TỔNG NGÀNH HÀNG</span>
-                                      <span className="text-base sm:text-xl font-black text-white leading-none mt-0.5">{visibleCategoriesSL.length}</span>
-                                    </div>
-
-                                    {/* Vertical separator */}
-                                    <div className="w-[1px] h-5.5 sm:h-6 bg-white/20" />
-
-                                    {/* Reached Metric */}
-                                    <div className="flex flex-col items-center">
-                                      <span className="text-[7.5px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-300 whitespace-nowrap">ĐẠT</span>
-                                      <span className="text-base sm:text-xl font-black text-[#10B981] leading-none mt-0.5">
-                                        {visibleCategoriesSL.filter(c => Math.round(c.rate || 0) >= 100).length}
-                                      </span>
-                                    </div>
-                                  </div>
 
                                   {/* Toolbar Action Buttons (no-capture) */}
-                                  <div className="no-capture flex items-center gap-1 sm:gap-1.5">
+                                  <div className="no-capture ml-auto flex items-center gap-1 sm:gap-1.5 shrink-0">
                                     <button
                                       onClick={() => {
                                         setCategoryFilterActiveTab('SL');
@@ -7595,6 +7608,46 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                     >
                                       <Camera size={14} className="sm:w-4 sm:h-4" />
                                     </button>
+                                  </div>
+                                </div>
+
+                                {/* Right: Diagonal Ribbons + Dark Navy Executive KPI Section */}
+                                <div className="flex items-stretch shrink-0">
+                                  <svg viewBox="0 0 60 100" preserveAspectRatio="none" className="w-9 sm:w-13 h-full shrink-0 block -mr-[1px]">
+                                    <defs>
+                                      <linearGradient id="slSlashGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="#1E6CE6" />
+                                        <stop offset="100%" stopColor="#0D47A1" />
+                                      </linearGradient>
+                                    </defs>
+                                    <polygon points="24,0 42,0 18,100 0,100" fill="#DCEBFA" />
+                                    <polygon points="42,0 60,0 36,100 18,100" fill="url(#slSlashGrad)" />
+                                    <polygon points="60,0 60,100 36,100" fill="#0B2D59" />
+                                  </svg>
+                                  <div className="bg-gradient-to-r from-[#0B2D59] via-[#092347] to-[#061730] pl-2 pr-3.5 sm:pl-3 sm:pr-5 py-2 text-white flex items-center gap-2.5 sm:gap-4">
+                                    {/* 3-bar chart icon */}
+                                    <div className="flex items-end gap-[3px] h-5 sm:h-6 shrink-0">
+                                      <div className="w-[4px] sm:w-[4.5px] h-2.5 bg-[#6290B8] rounded-[1.5px]" />
+                                      <div className="w-[4px] sm:w-[4.5px] h-4 bg-[#6290B8] rounded-[1.5px]" />
+                                      <div className="w-[4px] sm:w-[4.5px] h-5.5 sm:h-6 bg-[#6290B8] rounded-[1.5px]" />
+                                    </div>
+
+                                    {/* Total Categories Metric */}
+                                    <div className="flex flex-col items-start justify-center">
+                                      <span className="text-[7.5px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-200 whitespace-nowrap leading-none">TỔNG NGÀNH HÀNG</span>
+                                      <span className="text-lg sm:text-2xl font-black text-white leading-none mt-1">{visibleCategoriesSL.length}</span>
+                                    </div>
+
+                                    {/* Vertical separator */}
+                                    <div className="w-[1px] h-6 sm:h-7 bg-white/20 shrink-0" />
+
+                                    {/* Reached Metric */}
+                                    <div className="flex flex-col items-center justify-center min-w-[26px]">
+                                      <span className="text-[7.5px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-200 whitespace-nowrap leading-none">ĐẠT</span>
+                                      <span className="text-lg sm:text-2xl font-black text-[#10B981] leading-none mt-1">
+                                        {visibleCategoriesSL.filter(c => Math.round(c.rate || 0) >= 100).length}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -7639,41 +7692,41 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
                               {/* Executive Data Table */}
                               <div className="overflow-x-auto w-full rounded-xl sm:rounded-2xl border border-slate-200/90 shadow-2xs custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
-                                <table className="w-full min-w-[540px] sm:min-w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                <table className="exec-cat-table w-full min-w-[640px] sm:min-w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                                   <colgroup>
-                                    <col style={{ width: '45px', minWidth: '40px' }} />
-                                    <col style={{ width: 'auto', minWidth: '160px' }} />
-                                    <col style={{ width: '68px', minWidth: '58px' }} />
-                                    <col style={{ width: '68px', minWidth: '58px' }} />
-                                    <col style={{ width: '120px', minWidth: '105px' }} />
-                                    <col style={{ width: '68px', minWidth: '58px' }} />
-                                    {showOrangeCols && showLuykeColumn && <col style={{ width: '78px', minWidth: '65px' }} />}
-                                    {showOrangeCols && <col style={{ width: '88px', minWidth: '72px' }} />}
+                                    <col style={{ width: '44px', minWidth: '40px' }} />
+                                    <col style={{ width: 'auto', minWidth: '165px' }} />
+                                    <col style={{ width: '78px', minWidth: '68px' }} />
+                                    <col style={{ width: '68px', minWidth: '60px' }} />
+                                    <col style={{ width: '66px', minWidth: '58px' }} />
+                                    <col style={{ width: '72px', minWidth: '64px' }} />
+                                    {showOrangeCols && showLuykeColumn && <col style={{ width: '88px', minWidth: '78px' }} />}
+                                    {showOrangeCols && <col style={{ width: '118px', minWidth: '105px' }} />}
                                   </colgroup>
                                   <thead>
-                                    <tr className="text-white h-10 sm:h-11 bg-[#0F3A66]">
-                                      <th className="px-1 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">STT</th>
-                                      <th className="px-3 py-0 text-[10.5px] sm:text-[12px] font-black uppercase text-left border-r border-blue-900/60 whitespace-nowrap overflow-hidden">NGÀNH HÀNG</th>
-                                      <th className="px-1.5 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">
-                                        <span className="inline-flex items-center justify-center gap-1"><Target size={12} className="text-white/80 shrink-0" />TARGET</span>
+                                    <tr className="text-white h-10 sm:h-11">
+                                      <th className="px-1 py-0 text-[10px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] rounded-tl-xl whitespace-nowrap">STT</th>
+                                      <th className="px-3 py-0 text-[10.5px] sm:text-[11.5px] font-black uppercase text-left border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] whitespace-nowrap">NGÀNH HÀNG</th>
+                                      <th className="px-1 py-0 text-[10px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] whitespace-nowrap">
+                                        <span className="inline-flex items-center justify-center gap-1"><Target size={12} className="text-white/90 shrink-0" />TARGET</span>
                                       </th>
-                                      <th className="px-1.5 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">
-                                        <span className="inline-flex items-center justify-center gap-1"><BarChart3 size={12} className="text-white/80 shrink-0" />REAL</span>
+                                      <th className="px-1 py-0 text-[10px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] whitespace-nowrap">
+                                        <span className="inline-flex items-center justify-center gap-1"><BarChart3 size={12} className="text-white/90 shrink-0" />REAL</span>
                                       </th>
-                                      <th className="px-2 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">
-                                        <span className="inline-flex items-center justify-center gap-1"><PieChart size={12} className="text-white/80 shrink-0" />%HT</span>
+                                      <th className="px-1 py-0 text-[10px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] rounded-tr-lg whitespace-nowrap">
+                                        <span className="inline-flex items-center justify-center gap-1"><PieChart size={12} className="text-white/90 shrink-0" />%HT</span>
                                       </th>
-                                      <th className="px-1.5 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">
-                                        <span className="inline-flex items-center justify-center gap-1"><FileText size={12} className="text-white/80 shrink-0" />C.LẠI</span>
+                                      <th className="px-1 py-0 text-[10px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] rounded-t-lg whitespace-nowrap">
+                                        <span className="inline-flex items-center justify-center gap-1"><FileText size={12} className="text-white/90 shrink-0" />C.LẠI</span>
                                       </th>
                                       {showOrangeCols && showLuykeColumn && (
-                                        <th className="px-1.5 py-0 text-[9.5px] sm:text-[11px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">
-                                          <span className="inline-flex items-center justify-center gap-1"><Package size={12} className="text-white/80 shrink-0" />LK C.LẠI</span>
+                                        <th className="px-1 py-0 text-[10px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#184E8A] via-[#113F73] to-[#0A2E57] rounded-t-lg whitespace-nowrap">
+                                          <span className="inline-flex items-center justify-center gap-1"><Package size={12} className="text-white/90 shrink-0" />LK C.LẠI</span>
                                         </th>
                                       )}
                                       {showOrangeCols && (
-                                        <th className="px-1.5 py-0 text-[9.5px] sm:text-[11px] font-black uppercase text-center whitespace-nowrap overflow-hidden">
-                                          <span className="inline-flex items-center justify-center gap-1"><Calendar size={12} className="text-white/80 shrink-0" />M.TIÊU / NGÀY</span>
+                                        <th className="px-1 py-0 text-[10px] sm:text-[11px] font-black uppercase text-center bg-gradient-to-b from-[#143F70] via-[#0E3159] to-[#08213F] rounded-t-lg whitespace-nowrap">
+                                          <span className="inline-flex items-center justify-center gap-1"><Calendar size={12} className="text-white/90 shrink-0" />M.TIÊU / NGÀY</span>
                                         </th>
                                       )}
                                     </tr>
@@ -7696,24 +7749,24 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         const isReached = rate >= 100;
                                         const isZero = rate === 0;
                                         const isEven = idx % 2 === 0;
-                                        const rowBg = isZero ? 'bg-[#FFF8F8]' : (isEven ? 'bg-white' : 'bg-[#F8FAFC]');
+                                        const rowBg = isEven ? 'bg-white' : 'bg-[#F8FAFC]';
 
                                         return (
                                           <tr 
                                             key={idx} 
-                                            className={`${rowBg} hover:bg-blue-50/40 transition-colors h-11 sm:h-12 border-b border-slate-100`}
+                                            className={`${rowBg} hover:bg-blue-50/40 transition-colors min-h-[44px] sm:min-h-[48px] border-b border-slate-100`}
                                           >
                                             {/* STT */}
-                                            <td className="px-1 py-1 text-center border-r border-slate-100 whitespace-nowrap">
-                                              <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-[#EBF3FC] text-[#0B4F9C] font-black text-[11px] sm:text-xs flex items-center justify-center mx-auto shadow-2xs">
+                                            <td className="px-1 py-1.5 text-center border-r border-slate-100 whitespace-nowrap">
+                                              <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-[#E6F0FA] text-[#0F3A66] font-black text-[11px] sm:text-xs flex items-center justify-center mx-auto">
                                                 {idx + 1}
                                               </span>
                                             </td>
 
                                             {/* NGÀNH HÀNG */}
-                                            <td className="px-2.5 sm:px-3 py-1 text-left border-r border-slate-100">
+                                            <td className="px-2.5 sm:px-3 py-1.5 text-left border-r border-slate-100">
                                               <div 
-                                                className={`font-black uppercase text-[11px] sm:text-[12.5px] md:text-[13px] leading-snug break-words ${isReached ? "text-slate-900" : (isZero ? "text-[#E11D48]" : "text-slate-800")}`} 
+                                                className={`font-black uppercase text-[11px] sm:text-[12.5px] md:text-[13px] leading-snug break-words whitespace-normal ${isZero ? "text-[#E11D48]" : "text-[#0F172A]"}`} 
                                                 title={cat.name}
                                               >
                                                 {cat.name}
@@ -7721,44 +7774,30 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                             </td>
 
                                             {/* TARGET */}
-                                            <td className="px-1.5 py-1 text-center border-r border-slate-100 font-extrabold text-[12.5px] sm:text-[14px] text-slate-800 whitespace-nowrap">
+                                            <td className={`px-1.5 py-1.5 text-center border-r border-slate-100 whitespace-nowrap ${cat.target > 0 ? "font-extrabold text-[13px] sm:text-[14.5px] text-[#0F172A]" : "font-semibold text-[13px] text-slate-400"}`}>
                                               {cat.target > 0 ? Math.round(cat.target).toLocaleString('vi-VN') : "-"}
                                             </td>
 
                                             {/* REAL */}
-                                            <td className="px-1.5 py-1 text-center border-r border-slate-100 font-black text-[12.5px] sm:text-[14px] text-[#0B4F9C] whitespace-nowrap">
+                                            <td className={`px-1.5 py-1.5 text-center border-r border-slate-100 whitespace-nowrap ${cat.revenue > 0 ? "font-black text-[13px] sm:text-[14.5px] text-[#0052CC]" : "font-semibold text-[13px] text-slate-400"}`}>
                                               {cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString('vi-VN') : "-"}
                                             </td>
 
-                                            {/* %HT with Progress Bar */}
-                                            <td className="px-1.5 sm:px-2 py-1 text-center border-r border-slate-100 whitespace-nowrap">
-                                              <div className="inline-flex items-center justify-center gap-1.5 sm:gap-2">
-                                                <span className={`px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[12px] min-w-[42px] sm:min-w-[46px] text-center leading-none ${isReached ? "bg-[#DCFCE7] text-[#16A34A]" : "bg-[#FFE4E6] text-[#E11D48]"}`}>
-                                                  {rate}%
-                                                </span>
-                                                <div className="w-10 sm:w-14 h-2 rounded-full bg-slate-100 overflow-hidden shrink-0 flex items-center">
-                                                  {isReached ? (
-                                                    <div className="w-full h-full bg-[#10B981] rounded-full" />
-                                                  ) : rate > 0 ? (
-                                                    <div 
-                                                      className="h-full bg-[#F43F5E] rounded-full" 
-                                                      style={{ width: `${Math.min(100, Math.max(10, rate))}%` }} 
-                                                    />
-                                                  ) : (
-                                                    <div className="w-full h-full bg-transparent" />
-                                                  )}
-                                                </div>
-                                              </div>
+                                            {/* %HT (No progress bar per requirement) */}
+                                            <td className="px-1.5 py-1.5 text-center border-r border-slate-100 whitespace-nowrap">
+                                              <span className={`inline-flex items-center justify-center px-2 py-1 rounded-lg font-black text-[11px] sm:text-[12px] min-w-[44px] sm:min-w-[48px] text-center leading-none ${isReached ? "bg-[#DCFCE7] text-[#15803D]" : "bg-[#FFE4E6] text-[#E11D48]"}`}>
+                                                {rate}%
+                                              </span>
                                             </td>
 
                                             {/* C.LẠI */}
-                                            <td className="px-1.5 py-1 text-center border-r border-slate-100 font-black text-[12.5px] sm:text-[14px] whitespace-nowrap text-[#E11D48]">
+                                            <td className={`px-1.5 py-1.5 text-center border-r border-slate-100 whitespace-nowrap ${remaining > 0 ? "font-black text-[13px] sm:text-[14.5px] text-[#E11D48]" : "font-semibold text-[13px] text-slate-400"}`}>
                                               {remaining > 0 ? Math.round(remaining).toLocaleString('vi-VN') : "-"}
                                             </td>
 
                                             {/* LK C.LẠI */}
                                             {showOrangeCols && showLuykeColumn && (
-                                              <td className="px-1.5 py-1 text-center border-r border-slate-100 font-black text-[12.5px] sm:text-[14px] text-[#0B4F9C] whitespace-nowrap">
+                                              <td className={`px-1.5 py-1.5 text-center border-r border-slate-100 whitespace-nowrap ${lkRemaining ? "font-black text-[13px] sm:text-[14.5px] text-[#0052CC]" : "font-semibold text-[13px] text-slate-400"}`}>
                                                 {lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString('vi-VN') : "-"}
                                               </td>
                                             )}
@@ -7766,11 +7805,17 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                             {/* M.TIÊU / NGÀY */}
                                             {showOrangeCols && (() => {
                                               const lkCat = luykeCatMap.get(lkKey);
-                                              if (!lkCat || lkCat.target === 0) return <td className="px-1.5 py-1 text-center font-bold text-slate-400 whitespace-nowrap">-</td>;
+                                              if (!lkCat || lkCat.target === 0) return <td className="px-1.5 py-1.5 text-center font-semibold text-[13px] text-slate-400 whitespace-nowrap">-</td>;
                                               const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
                                               return (
-                                                <td className={`px-1.5 py-1 text-center font-black text-[12.5px] sm:text-[14px] whitespace-nowrap ${mucTieu > 0 ? "text-[#E11D48]" : "text-[#10B981]"}`}>
-                                                  {mucTieu > 0 ? Math.round(mucTieu).toLocaleString('vi-VN') : "-"}
+                                                <td className="p-1 text-center whitespace-nowrap">
+                                                  {mucTieu > 0 ? (
+                                                    <div className="w-full py-1.5 px-1 rounded-lg bg-[#FFF1F2] text-[#E11D48] font-black text-[13px] sm:text-[14.5px] flex items-center justify-center">
+                                                      {Math.round(mucTieu).toLocaleString('vi-VN')}
+                                                    </div>
+                                                  ) : (
+                                                    <span className="font-semibold text-[13px] text-slate-400">-</span>
+                                                  )}
                                                 </td>
                                               );
                                             })()}
@@ -7788,20 +7833,20 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               className="bg-white rounded-2xl md:rounded-3xl border border-slate-200/90 shadow-[0_4px_20px_-4px_rgba(11,37,69,0.06)] overflow-hidden min-w-0 flex flex-col p-2.5 sm:p-4 self-start h-auto"
                             >
                               {/* Executive Dashboard Header Banner */}
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 mb-2.5 sm:mb-3.5 pb-0.5">
+                              <div className="exec-header-banner keep-overflow-hidden rounded-2xl border border-slate-200/90 bg-gradient-to-r from-[#F8FAFC] via-white to-[#F0F7FF] shadow-[0_2px_10px_-2px_rgba(11,37,69,0.06)] overflow-hidden flex items-stretch justify-between mb-3">
                                 {/* Left: TrendingUp Icon + Title + Subtitle */}
-                                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                                  <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-13 md:h-13 rounded-xl sm:rounded-2xl bg-[#0B4F9C] flex items-center justify-center text-white shrink-0 shadow-sm shadow-blue-900/20">
-                                    <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={2.2} />
+                                <div className="px-3 py-2.5 sm:px-4 sm:py-3 flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+                                  <div className="w-11 h-11 sm:w-13 sm:h-13 rounded-2xl bg-gradient-to-br from-[#1E62B5] to-[#0B458C] flex items-center justify-center text-white shrink-0 shadow-sm">
+                                    <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={2.3} />
                                   </div>
                                   <div className="flex flex-col min-w-0">
                                     <h2 className="text-[17px] sm:text-[21px] md:text-[23px] font-black text-[#0B2545] uppercase tracking-wide leading-tight truncate" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                       NGÀNH HÀNG (DT)
                                     </h2>
-                                    <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 mt-0.5 text-[9.5px] sm:text-xs text-slate-500 font-bold" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                    <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 mt-0.5 text-[10px] sm:text-xs text-slate-600 font-semibold" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                                       <span className="flex items-center gap-1 whitespace-nowrap">
-                                        <Clock size={12} className="text-slate-400 shrink-0" />
-                                        Realtime: {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} – {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                                        <Clock size={12} className="text-[#1E4B7A] shrink-0" />
+                                        Realtime: {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} - {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }).replace(/\//g, '-')}
                                       </span>
                                       <span className="text-slate-300 font-normal">|</span>
                                       <span className="text-[#0B2545] font-black whitespace-nowrap">
@@ -7809,41 +7854,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                       </span>
                                     </div>
                                   </div>
-                                </div>
-
-                                {/* Right: Summary KPI Badge & Action Buttons */}
-                                <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
-                                  {/* Dark Navy Executive KPI Badge */}
-                                  <div className="relative overflow-hidden bg-gradient-to-br from-[#0B2545] to-[#081B33] rounded-xl sm:rounded-2xl px-3 py-1 sm:px-4 sm:py-1.5 text-white flex items-center gap-2.5 sm:gap-3.5 shadow-sm border border-slate-700/30">
-                                    <div className="absolute -top-6 -left-6 w-14 h-14 bg-blue-500/15 rounded-full blur-md pointer-events-none" />
-                                    
-                                    {/* 3-bar chart icon */}
-                                    <div className="flex items-end gap-[2px] h-5 sm:h-5.5 text-sky-400 shrink-0">
-                                      <div className="w-[3px] h-2 bg-sky-400 rounded-xs" />
-                                      <div className="w-[3px] h-3.5 bg-sky-400 rounded-xs" />
-                                      <div className="w-[3px] h-5 bg-sky-400 rounded-xs" />
-                                    </div>
-
-                                    {/* Total Categories Metric */}
-                                    <div className="flex flex-col items-center">
-                                      <span className="text-[7.5px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-300 whitespace-nowrap">TỔNG NGÀNH HÀNG</span>
-                                      <span className="text-base sm:text-xl font-black text-white leading-none mt-0.5">{visibleCategoriesDT.length}</span>
-                                    </div>
-
-                                    {/* Vertical separator */}
-                                    <div className="w-[1px] h-5.5 sm:h-6 bg-white/20" />
-
-                                    {/* Reached Metric */}
-                                    <div className="flex flex-col items-center">
-                                      <span className="text-[7.5px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-300 whitespace-nowrap">ĐẠT</span>
-                                      <span className="text-base sm:text-xl font-black text-[#10B981] leading-none mt-0.5">
-                                        {visibleCategoriesDT.filter(c => Math.round(c.rate || 0) >= 100).length}
-                                      </span>
-                                    </div>
-                                  </div>
 
                                   {/* Toolbar Action Buttons (no-capture) */}
-                                  <div className="no-capture flex items-center gap-1 sm:gap-1.5">
+                                  <div className="no-capture ml-auto flex items-center gap-1 sm:gap-1.5 shrink-0">
                                     <button
                                       onClick={() => {
                                         setCategoryFilterActiveTab('DT');
@@ -7866,6 +7879,46 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                     >
                                       <Camera size={14} className="sm:w-4 sm:h-4" />
                                     </button>
+                                  </div>
+                                </div>
+
+                                {/* Right: Diagonal Ribbons + Dark Navy Executive KPI Section */}
+                                <div className="flex items-stretch shrink-0">
+                                  <svg viewBox="0 0 60 100" preserveAspectRatio="none" className="w-9 sm:w-13 h-full shrink-0 block -mr-[1px]">
+                                    <defs>
+                                      <linearGradient id="dtSlashGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="#1E6CE6" />
+                                        <stop offset="100%" stopColor="#0D47A1" />
+                                      </linearGradient>
+                                    </defs>
+                                    <polygon points="24,0 42,0 18,100 0,100" fill="#DCEBFA" />
+                                    <polygon points="42,0 60,0 36,100 18,100" fill="url(#dtSlashGrad)" />
+                                    <polygon points="60,0 60,100 36,100" fill="#0B2D59" />
+                                  </svg>
+                                  <div className="bg-gradient-to-r from-[#0B2D59] via-[#092347] to-[#061730] pl-2 pr-3.5 sm:pl-3 sm:pr-5 py-2 text-white flex items-center gap-2.5 sm:gap-4">
+                                    {/* 3-bar chart icon */}
+                                    <div className="flex items-end gap-[3px] h-5 sm:h-6 shrink-0">
+                                      <div className="w-[4px] sm:w-[4.5px] h-2.5 bg-[#6290B8] rounded-[1.5px]" />
+                                      <div className="w-[4px] sm:w-[4.5px] h-4 bg-[#6290B8] rounded-[1.5px]" />
+                                      <div className="w-[4px] sm:w-[4.5px] h-5.5 sm:h-6 bg-[#6290B8] rounded-[1.5px]" />
+                                    </div>
+
+                                    {/* Total Categories Metric */}
+                                    <div className="flex flex-col items-start justify-center">
+                                      <span className="text-[7.5px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-200 whitespace-nowrap leading-none">TỔNG NGÀNH HÀNG</span>
+                                      <span className="text-lg sm:text-2xl font-black text-white leading-none mt-1">{visibleCategoriesDT.length}</span>
+                                    </div>
+
+                                    {/* Vertical separator */}
+                                    <div className="w-[1px] h-6 sm:h-7 bg-white/20 shrink-0" />
+
+                                    {/* Reached Metric */}
+                                    <div className="flex flex-col items-center justify-center min-w-[26px]">
+                                      <span className="text-[7.5px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-200 whitespace-nowrap leading-none">ĐẠT</span>
+                                      <span className="text-lg sm:text-2xl font-black text-[#10B981] leading-none mt-1">
+                                        {visibleCategoriesDT.filter(c => Math.round(c.rate || 0) >= 100).length}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -7910,41 +7963,41 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
                               {/* Executive Data Table */}
                               <div className="overflow-x-auto w-full rounded-xl sm:rounded-2xl border border-slate-200/90 shadow-2xs custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
-                                <table className="w-full min-w-[540px] sm:min-w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                <table className="exec-cat-table w-full min-w-[640px] sm:min-w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                                   <colgroup>
-                                    <col style={{ width: '45px', minWidth: '40px' }} />
-                                    <col style={{ width: 'auto', minWidth: '160px' }} />
-                                    <col style={{ width: '68px', minWidth: '58px' }} />
-                                    <col style={{ width: '68px', minWidth: '58px' }} />
-                                    <col style={{ width: '120px', minWidth: '105px' }} />
-                                    <col style={{ width: '68px', minWidth: '58px' }} />
-                                    {showOrangeCols && showLuykeColumn && <col style={{ width: '78px', minWidth: '65px' }} />}
-                                    {showOrangeCols && <col style={{ width: '88px', minWidth: '72px' }} />}
+                                    <col style={{ width: '44px', minWidth: '40px' }} />
+                                    <col style={{ width: 'auto', minWidth: '165px' }} />
+                                    <col style={{ width: '78px', minWidth: '68px' }} />
+                                    <col style={{ width: '68px', minWidth: '60px' }} />
+                                    <col style={{ width: '66px', minWidth: '58px' }} />
+                                    <col style={{ width: '72px', minWidth: '64px' }} />
+                                    {showOrangeCols && showLuykeColumn && <col style={{ width: '88px', minWidth: '78px' }} />}
+                                    {showOrangeCols && <col style={{ width: '118px', minWidth: '105px' }} />}
                                   </colgroup>
                                   <thead>
-                                    <tr className="text-white h-10 sm:h-11 bg-[#0F3A66]">
-                                      <th className="px-1 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">STT</th>
-                                      <th className="px-3 py-0 text-[10.5px] sm:text-[12px] font-black uppercase text-left border-r border-blue-900/60 whitespace-nowrap overflow-hidden">NGÀNH HÀNG</th>
-                                      <th className="px-1.5 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">
-                                        <span className="inline-flex items-center justify-center gap-1"><Target size={12} className="text-white/80 shrink-0" />TARGET</span>
+                                    <tr className="text-white h-10 sm:h-11">
+                                      <th className="px-1 py-0 text-[10px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] rounded-tl-xl whitespace-nowrap">STT</th>
+                                      <th className="px-3 py-0 text-[10.5px] sm:text-[11.5px] font-black uppercase text-left border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] whitespace-nowrap">NGÀNH HÀNG</th>
+                                      <th className="px-1 py-0 text-[10px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] whitespace-nowrap">
+                                        <span className="inline-flex items-center justify-center gap-1"><Target size={12} className="text-white/90 shrink-0" />TARGET</span>
                                       </th>
-                                      <th className="px-1.5 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">
-                                        <span className="inline-flex items-center justify-center gap-1"><BarChart3 size={12} className="text-white/80 shrink-0" />REAL</span>
+                                      <th className="px-1 py-0 text-[10px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] whitespace-nowrap">
+                                        <span className="inline-flex items-center justify-center gap-1"><BarChart3 size={12} className="text-white/90 shrink-0" />REAL</span>
                                       </th>
-                                      <th className="px-2 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">
-                                        <span className="inline-flex items-center justify-center gap-1"><PieChart size={12} className="text-white/80 shrink-0" />%HT</span>
+                                      <th className="px-1 py-0 text-[10px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] rounded-tr-lg whitespace-nowrap">
+                                        <span className="inline-flex items-center justify-center gap-1"><PieChart size={12} className="text-white/90 shrink-0" />%HT</span>
                                       </th>
-                                      <th className="px-1.5 py-0 text-[10px] sm:text-[11.5px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">
-                                        <span className="inline-flex items-center justify-center gap-1"><FileText size={12} className="text-white/80 shrink-0" />C.LẠI</span>
+                                      <th className="px-1 py-0 text-[10px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] rounded-t-lg whitespace-nowrap">
+                                        <span className="inline-flex items-center justify-center gap-1"><FileText size={12} className="text-white/90 shrink-0" />C.LẠI</span>
                                       </th>
                                       {showOrangeCols && showLuykeColumn && (
-                                        <th className="px-1.5 py-0 text-[9.5px] sm:text-[11px] font-black uppercase text-center border-r border-blue-900/60 whitespace-nowrap overflow-hidden">
-                                          <span className="inline-flex items-center justify-center gap-1"><Package size={12} className="text-white/80 shrink-0" />LK C.LẠI</span>
+                                        <th className="px-1 py-0 text-[10px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#184E8A] via-[#113F73] to-[#0A2E57] rounded-t-lg whitespace-nowrap">
+                                          <span className="inline-flex items-center justify-center gap-1"><Package size={12} className="text-white/90 shrink-0" />LK C.LẠI</span>
                                         </th>
                                       )}
                                       {showOrangeCols && (
-                                        <th className="px-1.5 py-0 text-[9.5px] sm:text-[11px] font-black uppercase text-center whitespace-nowrap overflow-hidden">
-                                          <span className="inline-flex items-center justify-center gap-1"><Calendar size={12} className="text-white/80 shrink-0" />M.TIÊU / NGÀY</span>
+                                        <th className="px-1 py-0 text-[10px] sm:text-[11px] font-black uppercase text-center bg-gradient-to-b from-[#143F70] via-[#0E3159] to-[#08213F] rounded-t-lg whitespace-nowrap">
+                                          <span className="inline-flex items-center justify-center gap-1"><Calendar size={12} className="text-white/90 shrink-0" />M.TIÊU / NGÀY</span>
                                         </th>
                                       )}
                                     </tr>
@@ -7967,24 +8020,24 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         const isReached = rate >= 100;
                                         const isZero = rate === 0;
                                         const isEven = idx % 2 === 0;
-                                        const rowBg = isZero ? 'bg-[#FFF8F8]' : (isEven ? 'bg-white' : 'bg-[#F8FAFC]');
+                                        const rowBg = isEven ? 'bg-white' : 'bg-[#F8FAFC]';
 
                                         return (
                                           <tr 
                                             key={idx} 
-                                            className={`${rowBg} hover:bg-blue-50/40 transition-colors h-11 sm:h-12 border-b border-slate-100`}
+                                            className={`${rowBg} hover:bg-blue-50/40 transition-colors min-h-[44px] sm:min-h-[48px] border-b border-slate-100`}
                                           >
                                             {/* STT */}
-                                            <td className="px-1 py-1 text-center border-r border-slate-100 whitespace-nowrap">
-                                              <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-[#EBF3FC] text-[#0B4F9C] font-black text-[11px] sm:text-xs flex items-center justify-center mx-auto shadow-2xs">
+                                            <td className="px-1 py-1.5 text-center border-r border-slate-100 whitespace-nowrap">
+                                              <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-[#E6F0FA] text-[#0F3A66] font-black text-[11px] sm:text-xs flex items-center justify-center mx-auto">
                                                 {idx + 1}
                                               </span>
                                             </td>
 
                                             {/* NGÀNH HÀNG */}
-                                            <td className="px-2.5 sm:px-3 py-1 text-left border-r border-slate-100">
+                                            <td className="px-2.5 sm:px-3 py-1.5 text-left border-r border-slate-100">
                                               <div 
-                                                className={`font-black uppercase text-[11px] sm:text-[12.5px] md:text-[13px] leading-snug break-words ${isReached ? "text-slate-900" : (isZero ? "text-[#E11D48]" : "text-slate-800")}`} 
+                                                className={`font-black uppercase text-[11px] sm:text-[12.5px] md:text-[13px] leading-snug break-words whitespace-normal ${isZero ? "text-[#E11D48]" : "text-[#0F172A]"}`} 
                                                 title={cat.name}
                                               >
                                                 {cat.name}
@@ -7992,44 +8045,30 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                             </td>
 
                                             {/* TARGET */}
-                                            <td className="px-1.5 py-1 text-center border-r border-slate-100 font-extrabold text-[12.5px] sm:text-[14px] text-slate-800 whitespace-nowrap">
+                                            <td className={`px-1.5 py-1.5 text-center border-r border-slate-100 whitespace-nowrap ${cat.target > 0 ? "font-extrabold text-[13px] sm:text-[14.5px] text-[#0F172A]" : "font-semibold text-[13px] text-slate-400"}`}>
                                               {cat.target > 0 ? Math.round(cat.target).toLocaleString('vi-VN') : "-"}
                                             </td>
 
                                             {/* REAL */}
-                                            <td className="px-1.5 py-1 text-center border-r border-slate-100 font-black text-[12.5px] sm:text-[14px] text-[#0B4F9C] whitespace-nowrap">
+                                            <td className={`px-1.5 py-1.5 text-center border-r border-slate-100 whitespace-nowrap ${cat.revenue !== 0 ? "font-black text-[13px] sm:text-[14.5px] text-[#0052CC]" : "font-semibold text-[13px] text-slate-400"}`}>
                                               {cat.revenue === 0 ? "-" : Math.round(cat.revenue).toLocaleString('vi-VN')}
                                             </td>
 
-                                            {/* %HT with Progress Bar */}
-                                            <td className="px-1.5 sm:px-2 py-1 text-center border-r border-slate-100 whitespace-nowrap">
-                                              <div className="inline-flex items-center justify-center gap-1.5 sm:gap-2">
-                                                <span className={`px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[12px] min-w-[42px] sm:min-w-[46px] text-center leading-none ${isReached ? "bg-[#DCFCE7] text-[#16A34A]" : "bg-[#FFE4E6] text-[#E11D48]"}`}>
-                                                  {rate}%
-                                                </span>
-                                                <div className="w-10 sm:w-14 h-2 rounded-full bg-slate-100 overflow-hidden shrink-0 flex items-center">
-                                                  {isReached ? (
-                                                    <div className="w-full h-full bg-[#10B981] rounded-full" />
-                                                  ) : rate > 0 ? (
-                                                    <div 
-                                                      className="h-full bg-[#F43F5E] rounded-full" 
-                                                      style={{ width: `${Math.min(100, Math.max(10, rate))}%` }} 
-                                                    />
-                                                  ) : (
-                                                    <div className="w-full h-full bg-transparent" />
-                                                  )}
-                                                </div>
-                                              </div>
+                                            {/* %HT (No progress bar per requirement) */}
+                                            <td className="px-1.5 py-1.5 text-center border-r border-slate-100 whitespace-nowrap">
+                                              <span className={`inline-flex items-center justify-center px-2 py-1 rounded-lg font-black text-[11px] sm:text-[12px] min-w-[44px] sm:min-w-[48px] text-center leading-none ${isReached ? "bg-[#DCFCE7] text-[#15803D]" : "bg-[#FFE4E6] text-[#E11D48]"}`}>
+                                                {rate}%
+                                              </span>
                                             </td>
 
                                             {/* C.LẠI */}
-                                            <td className="px-1.5 py-1 text-center border-r border-slate-100 font-black text-[12.5px] sm:text-[14px] whitespace-nowrap text-[#E11D48]">
+                                            <td className={`px-1.5 py-1.5 text-center border-r border-slate-100 whitespace-nowrap ${remaining > 0 ? "font-black text-[13px] sm:text-[14.5px] text-[#E11D48]" : "font-semibold text-[13px] text-slate-400"}`}>
                                               {remaining > 0 ? Math.round(remaining).toLocaleString('vi-VN') : "-"}
                                             </td>
 
                                             {/* LK C.LẠI */}
                                             {showOrangeCols && showLuykeColumn && (
-                                              <td className="px-1.5 py-1 text-center border-r border-slate-100 font-black text-[12.5px] sm:text-[14px] text-[#0B4F9C] whitespace-nowrap">
+                                              <td className={`px-1.5 py-1.5 text-center border-r border-slate-100 whitespace-nowrap ${lkRemaining ? "font-black text-[13px] sm:text-[14.5px] text-[#0052CC]" : "font-semibold text-[13px] text-slate-400"}`}>
                                                 {lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString('vi-VN') : "-"}
                                               </td>
                                             )}
@@ -8037,11 +8076,17 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                             {/* M.TIÊU / NGÀY */}
                                             {showOrangeCols && (() => {
                                               const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
-                                              if (!lkCat || lkCat.target === 0) return <td className="px-1.5 py-1 text-center font-bold text-slate-400 whitespace-nowrap">-</td>;
+                                              if (!lkCat || lkCat.target === 0) return <td className="px-1.5 py-1.5 text-center font-semibold text-[13px] text-slate-400 whitespace-nowrap">-</td>;
                                               const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
                                               return (
-                                                <td className={`px-1.5 py-1 text-center font-black text-[12.5px] sm:text-[14px] whitespace-nowrap ${mucTieu > 0 ? "text-[#E11D48]" : "text-[#10B981]"}`}>
-                                                  {mucTieu > 0 ? Math.round(mucTieu).toLocaleString('vi-VN') : "-"}
+                                                <td className="p-1 text-center whitespace-nowrap">
+                                                  {mucTieu > 0 ? (
+                                                    <div className="w-full py-1.5 px-1 rounded-lg bg-[#FFF1F2] text-[#E11D48] font-black text-[13px] sm:text-[14.5px] flex items-center justify-center">
+                                                      {Math.round(mucTieu).toLocaleString('vi-VN')}
+                                                    </div>
+                                                  ) : (
+                                                    <span className="font-semibold text-[13px] text-slate-400">-</span>
+                                                  )}
                                                 </td>
                                               );
                                             })()}
