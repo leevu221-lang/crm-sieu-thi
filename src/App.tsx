@@ -112,10 +112,25 @@ function MainApp() {
     return 'realtime';
   });
 
-  const handleSetCurrentPage = useCallback((page: any) => {
-    React.startTransition(() => {
-      setCurrentPage(page);
+  const [visitedPages, setVisitedPages] = useState<Set<string>>(() => new Set([currentPage]));
+
+  useEffect(() => {
+    setVisitedPages(prev => {
+      if (prev.has(currentPage)) return prev;
+      const next = new Set(prev);
+      next.add(currentPage);
+      return next;
     });
+  }, [currentPage]);
+
+  const handleSetCurrentPage = useCallback((page: any) => {
+    setVisitedPages(prev => {
+      if (prev.has(page)) return prev;
+      const next = new Set(prev);
+      next.add(page);
+      return next;
+    });
+    setCurrentPage(page);
   }, []);
   const { userProfile, loading, logout, refreshProfile, updateStoreName } = useAuth();
   const isUser43751Local = String(userProfile?.username || '').trim() === '43751' ||
@@ -535,97 +550,105 @@ function MainApp() {
     return true;
   });
 
-  const renderMainContent = () => (
-    <LuykeDataProvider>
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentPage}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.08, ease: "easeOut" }}
-          className="w-full min-w-0 flex-1"
-        >
+  const renderMainContent = () => {
+    const isLichPgSharedAccess = currentPage === 'lichpg' && isShareLinkForLichPg();
+    const isHiddenBlocked = !isUser43751Local && pageHiddenState[currentPage] && !isLichPgSharedAccess;
+    const isMaintenanceBlockedByApp = !['realtime', 'toolhotro', 'tienich', 'luyke', 'health'].includes(currentPage) && pageMaintenanceState[currentPage] && !isUser43751Local;
+    const isPageBlocked = isHiddenBlocked || isMaintenanceBlockedByApp;
+    const hasVisited = (pageId: string) => currentPage === pageId || visitedPages.has(pageId);
+
+    return (
+      <LuykeDataProvider>
+        <div className="w-full min-w-0 flex-1">
           <Suspense fallback={<LoadingSpinner />}>
-            {(() => {
-              const isLichPgSharedAccess = currentPage === 'lichpg' && isShareLinkForLichPg();
-              const isHiddenBlocked = !isUser43751Local && pageHiddenState[currentPage] && !isLichPgSharedAccess;
-              if (isHiddenBlocked) {
-                return (
-                  <div className="flex items-center justify-center h-full p-6 mt-12">
-                    <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-purple-200 shadow-xl w-full">
-                      <div className="w-24 h-24 bg-purple-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-purple-600 shadow-inner">
-                        <AlertCircle size={48} />
-                      </div>
-                      <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">TRANG HIỆN KHÔNG KHẢ DỤNG</h1>
-                      <p className="text-slate-500 font-medium leading-relaxed mb-8">
-                        Trang này hiện đang được tạm ẩn khỏi hệ thống. Vui lòng quay lại sau!
-                      </p>
-                      <button 
-                        onClick={() => setCurrentPage('realtime')}
-                        className="px-8 py-3 bg-gradient-to-r from-[#2563EB] to-[#7C3AED] hover:from-[#1D4ED8] hover:to-[#6D28D9] text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center mx-auto gap-2 cursor-pointer"
-                      >
-                        <RefreshCw size={18} />
-                        QUAY LẠI BC NGÀY
-                      </button>
-                    </div>
+            {isHiddenBlocked && (
+              <div className="flex items-center justify-center h-full p-6 mt-12">
+                <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-purple-200 shadow-xl w-full">
+                  <div className="w-24 h-24 bg-purple-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-purple-600 shadow-inner">
+                    <AlertCircle size={48} />
                   </div>
-                );
-              }
+                  <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">TRANG HIỆN KHÔNG KHẢ DỤNG</h1>
+                  <p className="text-slate-500 font-medium leading-relaxed mb-8">
+                    Trang này hiện đang được tạm ẩn khỏi hệ thống. Vui lòng quay lại sau!
+                  </p>
+                  <button 
+                    onClick={() => handleSetCurrentPage('realtime')}
+                    className="px-8 py-3 bg-gradient-to-r from-[#2563EB] to-[#7C3AED] hover:from-[#1D4ED8] hover:to-[#6D28D9] text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center mx-auto gap-2 cursor-pointer"
+                  >
+                    <RefreshCw size={18} />
+                    QUAY LẠI BC NGÀY
+                  </button>
+                </div>
+              </div>
+            )}
 
-              const isMaintenanceBlockedByApp = !['realtime', 'toolhotro', 'tienich', 'luyke', 'health'].includes(currentPage) && pageMaintenanceState[currentPage] && !isUser43751Local;
-              
-              if (isMaintenanceBlockedByApp) {
-                // TNB Leader: redirect to new external link instead of maintenance notice
-                if (currentPage === 'tnbleader') {
-                  return (
-                    <div className="flex items-center justify-center h-full p-6 mt-12">
-                      <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-indigo-200 shadow-xl w-full">
-                        <div className="w-24 h-24 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-indigo-500 shadow-inner">
-                          <ExternalLink size={48} />
-                        </div>
-                        <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">ĐÃ CHUYỂN SANG TRANG MỚI</h1>
-                        <p className="text-slate-500 font-medium leading-relaxed mb-8">
-                          Trang TNB Leader đã được chuyển sang hệ thống mới. Vui lòng nhấn nút bên dưới để truy cập.
-                        </p>
-                        <a
-                          href="https://ltsdata1605-glitch.github.io/thiduavung/#/sieuthi"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all items-center justify-center gap-2"
-                        >
-                          <ExternalLink size={18} />
-                          MỞ TRANG MỚI
-                        </a>
-                      </div>
+            {!isHiddenBlocked && isMaintenanceBlockedByApp && (
+              currentPage === 'tnbleader' ? (
+                <div className="flex items-center justify-center h-full p-6 mt-12">
+                  <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-indigo-200 shadow-xl w-full">
+                    <div className="w-24 h-24 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-indigo-500 shadow-inner">
+                      <ExternalLink size={48} />
                     </div>
-                  );
-                }
-                return (
-                  <div className="flex items-center justify-center h-full p-6 mt-12">
-                    <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-amber-200 shadow-xl w-full">
-                      <div className="w-24 h-24 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-amber-500 shadow-inner">
-                        <AlertCircle size={48} />
-                      </div>
-                      <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">HỆ THỐNG ĐANG BẢO TRÌ</h1>
-                      <p className="text-slate-500 font-medium leading-relaxed mb-8">
-                        Trang này đang trong quá trình bảo trì và nâng cấp. Vui lòng quay lại sau ít phút. Xin lỗi vì sự bất tiện này!
-                      </p>
-                      <button 
-                        onClick={() => setCurrentPage('realtime')}
-                        className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-lg shadow-amber-200 transition-all flex items-center justify-center mx-auto gap-2"
-                      >
-                        <RefreshCw size={18} />
-                        QUAY LẠI BC NGÀY
-                      </button>
-                    </div>
+                    <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">ĐÃ CHUYỂN SANG TRANG MỚI</h1>
+                    <p className="text-slate-500 font-medium leading-relaxed mb-8">
+                      Trang TNB Leader đã được chuyển sang hệ thống mới. Vui lòng nhấn nút bên dưới để truy cập.
+                    </p>
+                    <a
+                      href="https://ltsdata1605-glitch.github.io/thiduavung/#/sieuthi"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all items-center justify-center gap-2"
+                    >
+                      <ExternalLink size={18} />
+                      MỞ TRANG MỚI
+                    </a>
                   </div>
-                );
-              }
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full p-6 mt-12">
+                  <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-amber-200 shadow-xl w-full">
+                    <div className="w-24 h-24 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-amber-500 shadow-inner">
+                      <AlertCircle size={48} />
+                    </div>
+                    <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">HỆ THỐNG ĐANG BẢO TRÌ</h1>
+                    <p className="text-slate-500 font-medium leading-relaxed mb-8">
+                      Trang này đang trong quá trình bảo trì và nâng cấp. Vui lòng quay lại sau ít phút. Xin lỗi vì sự bất tiện này!
+                    </p>
+                    <button 
+                      onClick={() => handleSetCurrentPage('realtime')}
+                      className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-lg shadow-amber-200 transition-all flex items-center justify-center mx-auto gap-2"
+                    >
+                      <RefreshCw size={18} />
+                      QUAY LẠI BC NGÀY
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
 
-              if (currentPage === 'realtime' && effectiveAllowedPages.includes('realtime')) return <NewRealtimePage pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} pageHiddenState={pageHiddenState} />;
-              if (currentPage === 'khaibao' && effectiveAllowedPages.includes('khaibao')) return <KhaiBao />;
-              if (currentPage === 'luyke' && effectiveAllowedPages.includes('luyke')) return <LuyKe pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} pageHiddenState={pageHiddenState} />;
+            {/* Keep-alive core tabs after first visit for instantaneous (<10ms) tab switching & state preservation */}
+            {hasVisited('realtime') && effectiveAllowedPages.includes('realtime') && (
+              <div className={!isPageBlocked && currentPage === 'realtime' ? 'block w-full min-w-0' : 'hidden'}>
+                <NewRealtimePage pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} pageHiddenState={pageHiddenState} />
+              </div>
+            )}
+            {hasVisited('khaibao') && effectiveAllowedPages.includes('khaibao') && (
+              <div className={!isPageBlocked && currentPage === 'khaibao' ? 'block w-full min-w-0' : 'hidden'}>
+                <KhaiBao />
+              </div>
+            )}
+            {hasVisited('luyke') && effectiveAllowedPages.includes('luyke') && (
+              <div className={!isPageBlocked && currentPage === 'luyke' ? 'block w-full min-w-0' : 'hidden'}>
+                <LuyKe pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} pageHiddenState={pageHiddenState} />
+              </div>
+            )}
+            {hasVisited('health') && effectiveAllowedPages.includes('health') && (
+              <div className={!isPageBlocked && currentPage === 'health' ? 'block w-full min-w-0' : 'hidden'}>
+                <EmployeeHealth pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} pageHiddenState={pageHiddenState} />
+              </div>
+            )}
+
+            {!isPageBlocked && (() => {
               if (currentPage === 'tnb_data' && effectiveAllowedPages.includes('tnb_data')) return <TnbData />;
               if (currentPage === 'tnbleader' && effectiveAllowedPages.includes('tnbleader')) return <TnbLeader pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
               if (currentPage === 'toolhotro' && effectiveAllowedPages.includes('toolhotro')) return <ToolHoTro pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
@@ -635,11 +658,10 @@ function MainApp() {
                 return (
                   <UserManagement onBack={() => {
                     const firstAllowedNavPage = effectiveAllowedPages.find(p => p !== 'users');
-                    setCurrentPage((firstAllowedNavPage || 'realtime') as any);
+                    handleSetCurrentPage((firstAllowedNavPage || 'realtime') as any);
                   }} />
                 );
               }
-              if (currentPage === 'health' && effectiveAllowedPages.includes('health')) return <EmployeeHealth pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} pageHiddenState={pageHiddenState} />;
               if (currentPage === 'birthday' && effectiveAllowedPages.includes('birthday')) return <SinhNhatNv />;
               if (currentPage === 'feedback') return <FeedbackPage />;
               if (currentPage === 'excelviewer' && effectiveAllowedPages.includes('excelviewer')) return <ExcelViewer />;
@@ -647,10 +669,10 @@ function MainApp() {
               return null;
             })()}
           </Suspense>
-        </motion.div>
-      </AnimatePresence>
-    </LuykeDataProvider>
-  );
+        </div>
+      </LuykeDataProvider>
+    );
+  };
 
   return (
     <>

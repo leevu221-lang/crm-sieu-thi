@@ -19,6 +19,14 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
   const [isManualCopied, setIsManualCopied] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [canShare, setCanShare] = useState(false);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  const getExportFileName = () => {
+    if (typeof window !== 'undefined' && (window as any).__lastExportFileName) {
+      return String((window as any).__lastExportFileName);
+    }
+    return `BaoCao_${new Date().getTime()}.png`;
+  };
 
   useEffect(() => {
     if (!previewImage) {
@@ -26,20 +34,25 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
       setIsManualCopied(false);
       setShowToast(false);
       setCanShare(false);
+      setBlobUrl(null);
       return;
     }
 
     let isMounted = true;
+    let createdObjectUrl: string | null = null;
 
-    // Check if Web Share API with files is supported (iOS & Android)
-    if (typeof navigator !== 'undefined' && navigator.canShare) {
-      try {
-        const blob = dataURLtoBlob(previewImage);
-        const file = new File([blob], 'baocao.png', { type: 'image/png' });
+    try {
+      const blob = dataURLtoBlob(previewImage);
+      createdObjectUrl = URL.createObjectURL(blob);
+      setBlobUrl(createdObjectUrl);
+
+      // Check if Web Share API with files is supported (iOS & Android)
+      if (typeof navigator !== 'undefined' && navigator.canShare) {
+        const file = new File([blob], getExportFileName(), { type: 'image/png' });
         setCanShare(navigator.canShare({ files: [file] }));
-      } catch {
-        setCanShare(false);
       }
+    } catch {
+      setCanShare(false);
     }
 
     // Auto-copy image to clipboard immediately upon preview
@@ -59,6 +72,9 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
 
     return () => {
       isMounted = false;
+      if (createdObjectUrl) {
+        URL.revokeObjectURL(createdObjectUrl);
+      }
     };
   }, [previewImage]);
 
@@ -79,7 +95,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
   const handleShare = async () => {
     try {
       const blob = dataURLtoBlob(previewImage);
-      const file = new File([blob], `BaoCao_${new Date().getTime()}.png`, { type: 'image/png' });
+      const file = new File([blob], getExportFileName(), { type: 'image/png' });
       if (navigator.share) {
         await navigator.share({
           files: [file],
@@ -97,10 +113,25 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
 
   const handleDownload = () => {
     try {
-      const link = document.createElement('a');
-      link.download = `BaoCao_${new Date().getTime()}.png`;
-      link.href = previewImage;
-      link.click();
+      const fileName = getExportFileName();
+      if (blobUrl) {
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = blobUrl;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } else {
+        const blob = dataURLtoBlob(previewImage);
+        const tempUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = tempUrl;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(tempUrl), 5000);
+      }
     } catch (err) {
       console.error('Failed to download image:', err);
     }
@@ -213,7 +244,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
           <div className="flex-1 min-h-0 w-full p-2 sm:p-4 bg-slate-100/90 overflow-y-auto overflow-x-hidden custom-scrollbar touch-pan-y relative flex flex-col items-center justify-start">
             <div className="my-auto py-1 max-w-full flex justify-center">
               <img 
-                src={previewImage} 
+                src={blobUrl || previewImage} 
                 alt="Báo cáo" 
                 style={{ 
                   userSelect: 'auto', 

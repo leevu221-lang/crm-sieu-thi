@@ -36,6 +36,7 @@ import confetti from 'canvas-confetti';
 
 export { DEFAULT_RAW_MWG_DATA_1841 } from '../data/defaultMwgRaw1841';
 import { DEFAULT_RAW_MWG_DATA_1841 } from '../data/defaultMwgRaw1841';
+import { parseStaffReportRows } from '../utils';
 
 const _OLD_RAW = `Dashboards
 [Danh mục báo cáo](https://baocao.dienmayxanh.com/dashboard/home)[Hiệu quả kinh doanh](https://baocao.dienmayxanh.com/dashboard/effectiveness)[Doanh thu hợp nhất](https://baocao.dienmayxanh.com/dashboard/revenue-consolidated)[Thi đua](https://baocao.dienmayxanh.com/dashboard/thi-dua)[Doanh Thu Ngành Hàng BI](https://baocao.dienmayxanh.com/dashboard/bi-category)[Giờ Công Làm Việc](https://baocao.dienmayxanh.com/dashboard/timekeeping)[Báo cáo trả chậm](https://baocao.dienmayxanh.com/dashboard/tra-cham)[Lượt bill TGDĐ](https://baocao.dienmayxanh.com/dashboard/countbill-tgdd)[Chi phí chăm sóc khách hàng](https://baocao.dienmayxanh.com/dashboard/productreturncost)L
@@ -522,23 +523,6 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
           }
           setSyncStatus('synced');
         }
-      } else {
-        // Document does not exist in Firestore yet.
-        const initialToSave = localStorage.getItem(`real_dthu_nv_raw_${cleanStore}`) || (cleanStore === '1841' ? DEFAULT_RAW_MWG_DATA_1841 : '');
-        const initialThucToSave = localStorage.getItem(`real_dthu_nv_raw_thuc_${cleanStore}`) || '';
-        const initialTraGopToSave = localStorage.getItem(`real_dthu_nv_raw_tragop_${cleanStore}`) || '';
-        if (initialToSave || initialThucToSave || initialTraGopToSave) {
-          setDoc(docRef, {
-            storeId: cleanStore,
-            rawInput: initialToSave,
-            rawInputThuc: initialThucToSave,
-            rawInputTraGop: initialTraGopToSave,
-            excludedStaffIds: [],
-            onlyWithRevenue: true,
-            updatedAt: serverTimestamp(),
-            updatedBy: userProfile?.username || userProfile?.fullName || 'initial'
-          }, { merge: true }).catch(() => {});
-        }
       }
     }, (err) => {
       console.warn('Firestore real_dthu_nv onSnapshot error:', err);
@@ -880,6 +864,31 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
         }
       }
 
+      if (mode === 'qd' || mode === 'thuc') {
+        const parsedRows = parseStaffReportRows(rawInputText, mode);
+        const staffList = parsedRows.map(row => {
+          const id = (row.employeeCode || row.employeeName || '').trim();
+          const name = (row.employeeName || row.displayName || '').trim().toUpperCase();
+          const revenue =
+            mode === 'qd'
+              ? (row.convertedRevenue ?? row.actualRevenue ?? 0)
+              : (row.actualRevenue ?? row.convertedRevenue ?? 0);
+          const embeddedActualRevenue =
+            mode === 'qd' && row.convertedRevenue !== null && row.actualRevenue !== null
+              ? row.actualRevenue
+              : undefined;
+          return {
+            id,
+            name,
+            revenue,
+            embeddedActualRevenue,
+            installmentRevenue: row.installmentRevenue ?? 0,
+            installmentRate: row.installmentRate ?? 0
+          };
+        });
+        return { staffList, timeStr: extractedTime };
+      }
+
       let headerIdx = -1;
       let columnHeaders: string[] = [];
       for (let i = 0; i < lines.length; i++) {
@@ -913,28 +922,9 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
         }
       }
 
-      let colIdxRev = -1;
-      let colIdxDtTraGop = -1;
       let colIdxTiTrongTraGop = -1;
 
       if (columnHeaders.length > 0) {
-        if (mode === 'qd') {
-          colIdxRev = columnHeaders.findIndex(h => h.includes('DOANH THU QĐ') || h.includes('DT QĐ') || h.includes('DTQD'));
-          if (colIdxRev === -1) {
-            colIdxRev = columnHeaders.findIndex(h => h.includes('DOANH THU') || h.includes('DT'));
-          }
-        } else if (mode === 'tragop') {
-          colIdxRev = columnHeaders.findIndex(h => h.includes('DT TRẢ GÓP') || h.includes('DT TRAGOP') || h.includes('TRẢ GÓP') || h.includes('TRẢ CHẬM'));
-          if (colIdxRev === -1) {
-            colIdxRev = columnHeaders.findIndex(h => h.includes('DOANH THU') || h.includes('DT'));
-          }
-        } else {
-          colIdxRev = columnHeaders.findIndex(h => h === 'DOANH THU' || h === 'DT THỰC' || h.includes('DOANH THU THỰC'));
-          if (colIdxRev === -1) {
-            colIdxRev = columnHeaders.findIndex(h => h.includes('DOANH THU') || h.includes('DT'));
-          }
-        }
-        colIdxDtTraGop = columnHeaders.findIndex(h => h.includes('DT TRẢ GÓP') || h.includes('DT TRAGOP') || h.includes('TRẢ GÓP') || h.includes('TRẢ CHẬM'));
         colIdxTiTrongTraGop = columnHeaders.findIndex(h => h.includes('% TRẢ GÓP') || h.includes('% TRAGOP') || h.includes('% TG'));
       }
 
@@ -950,73 +940,27 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
         const tokens = tokenize(values);
 
         let revenue = 0;
-        let embeddedActualRevenue: number | undefined = undefined;
+        const embeddedActualRevenue: number | undefined = undefined;
         let installmentRevenue = 0;
         let installmentRate = 0;
 
-        if (mode === 'thuc') {
-          // Yêu cầu: CỘT "DT. THỰC" LẤY CỘT THỨ 3 TRÁI SANG Ở Ô "D.THU THỰC" (DOANH THU = 403)
-          if (forceColRev !== undefined && !isNaN(forceColRev) && forceColRev > 0) {
-            revenue = forceColRev;
-          } else {
-            const pctIdx = tokens.findIndex(t => t.includes('%'));
-            if (pctIdx > 0) {
-              const valBeforePct = parseNum(tokens[pctIdx - 1]);
-              if (valBeforePct > 0) revenue = valBeforePct;
-            } else if (tokens.length >= 2) {
-              // Cột 1: Nhân viên, Cột 2: Số lượng (tokens[0]), Cột 3: Doanh thu thực (tokens[1])
-              revenue = parseNum(tokens[1]);
-            } else if (tokens.length === 1) {
-              revenue = parseNum(tokens[0]);
-            }
-          }
-        } else if (mode === 'tragop') {
-          // Yêu cầu: CỘT "DT TRẢ GÓP" SẼ LẤY DỮ LIỆU CỘT THỨ 2 TỪ TRÁI SANG Ở Ô "D.THU TRẢ GÓP"
-          if (forceColRev !== undefined && !isNaN(forceColRev)) {
-            installmentRevenue = forceColRev;
-          } else if (tokens.length >= 1) {
-            // Cột 1: Nhân viên, Cột 2 từ trái sang: tokens[0]
-            installmentRevenue = parseNum(tokens[0]);
-          }
+        // Yêu cầu: CỘT "DT TRẢ GÓP" SẼ LẤY DỮ LIỆU CỘT THỨ 2 TỪ TRÁI SANG Ở Ô "D.THU TRẢ GÓP"
+        if (forceColRev !== undefined && !isNaN(forceColRev)) {
+          installmentRevenue = forceColRev;
+        } else if (tokens.length >= 1) {
+          // Cột 1: Nhân viên, Cột 2 từ trái sang: tokens[0]
+          installmentRevenue = parseNum(tokens[0]);
+        }
 
-          if (colIdxTiTrongTraGop !== -1 && tokens[colIdxTiTrongTraGop - headerColOffset] !== undefined) {
-            installmentRate = parsePercent(tokens[colIdxTiTrongTraGop - headerColOffset]);
-          } else {
-            const pctToken = tokens.find(t => t.includes('%'));
-            if (pctToken) {
-              installmentRate = parsePercent(pctToken);
-            }
-          }
-          revenue = installmentRevenue;
+        if (colIdxTiTrongTraGop !== -1 && tokens[colIdxTiTrongTraGop - headerColOffset] !== undefined) {
+          installmentRate = parsePercent(tokens[colIdxTiTrongTraGop - headerColOffset]);
         } else {
-          // Cột thứ 3 từ trái sang của bảng data luôn là doanh thu (tokens[1])
-          if (colIdxRev !== -1 && tokens[colIdxRev - headerColOffset] !== undefined) {
-            revenue = parseNum(tokens[colIdxRev - headerColOffset]);
-          } else if (tokens.length >= 2) {
-            revenue = parseNum(tokens[1]);
-          } else if (tokens.length === 1) {
-            revenue = parseNum(tokens[0]);
-          }
-
-          // Báo cáo 11 cột có chứa cột DOANH THU thực ở cột thứ 5 từ trái sang (tokens[3])
-          if (tokens.length >= 7 && (tokens[2]?.includes('%') || tokens[1]?.includes('%'))) {
-            embeddedActualRevenue = parseNum(tokens[3]);
+          const pctToken = tokens.find(t => t.includes('%'));
+          if (pctToken) {
+            installmentRate = parsePercent(pctToken);
           }
         }
-
-        if (mode !== 'tragop') {
-          if (colIdxDtTraGop !== -1 && tokens[colIdxDtTraGop - headerColOffset] !== undefined) {
-            installmentRevenue = parseNum(tokens[colIdxDtTraGop - headerColOffset]);
-          } else if (tokens.length >= 10) {
-            installmentRevenue = parseNum(tokens[tokens.length - 2]);
-          }
-
-          if (colIdxTiTrongTraGop !== -1 && tokens[colIdxTiTrongTraGop - headerColOffset] !== undefined) {
-            installmentRate = parsePercent(tokens[colIdxTiTrongTraGop - headerColOffset]);
-          } else if (tokens.length >= 10) {
-            installmentRate = parsePercent(tokens[tokens.length - 1]);
-          }
-        }
+        revenue = installmentRevenue;
 
         staffList.push({
           id: nameParts[0].trim(),
@@ -1059,13 +1003,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
               currentStaffLine = null;
               currentValues = [];
             }
-            // Cột thứ 2 từ trái sang là cols[1] (cho tragop), Cột thứ 3 từ trái sang là cols[2] (cho thuc va qd)
-            let targetRev: number | undefined = undefined;
-            if (mode === 'tragop') {
-              targetRev = parseNum(cols[1]);
-            } else if ((mode === 'thuc' || mode === 'qd') && cols.length >= 3) {
-              targetRev = parseNum(cols[2]);
-            }
+            const targetRev = parseNum(cols[1]);
             pushStaff(cols[0], cols.slice(1), targetRev);
             continue;
           } else if (cols.length >= 3 && isStaffLine(cols[1])) {
@@ -1075,12 +1013,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
               currentStaffLine = null;
               currentValues = [];
             }
-            let targetRev: number | undefined = undefined;
-            if (mode === 'tragop') {
-              targetRev = parseNum(cols[2]);
-            } else if (mode === 'thuc' || mode === 'qd') {
-              targetRev = parseNum(cols[3] !== undefined ? cols[3] : cols[2]);
-            }
+            const targetRev = parseNum(cols[2]);
             pushStaff(cols[1], cols.slice(2), targetRev);
             continue;
           }
@@ -1126,7 +1059,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       });
     }
 
-    // Helper so khớp nhân sự thông minh giữa các bảng (kể cả có hoặc không có mã NV)
+    // Helper so khớp nhân sự thông minh giữa các bảng (ưu tiên tuyệt đối Mã NV)
     const findMatchingStaff = (s: { id: string; name: string }) => {
       if (staffMap.has(s.id)) return staffMap.get(s.id);
 
@@ -1135,14 +1068,24 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
           .toLowerCase()
           .normalize('NFD')
           .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[đĐ]/g, 'd')
           .replace(/[^a-z0-9]/g, ' ')
           .replace(/\s+/g, ' ')
           .trim();
 
+      const sCleanId = (s.id || '').replace(/\D/g, '');
       const sNameNorm = norm(s.name);
       const sIdNorm = norm(s.id);
 
       for (const item of staffMap.values()) {
+        const itemCleanId = (item.id || '').replace(/\D/g, '');
+        if (sCleanId && itemCleanId) {
+          if (sCleanId === itemCleanId) {
+            return item;
+          }
+          continue;
+        }
+
         const itemNameNorm = norm(item.name);
         const itemIdNorm = norm(item.id);
 
@@ -1150,11 +1093,6 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
           return item;
         }
         if (itemIdNorm && (itemIdNorm === sIdNorm || itemIdNorm === sNameNorm)) {
-          return item;
-        }
-
-        // Khớp họ tên đầy đủ
-        if (sNameNorm.length >= 4 && (itemNameNorm.endsWith(sNameNorm) || sNameNorm.endsWith(itemNameNorm))) {
           return item;
         }
       }

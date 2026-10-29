@@ -373,6 +373,7 @@ export function PhanCaHanhChinhTab() {
   // ==========================================================================
 
   const cacheKey = `PHAN_CA_HC_DATA_${storeDocId}`;
+  const checkedLegacyFallbackRef = useRef<Record<string, boolean>>({});
 
   // 1. Initial Load from LocalStorage + Setup Firestore onSnapshot Listener
   useEffect(() => {
@@ -418,20 +419,23 @@ export function PhanCaHanhChinhTab() {
         }
       }
 
-      // Fallback: nếu document trong 'store' chưa có phan_ca_hc, thử kiểm tra 'phan_ca_hc' collection
-      try {
-        const phanCaSnap = await getDoc(doc(db, 'phan_ca_hc', storeDocId));
-        if (phanCaSnap.exists()) {
-          const pcData = phanCaSnap.data();
-          if (pcData.staffGroup1 && Array.isArray(pcData.staffGroup1)) setStaffG1(pcData.staffGroup1);
-          if (pcData.staffGroup2 && Array.isArray(pcData.staffGroup2)) setStaffG2(pcData.staffGroup2);
-          if (pcData.schedule && typeof pcData.schedule === 'object') {
-            const synced = syncOverlappingWeeksInSchedule(pcData.schedule);
-            setSchedule(synced);
+      // Fallback: nếu document trong 'store' chưa có phan_ca_hc, chỉ kiểm tra 'phan_ca_hc' collection tối đa 1 lần cho mỗi storeDocId
+      if (!checkedLegacyFallbackRef.current[storeDocId]) {
+        checkedLegacyFallbackRef.current[storeDocId] = true;
+        try {
+          const phanCaSnap = await getDoc(doc(db, 'phan_ca_hc', storeDocId));
+          if (phanCaSnap.exists()) {
+            const pcData = phanCaSnap.data();
+            if (pcData.staffGroup1 && Array.isArray(pcData.staffGroup1)) setStaffG1(pcData.staffGroup1);
+            if (pcData.staffGroup2 && Array.isArray(pcData.staffGroup2)) setStaffG2(pcData.staffGroup2);
+            if (pcData.schedule && typeof pcData.schedule === 'object') {
+              const synced = syncOverlappingWeeksInSchedule(pcData.schedule);
+              setSchedule(synced);
+            }
+            return;
           }
-          return;
-        }
-      } catch (e) {}
+        } catch (e) {}
+      }
 
       // Nếu siêu thị này chưa có lịch, khởi tạo template chuẩn
       const initialBalanced = generateBalancedScheduleForMonth(currentMonth, DEFAULT_STAFF_G1, DEFAULT_STAFF_G2);
@@ -499,23 +503,13 @@ export function PhanCaHanhChinhTab() {
         updatedBy: userProfile?.username || userProfile?.full_name || 'user'
       };
 
-      // 1. Lưu trực tiếp vào document của siêu thị trong collection 'store'
+      // Lưu trực tiếp vào document của siêu thị trong collection 'store'
       const storeDocRef = doc(db, 'store', storeDocId);
       await setDoc(storeDocRef, {
         ten_sieu_thi: activeStoreName,
         warehouse_code: userProfile?.ma_kho || '',
         updated_at: serverTimestamp(),
         phan_ca_hc: schedulePayload
-      }, { merge: true });
-
-      // 2. Đồng thời lưu mirror vào collection 'phan_ca_hc' theo storeDocId
-      const phanCaDocRef = doc(db, 'phan_ca_hc', storeDocId);
-      await setDoc(phanCaDocRef, {
-        storeId: storeDocId,
-        storeName: activeStoreName,
-        warehouse_code: userProfile?.ma_kho || '',
-        ...schedulePayload,
-        updatedAt: serverTimestamp(),
       }, { merge: true });
 
       setUnsavedChangesCount(0);

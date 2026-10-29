@@ -56,65 +56,113 @@ export const DEFAULT_TNB_LEADER_CATEGORIES: CategoryConfigItem[] = [
   { name: 'T10 - QUẠT GIÓ', group: 'CE' }
 ];
 
-export const useCategoryConfig = () => {
-  const [categoryConfig, setCategoryConfig] = useState<CategoryConfigItem[]>(() => {
-    try {
-      const raw = localStorage.getItem('fbcache_app_settings_TNB_LEADER_DATA');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.data?.categories && Array.isArray(parsed.data.categories) && parsed.data.categories.length > 0) {
-          return parsed.data.categories;
-        }
+// Module-level singleton cache & shared listener so multiple mounted components
+// or tab switches never create duplicate Firestore listeners or re-parse localStorage.
+let globalCategoryConfigCache: CategoryConfigItem[] | null = null;
+let globalCategoryConfigFetched = false;
+const categoryConfigSubscribers = new Set<(cats: CategoryConfigItem[]) => void>();
+let categoryConfigUnsub: (() => void) | null = null;
+let categoryConfigTeardownTimer: ReturnType<typeof setTimeout> | null = null;
+
+function getInitialCategoryConfig(): CategoryConfigItem[] {
+  if (globalCategoryConfigCache && globalCategoryConfigCache.length > 0) {
+    return globalCategoryConfigCache;
+  }
+  try {
+    const raw = localStorage.getItem('fbcache_app_settings_TNB_LEADER_DATA');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.data?.categories && Array.isArray(parsed.data.categories) && parsed.data.categories.length > 0) {
+        globalCategoryConfigCache = parsed.data.categories;
+        return parsed.data.categories;
       }
-    } catch {}
-    return DEFAULT_TNB_LEADER_CATEGORIES;
+    }
+  } catch {}
+  return DEFAULT_TNB_LEADER_CATEGORIES;
+}
+
+function updateGlobalCategoryConfig(cats: CategoryConfigItem[]) {
+  if (!Array.isArray(cats) || cats.length === 0) return;
+  globalCategoryConfigCache = cats;
+  categoryConfigSubscribers.forEach((cb) => {
+    try { cb(cats); } catch {}
   });
+}
+
+export const useCategoryConfig = () => {
+  const [categoryConfig, setCategoryConfig] = useState<CategoryConfigItem[]>(getInitialCategoryConfig);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
+    if (categoryConfigTeardownTimer) {
+      clearTimeout(categoryConfigTeardownTimer);
+      categoryConfigTeardownTimer = null;
+    }
 
-    // 1. Initial cached / fresh fetch
-    getCachedDoc<{ categories?: CategoryConfigItem[] }>('app_settings', 'TNB_LEADER_DATA')
-      .then((data) => {
-        if (cancelled) return;
-        if (data?.categories && Array.isArray(data.categories) && data.categories.length > 0) {
-          setCategoryConfig(data.categories);
-        }
-        setIsLoading(false);
-      })
-      .catch((error) => {
-        console.error('Error fetching category config:', error);
-        if (!cancelled) setIsLoading(false);
-      });
+    categoryConfigSubscribers.add(setCategoryConfig);
+    if (globalCategoryConfigCache && globalCategoryConfigCache.length > 0) {
+      setCategoryConfig(globalCategoryConfigCache);
+    }
 
-    // 2. Realtime listener via onSnapshot for instant propagation across all users / tabs
-    const unsub = onSnapshot(doc(db, 'app_settings', 'TNB_LEADER_DATA'), (snap) => {
-      if (cancelled) return;
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data?.categories && Array.isArray(data.categories) && data.categories.length > 0) {
-          setCategoryConfig(data.categories);
-          setCachedDoc('app_settings', 'TNB_LEADER_DATA', data);
-        }
+    // 1. One-time initial cached / fresh fetch across the entire session
+    if (!globalCategoryConfigFetched) {
+      globalCategoryConfigFetched = true;
+      getCachedDoc<{ categories?: CategoryConfigItem[] }>('app_settings', 'TNB_LEADER_DATA')
+        .then((data) => {
+          if (data?.categories && Array.isArray(data.categories) && data.categories.length > 0) {
+            updateGlobalCategoryConfig(data.categories);
+          }
+          setIsLoading(false);
+        })
+        .catch((error) => {
+          console.error('Error fetching category config:', error);
+          setIsLoading(false);
+        });
+    }
+
+    // 2. Single shared realtime listener via onSnapshot across all components & tabs
+    if (!categoryConfigUnsub) {
+      try {
+        categoryConfigUnsub = onSnapshot(
+          doc(db, 'app_settings', 'TNB_LEADER_DATA'),
+          (snap) => {
+            if (snap.exists()) {
+              const data = snap.data();
+              if (data?.categories && Array.isArray(data.categories) && data.categories.length > 0) {
+                updateGlobalCategoryConfig(data.categories);
+                setCachedDoc('app_settings', 'TNB_LEADER_DATA', data);
+              }
+            }
+          },
+          (err) => {
+            console.warn('Realtime categoryConfig listener error:', err);
+          }
+        );
+      } catch (err) {
+        console.warn('Failed to attach categoryConfig listener:', err);
       }
-    }, (err) => {
-      console.warn('Realtime categoryConfig listener error:', err);
-    });
+    }
 
     // 3. Local custom event listener for zero-latency in-session updates
     const handleLocalUpdate = (e: any) => {
       const newCats = e.detail;
       if (Array.isArray(newCats) && newCats.length > 0) {
-        setCategoryConfig(newCats);
+        updateGlobalCategoryConfig(newCats);
       }
     };
     window.addEventListener('category_config_updated', handleLocalUpdate);
 
     return () => {
-      cancelled = true;
-      unsub();
+      categoryConfigSubscribers.delete(setCategoryConfig);
       window.removeEventListener('category_config_updated', handleLocalUpdate);
+      if (categoryConfigSubscribers.size === 0 && !categoryConfigTeardownTimer) {
+        categoryConfigTeardownTimer = setTimeout(() => {
+          if (categoryConfigSubscribers.size === 0 && categoryConfigUnsub) {
+            try { categoryConfigUnsub(); } catch {}
+            categoryConfigUnsub = null;
+          }
+        }, 30000);
+      }
     };
   }, []);
 

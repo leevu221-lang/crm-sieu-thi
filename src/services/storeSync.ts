@@ -131,7 +131,28 @@ export async function syncConfiguredStoreDocument(
       currentDocs = data || [];
     }
 
-    // Kiểm tra xem có document mã kho cũ (vd doc '1841' hoặc '3008') cần kế thừa dữ liệu sang doc mới không
+    // Kiểm tra trước xem có siêu thị nào chưa tồn tại trong bộ nhớ không
+    const missingStores = validStores.filter((stName) => {
+      const normId = normalizeStoreId(stName);
+      if (!normId) return false;
+      const inMemoryMatch = currentDocs?.find((d: any) => {
+        const dId = normalizeStoreId(d.id || '');
+        const dTen = normalizeStoreId(d.ten_sieu_thi || '');
+        return dId === normId || dTen === normId;
+      });
+      if (inMemoryMatch) {
+        result.skipped.push(stName);
+        return false;
+      }
+      return true;
+    });
+
+    // Nếu toàn bộ siêu thị đã có trong bộ nhớ, bỏ qua việc đọc doc số cũ và không ghi lặp warehouses
+    if (missingStores.length === 0) {
+      return result;
+    }
+
+    // Chỉ khi có siêu thị mới chưa tạo mới kiểm tra document mã kho cũ (vd doc '1841' hoặc '3008') để kế thừa dữ liệu
     let oldNumericDocData: any = null;
     if (/^\d+$/.test(cleanKho)) {
       try {
@@ -142,22 +163,9 @@ export async function syncConfiguredStoreDocument(
       } catch {}
     }
 
-    for (const stName of validStores) {
+    for (const stName of missingStores) {
       const normId = normalizeStoreId(stName);
       if (!normId) continue;
-
-      // Bước 1: Kiểm tra trong bộ nhớ
-      const inMemoryMatch = currentDocs?.find((d: any) => {
-        const dId = normalizeStoreId(d.id || '');
-        const dTen = normalizeStoreId(d.ten_sieu_thi || '');
-        return dId === normId || dTen === normId;
-      });
-
-      if (inMemoryMatch) {
-        console.log(`[StoreSync] Siêu thị "${stName}" (${normId}) ĐÃ CÓ trong Firebase (in-memory) -> BỎ QUA`);
-        result.skipped.push(stName);
-        continue;
-      }
 
       // Bước 2: Dò trực tiếp bằng ID trong Firestore
       const safeId = normId.replace(/\//g, '-');
@@ -168,7 +176,7 @@ export async function syncConfiguredStoreDocument(
         console.log(`[StoreSync] Siêu thị "${stName}" (${normId}) ĐÃ CÓ trong Firebase (Firestore getDoc) -> BỎ QUA`);
         result.skipped.push(stName);
 
-        // Đảm bảo warehouse_code và declared_stores khớp nếu thiếu hoặc có bản ghi trùng lặp
+        // Đảm bảo warehouse_code và declared_stores khớp nếu thiếu
         const existingData = docSnap.data();
         const currentDecl = Array.isArray(existingData?.declared_stores) ? existingData.declared_stores : [];
         const needsWhUpdate = !existingData?.warehouse_code || String(existingData.warehouse_code).trim() !== cleanKho;
@@ -179,12 +187,6 @@ export async function syncConfiguredStoreDocument(
           if (needsWhUpdate) patch.warehouse_code = cleanKho;
           if (needsDeclUpdate) patch.declared_stores = validStores;
           await updateDoc(docRef, patch).catch(() => {});
-
-          // Đồng bộ luôn vào Supabase để triệt tiêu các bản ghi cũ lỗi
-          supabase.from('store').update({
-            declared_stores: validStores,
-            warehouse_code: cleanKho,
-          }).eq('id', safeId).catch(() => {});
         }
         continue;
       }
@@ -233,8 +235,8 @@ export async function syncConfiguredStoreDocument(
       await deleteDoc(doc(db, 'store', cleanKho)).catch(() => {});
     }
 
-    // Đồng bộ vào bảng warehouses
-    if (validStores[0]) {
+    // Chỉ đồng bộ vào bảng warehouses khi thực sự có tạo siêu thị mới
+    if (result.created.length > 0 && validStores[0]) {
       supabase.from('warehouses').upsert({
         ma_kho: cleanKho,
         ten_kho: validStores[0]

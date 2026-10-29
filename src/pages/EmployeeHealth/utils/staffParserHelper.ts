@@ -10,25 +10,45 @@ export const excludedKeywords = [
   'trang chu', 'báo cáo', 'bao cao', 'khối kinh doanh', 'khoi kinh doanh',
   'logo bi', 'avatar', 'phòng ban', 'phong ban',
   'copy all', 'copy', 'sao chép', 'sao chep', 'xuat excel', 'xuất excel',
-  'download', 'tải về', 'tai ve', 'export', 'select all', 'copy all row', 'copy all data'
+  'download', 'tải về', 'tai ve', 'export', 'select all', 'copy all row', 'copy all data',
+  'online - online', '18001060', '18001061', '1900232461', 'administrator',
+  'hạng trong st', 'hang trong st', 'top/bottom st', 'top/bottom'
 ];
 
 /**
- * Checks if a string represents an action button, command, or non-staff text
- * like "(⚡ COPY ALL)", "⚡ COPY ALL", "COPY ALL", "Copy all", "COPY", etc.
+ * Checks if a string represents an action button, command, store code, online hotline, or non-staff text
+ * like "(⚡ COPY ALL)", "online - Online - 18001060", "TỔNG", etc.
  */
 export const isNonStaffName = (rawStr: string): boolean => {
   if (!rawStr) return false;
   const s = rawStr.trim().toLowerCase();
   if (!s) return false;
 
+  // Reject online virtual account / hotline rows & store codes
+  if (
+    s === 'online' ||
+    /^online\s*[-–—/|]/i.test(s) ||
+    /[-–—/|]\s*online(\s*[-–—/|]|$)/i.test(s) ||
+    /\b1800\d{4}\b/.test(s) ||
+    /\b1900\d{4,6}\b/.test(s) ||
+    /\b(đml|dml|đmx|dmx|tgdđ|tgdd|bhx|đms|dms)_/i.test(s) ||
+    /^tổng(\s|$|\t|\|)/i.test(s) ||
+    /^tong(\s|$|\t|\|)/i.test(s)
+  ) {
+    return true;
+  }
+
   // Clean special symbols, emojis (like ⚡), brackets, parentheses, quotes
-  const clean = s.replace(/[⚡\(\)\[\]\{\}\*'"\-–—_\/\\#@!]/g, '').trim();
+  const clean = s.replace(/[⚡\(\)\[\]\{\}\*'"\-–—_\/\\#@!|]/g, ' ').replace(/\s+/g, ' ').trim();
 
   if (
     clean === 'copy all' ||
     clean === 'copy' ||
     clean === 'all' ||
+    clean === 'online' ||
+    clean === 'online online' ||
+    clean.startsWith('online online ') ||
+    clean.includes('18001060') ||
     clean.includes('copy all') ||
     clean.startsWith('copy ') ||
     clean.endsWith(' copy') ||
@@ -44,9 +64,19 @@ export const isNonStaffName = (rawStr: string): boolean => {
     clean === 'tong' ||
     clean === 'tổng cộng' ||
     clean === 'tong cong' ||
+    clean === 'total' ||
     clean === 'stt' ||
     clean === 'nhan vien' ||
     clean === 'nhân viên' ||
+    clean === 'doanh thu' ||
+    clean === 'so luong' ||
+    clean === 'số lượng' ||
+    clean === 'hang trong st' ||
+    clean === 'hạng trong st' ||
+    clean === 'top bottom st' ||
+    clean === 'top bottom' ||
+    clean === 'top' ||
+    clean === 'bottom' ||
     s.includes('copy all') ||
     s.includes('copy')
   ) {
@@ -57,7 +87,7 @@ export const isNonStaffName = (rawStr: string): boolean => {
 };
 
 /**
- * Checks whether a string looks like an employee name/ID column or row.
+ * Checks whether a string looks like an employee name/ID cell ("191664 - Phạm Văn Đại" or "Phạm Văn Đại - 191664").
  */
 export const isEmpNameStr = (str: string): boolean => {
   if (!str) return false;
@@ -65,28 +95,30 @@ export const isEmpNameStr = (str: string): boolean => {
   if (!s) return false;
   if (isNonStaffName(s)) return false;
 
+  // Reject category headers prefixed with month/period codes like "T10 - PANASONIC", "T09 - T10 IPHONE..."
+  if (/^T\d{1,2}\s*[-–—]/i.test(s)) return false;
+
   const lower = s.toLowerCase();
   if (excludedKeywords.some(ex => lower.includes(ex))) return false;
-  if (/[-–—]\s*\d{4,8}\b/.test(s) || /\b\d{4,8}\s*[-–—]/.test(s) || (s.includes(' - ') && /\d/.test(s))) {
-    if (isNonStaffName(s)) return false;
-    return true;
+
+  // Must match "ID - Name" or "Name - ID" where ID is 3-8 digits and Name has letters
+  const idFirstMatch = s.match(/^(\d{3,8})\s*[-–—]\s*(.+)$/);
+  if (idFirstMatch) {
+    const namePart = idFirstMatch[2].trim();
+    if (isNonStaffName(namePart) || /^T\d{1,2}\b/i.test(namePart)) return false;
+    const letters = namePart.match(/[a-zA-ZÀ-ỹ]/g);
+    return !!letters && letters.length >= 2;
   }
 
-  // Header and non-employee keywords
-  const headerWords = [
-    'stt', 'nhan vien', 'nhân viên', 'ho ten', 'họ tên', 'msnv', 'ma nv', 'mã nv',
-    'doanh thu', 'so luong', 'số lượng', 'hang', 'hạng', 'target', 'chi tieu', 'chỉ tiêu',
-    'tong', 'tổng', 'tong cong', 'tổng cộng', 'ty le', 'tỷ lệ', 'ngay', 'ngày',
-    'thang', 'tháng', 'quy doi', 'quy đổi', 'dtqd', 'dtlk', 'sllk', 'tra cham', 'trả chậm',
-    'ti le', 'tỉ lệ', 'du kien', 'dự kiến', 'thuc hien', 'thực hiện', 'sieu thi', 'siêu thị',
-    'copy all', 'copy', 'sao chep', 'sao chép'
-  ];
-  if (headerWords.some(hw => lower === hw || lower.startsWith(hw + ':') || lower.startsWith(hw + ' '))) return false;
-  if (/^[\d\s,.\-+/%:()]+$/.test(s)) return false;
+  const idLastMatch = s.match(/^(.+?)\s*[-–—]\s*(\d{3,8})$/);
+  if (idLastMatch) {
+    const namePart = idLastMatch[1].trim();
+    if (isNonStaffName(namePart) || /^T\d{1,2}\b/i.test(namePart)) return false;
+    const letters = namePart.match(/[a-zA-ZÀ-ỹ]/g);
+    return !!letters && letters.length >= 2;
+  }
 
-  // Must contain letters and look like a person name
-  const letters = s.match(/[a-zA-ZÀ-ỹ]/g);
-  return !!letters && letters.length >= 2;
+  return false;
 };
 
 /**
@@ -96,10 +128,14 @@ export const isEmpNameStr = (str: string): boolean => {
 export const extractStaffNameAndId = (rawStr: string): { name: string; id: string; shortName: string } => {
   if (!rawStr || isNonStaffName(rawStr)) return { name: '', id: '', shortName: '' };
 
-  const str = rawStr.trim();
+  // Strip any accidental trailing columns separated by tab or pipe
+  const firstCol = rawStr.split(/\t|\|/)[0]?.trim() || rawStr.trim();
+  if (!firstCol || isNonStaffName(firstCol)) return { name: '', id: '', shortName: '' };
 
-  // Find employee code: 4 to 8 consecutive digits
-  const idMatch = str.match(/\b\d{4,8}\b/);
+  const str = firstCol;
+
+  // Find employee code: 3 to 8 consecutive digits
+  const idMatch = str.match(/\b\d{3,8}\b/);
   let id = idMatch ? idMatch[0] : '';
   let name = '';
 

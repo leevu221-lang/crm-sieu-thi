@@ -810,13 +810,6 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           } catch (err) {
             console.error('Lỗi khi đọc sticker_event_dmx_cart từ Firestore:', err);
           }
-        } else if (cartItemsRef.current && cartItemsRef.current.length > 0) {
-          // Trình duyệt hiện tại đang có dữ liệu trong LocalStorage -> Tự động đẩy lên Firestore
-          setDoc(docRef, {
-            sticker_event_dmx_cart: JSON.stringify(cartItemsRef.current),
-            ten_sieu_thi: targetStore,
-            updated_at: new Date().toISOString()
-          }, { merge: true }).catch(err => console.warn('Lỗi push local event cart lên Firestore:', err));
         }
 
         // Đồng bộ Giỏ In POSM ALL SP
@@ -847,15 +840,6 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           } catch (err) {
             console.error('Lỗi khi đọc posm_all_sp_deleted_carts từ Firestore:', err);
           }
-        }
-      } else {
-        // Doc chưa tồn tại trên Firestore nhưng local có giỏ in -> đẩy lên ngay
-        if (cartItemsRef.current && cartItemsRef.current.length > 0) {
-          setDoc(docRef, {
-            sticker_event_dmx_cart: JSON.stringify(cartItemsRef.current),
-            ten_sieu_thi: targetStore,
-            updated_at: new Date().toISOString()
-          }, { merge: true }).catch(err => console.warn('Lỗi push initial event cart lên Firestore:', err));
         }
       }
     }, (err) => {

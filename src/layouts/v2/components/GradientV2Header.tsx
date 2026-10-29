@@ -156,35 +156,67 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
     })
     .sort((a, b) => getPrefixRank(a.name) - getPrefixRank(b.name));
 
-  const currentMarketLabel = marketFilter === 'ALL' ? 'TẤT CẢ' : marketFilter;
-  const CurrentMarketIcon = getMarketIcon(marketFilter);
+  const currentMarketLabel =
+    marketFilter === 'ALL'
+      ? (filteredMarkets.length === 1 ? filteredMarkets[0].name : 'TẤT CẢ SIÊU THỊ')
+      : marketFilter;
 
   return (
-    <header className="relative bg-white/95 backdrop-blur-xl border-b border-[#BAE6FD]/80 shadow-[0_4px_20px_-2px_rgba(2,132,199,0.06)] z-40 transition-all w-full">
-      <div className="w-full px-2 sm:px-4">
-        <div className="flex items-center justify-between gap-1.5 sm:gap-3 h-[52px]">
+    <header
+      className="relative bg-white/98 backdrop-blur-xl border-b border-[#E2E8F0] shadow-[0_2px_14px_-2px_rgba(11,31,58,0.05)] z-40 transition-all w-full"
+      style={{ fontFamily: "'UTM Avo', sans-serif" }}
+    >
+      <div className="w-full px-[10px] sm:px-[16px] md:px-[22px]">
+        <div className="flex items-center justify-between gap-[8px] sm:gap-[12px] h-[54px] sm:h-[64px] md:h-[68px]">
 
-          {/* ─── Left: Sidebar Toggle (mobile) + Store Name ─── */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
+          {/* ─── Left: Sidebar Toggle (mobile) + Store Selector ─── */}
+          <div className="flex items-center gap-[8px] sm:gap-[12px] min-w-0 flex-1">
             {/* Mobile hamburger → toggle sidebar drawer */}
             <button
               onClick={onToggleSidebar}
-              className="md:hidden w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+              className="md:hidden w-[34px] h-[34px] shrink-0 rounded-[10px] border border-slate-200/80 bg-slate-50/80 flex items-center justify-center text-[#0B1F3A] hover:bg-slate-100 transition-all cursor-pointer"
               title="Menu"
             >
               <Menu size={18} />
             </button>
 
-            {/* Prominent Store Name */}
+            {/* Enterprise Store Selector */}
             {availableMarkets.length > 0 && (
-              <div ref={dropdownRef} className="relative min-w-0">
+              <div ref={dropdownRef} className="relative min-w-0 max-w-full">
                 <button
+                  type="button"
                   onClick={() => setStoreDropdownOpen(!storeDropdownOpen)}
-                  className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-[#0284C7] via-[#0EA5E9] to-[#38BDF8] hover:from-[#0369A1] hover:to-[#0284C7] border border-sky-300/80 rounded-xl text-xs sm:text-[14px] font-black text-white transition-all cursor-pointer whitespace-nowrap shadow-md shadow-sky-500/20 active:scale-95 max-w-full"
+                  className="group flex items-center gap-[8px] sm:gap-[12px] p-[4px] pr-[10px] sm:p-[6px] sm:pr-[14px] bg-[#F5F9FF] hover:bg-[#ECF4FF] border border-[#DCE8F8] hover:border-[#BFD6F6] rounded-[12px] sm:rounded-[14px] transition-all cursor-pointer shadow-[0_2px_8px_rgba(13,110,253,0.05)] active:scale-[0.99] max-w-full"
                 >
-                  <Store size={16} className="text-sky-100 shrink-0 sm:w-[18px] sm:h-[18px]" />
-                  <span className="truncate max-w-[105px] sm:max-w-[320px] md:max-w-[420px] uppercase tracking-[0.02em] sm:tracking-[0.03em]">{currentMarketLabel}</span>
-                  <ChevronDown size={14} className={`text-sky-100 shrink-0 sm:w-4 sm:h-4 transition-transform duration-200 ${storeDropdownOpen ? 'rotate-180' : ''}`} />
+                  {/* Blue Rounded Square Store Icon */}
+                  <div
+                    className="w-[34px] h-[34px] sm:w-[40px] sm:h-[40px] rounded-[9px] sm:rounded-[11px] flex items-center justify-center text-white shrink-0 shadow-[0_3px_10px_rgba(13,110,253,0.28)]"
+                    style={{ background: 'linear-gradient(135deg, #1D7AFC 0%, #0D6EFD 100%)' }}
+                  >
+                    <Store size={18} strokeWidth={2.2} className="text-white shrink-0" />
+                  </div>
+
+                  {/* Two-line Label + Store Name */}
+                  <div className="flex flex-col items-start justify-center min-w-0 text-left">
+                    <span className="text-[8.5px] sm:text-[9.5px] font-extrabold text-[#64748B] uppercase tracking-[0.05em] leading-tight whitespace-nowrap">
+                      SIÊU THỊ ĐANG XEM
+                    </span>
+                    <span
+                      className="text-[11.5px] sm:text-[13.5px] md:text-[14px] font-black text-[#0B1F3A] uppercase tracking-tight leading-tight truncate max-w-[135px] xs:max-w-[170px] sm:max-w-[260px] md:max-w-[340px] lg:max-w-[430px] mt-[1px]"
+                      title={currentMarketLabel}
+                    >
+                      {currentMarketLabel}
+                    </span>
+                  </div>
+
+                  {/* Dropdown Arrow */}
+                  <ChevronDown
+                    size={16}
+                    strokeWidth={2.4}
+                    className={`text-[#334155] shrink-0 ml-[4px] sm:ml-[10px] transition-transform duration-200 ${
+                      storeDropdownOpen ? 'rotate-180 text-[#0D6EFD]' : ''
+                    }`}
+                  />
                 </button>
 
                 <AnimatePresence>
@@ -194,26 +226,26 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -4, scale: 0.98 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute top-full mt-1.5 left-0 w-max min-w-[220px] max-w-[calc(100vw-32px)] sm:max-w-[360px] bg-white border border-slate-200 rounded-xl shadow-xl shadow-slate-200/50 py-1.5 z-[100] max-h-[320px] overflow-y-auto"
+                      className="absolute top-full mt-[6px] left-0 w-max min-w-[250px] max-w-[calc(100vw-24px)] sm:max-w-[440px] bg-white border border-slate-200/90 rounded-[14px] shadow-[0_12px_32px_-4px_rgba(11,31,58,0.14)] py-[6px] z-[120] max-h-[340px] overflow-y-auto"
                     >
                       {/* All Markets */}
                       <button
+                        type="button"
                         onClick={() => { setMarketFilter('ALL'); setStoreDropdownOpen(false); }}
-                        className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer
-                          ${marketFilter === 'ALL'
-                            ? 'bg-sky-50 text-sky-700 font-extrabold'
-                            : 'text-slate-600 hover:bg-slate-50'
-                          }
-                        `}
+                        className={`w-full flex items-center gap-[10px] px-[14px] py-[9px] text-[12px] font-bold transition-all cursor-pointer ${
+                          marketFilter === 'ALL'
+                            ? 'bg-[#EBF3FF] text-[#0D6EFD] font-black'
+                            : 'text-[#0B1F3A] hover:bg-slate-50'
+                        }`}
                       >
-                        <LayoutGrid size={14} className={marketFilter === 'ALL' ? 'text-sky-600' : 'text-slate-400'} />
-                        <span>TẤT CẢ</span>
+                        <LayoutGrid size={15} className={marketFilter === 'ALL' ? 'text-[#0D6EFD] shrink-0' : 'text-slate-400 shrink-0'} />
+                        <span>TẤT CẢ SIÊU THỊ</span>
                         {marketFilter === 'ALL' && (
-                          <div className="ml-auto w-1.5 h-1.5 rounded-full bg-sky-500" />
+                          <div className="ml-auto w-[7px] h-[7px] rounded-full bg-[#0D6EFD] shrink-0" />
                         )}
                       </button>
 
-                      <div className="h-px bg-slate-100 my-1" />
+                      <div className="h-[1px] bg-slate-100 my-[4px]" />
 
                       {/* Individual Markets */}
                       {filteredMarkets.map(m => {
@@ -221,19 +253,19 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                         const isActive = marketFilter === m.name;
                         return (
                           <button
+                            type="button"
                             key={m.name}
                             onClick={() => { setMarketFilter(m.name); setStoreDropdownOpen(false); }}
-                            className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer
-                              ${isActive
-                                ? 'bg-sky-50 text-sky-700 font-extrabold'
-                                : 'text-slate-600 hover:bg-slate-50'
-                              }
-                            `}
+                            className={`w-full flex items-center gap-[10px] px-[14px] py-[9px] text-[12px] font-bold transition-all cursor-pointer text-left ${
+                              isActive
+                                ? 'bg-[#EBF3FF] text-[#0D6EFD] font-black'
+                                : 'text-[#0B1F3A] hover:bg-slate-50'
+                            }`}
                           >
-                            <Icon size={14} className={isActive ? 'text-sky-600' : 'text-slate-400'} />
+                            <Icon size={15} className={isActive ? 'text-[#0D6EFD] shrink-0' : 'text-slate-400 shrink-0'} />
                             <span className="truncate">{m.name}</span>
                             {isActive && (
-                              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0" />
+                              <div className="ml-auto w-[7px] h-[7px] rounded-full bg-[#0D6EFD] shrink-0" />
                             )}
                           </button>
                         );
@@ -245,20 +277,24 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
             )}
           </div>
 
-          {/* ─── Right: Share Button + Clock + User Profile ─── */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {/* Share Guest Link Button */}
+          {/* ─── Right: Action Buttons + User Account ─── */}
+          <div className="flex items-center gap-[6px] sm:gap-[10px] shrink-0">
+            {/* Subtle Left Divider on Desktop */}
+            <div className="hidden lg:block w-[1px] h-[28px] bg-slate-200/90 mr-[2px]" />
+
+            {/* 1. Nút CHIA SẺ LINK */}
             {(() => {
               const isPosmAllSp = currentPage === 'toolhotro' && activeToolHoTroTab === 'popup-all-sp';
               return (
                 <button
+                  type="button"
                   onClick={handleShareLink}
-                  className={`flex items-center justify-center gap-1.5 w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer border ${
-                    copiedLink 
-                      ? 'bg-sky-50 text-sky-700 border-sky-300 ring-2 ring-sky-200 font-extrabold sm:px-3' 
+                  className={`flex items-center justify-center gap-[7px] w-[34px] h-[34px] sm:w-auto sm:h-[40px] sm:px-[14px] rounded-[10px] sm:rounded-[12px] text-[11.5px] font-black transition-all active:scale-95 cursor-pointer border ${
+                    copiedLink
+                      ? 'bg-[#EBF3FF] text-[#0D6EFD] border-[#9EC5FE] ring-2 ring-blue-100 sm:px-[14px]'
                       : isPosmAllSp
-                        ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 border-emerald-400/40'
-                        : 'bg-gradient-to-r from-sky-50 to-blue-50 hover:from-sky-100 hover:to-blue-100 text-sky-700 border-sky-200'
+                        ? 'bg-emerald-50 hover:bg-emerald-100/80 text-emerald-700 border-emerald-200'
+                        : 'bg-[#F4F9FF] hover:bg-[#E6F1FF] text-[#0D6EFD] border-[#CFE2FF] shadow-[0_2px_6px_rgba(13,110,253,0.04)]'
                   }`}
                   title={
                     isPosmAllSp
@@ -268,80 +304,95 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                 >
                   {copiedLink ? (
                     <>
-                      <Check size={14} className="text-sky-600 shrink-0" />
-                      <span className="hidden sm:inline text-[11px] font-black">
-                        {isPosmAllSp ? 'Đã chép link crm-sieu-thi.pages.dev/posm!' : `Đã chép link Kho ${userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || ''}!`}
+                      <Check size={15} strokeWidth={2.5} className="text-[#0D6EFD] shrink-0" />
+                      <span className="hidden sm:inline text-[11.5px] font-black uppercase tracking-tight">
+                        {isPosmAllSp ? 'Đã chép link POSM!' : `Đã chép link Kho ${userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || ''}!`}
                       </span>
                     </>
                   ) : (
                     <>
-                      <Share2 size={14} className={`${isPosmAllSp ? 'text-emerald-400' : 'text-sky-600'} shrink-0`} />
-                      <span className="hidden sm:inline text-[11px] font-black tracking-wide">CHIA SẺ LINK</span>
+                      <Share2 size={15} strokeWidth={2.3} className={`${isPosmAllSp ? 'text-emerald-600' : 'text-[#0D6EFD]'} shrink-0`} />
+                      <span className="hidden sm:inline text-[11.5px] font-black uppercase tracking-[0.02em]">
+                        CHIA SẺ LINK
+                      </span>
                     </>
                   )}
                 </button>
               );
             })()}
 
-            {/* Subscription / Gói Cước Button (Chỉ hiển thị với user 43751) */}
+            {/* 2. Nút GÓI CƯỚC (Chỉ hiển thị với user 43751) */}
             {isUser43751 && setShowSubscriptionForce && (
               <button
+                type="button"
                 onClick={() => setShowSubscriptionForce(true)}
-                className="flex items-center justify-center gap-1.5 w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer border bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-700 border-amber-200 hover:shadow-md hover:shadow-amber-100"
+                className="flex items-center justify-center gap-[7px] w-[34px] h-[34px] sm:w-auto sm:h-[40px] sm:px-[14px] rounded-[10px] sm:rounded-[12px] text-[11.5px] font-black transition-all active:scale-95 cursor-pointer border bg-[#FFF9EB] hover:bg-[#FFF1D0] text-[#C2410C] border-[#FDE0A6] shadow-[0_2px_6px_rgba(217,119,6,0.05)]"
                 title="Đăng ký & gia hạn gói cước sử dụng"
               >
-                <Crown size={14} className="text-amber-500 shrink-0" />
-                <span className="hidden sm:inline text-[11px] font-black tracking-wide uppercase">Gói Cước</span>
+                <Crown size={15} strokeWidth={2.3} className="text-[#EA580C] shrink-0" />
+                <span className="hidden sm:inline text-[11.5px] font-black uppercase tracking-[0.02em]">
+                  GÓI CƯỚC
+                </span>
               </button>
             )}
 
-            {/* Nút Chuyển Đổi Chế Độ Desktop & Mobile */}
+            {/* 3. Nút XEM MOBILE */}
             {!isInsideIframe && onToggleMobileSimulator && (
               <button
                 type="button"
                 onClick={onToggleMobileSimulator}
-                className="hidden md:flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer border bg-gradient-to-r from-sky-50 via-indigo-50/70 to-sky-50 hover:from-sky-100 hover:via-indigo-100/80 hover:to-sky-100 text-sky-800 border-sky-300 hover:border-sky-400 hover:shadow-md hover:shadow-sky-100/60"
+                className="hidden md:flex items-center justify-center gap-[7px] h-[40px] px-[14px] rounded-[12px] text-[11.5px] font-black transition-all active:scale-95 cursor-pointer border bg-[#F4F9FF] hover:bg-[#E6F1FF] text-[#0D6EFD] border-[#CFE2FF] shadow-[0_2px_6px_rgba(13,110,253,0.04)]"
                 title="Chuyển sang chế độ xem Mobile (mô phỏng trực quan các dòng điện thoại iOS & Android)"
               >
                 <div className="relative flex items-center">
-                  <Monitor size={14} className="text-slate-500" />
-                  <span className="text-[10px] text-slate-300 mx-0.5 font-bold">/</span>
-                  <Smartphone size={14} className="text-sky-600 animate-pulse" />
+                  <Monitor size={15} strokeWidth={2.2} className="text-[#0D6EFD]" />
+                  <span className="text-[11px] text-[#94A3B8] mx-[3px] font-bold">/</span>
+                  <Smartphone size={15} strokeWidth={2.2} className="text-[#0D6EFD]" />
                 </div>
-                <span className="hidden sm:inline text-[11px] font-black tracking-wide uppercase">
-                  Xem Mobile
-                </span>
-                <span className="sm:hidden text-[10px] font-black uppercase text-sky-700">
-                  Mobile
+                <span className="text-[11.5px] font-black uppercase tracking-[0.02em]">
+                  XEM MOBILE
                 </span>
               </button>
             )}
 
+            {/* Vertical Divider before User Account */}
+            <div className="hidden sm:block w-[1px] h-[28px] bg-slate-200/90 mx-[2px]" />
 
-
-            {/* User Profile Dropdown */}
+            {/* 4. Khu vực Tài Khoản Người Dùng */}
             <div ref={userDropdownRef} className="relative">
               <button
+                type="button"
                 onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                className="flex items-center gap-1.5 p-0.5 sm:pl-1 sm:pr-2.5 sm:py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-full transition-all cursor-pointer"
+                className="flex items-center gap-[8px] sm:gap-[10px] py-[3px] px-[4px] sm:px-[8px] rounded-[12px] hover:bg-slate-50 transition-all cursor-pointer"
               >
-                {/* Avatar */}
+                {/* Circular Blue Avatar + Green Online Dot */}
                 <div className="relative shrink-0">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-[#38BDF8] to-[#0284C7] text-white flex items-center justify-center font-black text-[9.5px] sm:text-[10px] shadow-sm shadow-sky-500/20">
-                    {String(userProfile?.username || '43').slice(0, 4).toUpperCase()}
+                  <div
+                    className="w-[34px] h-[34px] sm:w-[38px] sm:h-[38px] rounded-full text-white flex items-center justify-center font-black text-[10px] sm:text-[11px] shadow-[0_3px_10px_rgba(13,110,253,0.25)]"
+                    style={{ background: 'linear-gradient(135deg, #1D7AFC 0%, #0D6EFD 100%)' }}
+                  >
+                    {String(userProfile?.username || '43751').slice(0, 4).toUpperCase()}
                   </div>
-                  <span className="absolute -bottom-0.5 -right-0.5 w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-sky-400 border-[1.5px] border-white" />
+                  <span className="absolute -bottom-[1px] -right-[1px] w-[10px] h-[10px] rounded-full bg-[#10B981] border-[2px] border-white" />
                 </div>
-                {/* Name + Role */}
-                <div className="hidden sm:block text-left min-w-0">
-                  <div className="text-[12px] font-black text-slate-800 leading-tight truncate max-w-[100px]">
+
+                {/* User Code + Role */}
+                <div className="hidden sm:flex flex-col items-start justify-center text-left min-w-0">
+                  <div className="text-[13px] sm:text-[14px] font-black text-[#0B1F3A] leading-tight truncate max-w-[110px]">
                     {userProfile?.username || '43751'}
                   </div>
-                  <div className="text-[10px] font-semibold text-slate-400 leading-tight">
+                  <div className="text-[10.5px] sm:text-[11px] font-bold text-[#94A3B8] leading-tight">
                     {canEditUser ? 'admin' : (userProfile?.role || 'member')}
                   </div>
                 </div>
-                <ChevronDown size={13} className={`hidden sm:inline text-slate-400 transition-transform ${userDropdownOpen ? 'rotate-180' : ''}`} />
+
+                <ChevronDown
+                  size={15}
+                  strokeWidth={2.4}
+                  className={`hidden sm:inline text-[#334155] transition-transform duration-200 ${
+                    userDropdownOpen ? 'rotate-180 text-[#0D6EFD]' : ''
+                  }`}
+                />
               </button>
 
               {/* User Dropdown Menu */}
@@ -352,22 +403,25 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -4, scale: 0.98 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute top-full mt-1.5 right-0 w-[200px] bg-white border border-slate-200 rounded-xl shadow-xl shadow-slate-200/50 py-1.5 z-[100]"
+                    className="absolute top-full mt-[6px] right-0 w-[230px] bg-white border border-slate-200/90 rounded-[14px] shadow-[0_12px_32px_-4px_rgba(11,31,58,0.14)] py-[6px] z-[120]"
                   >
                     {/* User info header */}
-                    <div className="px-3.5 py-2.5 border-b border-slate-100">
-                      <div className="flex items-center gap-2.5">
+                    <div className="px-[14px] py-[10px] border-b border-slate-100">
+                      <div className="flex items-center gap-[10px]">
                         <div className="relative shrink-0">
-                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#38BDF8] to-[#0284C7] text-white flex items-center justify-center font-black text-[11px] shadow-md shadow-sky-200/40">
-                            {String(userProfile?.username || '43').slice(0, 4).toUpperCase()}
+                          <div
+                            className="w-[36px] h-[36px] rounded-full text-white flex items-center justify-center font-black text-[11px] shadow-sm"
+                            style={{ background: 'linear-gradient(135deg, #1D7AFC 0%, #0D6EFD 100%)' }}
+                          >
+                            {String(userProfile?.username || '43751').slice(0, 4).toUpperCase()}
                           </div>
-                          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-sky-400 border-2 border-white" />
+                          <span className="absolute -bottom-[1px] -right-[1px] w-[10px] h-[10px] rounded-full bg-[#10B981] border-[2px] border-white" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="text-[13px] font-black text-slate-800 truncate leading-tight">
+                          <div className="text-[13px] font-black text-[#0B1F3A] truncate leading-tight">
                             {userProfile?.username || '43751'}
                           </div>
-                          <div className="text-[10.5px] font-semibold text-slate-400 leading-tight mt-0.5">
+                          <div className="text-[10.5px] font-bold text-slate-400 leading-tight mt-[2px]">
                             TK: {userProfile?.username || '43751'} ({canEditUser ? 'admin' : (userProfile?.role || 'member')})
                           </div>
                         </div>
@@ -377,25 +431,39 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                     {/* Action buttons */}
                     {isUser43751 && setShowSubscriptionForce && (
                       <button
+                        type="button"
                         onClick={() => { setShowSubscriptionForce(true); setUserDropdownOpen(false); }}
-                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] font-bold text-amber-700 hover:bg-amber-50 transition-all cursor-pointer"
+                        className="w-full flex items-center gap-[10px] px-[14px] py-[9px] text-[12px] font-bold text-amber-700 hover:bg-amber-50 transition-all cursor-pointer"
                       >
                         <Crown size={16} className="text-amber-500 shrink-0" />
                         <span>Đăng ký gói cước</span>
                       </button>
                     )}
 
+                    {!isInsideIframe && onToggleMobileSimulator && (
+                      <button
+                        type="button"
+                        onClick={() => { onToggleMobileSimulator(); setUserDropdownOpen(false); }}
+                        className="md:hidden w-full flex items-center gap-[10px] px-[14px] py-[9px] text-[12px] font-bold text-[#0D6EFD] hover:bg-blue-50 transition-all cursor-pointer"
+                      >
+                        <Smartphone size={16} className="text-[#0D6EFD] shrink-0" />
+                        <span>Chế độ Xem Mobile</span>
+                      </button>
+                    )}
+
                     <button
+                      type="button"
                       onClick={() => { setShowDeclarationForce(true); setUserDropdownOpen(false); }}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all cursor-pointer"
+                      className="w-full flex items-center gap-[10px] px-[14px] py-[9px] text-[12px] font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all cursor-pointer"
                     >
                       <Store size={16} className="text-emerald-600 shrink-0" />
                       <span>Cấu hình tên siêu thị</span>
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => { setShowSettings(true); setUserDropdownOpen(false); }}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-all cursor-pointer"
+                      className="w-full flex items-center gap-[10px] px-[14px] py-[9px] text-[12px] font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-all cursor-pointer"
                     >
                       <Settings size={16} className="text-slate-400 shrink-0" />
                       <span>Cài đặt hiển thị</span>
@@ -403,8 +471,9 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
 
                     {canEditUser && (
                       <button
+                        type="button"
                         onClick={() => { setCurrentPage('users'); setUserDropdownOpen(false); }}
-                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-all cursor-pointer"
+                        className="w-full flex items-center gap-[10px] px-[14px] py-[9px] text-[12px] font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-all cursor-pointer"
                       >
                         <KeyRound size={16} className="text-slate-400 shrink-0" />
                         <span>Quản lý tài khoản</span>
@@ -412,8 +481,9 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                     )}
                     {canEditUser && (
                       <button
+                        type="button"
                         onClick={() => { setShowMaintenanceConfirm(true); setUserDropdownOpen(false); }}
-                        className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] font-bold transition-all cursor-pointer ${
+                        className={`w-full flex items-center gap-[10px] px-[14px] py-[9px] text-[12px] font-bold transition-all cursor-pointer ${
                           pageMaintenanceState[effectivePageKey]
                             ? 'text-red-600 hover:bg-red-50'
                             : 'text-slate-700 hover:bg-amber-50 hover:text-amber-700'
@@ -422,7 +492,7 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                         <Shield size={16} className={pageMaintenanceState[effectivePageKey] ? 'text-red-500 shrink-0' : 'text-slate-400 shrink-0'} />
                         <span>{pageMaintenanceState[effectivePageKey] ? 'Tắt bảo trì' : 'Bật bảo trì'}</span>
                         {pageMaintenanceState[effectivePageKey] && (
-                          <span className="ml-auto w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                          <span className="ml-auto w-[8px] h-[8px] rounded-full bg-red-500 animate-pulse" />
                         )}
                       </button>
                     )}
@@ -430,6 +500,7 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                     {/* Tính năng Ẩn khỏi người dùng - CHỈ HIỂN THỊ VỚI USER 43751 */}
                     {isUser43751 && (
                       <button
+                        type="button"
                         onClick={async () => {
                           setUserDropdownOpen(false);
                           if (onToggleHide) {
@@ -437,7 +508,7 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                             await onToggleHide(effectivePageKey, nextVal);
                           }
                         }}
-                        className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] font-bold transition-all cursor-pointer ${
+                        className={`w-full flex items-center gap-[10px] px-[14px] py-[9px] text-[12px] font-bold transition-all cursor-pointer ${
                           pageHiddenState[effectivePageKey]
                             ? 'text-purple-700 bg-purple-50/80 hover:bg-purple-100/80'
                             : 'text-slate-700 hover:bg-purple-50 hover:text-purple-700'
@@ -451,7 +522,7 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                         )}
                         <span>{pageHiddenState[effectivePageKey] ? 'Hiện lại trang này' : 'Ẩn khỏi người dùng'}</span>
                         {pageHiddenState[effectivePageKey] ? (
-                          <span className="ml-auto px-1.5 py-0.5 text-[9.5px] font-black rounded-md bg-purple-200/90 text-purple-900 uppercase tracking-wider shadow-2xs">
+                          <span className="ml-auto px-[6px] py-[2px] text-[9.5px] font-black rounded-[5px] bg-purple-200/90 text-purple-900 uppercase tracking-wider shadow-2xs">
                             Đang ẩn
                           </span>
                         ) : (
@@ -464,25 +535,27 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
 
                     {isUser43751 && (
                       <button
+                        type="button"
                         onClick={() => { setShowHiddenPagesModal(true); setUserDropdownOpen(false); }}
-                        className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[11px] font-bold text-slate-500 hover:text-purple-700 hover:bg-purple-50/60 transition-all cursor-pointer"
+                        className="w-full flex items-center gap-[10px] px-[14px] py-[8px] text-[11px] font-bold text-slate-500 hover:text-purple-700 hover:bg-purple-50/60 transition-all cursor-pointer"
                         title="Xem danh sách tất cả các trang/tab đang ẩn"
                       >
                         <Settings size={14} className="text-slate-400 shrink-0" />
                         <span>Danh sách tất cả trang ẩn...</span>
                         {Object.values(pageHiddenState).filter(Boolean).length > 0 && (
-                          <span className="ml-auto px-1.5 py-0.2 text-[9.5px] font-black rounded-full bg-purple-100 text-purple-700">
+                          <span className="ml-auto px-[6px] py-[1px] text-[9.5px] font-black rounded-full bg-purple-100 text-purple-700">
                             {Object.values(pageHiddenState).filter(Boolean).length}
                           </span>
                         )}
                       </button>
                     )}
 
-                    <div className="h-px bg-slate-100 my-1" />
+                    <div className="h-[1px] bg-slate-100 my-[4px]" />
 
                     <button
+                      type="button"
                       onClick={() => { logout(); setUserDropdownOpen(false); }}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] font-bold text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
+                      className="w-full flex items-center gap-[10px] px-[14px] py-[9px] text-[12px] font-bold text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
                     >
                       <LogOut size={16} className="text-rose-500 shrink-0" />
                       <span>Đăng xuất</span>

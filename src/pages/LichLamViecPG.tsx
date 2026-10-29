@@ -2522,6 +2522,7 @@ const LichLamViecPG: React.FC = () => {
   }, [weeks, selectedYear, selectedMonth]);
 
   // ─── Load from Firestore strictly from collection 'store' > [TÊN SIÊU THỊ] ──
+  const checkedSiblingFallbackRef = useRef<Record<string, boolean>>({});
   useEffect(() => {
     setLoaded(false);
     if (!targetStoreDocId) {
@@ -2581,8 +2582,10 @@ const LichLamViecPG: React.FC = () => {
         }
       }
 
-      // If store doc has no valid PG data, fallback to sibling stores in same cluster/warehouse
-      if (!editingRef.current && availableStores && availableStores.length > 1) {
+      // If store doc has no valid PG data, fallback to sibling stores in same cluster/warehouse (only check once per store+month)
+      const fallbackCheckKey = `${targetStoreDocId}_${monthKey}`;
+      if (!editingRef.current && availableStores && availableStores.length > 1 && !checkedSiblingFallbackRef.current[fallbackCheckKey]) {
+        checkedSiblingFallbackRef.current[fallbackCheckKey] = true;
         for (const sibling of availableStores) {
           const sibId = normalizeStoreId(sibling.name);
           if (sibId && sibId !== targetStoreDocId) {

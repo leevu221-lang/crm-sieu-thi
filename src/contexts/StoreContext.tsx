@@ -11,7 +11,7 @@
  * - warehouseCode: From userProfile.ma_kho (shared across all stores in a cluster)
  * - availableStores: List of stores detected from pasted data
  */
-import React, { createContext, useContext, useState, useCallback, useRef, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, useRef, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '../supabaseClient';
 import { isValidStoreName, normalizeStoreId } from '../pages/RTST/utils';
@@ -517,30 +517,18 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       } catch {}
       setStoreReady(false);
       setStoreVersion(v => v + 1);
-
-      // Persist active store selection to ql_nguoi_dung in Firebase so any other browser device stays synchronized
-      if (userProfile?.username && userProfile.username !== 'ADMIN' && userProfile.role !== 'guest' && isValidStoreName(id)) {
-        supabase
-          .from('ql_nguoi_dung')
-          .update({
-            selected_store: id,
-            updated_at: new Date().toISOString()
-          })
-          .eq('username', userProfile.username)
-          .then(() => {})
-          .catch((err) => console.warn('[StoreContext] Error syncing selected_store to ql_nguoi_dung:', err));
-      }
-
+      // Store filter selection is persisted locally in localStorage (currentStoreId & global_selected_store_<maKho>).
+      // Avoid writing to ql_nguoi_dung on every store tab/dropdown click to save Firestore write quota.
       return id;
     });
-  }, [userProfile?.username, userProfile?.role]);
+  }, []);
 
   // No-op functions to preserve the database as the strict single source of truth for declared stores
   const setAvailableStores = useCallback((stores: StoreInfo[]) => {
     console.log('[StoreContext] setAvailableStores called but ignored to preserve DB-declared stores:', stores);
   }, []);
 
-  const value: StoreContextType = {
+  const value: StoreContextType = useMemo(() => ({
     currentStoreId,
     setCurrentStoreId,
     warehouseCode,
@@ -564,7 +552,21 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setActiveLuyKeTab,
     activeHealthTab,
     setActiveHealthTab,
-  };
+  }), [
+    currentStoreId,
+    setCurrentStoreId,
+    warehouseCode,
+    isStoreReady,
+    setStoreReady,
+    availableStores,
+    setAvailableStores,
+    storeVersion,
+    activeRealtimeTab,
+    activeToolHoTroTab,
+    activeTienIchTab,
+    activeLuyKeTab,
+    activeHealthTab,
+  ]);
 
   return (
     <StoreContext.Provider value={value}>

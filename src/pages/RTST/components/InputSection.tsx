@@ -36,13 +36,17 @@ import {
   Clock,
   Lock,
   Unlock,
-  Trash2
+  Trash2,
+  BarChart3,
+  Trophy,
+  CreditCard
 } from 'lucide-react';
 import { cn, formatShortCurrency } from '../utils';
 import { cleanBiReportText } from '../../../utils/rtstHelpers';
 import { useNotification } from '../../../contexts/NotificationContext';
 import { doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
+import { safeSetDoc } from '../../../firebaseAdapter';
 
 
 interface InputSectionProps {
@@ -233,163 +237,193 @@ const ReportInputBox: React.FC<ReportInputBoxProps> = ({
     setTempVal('');
   };
 
-  // Màu sắc theo chủ đề
-  const isEmerald = colorTheme === 'emerald';
-  const isTeal = colorTheme === 'teal';
-  const isAmber = colorTheme === 'amber';
-  const isOrange = colorTheme === 'orange';
+  // Màu sắc theo chủ đề (chuẩn thiết kế mẫu Enterprise BI V2.0)
+  const isEmerald = colorTheme === 'emerald' || colorTheme === 'teal';
+  const isAmber = colorTheme === 'amber' || colorTheme === 'orange';
   const isPurple = colorTheme === 'purple' || colorTheme === 'violet';
 
-  const textHeaderColor = isEmerald 
-    ? 'text-emerald-700' 
-    : isTeal 
-    ? 'text-teal-700' 
-    : isAmber 
-    ? 'text-amber-700' 
-    : isOrange 
-    ? 'text-orange-700' 
+  const cardSurfaceClass = isEmerald
+    ? 'bg-gradient-to-b from-[#F4FDF9] via-[#ECFAF3] to-[#E2F7EC] border-[#BDEFD7] hover:border-[#8CE3BA]'
+    : isAmber
+    ? 'bg-gradient-to-b from-[#FFFDF7] via-[#FFF8E7] to-[#FFF0D1] border-[#FDE0A6] hover:border-[#FCD34D]'
     : isPurple
-    ? 'text-purple-700'
-    : 'text-blue-700';
+    ? 'bg-gradient-to-b from-[#FCF9FF] via-[#F6EEFF] to-[#EDE2FF] border-[#DEC7FF] hover:border-[#C4B5FD]'
+    : 'bg-gradient-to-b from-[#F5FAFF] via-[#ECF4FF] to-[#E1EEFF] border-[#C4DCFF] hover:border-[#9EC5FE]';
 
-  const iconColor = isEmerald 
-    ? 'text-emerald-600' 
-    : isTeal 
-    ? 'text-teal-600' 
-    : isAmber 
-    ? 'text-amber-500' 
-    : isOrange 
-    ? 'text-orange-500' 
+  const textHeaderColor = isEmerald
+    ? 'text-[#047857]'
+    : isAmber
+    ? 'text-[#C2410C]'
     : isPurple
-    ? 'text-purple-600'
-    : 'text-blue-600';
+    ? 'text-[#6D28D9]'
+    : 'text-[#0A58CA]';
 
-  const badgeTimeColor = (isEmerald || isTeal)
-    ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80' 
-    : (isAmber || isOrange)
-    ? 'bg-amber-50 text-amber-700 border-amber-200/80' 
+  const iconCircleClass = isEmerald
+    ? 'bg-[#D6F5E6] text-[#059669] border border-[#B2EBD0]'
+    : isAmber
+    ? 'bg-[#FFEDC2] text-[#EA580C] border border-[#FDE09B]'
     : isPurple
-    ? 'bg-purple-50 text-purple-700 border-purple-200/80'
-    : 'bg-blue-50 text-blue-700 border-blue-200/80';
+    ? 'bg-[#EBE0FF] text-[#7C3AED] border border-[#D8B4FE]'
+    : 'bg-[#DCEBFF] text-[#0D6EFD] border border-[#B8D6FF]';
 
-  const badgeCountColor = (isEmerald || isTeal)
-    ? 'bg-emerald-100 text-emerald-800'
-    : (isAmber || isOrange)
-    ? 'bg-amber-100 text-amber-800' 
+  const iconColor = isEmerald
+    ? 'text-[#059669]'
+    : isAmber
+    ? 'text-[#EA580C]'
     : isPurple
-    ? 'bg-purple-100 text-purple-800'
-    : 'bg-blue-100 text-blue-800';
+    ? 'text-[#7C3AED]'
+    : 'text-[#0D6EFD]';
+
+  const badgeTimeColor = isEmerald
+    ? 'bg-[#E9FBF2] text-[#047857] border-[#A7F3D0]'
+    : isAmber
+    ? 'bg-[#FFF7E0] text-[#D97706] border-[#FCD34D]'
+    : isPurple
+    ? 'bg-[#F5EEFF] text-[#7C3AED] border-[#D8B4FE]'
+    : 'bg-[#EBF4FF] text-[#0D6EFD] border-[#B6D4FE]';
+
+  const badgeCountColor = isEmerald
+    ? 'bg-[#CCF5E1] text-[#065F46]'
+    : isAmber
+    ? 'bg-[#FDE6AC] text-[#92400E]'
+    : isPurple
+    ? 'bg-[#E5D4FF] text-[#5B21B6]'
+    : 'bg-[#D4E6FF] text-[#084298]';
 
   const buttonBgColor = isEmerald
-    ? 'bg-[#00825e] hover:bg-[#006e50]'
-    : isTeal
-    ? 'bg-teal-600 hover:bg-teal-700'
+    ? 'bg-gradient-to-r from-[#047857] to-[#065F46] hover:from-[#065F46] hover:to-[#064E3B] shadow-[0_4px_12px_rgba(4,120,87,0.22)]'
     : isAmber
-    ? 'bg-amber-500 hover:bg-amber-600'
-    : isOrange
-    ? 'bg-orange-500 hover:bg-orange-600'
+    ? 'bg-gradient-to-r from-[#F97316] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] shadow-[0_4px_12px_rgba(249,115,22,0.25)]'
     : isPurple
-    ? 'bg-purple-600 hover:bg-purple-700'
-    : 'bg-blue-600 hover:bg-blue-700';
+    ? 'bg-gradient-to-r from-[#7C3AED] to-[#6D28D9] hover:from-[#6D28D9] hover:to-[#5B21B6] shadow-[0_4px_12px_rgba(124,58,237,0.24)]'
+    : 'bg-gradient-to-r from-[#0D6EFD] to-[#0B5ED7] hover:from-[#0B5ED7] hover:to-[#0A58CA] shadow-[0_4px_12px_rgba(13,110,253,0.25)]';
 
-  const boxBorderHover = (isEmerald || isTeal)
-    ? 'bg-emerald-50/70 hover:bg-emerald-100/80 border-emerald-200/90'
-    : (isAmber || isOrange)
-    ? 'bg-amber-50/70 hover:bg-amber-100/80 border-amber-200/90'
+  const dividerColor = isEmerald
+    ? 'bg-[#9EE6C4]/70'
+    : isAmber
+    ? 'bg-[#FCD385]/70'
     : isPurple
-    ? 'bg-purple-50/70 hover:bg-purple-100/80 border-purple-200/90'
-    : 'bg-blue-50/70 hover:bg-blue-100/80 border-blue-200/90';
+    ? 'bg-[#D3B8FF]/70'
+    : 'bg-[#A9CBFF]/70';
+
+  const waveFillColor = isEmerald
+    ? '#A7F3D0'
+    : isAmber
+    ? '#FDE68A'
+    : isPurple
+    ? '#DDD6FE'
+    : '#BFDBFE';
 
   const textLockedColor = isEmerald
-    ? 'text-emerald-950'
-    : isTeal
-    ? 'text-teal-950'
+    ? 'text-[#063F30]'
     : isAmber
-    ? 'text-amber-950'
-    : isOrange
-    ? 'text-orange-950'
+    ? 'text-[#5C2804]'
     : isPurple
-    ? 'text-purple-950'
-    : 'text-blue-950';
+    ? 'text-[#3B0764]'
+    : 'text-[#0B2E59]';
 
-  const borderEditColor = (isEmerald || isTeal)
-    ? 'border-emerald-400 focus:border-emerald-500'
-    : (isAmber || isOrange)
-    ? 'border-amber-400 focus:border-amber-500'
+  const borderEditColor = isEmerald
+    ? 'border-[#10B981] focus:border-[#059669]'
+    : isAmber
+    ? 'border-[#F59E0B] focus:border-[#D97706]'
     : isPurple
-    ? 'border-purple-400 focus:border-purple-500'
-    : 'border-blue-400 focus:border-blue-500';
+    ? 'border-[#8B5CF6] focus:border-[#7C3AED]'
+    : 'border-[#3B82F6] focus:border-[#2563EB]';
 
   return (
     <div 
       ref={boxRef} 
-      className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 space-y-3 shadow-2xs h-full flex flex-col justify-between"
+      className={cn(
+        "relative overflow-hidden rounded-[16px] sm:rounded-[18px] border p-[14px] sm:p-[16px] shadow-[0_2px_10px_rgba(15,23,42,0.03)] transition-all h-full flex flex-col justify-between gap-[12px] w-full",
+        cardSurfaceClass
+      )}
     >
+      {/* Decorative soft wave at bottom right matching approved design */}
+      <svg
+        className="pointer-events-none select-none absolute bottom-0 right-0 w-[68%] h-[46px] opacity-45"
+        viewBox="0 0 400 60"
+        preserveAspectRatio="none"
+      >
+        <path
+          d="M0,60 C90,60 140,12 240,22 C310,30 355,8 400,18 L400,60 Z"
+          fill={waveFillColor}
+        />
+      </svg>
+
       {/* Header ô dữ liệu */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Globe size={18} className={cn(iconColor, "shrink-0")} />
-          <span className={cn("text-sm sm:text-base font-black", textHeaderColor)}>
-            {label}
-          </span>
-          {externalLink && (
-            <a 
-              href={externalLink} 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              onClick={(e) => e.stopPropagation()} 
-              className="text-amber-500 hover:text-amber-600 p-1 rounded-md hover:bg-amber-50 transition-colors inline-flex items-center" 
-              title="Mở báo cáo BI"
-            >
-              <ExternalLink size={13} />
-            </a>
-          )}
+      <div className="relative z-10 flex flex-wrap items-start sm:items-center justify-between gap-[8px]">
+        <div className="flex items-center gap-[10px] min-w-0 flex-1">
+          <div className={cn("w-[34px] h-[34px] rounded-full flex items-center justify-center shrink-0 shadow-2xs", iconCircleClass)}>
+            <Globe size={18} className="shrink-0 stroke-[2.2]" />
+          </div>
+          <div className="flex items-center gap-[6px] min-w-0 flex-1 flex-wrap">
+            <span className={cn("text-[13.5px] sm:text-[15px] font-black uppercase tracking-tight leading-[1.3] break-words", textHeaderColor)}>
+              {label}
+            </span>
+            {externalLink && (
+              <a 
+                href={externalLink} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                onClick={(e) => e.stopPropagation()} 
+                className="text-[#D97706] hover:text-[#B45309] p-[4px] rounded-[6px] hover:bg-amber-100/60 transition-colors inline-flex items-center shrink-0" 
+                title="Mở báo cáo BI"
+              >
+                <ExternalLink size={14} />
+              </a>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+
+        <div className="flex items-center gap-[6px] flex-wrap shrink-0">
           {extractedTime && (
-            <span className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] sm:text-xs font-bold", badgeTimeColor)}>
-              <Clock size={13} />
-              Cập nhật: {extractedTime}
+            <span className={cn("inline-flex items-center gap-[5px] px-[10px] py-[4px] rounded-full border text-[11px] sm:text-[11.5px] font-bold leading-none whitespace-nowrap", badgeTimeColor)}>
+              <Clock size={12} className="shrink-0" />
+              <span>Cập nhật: {extractedTime}</span>
             </span>
           )}
-          <span className={cn("inline-flex items-center px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-black", badgeCountColor)}>
+          <span className={cn("inline-flex items-center px-[10px] py-[4px] rounded-full text-[11px] sm:text-[11.5px] font-black leading-none whitespace-nowrap", badgeCountColor)}>
             {hasData ? `${lineCount} dòng` : 'Chưa có dữ liệu'}
           </span>
         </div>
       </div>
 
-      {/* Trạng thái Khóa / Mở dán mới (Kiểu thanh ngang Hình 1) */}
+      {/* Trạng thái Khóa / Mở dán mới */}
       {!isEditing ? (
         <div 
           onClick={() => {
             setIsEditing(true);
             setTempVal('');
           }}
-          className={cn(
-            "flex items-center justify-between p-3 sm:p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer group select-none shadow-2xs",
-            boxBorderHover
-          )}
+          className="relative z-10 flex flex-col min-[360px]:flex-row min-[360px]:items-center justify-between gap-[10px] sm:gap-[12px] pt-[4px] cursor-pointer group select-none"
           title="Click để mở dán mới"
         >
-          <div className="flex items-center gap-2.5 min-w-0 pr-2">
-            <Lock size={16} className={cn(iconColor, "shrink-0 stroke-[2.5]")} />
-            <span className={cn("text-xs sm:text-[13.5px] font-black truncate", textLockedColor)}>
-              Đã khóa dữ liệu {label} ({lineCount} dòng)
-            </span>
+          <div className="flex items-start sm:items-center gap-[9px] min-w-0 flex-1">
+            <Lock size={17} className={cn(iconColor, "shrink-0 stroke-[2.3] mt-[2px] sm:mt-0")} />
+            <div className={cn("text-[12px] sm:text-[13px] font-black leading-[1.38] break-words min-w-0", textLockedColor)}>
+              <span className="block">{hasData ? `Đã khóa dữ liệu ${label}` : `Chưa có dữ liệu ${label}`}</span>
+              <span className="block text-[11.5px] sm:text-[12.5px] font-extrabold opacity-90 mt-[1px]">
+                ({lineCount} dòng)
+              </span>
+            </div>
           </div>
-          <button
-            type="button"
-            className={cn(
-              "shrink-0 inline-flex items-center gap-1.5 py-1.5 px-3.5 sm:px-4 sm:py-2 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all pointer-events-none",
-              buttonBgColor
-            )}
-          >
-            <Unlock size={14} className="stroke-[2.5]" />
-            <span>Mở dán mới</span>
-          </button>
+
+          <div className="flex items-center gap-[12px] shrink-0 max-[359px]:w-full">
+            <div className={cn("hidden sm:block w-[1px] h-[30px] shrink-0", dividerColor)} />
+            <button
+              type="button"
+              className={cn(
+                "w-full min-[360px]:w-auto min-h-[44px] px-[14px] sm:px-[16px] py-[10px] text-white rounded-[11px] text-[12.5px] sm:text-[13px] font-black inline-flex items-center justify-center gap-[7px] transition-all pointer-events-none whitespace-nowrap",
+                buttonBgColor
+              )}
+            >
+              <Lock size={14} className="stroke-[2.4] shrink-0" />
+              <span>Mở dán mới</span>
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="space-y-3 pt-1">
+        <div className="relative z-10 space-y-[10px] pt-[4px]">
           <textarea
             value={tempVal}
             onPaste={(e) => {
@@ -410,29 +444,33 @@ const ReportInputBox: React.FC<ReportInputBoxProps> = ({
             rows={5}
             autoFocus
             className={cn(
-              "w-full p-3.5 bg-white border-2 rounded-2xl text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-hidden transition-all resize-y",
+              "w-full p-[12px] bg-white border-2 rounded-[14px] text-[12.5px] font-mono text-slate-800 placeholder-slate-400 focus:outline-hidden transition-all resize-y",
               borderEditColor
             )}
           />
 
-          <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
-            <span className="text-[11px] text-slate-400 font-medium">
+          <div className="flex flex-wrap items-center justify-between gap-[8px] px-[2px]">
+            <span className="text-[11.5px] text-slate-600 font-semibold leading-snug">
               💡 Tự động <b>Khóa &amp; Lưu</b> ngay khi dán • Click ra ngoài để đóng
             </span>
 
-            {hasData && (
+            {(hasData || !!(tempVal && tempVal.trim())) && (
               <button
                 type="button"
-                onClick={() => {
-                  if (window.confirm(`Bạn có chắc muốn xóa trắng hoàn toàn dữ liệu ${label}?`)) {
-                    onClear();
-                    setIsEditing(false);
-                    setTempVal('');
-                  }
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                 }}
-                className="inline-flex items-center justify-center gap-1 px-2.5 py-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg text-[11px] font-bold cursor-pointer transition-all"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setTempVal('');
+                  onClear();
+                  setIsEditing(true);
+                }}
+                className="min-h-[36px] inline-flex items-center justify-center gap-[5px] px-[10px] py-[6px] text-rose-600 hover:text-rose-700 bg-white/80 hover:bg-rose-50 border border-rose-200 rounded-[9px] text-[11.5px] font-bold cursor-pointer transition-all"
               >
-                <Trash2 size={12} />
+                <Trash2 size={13} />
                 <span>Xóa Trắng</span>
               </button>
             )}
@@ -687,7 +725,7 @@ const InputSection: React.FC<InputSectionProps> = ({
       } catch {}
       try {
         const docRef = doc(db, 'app_settings', `real_dthu_nv_${sClean}`);
-        setDoc(docRef, {
+        safeSetDoc(docRef, {
           storeId: sClean,
           rawInputThuc: cleanVal,
           updatedAt: serverTimestamp()
@@ -709,6 +747,20 @@ const InputSection: React.FC<InputSectionProps> = ({
     } catch {}
   };
 
+  const removeLocalStorageByPrefix = (prefixes: string[], exactKeys: string[]) => {
+    try {
+      exactKeys.forEach(k => localStorage.removeItem(k));
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && prefixes.some(p => k.startsWith(p))) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+    } catch {}
+  };
+
   const handleClearDtThucNv = (sName: string) => {
     const sClean = sName ? sName.replace(/\D/g, '') : '';
     setDtThucNvMap(prev => ({ ...prev, [sName]: '' }));
@@ -718,7 +770,7 @@ const InputSection: React.FC<InputSectionProps> = ({
       } catch {}
       try {
         const docRef = doc(db, 'app_settings', `real_dthu_nv_${sClean}`);
-        setDoc(docRef, {
+        safeSetDoc(docRef, {
           storeId: sClean,
           rawInputThuc: '',
           updatedAt: serverTimestamp()
@@ -726,7 +778,14 @@ const InputSection: React.FC<InputSectionProps> = ({
       } catch {}
     }
     try {
+      if (sName) localStorage.removeItem(`real_dthu_nv_raw_thuc_${sName}`);
       localStorage.removeItem(`cauhinh_${sName}_dt_thuc_nv`);
+      localStorage.removeItem('real_dthu_nv_raw_thuc_latest');
+    } catch {}
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('staff_thuc_updated', { detail: { storeName: sName, value: '' } }));
+      }
     } catch {}
     showNotification('Đã xóa dữ liệu D.THU THỰC NHÂN VIÊN', 'info');
   };
@@ -738,6 +797,7 @@ const InputSection: React.FC<InputSectionProps> = ({
   // Realtime & Luỹ kế Doanh thu thực
   const [realtimeDtThuc, setRealtimeDtThuc] = useState(() => {
     try {
+      if (localStorage.getItem('crm_field_cleared_rt_market_thuc')) return '';
       return (activeStore && localStorage.getItem(`rtst_realtime_dt_thuc_${activeStore}`)) || localStorage.getItem('rtst_realtime_dt_thuc') || localStorage.getItem('rt_market_thuc') || '';
     } catch {
       return '';
@@ -746,6 +806,7 @@ const InputSection: React.FC<InputSectionProps> = ({
 
   const [luykeDtThuc, setLuykeDtThuc] = useState(() => {
     try {
+      if (localStorage.getItem('crm_field_cleared_rt_catrev_thuc')) return '';
       return (activeStore && localStorage.getItem(`rtst_luyke_dt_thuc_${activeStore}`)) || localStorage.getItem('rtst_luyke_dt_thuc') || localStorage.getItem('rt_catrev_thuc') || '';
     } catch {
       return '';
@@ -755,6 +816,7 @@ const InputSection: React.FC<InputSectionProps> = ({
   // Realtime & Luỹ kế Trả chậm
   const [realtimeTraCham, setRealtimeTraCham] = useState(() => {
     try {
+      if (localStorage.getItem('crm_field_cleared_rt_tra_cham')) return '';
       return (activeStore && localStorage.getItem(`rtst_realtime_tra_cham_${activeStore}`)) || 
              localStorage.getItem('rtst_realtime_tra_cham') || 
              localStorage.getItem('rt_tra_cham') || '';
@@ -765,6 +827,7 @@ const InputSection: React.FC<InputSectionProps> = ({
 
   const [luykeTraCham, setLuykeTraCham] = useState(() => {
     try {
+      if (localStorage.getItem('crm_field_cleared_lk_tra_cham')) return '';
       return (activeStore && localStorage.getItem(`rtst_luyke_tra_cham_${activeStore}`)) || 
              localStorage.getItem('rtst_luyke_tra_cham') || 
              localStorage.getItem('rt_tra_cham_lk') || '';
@@ -777,6 +840,9 @@ const InputSection: React.FC<InputSectionProps> = ({
   const luykeDtThucRef = useRef(luykeDtThuc);
   const realtimeTraChamRef = useRef(realtimeTraCham);
   const luykeTraChamRef = useRef(luykeTraCham);
+  const lastLocalClusterEditRef = useRef<Record<string, { value: string; time: number }>>({});
+  const lastSavedClusterBoxRef = useRef<Record<string, string>>({});
+
   useEffect(() => { realtimeDtThucRef.current = realtimeDtThuc; }, [realtimeDtThuc]);
   useEffect(() => { luykeDtThucRef.current = luykeDtThuc; }, [luykeDtThuc]);
   useEffect(() => { realtimeTraChamRef.current = realtimeTraCham; }, [realtimeTraCham]);
@@ -784,54 +850,54 @@ const InputSection: React.FC<InputSectionProps> = ({
 
   useEffect(() => {
     if (!activeStore || activeStore === 'ALL') return;
-    const vRt = localStorage.getItem(`rtst_realtime_dt_thuc_${activeStore}`) || localStorage.getItem('rtst_realtime_dt_thuc') || '';
-    const vLk = localStorage.getItem(`rtst_luyke_dt_thuc_${activeStore}`) || localStorage.getItem('rtst_luyke_dt_thuc') || '';
-    const vRtTc = localStorage.getItem(`rtst_realtime_tra_cham_${activeStore}`) || localStorage.getItem('rtst_realtime_tra_cham') || '';
-    const vLkTc = localStorage.getItem(`rtst_luyke_tra_cham_${activeStore}`) || localStorage.getItem('rtst_luyke_tra_cham') || '';
-    if (vRt) {
-      realtimeDtThucRef.current = vRt;
-      setRealtimeDtThuc(vRt);
-    }
-    if (vLk) {
-      luykeDtThucRef.current = vLk;
-      setLuykeDtThuc(vLk);
-    }
-    if (vRtTc) {
-      realtimeTraChamRef.current = vRtTc;
-      setRealtimeTraCham(vRtTc);
-    }
-    if (vLkTc) {
-      luykeTraChamRef.current = vLkTc;
-      setLuykeTraCham(vLkTc);
-    }
+    const isRtCleared = !!localStorage.getItem('crm_field_cleared_rt_market_thuc');
+    const isLkCleared = !!localStorage.getItem('crm_field_cleared_rt_catrev_thuc');
+    const isRtTcCleared = !!localStorage.getItem('crm_field_cleared_rt_tra_cham');
+    const isLkTcCleared = !!localStorage.getItem('crm_field_cleared_lk_tra_cham');
+
+    const vRt = isRtCleared ? '' : (localStorage.getItem(`rtst_realtime_dt_thuc_${activeStore}`) || localStorage.getItem('rtst_realtime_dt_thuc') || localStorage.getItem('rt_market_thuc') || '');
+    const vLk = isLkCleared ? '' : (localStorage.getItem(`rtst_luyke_dt_thuc_${activeStore}`) || localStorage.getItem('rtst_luyke_dt_thuc') || localStorage.getItem('rt_catrev_thuc') || '');
+    const vRtTc = isRtTcCleared ? '' : (localStorage.getItem(`rtst_realtime_tra_cham_${activeStore}`) || localStorage.getItem('rtst_realtime_tra_cham') || localStorage.getItem('rt_tra_cham') || '');
+    const vLkTc = isLkTcCleared ? '' : (localStorage.getItem(`rtst_luyke_tra_cham_${activeStore}`) || localStorage.getItem('rtst_luyke_tra_cham') || localStorage.getItem('rt_tra_cham_lk') || '');
+
+    realtimeDtThucRef.current = vRt;
+    setRealtimeDtThuc(vRt);
+    luykeDtThucRef.current = vLk;
+    setLuykeDtThuc(vLk);
+    realtimeTraChamRef.current = vRtTc;
+    setRealtimeTraCham(vRtTc);
+    luykeTraChamRef.current = vLkTc;
+    setLuykeTraCham(vLkTc);
   }, [activeStore]);
 
   const handleSaveRealtimeDtThuc = (val: string) => {
     const raw = (val || '').trim();
+    lastLocalClusterEditRef.current['rt_market_thuc'] = { value: raw, time: Date.now() };
     realtimeDtThucRef.current = raw;
     setRealtimeDtThuc(raw);
     try {
       if (raw) {
+        localStorage.removeItem('crm_field_cleared_rt_market_thuc');
         localStorage.setItem('rtst_realtime_dt_thuc', raw);
         localStorage.setItem('rt_market_thuc', raw);
         if (activeStore && activeStore !== 'ALL') {
           localStorage.setItem(`rtst_realtime_dt_thuc_${activeStore}`, raw);
         }
       } else {
-        localStorage.removeItem('rtst_realtime_dt_thuc');
-        localStorage.removeItem('rt_market_thuc');
-        if (activeStore && activeStore !== 'ALL') {
-          localStorage.removeItem(`rtst_realtime_dt_thuc_${activeStore}`);
-        }
+        localStorage.setItem('crm_field_cleared_rt_market_thuc', String(Date.now()));
+        removeLocalStorageByPrefix(['rtst_realtime_dt_thuc_'], ['rtst_realtime_dt_thuc', 'rt_market_thuc']);
       }
     } catch {}
     try {
       const docKey = activeStore && activeStore !== 'ALL' ? `realtime_dt_thuc_${activeStore}` : 'realtime_dt_thuc_general';
-      const docRef = doc(db, 'app_settings', docKey);
-      setDoc(docRef, {
-        value: raw,
-        updatedAt: serverTimestamp()
-      }, { merge: true }).catch((err) => console.warn('Firestore write warning:', err));
+      if (lastSavedClusterBoxRef.current[docKey] !== raw) {
+        lastSavedClusterBoxRef.current[docKey] = raw;
+        const docRef = doc(db, 'app_settings', docKey);
+        safeSetDoc(docRef, {
+          value: raw,
+          updatedAt: serverTimestamp()
+        }, { merge: true }).catch((err) => console.warn('Firestore write warning:', err));
+      }
     } catch {}
     try {
       if (typeof window !== 'undefined') {
@@ -842,30 +908,32 @@ const InputSection: React.FC<InputSectionProps> = ({
 
   const handleSaveLuykeDtThuc = (val: string) => {
     const raw = (val || '').trim();
+    lastLocalClusterEditRef.current['rt_catrev_thuc'] = { value: raw, time: Date.now() };
     luykeDtThucRef.current = raw;
     setLuykeDtThuc(raw);
     try {
       if (raw) {
+        localStorage.removeItem('crm_field_cleared_rt_catrev_thuc');
         localStorage.setItem('rtst_luyke_dt_thuc', raw);
         localStorage.setItem('rt_catrev_thuc', raw);
         if (activeStore && activeStore !== 'ALL') {
           localStorage.setItem(`rtst_luyke_dt_thuc_${activeStore}`, raw);
         }
       } else {
-        localStorage.removeItem('rtst_luyke_dt_thuc');
-        localStorage.removeItem('rt_catrev_thuc');
-        if (activeStore && activeStore !== 'ALL') {
-          localStorage.removeItem(`rtst_luyke_dt_thuc_${activeStore}`);
-        }
+        localStorage.setItem('crm_field_cleared_rt_catrev_thuc', String(Date.now()));
+        removeLocalStorageByPrefix(['rtst_luyke_dt_thuc_'], ['rtst_luyke_dt_thuc', 'rt_catrev_thuc', 'lk_market_thuc']);
       }
     } catch {}
     try {
       const docKey = activeStore && activeStore !== 'ALL' ? `luyke_dt_thuc_${activeStore}` : 'luyke_dt_thuc_general';
-      const docRef = doc(db, 'app_settings', docKey);
-      setDoc(docRef, {
-        value: raw,
-        updatedAt: serverTimestamp()
-      }, { merge: true }).catch((err) => console.warn('Firestore write warning:', err));
+      if (lastSavedClusterBoxRef.current[docKey] !== raw) {
+        lastSavedClusterBoxRef.current[docKey] = raw;
+        const docRef = doc(db, 'app_settings', docKey);
+        safeSetDoc(docRef, {
+          value: raw,
+          updatedAt: serverTimestamp()
+        }, { merge: true }).catch((err) => console.warn('Firestore write warning:', err));
+      }
     } catch {}
     try {
       if (typeof window !== 'undefined') {
@@ -876,30 +944,32 @@ const InputSection: React.FC<InputSectionProps> = ({
 
   const handleSaveRealtimeTraCham = (val: string) => {
     const raw = (val || '').trim();
+    lastLocalClusterEditRef.current['rt_tra_cham'] = { value: raw, time: Date.now() };
     realtimeTraChamRef.current = raw;
     setRealtimeTraCham(raw);
     try {
       if (raw) {
+        localStorage.removeItem('crm_field_cleared_rt_tra_cham');
         localStorage.setItem('rtst_realtime_tra_cham', raw);
         localStorage.setItem('rt_tra_cham', raw);
         if (activeStore && activeStore !== 'ALL') {
           localStorage.setItem(`rtst_realtime_tra_cham_${activeStore}`, raw);
         }
       } else {
-        localStorage.removeItem('rtst_realtime_tra_cham');
-        localStorage.removeItem('rt_tra_cham');
-        if (activeStore && activeStore !== 'ALL') {
-          localStorage.removeItem(`rtst_realtime_tra_cham_${activeStore}`);
-        }
+        localStorage.setItem('crm_field_cleared_rt_tra_cham', String(Date.now()));
+        removeLocalStorageByPrefix(['rtst_realtime_tra_cham_'], ['rtst_realtime_tra_cham', 'rt_tra_cham']);
       }
     } catch {}
     try {
       const docKey = activeStore && activeStore !== 'ALL' ? `realtime_tra_cham_${activeStore}` : 'realtime_tra_cham_general';
-      const docRef = doc(db, 'app_settings', docKey);
-      setDoc(docRef, {
-        value: raw,
-        updatedAt: serverTimestamp()
-      }, { merge: true }).catch((err) => console.warn('Firestore write warning:', err));
+      if (lastSavedClusterBoxRef.current[docKey] !== raw) {
+        lastSavedClusterBoxRef.current[docKey] = raw;
+        const docRef = doc(db, 'app_settings', docKey);
+        safeSetDoc(docRef, {
+          value: raw,
+          updatedAt: serverTimestamp()
+        }, { merge: true }).catch((err) => console.warn('Firestore write warning:', err));
+      }
     } catch {}
     try {
       if (typeof window !== 'undefined') {
@@ -910,30 +980,32 @@ const InputSection: React.FC<InputSectionProps> = ({
 
   const handleSaveLuykeTraCham = (val: string) => {
     const raw = (val || '').trim();
+    lastLocalClusterEditRef.current['lk_tra_cham'] = { value: raw, time: Date.now() };
     luykeTraChamRef.current = raw;
     setLuykeTraCham(raw);
     try {
       if (raw) {
+        localStorage.removeItem('crm_field_cleared_lk_tra_cham');
         localStorage.setItem('rtst_luyke_tra_cham', raw);
         localStorage.setItem('rt_tra_cham_lk', raw);
         if (activeStore && activeStore !== 'ALL') {
           localStorage.setItem(`rtst_luyke_tra_cham_${activeStore}`, raw);
         }
       } else {
-        localStorage.removeItem('rtst_luyke_tra_cham');
-        localStorage.removeItem('rt_tra_cham_lk');
-        if (activeStore && activeStore !== 'ALL') {
-          localStorage.removeItem(`rtst_luyke_tra_cham_${activeStore}`);
-        }
+        localStorage.setItem('crm_field_cleared_lk_tra_cham', String(Date.now()));
+        removeLocalStorageByPrefix(['rtst_luyke_tra_cham_'], ['rtst_luyke_tra_cham', 'rt_tra_cham_lk']);
       }
     } catch {}
     try {
       const docKey = activeStore && activeStore !== 'ALL' ? `luyke_tra_cham_${activeStore}` : 'luyke_tra_cham_general';
-      const docRef = doc(db, 'app_settings', docKey);
-      setDoc(docRef, {
-        value: raw,
-        updatedAt: serverTimestamp()
-      }, { merge: true }).catch((err) => console.warn('Firestore write warning:', err));
+      if (lastSavedClusterBoxRef.current[docKey] !== raw) {
+        lastSavedClusterBoxRef.current[docKey] = raw;
+        const docRef = doc(db, 'app_settings', docKey);
+        safeSetDoc(docRef, {
+          value: raw,
+          updatedAt: serverTimestamp()
+        }, { merge: true }).catch((err) => console.warn('Firestore write warning:', err));
+      }
     } catch {}
     try {
       if (typeof window !== 'undefined') {
@@ -949,16 +1021,42 @@ const InputSection: React.FC<InputSectionProps> = ({
       const docKeyRtTc = activeStore && activeStore !== 'ALL' ? `realtime_tra_cham_${activeStore}` : 'realtime_tra_cham_general';
       const docKeyLkTc = activeStore && activeStore !== 'ALL' ? `luyke_tra_cham_${activeStore}` : 'luyke_tra_cham_general';
 
+      const shouldAcceptRemote = (fieldId: string, clearKey: string, val: string, updatedAt: any) => {
+        const localEdit = lastLocalClusterEditRef.current[fieldId];
+        if (localEdit && Date.now() - localEdit.time < 15000 && val !== localEdit.value) {
+          return false;
+        }
+        try {
+          const clearedTsStr = localStorage.getItem(clearKey);
+          if (clearedTsStr && val) {
+            const clearedTs = Number(clearedTsStr) || 0;
+            const docTs = updatedAt?.toMillis ? updatedAt.toMillis() : (updatedAt?.seconds ? updatedAt.seconds * 1000 : 0);
+            if (!docTs || docTs <= clearedTs + 5000) {
+              return false;
+            }
+            localStorage.removeItem(clearKey);
+          }
+        } catch {}
+        return true;
+      };
+
       const unsub1 = onSnapshot(doc(db, 'app_settings', docKeyRt), (snap) => {
         if (snap.exists()) {
           const d = snap.data();
-          if (d?.value) {
-            realtimeDtThucRef.current = d.value;
-            setRealtimeDtThuc(d.value);
-            localStorage.setItem('rtst_realtime_dt_thuc', d.value);
-            localStorage.setItem('rt_market_thuc', d.value);
-            if (activeStore && activeStore !== 'ALL') {
-              localStorage.setItem(`rtst_realtime_dt_thuc_${activeStore}`, d.value);
+          if (d?.value !== undefined) {
+            const val = String(d.value || '');
+            if (!shouldAcceptRemote('rt_market_thuc', 'crm_field_cleared_rt_market_thuc', val, d.updatedAt)) return;
+            lastSavedClusterBoxRef.current[docKeyRt] = val;
+            realtimeDtThucRef.current = val;
+            setRealtimeDtThuc(val);
+            if (val) {
+              localStorage.setItem('rtst_realtime_dt_thuc', val);
+              localStorage.setItem('rt_market_thuc', val);
+              if (activeStore && activeStore !== 'ALL') {
+                localStorage.setItem(`rtst_realtime_dt_thuc_${activeStore}`, val);
+              }
+            } else {
+              removeLocalStorageByPrefix(['rtst_realtime_dt_thuc_'], ['rtst_realtime_dt_thuc', 'rt_market_thuc']);
             }
           }
         }
@@ -966,13 +1064,20 @@ const InputSection: React.FC<InputSectionProps> = ({
       const unsub2 = onSnapshot(doc(db, 'app_settings', docKeyLk), (snap) => {
         if (snap.exists()) {
           const d = snap.data();
-          if (d?.value) {
-            luykeDtThucRef.current = d.value;
-            setLuykeDtThuc(d.value);
-            localStorage.setItem('rtst_luyke_dt_thuc', d.value);
-            localStorage.setItem('rt_catrev_thuc', d.value);
-            if (activeStore && activeStore !== 'ALL') {
-              localStorage.setItem(`rtst_luyke_dt_thuc_${activeStore}`, d.value);
+          if (d?.value !== undefined) {
+            const val = String(d.value || '');
+            if (!shouldAcceptRemote('rt_catrev_thuc', 'crm_field_cleared_rt_catrev_thuc', val, d.updatedAt)) return;
+            lastSavedClusterBoxRef.current[docKeyLk] = val;
+            luykeDtThucRef.current = val;
+            setLuykeDtThuc(val);
+            if (val) {
+              localStorage.setItem('rtst_luyke_dt_thuc', val);
+              localStorage.setItem('rt_catrev_thuc', val);
+              if (activeStore && activeStore !== 'ALL') {
+                localStorage.setItem(`rtst_luyke_dt_thuc_${activeStore}`, val);
+              }
+            } else {
+              removeLocalStorageByPrefix(['rtst_luyke_dt_thuc_'], ['rtst_luyke_dt_thuc', 'rt_catrev_thuc', 'lk_market_thuc']);
             }
           }
         }
@@ -980,28 +1085,52 @@ const InputSection: React.FC<InputSectionProps> = ({
       const unsub3 = onSnapshot(doc(db, 'app_settings', docKeyRtTc), (snap) => {
         if (snap.exists()) {
           const d = snap.data();
-          if (d?.value) {
-            realtimeTraChamRef.current = d.value;
-            setRealtimeTraCham(d.value);
-            localStorage.setItem('rtst_realtime_tra_cham', d.value);
-            localStorage.setItem('rt_tra_cham', d.value);
-            if (activeStore && activeStore !== 'ALL') {
-              localStorage.setItem(`rtst_realtime_tra_cham_${activeStore}`, d.value);
+          if (d?.value !== undefined) {
+            const val = String(d.value || '');
+            if (!shouldAcceptRemote('rt_tra_cham', 'crm_field_cleared_rt_tra_cham', val, d.updatedAt)) return;
+            lastSavedClusterBoxRef.current[docKeyRtTc] = val;
+            realtimeTraChamRef.current = val;
+            setRealtimeTraCham(val);
+            if (val) {
+              localStorage.setItem('rtst_realtime_tra_cham', val);
+              localStorage.setItem('rt_tra_cham', val);
+              if (activeStore && activeStore !== 'ALL') {
+                localStorage.setItem(`rtst_realtime_tra_cham_${activeStore}`, val);
+              }
+            } else {
+              removeLocalStorageByPrefix(['rtst_realtime_tra_cham_'], ['rtst_realtime_tra_cham', 'rt_tra_cham']);
             }
+            try {
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('realtime_tra_cham_updated', { detail: { value: val, activeStore } }));
+              }
+            } catch {}
           }
         }
       }, () => {});
       const unsub4 = onSnapshot(doc(db, 'app_settings', docKeyLkTc), (snap) => {
         if (snap.exists()) {
           const d = snap.data();
-          if (d?.value) {
-            luykeTraChamRef.current = d.value;
-            setLuykeTraCham(d.value);
-            localStorage.setItem('rtst_luyke_tra_cham', d.value);
-            localStorage.setItem('rt_tra_cham_lk', d.value);
-            if (activeStore && activeStore !== 'ALL') {
-              localStorage.setItem(`rtst_luyke_tra_cham_${activeStore}`, d.value);
+          if (d?.value !== undefined) {
+            const val = String(d.value || '');
+            if (!shouldAcceptRemote('lk_tra_cham', 'crm_field_cleared_lk_tra_cham', val, d.updatedAt)) return;
+            lastSavedClusterBoxRef.current[docKeyLkTc] = val;
+            luykeTraChamRef.current = val;
+            setLuykeTraCham(val);
+            if (val) {
+              localStorage.setItem('rtst_luyke_tra_cham', val);
+              localStorage.setItem('rt_tra_cham_lk', val);
+              if (activeStore && activeStore !== 'ALL') {
+                localStorage.setItem(`rtst_luyke_tra_cham_${activeStore}`, val);
+              }
+            } else {
+              removeLocalStorageByPrefix(['rtst_luyke_tra_cham_'], ['rtst_luyke_tra_cham', 'rt_tra_cham_lk']);
             }
+            try {
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('luyke_tra_cham_updated', { detail: { value: val, activeStore } }));
+              }
+            } catch {}
           }
         }
       }, () => {});
@@ -1115,38 +1244,38 @@ const InputSection: React.FC<InputSectionProps> = ({
   };
 
   return (
-    <div className="space-y-6 mb-8" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
+    <div className="space-y-[16px] sm:space-y-[22px] mb-[32px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
       {/* Data Realtime Container - Modern V2 Redesign */}
       {activeTab === 'REALTIME' && (
-      <div className="space-y-6">
+      <div className="space-y-[16px] sm:space-y-[22px]">
         {/* Header Hero Card */}
-        <div className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 shrink-0">
-              <Zap size={24} />
+        <div className="relative overflow-hidden bg-white rounded-[20px] sm:rounded-[24px] border border-[#E2EAF4] p-[14px] sm:p-[22px] shadow-[0_4px_20px_-4px_rgba(15,23,42,0.04)] flex flex-col md:flex-row md:items-center justify-between gap-[12px] sm:gap-[16px]">
+          <div className="flex items-start sm:items-center gap-[12px] sm:gap-[14px] min-w-0">
+            <div className="w-[44px] h-[44px] sm:w-[50px] sm:h-[50px] rounded-[14px] sm:rounded-[16px] bg-gradient-to-br from-[#10B981] via-[#0D9488] to-[#0891B2] flex items-center justify-center text-white shadow-[0_6px_16px_rgba(16,185,129,0.25)] shrink-0">
+              <Zap size={24} className="shrink-0" />
             </div>
-            <div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight uppercase" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-[8px] sm:gap-[10px] flex-wrap">
+                <h1 className="text-[17px] sm:text-[22px] font-black text-[#0B1F3A] tracking-tight uppercase leading-snug" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                   CẬP NHẬT DỮ LIỆU
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="px-[10px] py-[3px] rounded-full text-[11px] font-black bg-[#E6FAEF] text-[#047857] border border-[#A7F3D0] leading-none whitespace-nowrap">
                   V2.0 BI
                 </span>
               </div>
-              <p className="text-xs text-slate-500 font-medium mt-1 flex items-center gap-1.5">
+              <p className="text-[12px] sm:text-[13px] text-[#64748B] font-medium mt-[4px] flex flex-wrap items-center gap-[5px] leading-relaxed">
                 <span>⚡ Bấm vào từng ô và dán dữ liệu</span>
-                <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-[10px] font-bold text-slate-700 font-mono">Ctrl + V</kbd>
-                <span>từ báo cáo BI để tự động phân tích & đồng bộ.</span>
+                <kbd className="px-[7px] py-[2px] bg-[#EEF2FF] border border-[#C7D2FE] rounded-[6px] text-[11px] font-black text-[#1E3A8A] font-sans">Ctrl + V</kbd>
+                <span>từ báo cáo BI để tự động phân tích &amp; đồng bộ.</span>
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-[10px] flex-wrap self-start md:self-center shrink-0">
             {/* Nút RESET DỮ LIỆU đã được ẩn theo yêu cầu */}
-            <div className="flex items-center gap-2.5 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl shadow-xs">
-              <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", (isSavingRealtime || isLoadingRealtime) ? "bg-amber-500 animate-ping" : "bg-emerald-500")} />
-              <span className="text-xs font-black text-slate-700 uppercase tracking-wider">
+            <div className="flex items-center gap-[8px] px-[14px] py-[8px] sm:py-[9px] bg-white border border-[#E2EAF4] rounded-full shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
+              <div className={cn("w-[8px] h-[8px] rounded-full shrink-0", (isSavingRealtime || isLoadingRealtime) ? "bg-amber-500 animate-ping" : "bg-[#10B981]")} />
+              <span className="text-[11.5px] sm:text-[12px] font-black text-[#0F172A] uppercase tracking-wide whitespace-nowrap">
                 {isSavingRealtime ? "ĐANG LƯU DỮ LIỆU..." : isLoadingRealtime ? "ĐANG TẢI DỮ LIỆU..." : lastUpdatedRealtime ? `ĐÃ CẬP NHẬT ${lastUpdatedRealtime.toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'})}` : "HỆ THỐNG SẴN SÀNG"}
               </span>
             </div>
@@ -1154,15 +1283,16 @@ const InputSection: React.FC<InputSectionProps> = ({
         </div>
 
         {showAll && showRealtime && (
-        <div className="space-y-6">
-          {/* Two Groups: BÁO CÁO TỔNG HỢP + THI ĐUA CỤM */}
-          <div className="flex flex-col gap-6">
+        <div className="space-y-[16px] sm:space-y-[22px]">
+          {/* Groups: DOANH THU CỤM + THI ĐUA CỤM + TRẢ CHẬM CỤM */}
+          <div className="flex flex-col gap-[16px] sm:gap-[22px]">
             {[
               { 
                 title: 'DOANH THU CỤM', 
                 subtitle: 'Dữ liệu Doanh thu Realtime & Luỹ kế',
-                badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-                headerDot: 'bg-emerald-600',
+                badgeBg: 'bg-[#F4F9FF] text-[#0D6EFD] border-[#CFE2FF] hover:bg-[#E6F1FF]',
+                iconBoxClass: 'bg-[#EBF3FF] border border-[#D4E5FF] text-[#0D6EFD]',
+                groupIcon: 'chart',
                 activeColor: 'emerald',
                 reportUrl: 'https://baocao.dienmayxanh.com/dashboard/revenue-consolidated',
                 reportLabel: 'LINK REPORT DT',
@@ -1172,10 +1302,6 @@ const InputSection: React.FC<InputSectionProps> = ({
                     label: 'REALTIME DOANH THU THỰC', 
                     value: realtimeDtThuc, 
                     onChange: handleSaveRealtimeDtThuc, 
-                    onBlur: () => {
-                      const v = realtimeDtThucRef.current;
-                      if (v) handleSaveRealtimeDtThuc(v);
-                    }, 
                     hasData: !!realtimeDtThuc,
                     colorTheme: 'emerald'
                   },
@@ -1183,12 +1309,8 @@ const InputSection: React.FC<InputSectionProps> = ({
                     id: 'rt_catrev_thuc', 
                     label: 'LUỸ KẾ DOANH THU THỰC', 
                     value: luykeDtThuc, 
-                    colorTheme: 'teal',
+                    colorTheme: 'emerald',
                     onChange: handleSaveLuykeDtThuc, 
-                    onBlur: () => {
-                      const v = luykeDtThucRef.current;
-                      if (v) handleSaveLuykeDtThuc(v);
-                    }, 
                     hasData: !!luykeDtThuc,
                     isLuyke: true 
                   },
@@ -1196,28 +1318,33 @@ const InputSection: React.FC<InputSectionProps> = ({
                     id: 'rt_market', 
                     label: 'REALTIME DOANH THU QUY ĐỔI', 
                     value: marketInput, 
-                    onChange: setMarketInput, 
+                    onChange: (val: string) => {
+                      try {
+                        if (val) localStorage.removeItem('crm_field_cleared_rt_market');
+                      } catch {}
+                      setMarketInput(val);
+                    }, 
                     onBlur: () => onSaveRealtime(false, 'REALTIME DT'), 
                     hasData: !!marketInput,
-                    colorTheme: 'emerald'
+                    colorTheme: 'blue'
                   },
                   { 
                     id: 'rt_catrev', 
                     label: 'LUỸ KẾ DOANH THU QUY ĐỔI', 
                     value: clusterSummaryInput || categoryRevenueInput, 
-                    colorTheme: 'teal',
+                    colorTheme: 'blue',
                     onChange: (val: string) => { 
                       setCategoryRevenueInput(val); 
                       setClusterSummaryInput(val); 
                       try {
                         if (val) {
+                          localStorage.removeItem('crm_field_cleared_rt_catrev');
                           localStorage.setItem('rt_catrev', val);
                           localStorage.setItem('rtst_cluster_summary', val);
                           localStorage.setItem('rtst_catrev', val);
                         } else {
-                          localStorage.removeItem('rt_catrev');
-                          localStorage.removeItem('rtst_cluster_summary');
-                          localStorage.removeItem('rtst_catrev');
+                          localStorage.setItem('crm_field_cleared_rt_catrev', String(Date.now()));
+                          removeLocalStorageByPrefix(['rt_catrev_', 'rtst_cluster_summary_', 'rtst_catrev_'], ['rt_catrev', 'rtst_cluster_summary', 'rtst_catrev', 'rtst_doanh_thu_hop_nhat']);
                         }
                       } catch {}
                     }, 
@@ -1229,9 +1356,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                           localStorage.setItem('rtst_cluster_summary', v);
                           localStorage.setItem('rtst_catrev', v);
                         } else {
-                          localStorage.removeItem('rt_catrev');
-                          localStorage.removeItem('rtst_cluster_summary');
-                          localStorage.removeItem('rtst_catrev');
+                          removeLocalStorageByPrefix(['rt_catrev_', 'rtst_cluster_summary_', 'rtst_catrev_'], ['rt_catrev', 'rtst_cluster_summary', 'rtst_catrev', 'rtst_doanh_thu_hop_nhat']);
                         }
                       } catch {}
                       onSaveRealtime(false, 'LUỸ KẾ DT'); 
@@ -1245,8 +1370,9 @@ const InputSection: React.FC<InputSectionProps> = ({
               { 
                 title: 'THI ĐUA CỤM', 
                 subtitle: 'Dữ liệu Thi đua Realtime & Luỹ kế theo kênh',
-                badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
-                headerDot: 'bg-amber-500',
+                badgeBg: 'bg-[#FFFDF5] text-[#D97706] border-[#FDE0A6] hover:bg-[#FFF5D6]',
+                iconBoxClass: 'bg-[#FFF8E6] border border-[#FDE4A6] text-[#F59E0B]',
+                groupIcon: 'trophy',
                 activeColor: 'amber',
                 hasYcx: false,
                 reportUrl: 'https://baocao.dienmayxanh.com/dashboard/thi-dua',
@@ -1256,7 +1382,12 @@ const InputSection: React.FC<InputSectionProps> = ({
                     id: 'rt_cat', 
                     label: 'REALTIME THI ĐUA', 
                     value: categoryInput, 
-                    onChange: setCategoryInput, 
+                    onChange: (val: string) => {
+                      try {
+                        if (val) localStorage.removeItem('crm_field_cleared_rt_cat');
+                      } catch {}
+                      setCategoryInput(val);
+                    }, 
                     onBlur: () => onSaveRealtime(false, 'REALTIME TĐ'), 
                     hasData: !!categoryInput,
                     colorTheme: 'amber'
@@ -1270,10 +1401,11 @@ const InputSection: React.FC<InputSectionProps> = ({
                       setCategoryTargetInput(val); 
                       setClusterCategoryInput && setClusterCategoryInput(val); 
                       try {
-                        if (!val) {
-                          localStorage.removeItem('rt_catlk');
-                          localStorage.removeItem('rtst_catlk');
-                          localStorage.removeItem('rtst_cluster_category');
+                        if (val) {
+                          localStorage.removeItem('crm_field_cleared_rt_catlk');
+                        } else {
+                          localStorage.setItem('crm_field_cleared_rt_catlk', String(Date.now()));
+                          removeLocalStorageByPrefix(['rtst_cat_target_', 'rtst_catlk_', 'rtst_cluster_category_'], ['rt_catlk', 'rtst_catlk', 'rtst_cluster_category']);
                         }
                       } catch {}
                     }, 
@@ -1288,8 +1420,9 @@ const InputSection: React.FC<InputSectionProps> = ({
               { 
                 title: 'TRẢ CHẬM CỤM', 
                 subtitle: 'Dữ liệu Trả chậm Realtime & Luỹ kế',
-                badgeBg: 'bg-purple-50 text-purple-700 border-purple-200',
-                headerDot: 'bg-purple-600',
+                badgeBg: 'bg-[#FAF5FF] text-[#7C3AED] border-[#E9D5FF] hover:bg-[#F3E8FF]',
+                iconBoxClass: 'bg-[#F5EEFF] border border-[#E2D0FF] text-[#7C3AED]',
+                groupIcon: 'card',
                 activeColor: 'purple',
                 hasYcx: false,
                 reportUrl: 'https://baocao.dienmayxanh.com/dashboard/tra-cham',
@@ -1300,10 +1433,6 @@ const InputSection: React.FC<InputSectionProps> = ({
                     label: 'REALTIME TRẢ CHẬM', 
                     value: realtimeTraCham, 
                     onChange: handleSaveRealtimeTraCham, 
-                    onBlur: () => {
-                      const v = realtimeTraChamRef.current;
-                      if (v) handleSaveRealtimeTraCham(v);
-                    }, 
                     hasData: !!realtimeTraCham,
                     colorTheme: 'purple'
                   },
@@ -1313,25 +1442,29 @@ const InputSection: React.FC<InputSectionProps> = ({
                     value: luykeTraCham, 
                     colorTheme: 'violet',
                     onChange: handleSaveLuykeTraCham, 
-                    onBlur: () => { 
-                      const v = luykeTraChamRef.current;
-                      if (v) handleSaveLuykeTraCham(v);
-                    }, 
                     hasData: !!luykeTraCham,
                     isLuyke: true 
                   },
                 ]
               },
             ].map(group => (
-              <div key={group.title} className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
-                  <div className="flex items-center gap-2.5">
-                    <div className={cn("w-2.5 h-6 rounded-full shrink-0", group.headerDot)} />
-                    <div>
-                      <h2 className="text-[15px] font-black text-slate-800 uppercase tracking-tight" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+              <div key={group.title} className="bg-white rounded-[20px] sm:rounded-[24px] border border-[#E2EAF4] p-[14px] sm:p-[22px] shadow-[0_4px_20px_-4px_rgba(15,23,42,0.04)] space-y-[14px] sm:space-y-[18px]">
+                <div className="flex flex-wrap items-center justify-between gap-[10px] border-b border-[#EEF3F9] pb-[12px] sm:pb-[14px]">
+                  <div className="flex items-center gap-[12px] min-w-0">
+                    <div className={cn("w-[40px] h-[40px] sm:w-[44px] sm:h-[44px] rounded-[12px] flex items-center justify-center shrink-0 shadow-2xs", group.iconBoxClass)}>
+                      {group.groupIcon === 'chart' ? (
+                        <BarChart3 size={22} className="stroke-[2.3]" />
+                      ) : group.groupIcon === 'trophy' ? (
+                        <Trophy size={21} className="stroke-[2.2]" />
+                      ) : (
+                        <CreditCard size={21} className="stroke-[2.2]" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="text-[15px] sm:text-[17px] font-black text-[#0B1F3A] uppercase tracking-tight leading-snug" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                         {group.title}
                       </h2>
-                      <p className="text-[11px] font-medium text-slate-400">
+                      <p className="text-[11.5px] sm:text-[12.5px] font-medium text-[#64748B] mt-[1px] leading-snug">
                         {group.subtitle}
                       </p>
                     </div>
@@ -1340,14 +1473,14 @@ const InputSection: React.FC<InputSectionProps> = ({
                     href={group.reportUrl} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className={cn("px-2.5 py-1 rounded-xl text-[11px] font-black uppercase border cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1.5", group.badgeBg)}
+                    className={cn("min-h-[38px] px-[12px] sm:px-[14px] py-[7px] rounded-[11px] text-[11.5px] sm:text-[12px] font-black uppercase border cursor-pointer transition-all inline-flex items-center gap-[6px] shrink-0 whitespace-nowrap shadow-2xs", group.badgeBg)}
                   >
-                    <ExternalLink size={12} />
-                    {group.reportLabel}
+                    <ExternalLink size={14} className="shrink-0" />
+                    <span>{group.reportLabel}</span>
                   </a>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-[12px] sm:gap-[16px]">
                   {group.items.map(item => (
                     <ReportInputBox
                       key={item.id}
@@ -1355,26 +1488,31 @@ const InputSection: React.FC<InputSectionProps> = ({
                       label={item.label}
                       value={item.value}
                       onChange={item.onChange}
-                      onBlur={item.onBlur}
+                      onBlur={(item as any).onBlur}
                       colorTheme={item.colorTheme as any}
                       onClear={() => {
                         if (item.label === 'REALTIME DT' || item.label === 'REALTIME DOANH THU QUY ĐỔI') {
+                          try {
+                            localStorage.setItem('crm_field_cleared_rt_market', String(Date.now()));
+                            removeLocalStorageByPrefix(['rtst_market_input_'], ['rtst_market_input', 'rt_market', 'rt_market_qd']);
+                          } catch {}
                           setMarketInput('');
                           if (clearField) clearField(setMarketInput, 'REALTIME DT');
                           else onSaveRealtime(true, 'REALTIME DT');
+                          showNotification('Đã xóa dữ liệu REALTIME DOANH THU QUY ĐỔI', 'info');
                         } else if (item.label === 'LUỸ KẾ DT' || item.label === 'LUỸ KẾ DOANH THU QUY ĐỔI') {
+                          try {
+                            localStorage.setItem('crm_field_cleared_rt_catrev', String(Date.now()));
+                            removeLocalStorageByPrefix(['rt_catrev_', 'rtst_cluster_summary_', 'rtst_catrev_'], ['rt_catrev', 'rtst_cluster_summary', 'rtst_catrev', 'rtst_doanh_thu_hop_nhat']);
+                          } catch {}
                           setCategoryRevenueInput('');
                           setClusterSummaryInput('');
-                          try {
-                            localStorage.removeItem('rt_catrev');
-                            localStorage.removeItem('rtst_cluster_summary');
-                            localStorage.removeItem('rtst_catrev');
-                          } catch {}
                           if (clearField) clearField(setCategoryRevenueInput, 'LUỸ KẾ DT');
                           else {
                             onSaveRealtime(true, 'LUỸ KẾ DT');
                             onSaveLuyke(true, 'auto', undefined, undefined, 'LUỸ KẾ DT');
                           }
+                          showNotification('Đã xóa dữ liệu LUỸ KẾ DOANH THU QUY ĐỔI', 'info');
                         } else if (item.label === 'REALTIME DOANH THU THỰC') {
                           handleSaveRealtimeDtThuc('');
                           showNotification('Đã xóa dữ liệu REALTIME DOANH THU THỰC', 'info');
@@ -1388,22 +1526,27 @@ const InputSection: React.FC<InputSectionProps> = ({
                           handleSaveLuykeTraCham('');
                           showNotification('Đã xóa dữ liệu LUỸ KẾ TRẢ CHẬM', 'info');
                         } else if (item.label === 'REALTIME THI ĐUA' || item.label === 'REALTIME TĐ') {
+                          try {
+                            localStorage.setItem('crm_field_cleared_rt_cat', String(Date.now()));
+                            removeLocalStorageByPrefix(['rtst_category_input_'], ['rtst_category_input', 'rt_cat']);
+                          } catch {}
                           setCategoryInput('');
                           if (clearField) clearField(setCategoryInput, 'REALTIME TĐ');
                           else onSaveRealtime(true, 'REALTIME TĐ');
+                          showNotification('Đã xóa dữ liệu REALTIME THI ĐUA', 'info');
                         } else if (item.label === 'LUỸ KẾ THI ĐUA' || item.label === 'LUỸ KẾ TĐ') {
+                          try {
+                            localStorage.setItem('crm_field_cleared_rt_catlk', String(Date.now()));
+                            removeLocalStorageByPrefix(['rtst_cat_target_', 'rtst_catlk_', 'rtst_cluster_category_'], ['rt_catlk', 'rtst_catlk', 'rtst_cluster_category']);
+                          } catch {}
                           setCategoryTargetInput('');
                           if (setClusterCategoryInput) setClusterCategoryInput('');
-                          try {
-                            localStorage.removeItem('rt_catlk');
-                            localStorage.removeItem('rtst_catlk');
-                            localStorage.removeItem('rtst_cluster_category');
-                          } catch {}
                           if (clearField) clearField(setCategoryTargetInput, 'LUỸ KẾ TĐ');
                           else {
                             onSaveRealtime(true, 'LUỸ KẾ TĐ');
                             onSaveLuyke(true, 'auto', undefined, undefined, 'LUỸ KẾ TĐ');
                           }
+                          showNotification('Đã xóa dữ liệu LUỸ KẾ THI ĐUA', 'info');
                         } else {
                           if (clearField) clearField(item.onChange, item.label);
                           else item.onChange('');
@@ -1414,13 +1557,13 @@ const InputSection: React.FC<InputSectionProps> = ({
                 </div>
 
                 {group.hasYcx && (
-                  <label className="mt-3 flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-dashed border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/30 transition-all cursor-pointer">
-                    <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", ycxFileName ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-400")}>
+                  <label className="mt-[12px] flex items-center gap-[12px] px-[14px] py-[12px] rounded-[16px] border-2 border-dashed border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/30 transition-all cursor-pointer">
+                    <div className={cn("w-[36px] h-[36px] rounded-[10px] flex items-center justify-center shrink-0", ycxFileName ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-400")}>
                       <FileSpreadsheet size={16} />
                     </div>
                     <div className="min-w-0">
                       <span className={cn("text-[12px] font-black uppercase tracking-wide", ycxFileName ? "text-teal-700" : "text-slate-500")}>YCX NHÂN VIÊN</span>
-                      {ycxFileName && <p className="text-[9px] text-slate-400 truncate max-w-[200px]">{ycxFileName}</p>}
+                      {ycxFileName && <p className="text-[11px] text-slate-400 truncate max-w-[240px]">{ycxFileName}</p>}
                     </div>
                     <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelUpload} />
                   </label>
@@ -1435,30 +1578,30 @@ const InputSection: React.FC<InputSectionProps> = ({
 
       {/* CẤU HÌNH SIÊU THỊ - Modern V2 Card */}
       {activeTab === 'REALTIME' && (
-      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-[20px] sm:rounded-[24px] border border-[#E2EAF4] shadow-[0_4px_20px_-4px_rgba(15,23,42,0.04)] overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 via-white to-slate-50/80">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shrink-0">
+        <div className="px-[14px] py-[14px] sm:px-[22px] sm:py-[18px] border-b border-[#EEF3F9] bg-gradient-to-r from-slate-50/80 via-white to-slate-50/80">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-[12px]">
+            <div className="flex items-center gap-[12px]">
+              <div className="w-[40px] h-[40px] sm:w-[44px] sm:h-[44px] rounded-[12px] bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shrink-0">
                 <Store size={20} />
               </div>
-              <div>
-                <h2 className="text-[16px] font-black text-slate-900 uppercase tracking-tight" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
-                  CẤU HÌNH SIÊU THỊ & NHÂN VIÊN
+              <div className="min-w-0">
+                <h2 className="text-[15px] sm:text-[17px] font-black text-[#0B1F3A] uppercase tracking-tight leading-snug" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                  CẤU HÌNH SIÊU THỊ &amp; NHÂN VIÊN
                 </h2>
-                <p className="text-xs font-medium text-slate-400">
+                <p className="text-[11.5px] sm:text-[12.5px] font-medium text-[#64748B] mt-[1px] leading-snug">
                   Dữ liệu Doanh thu NV, Thi đua NV, Bán kèm, Trả góp và Phục vụ
                 </p>
               </div>
             </div>
 
             {availableMarkets.length > 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200">
+            <div className="flex items-center gap-[6px] overflow-x-auto no-scrollbar bg-slate-100/80 p-[6px] rounded-[14px] border border-slate-200">
               <button
                 onClick={() => onStoreChange?.('ALL')}
                 className={cn(
-                  "flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap transition-all active:scale-95 cursor-pointer",
+                  "min-h-[36px] flex items-center gap-[6px] px-[12px] py-[6px] rounded-[10px] text-[11.5px] font-black uppercase tracking-wider whitespace-nowrap transition-all active:scale-95 cursor-pointer",
                   activeStore === 'ALL'
                     ? "bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-500/20"
                     : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
@@ -1487,7 +1630,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                   key={name}
                   onClick={() => onStoreChange?.(name)}
                   className={cn(
-                    "flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap transition-all active:scale-95 cursor-pointer",
+                    "min-h-[36px] flex items-center gap-[6px] px-[12px] py-[6px] rounded-[10px] text-[11.5px] font-black uppercase tracking-wider whitespace-nowrap transition-all active:scale-95 cursor-pointer",
                     activeStore === name
                       ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/20"
                       : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
@@ -1507,14 +1650,14 @@ const InputSection: React.FC<InputSectionProps> = ({
         {/* Single tab - no tab switcher needed */}
 
         {/* Per-store cards side by side */}
-        <div className="p-6">
+        <div className="p-[14px] sm:p-[22px]">
           {(availableMarkets || []).filter(m => m !== 'ALL').length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-sm text-slate-400">Chưa có siêu thị nào. Vui lòng nhập dữ liệu tại "DOANH THU CỤM" hoặc "THI ĐUA CỤM" trước.</p>
+            <div className="text-center py-[28px]">
+              <p className="text-[13px] text-slate-400">Chưa có siêu thị nào. Vui lòng nhập dữ liệu tại "DOANH THU CỤM" hoặc "THI ĐUA CỤM" trước.</p>
             </div>
           ) : (
           <div className={cn(
-            "grid gap-6",
+            "grid gap-[14px] sm:gap-[20px]",
             (availableMarkets || []).filter(m => m !== 'ALL').length === 1 ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-2"
           )}>
             {(() => {
@@ -1586,21 +1729,21 @@ const InputSection: React.FC<InputSectionProps> = ({
                   value: cardStaffInput, 
                   setter: isActiveCard ? setStaffInput : undefined, 
                   biLink: 'https://bi.thegioididong.com/sieu-thi-con?id=16500&tab=bcdtnv&rt=2&dm=1',
-                  colorTheme: 'emerald' as const
+                  colorTheme: 'blue' as const
                 },
                 { 
                   key: `${storeName}_td_nv`, 
                   label: 'THI ĐUA NV', 
                   value: cardStaffCategoryInput, 
                   setter: isActiveCard ? setStaffCategoryInput : undefined,
-                  colorTheme: 'teal' as const
+                  colorTheme: 'orange' as const
                 },
                 { 
                   key: `${storeName}_tragop`, 
                   label: 'TRẢ GÓP NV', 
                   value: cardTragopNv, 
                   setter: isActiveCard ? setTragopNv : undefined,
-                  colorTheme: 'orange' as const
+                  colorTheme: 'purple' as const
                 },
               ];
 
@@ -1608,41 +1751,41 @@ const InputSection: React.FC<InputSectionProps> = ({
                 <div 
                   key={storeName} 
                   className={cn(
-                    "rounded-3xl overflow-hidden bg-white transition-all shadow-sm",
+                    "rounded-[18px] sm:rounded-[20px] overflow-hidden bg-white transition-all shadow-sm",
                     isActiveCard 
                       ? "border-2 border-emerald-500/80 shadow-emerald-500/5 ring-4 ring-emerald-500/10" 
-                      : "border border-slate-200 cursor-pointer opacity-70 hover:opacity-100 hover:border-slate-300"
+                      : "border border-slate-200 cursor-pointer opacity-80 hover:opacity-100 hover:border-slate-300"
                   )}
                   onClick={!isActiveCard ? handleCardActivate : undefined}
                 >
                   {/* Gradient accent top stripe */}
-                  <div className={cn("h-1.5 bg-gradient-to-r", color.border)} />
+                  <div className={cn("h-[6px] bg-gradient-to-r", color.border)} />
 
                   {/* Store Card Header */}
-                  <div className="px-5 py-4 flex items-center justify-between border-b border-slate-100 bg-slate-50/50">
-                    <div>
-                      <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                  <div className="px-[14px] py-[12px] sm:px-[18px] sm:py-[14px] flex flex-wrap items-center justify-between gap-[8px] border-b border-slate-100 bg-slate-50/50">
+                    <div className="min-w-0">
+                      <h3 className="text-[14px] sm:text-[15px] font-black text-slate-900 uppercase tracking-tight break-words" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                         {storeName}
                       </h3>
-                      <p className="text-[11px] text-slate-400 font-medium">
+                      <p className="text-[11.5px] text-slate-400 font-medium mt-[1px]">
                         Cấu hình và dữ liệu chi tiết siêu thị
                       </p>
                     </div>
                     {isActiveCard ? (
-                      <span className="text-[10px] font-black px-3 py-1 rounded-full bg-emerald-500 text-white shadow-xs">
+                      <span className="text-[11px] font-black px-[12px] py-[4px] rounded-full bg-emerald-500 text-white shadow-xs shrink-0">
                         ĐANG CHỌN
                       </span>
                     ) : (
-                      <span className="text-[10px] font-black text-slate-500 px-3 py-1 rounded-full border border-slate-200 bg-white shadow-xs">
+                      <span className="text-[11px] font-black text-slate-500 px-[12px] py-[4px] rounded-full border border-slate-200 bg-white shadow-xs shrink-0">
                         BẤM ĐỂ CHỌN
                       </span>
                     )}
                   </div>
 
                   {/* Store Card Body */}
-                  <div className="p-4 sm:p-5 space-y-4 bg-white">
-                    {/* Bố cục 1 cột các ô dữ liệu theo thiết kế Hình 2 */}
-                    <div className="grid grid-cols-1 gap-3.5">
+                  <div className="p-[12px] sm:p-[18px] space-y-[12px] sm:space-y-[14px] bg-white">
+                    {/* Bố cục 1 cột các ô dữ liệu */}
+                    <div className="grid grid-cols-1 gap-[12px] sm:gap-[14px]">
                       {storeFields.map(item => {
                         const handleChange = (v: string) => {
                           if (!isActiveCard) { handleCardActivate(); }
@@ -1688,19 +1831,19 @@ const InputSection: React.FC<InputSectionProps> = ({
 
                     {/* Phục vụ upload */}
                     <div className={cn(
-                      "w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-2xl border transition-all group relative shadow-xs",
+                      "w-full min-h-[48px] flex flex-wrap items-center justify-between gap-[10px] px-[14px] py-[10px] rounded-[14px] border transition-all group relative shadow-xs",
                       cardPhucVu ? "border-emerald-300 bg-gradient-to-r from-emerald-50/60 to-teal-50/40" : "border-slate-200 bg-slate-50/60 hover:bg-slate-50"
                     )}>
-                      <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex items-center gap-[10px] min-w-0">
                         <div className={cn(
-                          "w-7 h-7 rounded-xl flex items-center justify-center shrink-0 shadow-xs",
+                          "w-[32px] h-[32px] rounded-[10px] flex items-center justify-center shrink-0 shadow-xs",
                           cardPhucVu ? "bg-emerald-600 text-white" : "bg-indigo-50 border border-indigo-200 text-indigo-600"
                         )}>
-                          <UploadCloud size={13} />
+                          <UploadCloud size={15} />
                         </div>
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex items-center gap-[8px] min-w-0">
                           <span className={cn(
-                            "text-xs font-black uppercase tracking-wide truncate",
+                            "text-[12.5px] font-black uppercase tracking-wide break-words",
                             cardPhucVu ? "text-emerald-900" : "text-slate-700"
                           )}>
                             {cardPhucVu ? 'ĐÃ TẢI DỮ LIỆU' : 'CHỌN FILE DỮ LIỆU'}
@@ -1709,18 +1852,18 @@ const InputSection: React.FC<InputSectionProps> = ({
                             href="https://crm.thegioididong.com/Reviewuser/ReportCustomerRatings" 
                             target="_blank" 
                             rel="noopener noreferrer" 
-                            className="text-indigo-600 hover:text-indigo-800 z-20 relative bg-indigo-50 hover:bg-indigo-100 p-1 rounded-md transition-colors"
+                            className="text-indigo-600 hover:text-indigo-800 z-20 relative bg-indigo-50 hover:bg-indigo-100 p-[5px] rounded-[6px] transition-colors shrink-0"
                             title="Lấy file Báo cáo Phục vụ từ CRM"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <ExternalLink size={12} />
+                            <ExternalLink size={13} />
                           </a>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-[6px] shrink-0">
                         <div className={cn(
-                          "text-[10px] font-black px-2 py-0.5 rounded-lg border",
+                          "text-[11px] font-black px-[10px] py-[4px] rounded-[8px] border",
                           cardPhucVu ? "text-emerald-700 bg-white border-emerald-200" : "text-slate-500 bg-white border-slate-200"
                         )}>
                           BÁO CÁO PHỤC VỤ
@@ -1728,10 +1871,10 @@ const InputSection: React.FC<InputSectionProps> = ({
                         {cardPhucVu && isActiveCard && (
                           <div 
                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (setPhucVu) setPhucVu(''); }} 
-                            className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all shrink-0 z-20 relative cursor-pointer" 
+                            className="w-[28px] h-[28px] rounded-[8px] flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all shrink-0 z-20 relative cursor-pointer" 
                             title="Xoá dữ liệu"
                           >
-                            <X size={13} />
+                            <X size={14} />
                           </div>
                         )}
                       </div>
@@ -1741,16 +1884,16 @@ const InputSection: React.FC<InputSectionProps> = ({
                     </div>
 
                     {/* % TARGET input — per-store */}
-                    <div className="flex items-center justify-between gap-3 px-3.5 py-2 rounded-2xl border border-slate-200 bg-slate-50/60 shadow-xs">
-                      <div className="flex items-center gap-2.5">
+                    <div className="min-h-[48px] flex items-center justify-between gap-[10px] px-[14px] py-[8px] rounded-[14px] border border-slate-200 bg-slate-50/60 shadow-xs">
+                      <div className="flex items-center gap-[10px]">
                         <div className={cn(
-                          "w-7 h-7 rounded-xl flex items-center justify-center shrink-0 shadow-xs",
+                          "w-[32px] h-[32px] rounded-[10px] flex items-center justify-center shrink-0 shadow-xs",
                           cardPercentTarget ? "bg-emerald-600 text-white" : "bg-white border border-slate-200 text-slate-400"
                         )}>
-                          <Target size={13} />
+                          <Target size={15} />
                         </div>
                         <span className={cn(
-                          "text-xs font-black uppercase tracking-wide",
+                          "text-[12.5px] font-black uppercase tracking-wide",
                           cardPercentTarget ? "text-emerald-900" : "text-slate-600"
                         )}>
                           % TARGET
@@ -1786,7 +1929,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                         placeholder="0" 
                         disabled={!isActiveCard}
                         className={cn(
-                          "w-20 border rounded-xl p-1.5 text-xs font-sans font-bold text-center outline-none transition-all shadow-inner",
+                          "w-[84px] min-h-[36px] border rounded-[10px] px-[10px] py-[6px] text-[13px] font-sans font-bold text-center outline-none transition-all shadow-inner",
                           isActiveCard ? "bg-white border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400"
                         )} 
                       />
@@ -1794,34 +1937,34 @@ const InputSection: React.FC<InputSectionProps> = ({
 
                     {/* TARGET THI ĐUA — per-store, collapsible */}
                     {cardCategoryTargets.length > 0 && (
-                    <div className="mt-2 border border-violet-200/90 rounded-2xl overflow-hidden shadow-xs bg-white">
+                    <div className="mt-[8px] border border-violet-200/90 rounded-[14px] overflow-hidden shadow-xs bg-white">
                       <button 
                         onClick={() => toggleInput(`${storeName}_thidua`)}
                         className={cn(
-                          "w-full flex items-center justify-between gap-3 px-3.5 py-2.5 text-left transition-all cursor-pointer",
+                          "w-full min-h-[48px] flex items-center justify-between gap-[10px] px-[14px] py-[10px] text-left transition-all cursor-pointer",
                           expandedInput === `${storeName}_thidua` ? "bg-violet-50/80" : "bg-white hover:bg-violet-50/40"
                         )}
                       >
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0 bg-violet-600 text-white shadow-xs">
-                            <Zap size={13} />
+                        <div className="flex items-center gap-[10px]">
+                          <div className="w-[32px] h-[32px] rounded-[10px] flex items-center justify-center shrink-0 bg-violet-600 text-white shadow-xs">
+                            <Zap size={15} />
                           </div>
-                          <span className="text-xs font-black uppercase tracking-wide text-violet-900">TARGET THI ĐUA</span>
+                          <span className="text-[12.5px] font-black uppercase tracking-wide text-violet-900">TARGET THI ĐUA</span>
                         </div>
-                        <ChevronDown size={15} className={cn("text-violet-500 transition-transform", expandedInput === `${storeName}_thidua` && "rotate-180")} />
+                        <ChevronDown size={16} className={cn("text-violet-500 transition-transform", expandedInput === `${storeName}_thidua` && "rotate-180")} />
                       </button>
                       {expandedInput === `${storeName}_thidua` && (
-                        <div className="p-3.5 border-t border-violet-100 space-y-4 bg-slate-50/30">
+                        <div className="p-[12px] sm:p-[14px] border-t border-violet-100 space-y-[12px] bg-slate-50/30">
                           {/* Toolbar — only for active card */}
                           {isActiveCard && (
-                          <div className="flex flex-wrap items-center gap-2">
-                            <button onClick={onAnalyze} className="px-3 py-1.5 bg-white text-violet-700 border border-violet-200 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-violet-50 transition-all active:scale-95 flex items-center gap-1 shadow-xs cursor-pointer">
-                              <Zap size={11} /> ĐỒNG BỘ
+                          <div className="flex flex-wrap items-center gap-[8px]">
+                            <button onClick={onAnalyze} className="min-h-[36px] px-[12px] py-[6px] bg-white text-violet-700 border border-violet-200 rounded-[10px] text-[11px] font-black uppercase tracking-wider hover:bg-violet-50 transition-all active:scale-95 flex items-center gap-[5px] shadow-xs cursor-pointer">
+                              <Zap size={12} /> ĐỒNG BỘ
                             </button>
-                            <input type="number" value={globalPercent} onChange={(e) => handleGlobalPercentChange(Number(e.target.value))} className="w-16 bg-white border border-slate-200 rounded-xl p-1.5 text-[12px] font-sans font-bold text-center shadow-inner" placeholder="%" />
-                             <button onClick={() => { const nt = categoryTargets.map(item => ({ ...item, percent: globalPercent, adjustedTarget: item.target * (globalPercent / 100) })); setCategoryTargets(nt); onSaveLuyke(false, 'targets', undefined, nt, 'TARGET THI ĐUA'); }} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase transition-all active:scale-95 shadow-xs cursor-pointer">ÁP DỤNG ALL</button>
-                            <button onClick={() => onSaveLuyke(false, 'targets', undefined, undefined, 'TARGET THI ĐUA')} disabled={isSavingTargets} className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-[10px] font-black uppercase transition-all active:scale-95 flex items-center gap-1 disabled:opacity-50 shadow-xs cursor-pointer">
-                              {isSavingTargets ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />} LƯU
+                            <input type="number" value={globalPercent} onChange={(e) => handleGlobalPercentChange(Number(e.target.value))} className="w-[68px] min-h-[36px] bg-white border border-slate-200 rounded-[10px] px-[8px] py-[6px] text-[12.5px] font-sans font-bold text-center shadow-inner" placeholder="%" />
+                             <button onClick={() => { const nt = categoryTargets.map(item => ({ ...item, percent: globalPercent, adjustedTarget: item.target * (globalPercent / 100) })); setCategoryTargets(nt); onSaveLuyke(false, 'targets', undefined, nt, 'TARGET THI ĐUA'); }} className="min-h-[36px] px-[12px] py-[6px] bg-indigo-600 hover:bg-indigo-700 text-white rounded-[10px] text-[11px] font-black uppercase transition-all active:scale-95 shadow-xs cursor-pointer">ÁP DỤNG ALL</button>
+                            <button onClick={() => onSaveLuyke(false, 'targets', undefined, undefined, 'TARGET THI ĐUA')} disabled={isSavingTargets} className="min-h-[36px] px-[14px] py-[6px] bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-[10px] text-[11px] font-black uppercase transition-all active:scale-95 flex items-center gap-[5px] disabled:opacity-50 shadow-xs cursor-pointer">
+                              {isSavingTargets ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} LƯU
                             </button>
                           </div>
                           )}
@@ -1830,24 +1973,24 @@ const InputSection: React.FC<InputSectionProps> = ({
                             const items = cardCategoryTargets.filter(item => type === 'SL' ? item.type === 'SL' : item.type !== 'SL');
                             if (items.length === 0) return null;
                             return (
-                              <div key={type} className="bg-white rounded-xl border border-slate-200 p-2.5">
-                                <h4 className="text-[11px] font-black text-slate-500 mb-2 uppercase">Ngành hàng ({type})</h4>
+                              <div key={type} className="bg-white rounded-[12px] border border-slate-200 p-[10px] overflow-x-auto">
+                                <h4 className="text-[11.5px] font-black text-slate-500 mb-[8px] uppercase">Ngành hàng ({type})</h4>
                                 <table className="w-full text-left border-collapse">
                                   <thead>
-                                    <tr className="text-[9px] text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                                      <th className="p-1.5">Tên NH</th>
-                                      <th className="p-1.5">Target</th>
-                                      <th className="p-1.5">Sau ĐC</th>
-                                      <th className="p-1.5 text-center">%</th>
+                                    <tr className="text-[10.5px] text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                                      <th className="p-[6px]">Tên NH</th>
+                                      <th className="p-[6px]">Target</th>
+                                      <th className="p-[6px]">Sau ĐC</th>
+                                      <th className="p-[6px] text-center">%</th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {items.map(item => (
                                       <tr key={item.name} className="border-t border-slate-50">
-                                        <td className="p-1.5 text-[11px] font-black text-slate-800">{item.name}</td>
-                                        <td className="p-1.5 text-[11px] text-slate-600">{item.target.toLocaleString()}</td>
-                                        <td className="p-1.5 text-[11px] font-black text-indigo-600">{item.adjustedTarget.toLocaleString()}</td>
-                                        <td className="p-1.5 text-center">
+                                        <td className="p-[6px] text-[11.5px] font-black text-slate-800">{item.name}</td>
+                                        <td className="p-[6px] text-[11.5px] text-slate-600">{item.target.toLocaleString()}</td>
+                                        <td className="p-[6px] text-[11.5px] font-black text-indigo-600">{item.adjustedTarget.toLocaleString()}</td>
+                                        <td className="p-[6px] text-center">
                                           <input 
                                             type="number" 
                                             value={item.percent} 
@@ -1864,7 +2007,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                                               } 
                                             }}
                                             disabled={!isActiveCard} 
-                                            className={cn("w-14 border rounded-lg p-1 text-[11px] text-center font-sans font-normal outline-none", isActiveCard ? "bg-slate-50 border-slate-200 focus:ring-1 focus:ring-indigo-500" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400")} 
+                                            className={cn("w-[56px] border rounded-[8px] p-[4px] text-[11.5px] text-center font-sans font-normal outline-none", isActiveCard ? "bg-slate-50 border-slate-200 focus:ring-1 focus:ring-indigo-500" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400")} 
                                           />
                                         </td>
                                       </tr>
@@ -1891,34 +2034,34 @@ const InputSection: React.FC<InputSectionProps> = ({
 
       {/* Time Settings Container - Modern V2 */}
       {activeTab === 'REALTIME' && (
-      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
-        <div className="px-6 py-5 flex items-center justify-between bg-gradient-to-r from-slate-50/80 via-white to-slate-50/80 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+      <div className="bg-white rounded-[20px] sm:rounded-[24px] border border-[#E2EAF4] shadow-[0_4px_20px_-4px_rgba(15,23,42,0.04)] overflow-hidden">
+        <div className="px-[14px] py-[14px] sm:px-[22px] sm:py-[18px] flex items-center justify-between bg-gradient-to-r from-slate-50/80 via-white to-slate-50/80 border-b border-[#EEF3F9]">
+          <div className="flex items-center gap-[12px]">
+            <div className="w-[40px] h-[40px] sm:w-[44px] sm:h-[44px] bg-gradient-to-br from-indigo-600 to-violet-600 rounded-[12px] flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shrink-0">
               <Calendar size={20} />
             </div>
             <div>
-              <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+              <h3 className="text-[15px] sm:text-[17px] font-black text-[#0B1F3A] uppercase tracking-tight leading-snug" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                 CÀI ĐẶT THỜI GIAN
               </h3>
-              <p className="text-xs font-medium text-slate-400">
+              <p className="text-[11.5px] sm:text-[12.5px] font-medium text-[#64748B] mt-[1px]">
                 Tháng báo cáo và tiến độ ngày trong tháng
               </p>
             </div>
           </div>
           <button 
             onClick={() => setShowTimeSettings(!showTimeSettings)}
-            className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-100/80 border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-200/80 transition-all cursor-pointer"
+            className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center bg-slate-100/80 border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-200/80 transition-all cursor-pointer shrink-0"
           >
             <ChevronDown size={18} className={cn("transition-transform duration-300", showTimeSettings && "rotate-180")} />
           </button>
         </div>
         
         {showAll && showTimeSettings && (
-          <div className="p-4 md:p-6" style={{ overflow: 'visible' }}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6" style={{ overflow: 'visible' }}>
-              <div className="space-y-2">
-                <label className="text-[12px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+          <div className="p-[14px] sm:p-[22px]" style={{ overflow: 'visible' }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-[14px] sm:gap-[20px]" style={{ overflow: 'visible' }}>
+              <div className="space-y-[8px]">
+                <label className="text-[12px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-[6px]">
                   <Calendar size={14} className="text-indigo-500" /> THÁNG BÁO CÁO
                 </label>
                 {(() => {
@@ -1946,22 +2089,22 @@ const InputSection: React.FC<InputSectionProps> = ({
                       <button
                         type="button"
                         onClick={() => { setShowPicker(!showPicker); setPickerYear(selectedYear || new Date().getFullYear()); }}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-black text-slate-700 text-left flex items-center justify-between hover:bg-white hover:border-indigo-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                        className="w-full min-h-[44px] bg-slate-50 border border-slate-200 rounded-[12px] px-[14px] py-[10px] text-[13.5px] font-black text-slate-700 text-left flex items-center justify-between hover:bg-white hover:border-indigo-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                       >
-                        <span className="flex items-center gap-2">
+                        <span className="flex items-center gap-[8px]">
                           <Calendar size={16} className="text-indigo-500" />
                           {displayLabel}
                         </span>
                         <ChevronDown size={16} className={`text-slate-400 transition-transform duration-200 ${showPicker ? 'rotate-180' : ''}`} />
                       </button>
                       {showPicker && (
-                        <div className="absolute z-50 bottom-full mb-2 left-0 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <button type="button" onClick={() => setPickerYear(y => y - 1)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-slate-500 font-black transition-all">&lt;</button>
-                            <span className="text-sm font-black text-slate-700">{pickerYear}</span>
-                            <button type="button" onClick={() => setPickerYear(y => y + 1)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-slate-500 font-black transition-all">&gt;</button>
+                        <div className="absolute z-50 bottom-full mb-[8px] left-0 w-[260px] bg-white border border-slate-200 rounded-[16px] shadow-xl p-[14px]">
+                          <div className="flex items-center justify-between mb-[10px]">
+                            <button type="button" onClick={() => setPickerYear(y => y - 1)} className="w-[32px] h-[32px] rounded-[8px] flex items-center justify-center hover:bg-slate-100 text-slate-500 font-black transition-all">&lt;</button>
+                            <span className="text-[14px] font-black text-slate-700">{pickerYear}</span>
+                            <button type="button" onClick={() => setPickerYear(y => y + 1)} className="w-[32px] h-[32px] rounded-[8px] flex items-center justify-center hover:bg-slate-100 text-slate-500 font-black transition-all">&gt;</button>
                           </div>
-                          <div className="grid grid-cols-4 gap-2">
+                          <div className="grid grid-cols-4 gap-[6px]">
                             {MONTHS.map((m, i) => {
                               const mon = i + 1;
                               const isSelected = pickerYear === selectedYear && mon === selectedMon;
@@ -1975,7 +2118,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                                     setSelectedMonth(`${pickerYear}-${String(mon).padStart(2, '0')}`);
                                     setShowPicker(false);
                                   }}
-                                  className={`py-2 px-1 rounded-xl text-xs font-black transition-all ${
+                                  className={`py-[8px] px-[4px] rounded-[10px] text-[12px] font-black transition-all ${
                                     isSelected
                                       ? 'bg-indigo-600 text-white shadow-md'
                                       : isCurrent
@@ -1994,24 +2137,24 @@ const InputSection: React.FC<InputSectionProps> = ({
                   );
                 })()}
               </div>
-              <div className="space-y-2">
-                <label className="text-[12px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <div className="space-y-[8px]">
+                <label className="text-[12px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-[6px]">
                   <Zap size={14} className="text-amber-500" /> NGÀY ĐÃ QUA / TỔNG NGÀY
                 </label>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-[10px]">
                   <input 
                     type="number"
                     value={daysPassed}
                     readOnly
-                    className="flex-1 bg-slate-100 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-sans font-normal text-slate-500 cursor-not-allowed outline-none transition-all text-center"
+                    className="flex-1 min-h-[44px] bg-slate-100 border border-slate-200 rounded-[12px] px-[14px] py-[10px] text-[14px] font-sans font-bold text-slate-600 cursor-not-allowed outline-none transition-all text-center"
                     title="Tự động: Tháng quá khứ = Tổng ngày; Tháng hiện tại = Ngày hiện tại - 1"
                   />
-                  <span className="text-2xl font-light text-slate-300">/</span>
+                  <span className="text-[20px] font-light text-slate-300">/</span>
                   <input 
                     type="number"
                     value={totalDays}
                     readOnly
-                    className="flex-1 bg-slate-100 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-sans font-normal text-slate-500 cursor-not-allowed outline-none transition-all text-center"
+                    className="flex-1 min-h-[44px] bg-slate-100 border border-slate-200 rounded-[12px] px-[14px] py-[10px] text-[14px] font-sans font-bold text-slate-600 cursor-not-allowed outline-none transition-all text-center"
                     title="Tổng số ngày trong tháng"
                   />
                 </div>

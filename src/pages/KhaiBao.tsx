@@ -78,39 +78,51 @@ const KhaiBao: React.FC = () => {
     syncTragopMatran
   } = useLuykeData(maKho);
 
+  const handleSetClusterSummaryInput = React.useCallback((val: string) => {
+    setClusterSummaryInput(val);
+    setCategoryRevenueInput(val);
+  }, [setClusterSummaryInput, setCategoryRevenueInput]);
+
+  const handleSetCategoryRevenueInput = React.useCallback((val: string) => {
+    setCategoryRevenueInput(val);
+    setClusterSummaryInput(val);
+  }, [setCategoryRevenueInput, setClusterSummaryInput]);
+
+  const handleSetClusterCategoryInput = React.useCallback((val: string) => {
+    setClusterCategoryInput(val);
+    setCategoryTargetInput(val);
+  }, [setClusterCategoryInput, setCategoryTargetInput]);
+
+  const handleSetCategoryTargetInput = React.useCallback((val: string) => {
+    setCategoryTargetInput(val);
+    setClusterCategoryInput(val);
+  }, [setCategoryTargetInput, setClusterCategoryInput]);
+
   const handleClearField = (setter: (val: string) => void, fieldName?: string) => {
     if (fieldName === 'LUỸ KẾ DT' || fieldName === 'rt_catrev' || fieldName === 'LUỸ KẾ DOANH THU QUY ĐỔI') {
       setCategoryRevenueInput('');
       setClusterSummaryInput('');
-    } else if (fieldName === 'LUỸ KẾ THI ĐUA' || fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') {
+      clearRealtimeField(setCategoryRevenueInput, 'LUỸ KẾ DOANH THU QUY ĐỔI');
+      clearLuykeField(setClusterSummaryInput, 'LUỸ KẾ DOANH THU QUY ĐỔI');
+      return;
+    } else if (fieldName === 'LUỸ KẾ THI ĐUA' || fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk' || fieldName === 'LUỸ KẾ THI ĐUA NGÀNH HÀNG') {
       setCategoryTargetInput('');
       setClusterCategoryInput('');
+      clearRealtimeField(setCategoryTargetInput, 'LUỸ KẾ THI ĐUA');
+      clearLuykeField(setClusterCategoryInput, 'LUỸ KẾ THI ĐUA');
+      return;
     } else if (fieldName === 'REALTIME DT' || fieldName === 'rt_market' || fieldName === 'REALTIME DOANH THU QUY ĐỔI') {
       setMarketInput('');
-    } else if (fieldName === 'REALTIME THI ĐUA' || fieldName === 'REALTIME TĐ' || fieldName === 'rt_cat') {
+      clearRealtimeField(setMarketInput, 'REALTIME DOANH THU QUY ĐỔI');
+      return;
+    } else if (fieldName === 'REALTIME THI ĐUA' || fieldName === 'REALTIME TĐ' || fieldName === 'rt_cat' || fieldName === 'REALTIME THI ĐUA NGÀNH HÀNG') {
       setCategoryInput('');
+      clearRealtimeField(setCategoryInput, 'REALTIME THI ĐUA');
+      return;
     }
     clearRealtimeField(setter, fieldName);
     clearLuykeField(setter, fieldName);
   };
-
-  // Two-way synchronization between useRealtimeData and useLuykeData for LUỸ KẾ DT
-  React.useEffect(() => {
-    if (clusterSummaryInput && clusterSummaryInput !== categoryRevenueInput) {
-      setCategoryRevenueInput(clusterSummaryInput);
-    } else if (categoryRevenueInput && categoryRevenueInput !== clusterSummaryInput) {
-      setClusterSummaryInput(categoryRevenueInput);
-    }
-  }, [clusterSummaryInput, categoryRevenueInput, setCategoryRevenueInput, setClusterSummaryInput]);
-
-  // Two-way synchronization between useRealtimeData and useLuykeData for LUỸ KẾ TĐ
-  React.useEffect(() => {
-    if (clusterCategoryInput && clusterCategoryInput !== categoryTargetInput) {
-      setCategoryTargetInput(clusterCategoryInput);
-    } else if (categoryTargetInput && categoryTargetInput !== clusterCategoryInput) {
-      setClusterCategoryInput(categoryTargetInput);
-    }
-  }, [clusterCategoryInput, categoryTargetInput, setCategoryTargetInput, setClusterCategoryInput]);
 
   const {
     manualAdjustment, setManualAdjustment,
@@ -311,8 +323,8 @@ const KhaiBao: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
-      <div className="max-w-[1280px] mx-auto px-3.5 py-5 sm:px-6 sm:py-8">
+    <div className="min-h-screen bg-[#F4F7FB] overflow-x-hidden" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
+      <div className="max-w-[1360px] mx-auto px-[10px] py-[12px] sm:px-[20px] sm:py-[24px]">
          {/* Main Content Area */}
          <div>
           <InputSection 
@@ -321,9 +333,9 @@ const KhaiBao: React.FC = () => {
             categoryInput={categoryInput}
             setCategoryInput={setCategoryInput}
             categoryTargetInput={categoryTargetInput}
-            setCategoryTargetInput={setCategoryTargetInput}
+            setCategoryTargetInput={handleSetCategoryTargetInput}
             categoryRevenueInput={categoryRevenueInput}
-            setCategoryRevenueInput={setCategoryRevenueInput}
+            setCategoryRevenueInput={handleSetCategoryRevenueInput}
             manualAdjustment={manualAdjustment}
             setManualAdjustment={setManualAdjustment}
             selectedMonth={selectedMonth}
@@ -339,9 +351,9 @@ const KhaiBao: React.FC = () => {
             linkNganhHangTongHop={linkNganhHangTongHop}
             setLinkNganhHangTongHop={setLinkNganhHangTongHop}
             clusterSummaryInput={clusterSummaryInput}
-            setClusterSummaryInput={setClusterSummaryInput}
+            setClusterSummaryInput={handleSetClusterSummaryInput}
             clusterCategoryInput={clusterCategoryInput}
-            setClusterCategoryInput={setClusterCategoryInput}
+            setClusterCategoryInput={handleSetClusterCategoryInput}
             setYcxData={setYcxData}
             ycxData={ycxData}
             onAnalyze={() => { processRealtimeData(); processLuykeData(); syncTragopMatran && syncTragopMatran(); }}
@@ -416,4 +428,4 @@ const KhaiBao: React.FC = () => {
   );
 };
 
-export default KhaiBao;
+export default React.memo(KhaiBao);

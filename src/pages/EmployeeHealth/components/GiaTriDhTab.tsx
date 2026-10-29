@@ -38,6 +38,7 @@ import {
 import * as XLSX from 'xlsx';
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
+import { safeSetDoc } from '../../../firebaseAdapter';
 import { useStore } from '../../../contexts/StoreContext';
 import { normalizeStoreId, cn } from '../../RTST/utils';
 import { StaffRevenueData } from '../../../types';
@@ -1008,16 +1009,19 @@ export const GiaTriDhTab: React.FC<GiaTriDhTabProps> = ({
   }, [gioCongData]);
 
   const handleSaveDataBlock = async () => {
+    const isChanged = tempDataVal !== (nganhhangChinhNv || '');
     saveNganhhangChinhNv(tempDataVal);
+    setIsEditingData(false);
+    if (!isChanged) return;
+
     const now = getCurrentFormattedDateTime();
     setDataUpdatedTime(now);
     localStorage.setItem('gtdh_data_updated_time', now);
-    setIsEditingData(false);
 
     if (storeDocId) {
       try {
         const docRef = doc(db, 'store', storeDocId);
-        await setDoc(
+        await safeSetDoc(
           docRef,
           {
             gtdh_data_updated_time: now,
@@ -1201,7 +1205,7 @@ export const GiaTriDhTab: React.FC<GiaTriDhTabProps> = ({
         if (storeDocId) {
           try {
             const docRef = doc(db, 'store', storeDocId);
-            await setDoc(
+            await safeSetDoc(
               docRef,
               {
                 gtdh_giocong_data: result,
@@ -1234,7 +1238,7 @@ export const GiaTriDhTab: React.FC<GiaTriDhTabProps> = ({
     if (storeDocId) {
       try {
         const docRef = doc(db, 'store', storeDocId);
-        await setDoc(
+        await safeSetDoc(
           docRef,
           {
             gtdh_giocong_data: {},

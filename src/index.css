@@ -208,9 +208,19 @@ body {
     zoom: 1;
     margin: 0;
     padding: 0;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
   html {
     font-size: 6.8px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
   }
 }
 
@@ -564,15 +574,8 @@ body.capturing-screenshot .exec-header-banner h2 {
   font-weight: 900 !important;
 }
 
-body.capturing-screenshot .exec-header-banner .exec-banner-sub,
-body.capturing-screenshot .exec-header-banner .exec-banner-sub span {
-  font-size: 13px !important;
-  gap: 8px !important;
-}
-
-body.capturing-screenshot .exec-header-banner .exec-banner-sub svg {
-  width: 13px !important;
-  height: 13px !important;
+body.capturing-screenshot .exec-header-banner .exec-banner-sub {
+  display: none !important;
 }
 
 body.capturing-screenshot .exec-header-banner .exec-banner-slash {

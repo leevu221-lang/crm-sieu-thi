@@ -2393,6 +2393,7 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
   }, [sieuThiFilterNhomList, userProfile?.ten_sieu_thi]);
 
   const [firebaseFiltersLoaded, setFirebaseFiltersLoaded] = useState(false);
+  const lastSavedFiltersJsonRef = useRef<string>('');
 
   // Load filters from Firebase
   useEffect(() => {
@@ -2403,12 +2404,37 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
-          if (data.rtFilterTinh !== undefined) setRtFilterTinh(data.rtFilterTinh);
-          if (data.rtFilterKenh !== undefined) setRtFilterKenh(Array.isArray(data.rtFilterKenh) ? data.rtFilterKenh : (data.rtFilterKenh ? [data.rtFilterKenh] : []));
-          if (data.rtFilterNganhHang !== undefined) setRtFilterNganhHang(data.rtFilterNganhHang);
-          
-          if (data.sieuThiFilterTinh !== undefined) setSieuThiFilterTinh(data.sieuThiFilterTinh);
-          if (data.sieuThiFilterKenh !== undefined) setSieuThiFilterKenh(data.sieuThiFilterKenh);
+          const nextRtTinh = data.rtFilterTinh !== undefined ? data.rtFilterTinh : rtFilterTinh;
+          const nextRtKenh = data.rtFilterKenh !== undefined
+            ? (Array.isArray(data.rtFilterKenh) ? data.rtFilterKenh : (data.rtFilterKenh ? [data.rtFilterKenh] : []))
+            : rtFilterKenh;
+          const nextRtNh = data.rtFilterNganhHang !== undefined ? data.rtFilterNganhHang : rtFilterNganhHang;
+          const nextStTinh = data.sieuThiFilterTinh !== undefined ? data.sieuThiFilterTinh : sieuThiFilterTinh;
+          const nextStKenh = data.sieuThiFilterKenh !== undefined ? data.sieuThiFilterKenh : sieuThiFilterKenh;
+
+          if (data.rtFilterTinh !== undefined) setRtFilterTinh(nextRtTinh);
+          if (data.rtFilterKenh !== undefined) setRtFilterKenh(nextRtKenh);
+          if (data.rtFilterNganhHang !== undefined) setRtFilterNganhHang(nextRtNh);
+          if (data.sieuThiFilterTinh !== undefined) setSieuThiFilterTinh(nextStTinh);
+          if (data.sieuThiFilterKenh !== undefined) setSieuThiFilterKenh(nextStKenh);
+
+          lastSavedFiltersJsonRef.current = JSON.stringify({
+            rtFilterTinh: nextRtTinh,
+            rtFilterKenh: nextRtKenh,
+            rtFilterNganhHang: nextRtNh,
+            sieuThiFilterTinh: nextStTinh,
+            sieuThiFilterKenh: nextStKenh,
+            sieuThiFilterNganhHangList
+          });
+        } else {
+          lastSavedFiltersJsonRef.current = JSON.stringify({
+            rtFilterTinh,
+            rtFilterKenh,
+            rtFilterNganhHang,
+            sieuThiFilterTinh,
+            sieuThiFilterKenh,
+            sieuThiFilterNganhHangList
+          });
         }
       } catch (error) {
         console.error("Error loading filters from Firebase:", error);
@@ -2423,15 +2449,21 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
   useEffect(() => {
     const saveFilters = async () => {
       if (!userProfile?.username || !firebaseFiltersLoaded) return;
+      const filterPayload = {
+        rtFilterTinh,
+        rtFilterKenh,
+        rtFilterNganhHang,
+        sieuThiFilterTinh,
+        sieuThiFilterKenh,
+        sieuThiFilterNganhHangList
+      };
+      const nextJson = JSON.stringify(filterPayload);
+      if (nextJson === lastSavedFiltersJsonRef.current) return;
+      lastSavedFiltersJsonRef.current = nextJson;
       try {
         const docRef = doc(db, 'user_filters', `${userProfile.username}_tnbleader`);
         await setDoc(docRef, {
-          rtFilterTinh,
-          rtFilterKenh,
-          rtFilterNganhHang,
-          sieuThiFilterTinh,
-          sieuThiFilterKenh,
-          sieuThiFilterNganhHangList,
+          ...filterPayload,
           updatedAt: new Date().toISOString()
         }, { merge: true });
       } catch (error) {
@@ -2571,7 +2603,7 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
             newTime = typeof actualLastSync === 'string' ? actualLastSync : newTime;
           }
 
-          if (isUser43751) {
+          if (isUser43751 && isDataChanged) {
             const record = {
               id: 'TNB_LEADER_DATA',
               ten_sieu_thi: 'Dữ liệu TNB Leader URL',

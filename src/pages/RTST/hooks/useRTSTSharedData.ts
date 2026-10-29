@@ -13,6 +13,60 @@ import { useStore, getStoreItem, setStoreItem } from '../../../contexts/StoreCon
 import { isValidStoreName as isValidStoreNameUtil, normalize, safeSetItem, normalizeStoreId } from '../utils';
 
 const globalAllStoreTargets: Record<string, any> = {};
+let globalSharedLoadedMaKho: string | null = null;
+let globalSharedLoadedAt = 0;
+const sharedTargetsSubscribers = new Set<(targets: Record<string, any>) => void>();
+
+// Module-level shared listener for app_settings/thuong_st_data so multiple mounted hooks
+// or tab switches share 1 single Firestore listener and cached payload.
+let cachedThuongStDocData: any = null;
+const thuongStSubscribers = new Set<(data: any) => void>();
+let thuongStUnsubscribe: (() => void) | null = null;
+let thuongStTeardownTimer: ReturnType<typeof setTimeout> | null = null;
+
+function subscribeThuongStDoc(cb: (data: any) => void): () => void {
+  if (thuongStTeardownTimer) {
+    clearTimeout(thuongStTeardownTimer);
+    thuongStTeardownTimer = null;
+  }
+  thuongStSubscribers.add(cb);
+  if (cachedThuongStDocData) {
+    try { cb(cachedThuongStDocData); } catch {}
+  }
+  if (!thuongStUnsubscribe) {
+    try {
+      const docRef = doc(db, 'app_settings', 'thuong_st_data');
+      thuongStUnsubscribe = onSnapshot(
+        docRef,
+        (snapshot) => {
+          if ((window as any).__crm_is_redirecting) return;
+          if (snapshot.exists()) {
+            cachedThuongStDocData = snapshot.data();
+            thuongStSubscribers.forEach((sub) => {
+              try { sub(cachedThuongStDocData); } catch {}
+            });
+          }
+        },
+        (err) => {
+          console.warn('[useRTSTSharedData] Thưởng ST onSnapshot listener error:', err);
+        }
+      );
+    } catch (err) {
+      console.warn('[useRTSTSharedData] Firebase onSnapshot setup failed:', err);
+    }
+  }
+  return () => {
+    thuongStSubscribers.delete(cb);
+    if (thuongStSubscribers.size === 0 && !thuongStTeardownTimer) {
+      thuongStTeardownTimer = setTimeout(() => {
+        if (thuongStSubscribers.size === 0 && thuongStUnsubscribe) {
+          try { thuongStUnsubscribe(); } catch {}
+          thuongStUnsubscribe = null;
+        }
+      }, 10000);
+    }
+  };
+}
 
 export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getItem('RTST_YCX_DIRTY') === 'true') => {
   const { showNotification } = useNotification();
@@ -23,6 +77,8 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
   useEffect(() => {
     if (prevMaKhoSharedRef.current && prevMaKhoSharedRef.current !== maKho) {
       prevMaKhoSharedRef.current = maKho;
+      globalSharedLoadedMaKho = null;
+      globalSharedLoadedAt = 0;
       Object.keys(globalAllStoreTargets).forEach(k => delete globalAllStoreTargets[k]);
     } else {
       prevMaKhoSharedRef.current = maKho;
@@ -141,15 +197,34 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     setAllStoreTargets(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       if (prev === next) return prev;
-      // Merge into global cache
+      // Merge into global cache and broadcast to other mounted tabs
       Object.assign(globalAllStoreTargets, next);
+      sharedTargetsSubscribers.forEach(cb => {
+        if (cb !== setAllStoreTargets) {
+          try { cb({ ...globalAllStoreTargets }); } catch {}
+        }
+      });
       return next;
     });
   }, []);
 
+  useEffect(() => {
+    sharedTargetsSubscribers.add(setAllStoreTargets);
+    return () => {
+      sharedTargetsSubscribers.delete(setAllStoreTargets);
+    };
+  }, []);
+
+  const isGlobalSharedFresh = Boolean(
+    maKho &&
+    globalSharedLoadedMaKho === maKho &&
+    Object.keys(globalAllStoreTargets).length > 0 &&
+    Date.now() - globalSharedLoadedAt < 60000
+  );
+
   const [isSavingStoreRevenue, setIsSavingStoreRevenue] = useState(false);
   const [isLoadingStoreRevenue, setIsLoadingStoreRevenue] = useState(false);
-  const [lastLoadedMaKho, setLastLoadedMaKho] = useState<string | null>(null);
+  const [lastLoadedMaKho, setLastLoadedMaKho] = useState<string | null>(() => (isGlobalSharedFresh && maKho ? maKho : null));
 
   // PERF: Ref for stName to use in subscription callback without re-subscribing
   const stNameRef = useRef(stName);
@@ -234,130 +309,119 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     };
   }, [maKho]); // PERF: Only re-subscribe when warehouse changes, not on every stName change
 
-  // 🔥 Real-time synchronization for Thưởng ST via Firebase Firestore across Mobile & Laptop
+  // 🔥 Real-time synchronization for Thưởng ST via shared Firebase Firestore listener across Mobile & Laptop
   useEffect(() => {
-    try {
-      const docRef = doc(db, 'app_settings', 'thuong_st_data');
-      const unsub = onSnapshot(docRef, (snapshot) => {
-        // Don't write stale data during logout/login redirect
-        if ((window as any).__crm_is_redirecting) return;
-        if (snapshot.exists()) {
-          const data = snapshot.data();
-          if (data) {
-            // Update root file names directly so global competition file name is never blank
-            if (data.excelFileName) {
-              setExcelFileName(prev => prev !== data.excelFileName ? data.excelFileName : prev);
-              try { safeSetItem('ST_EXCEL_FILE_NAME_V1', data.excelFileName); } catch {}
-            }
-            if (data.excelOldFileName !== undefined) {
-              setExcelOldFileName(prev => prev !== data.excelOldFileName ? data.excelOldFileName : prev);
-              try { safeSetItem('ST_EXCEL_OLD_FILE_NAME_V1', data.excelOldFileName); } catch {}
-            }
-            if (data.topPercentRankLimit !== undefined) {
-              setTopPercentRankLimit(prev => prev !== data.topPercentRankLimit ? data.topPercentRankLimit : prev);
-            }
-            if (data.topPercentRankLimitOld !== undefined) {
-              setTopPercentRankLimitOld(prev => prev !== data.topPercentRankLimitOld ? data.topPercentRankLimitOld : prev);
-            }
+    const unsub = subscribeThuongStDoc((data) => {
+      if ((window as any).__crm_is_redirecting) return;
+      if (data) {
+        // Update root file names directly so global competition file name is never blank
+        if (data.excelFileName) {
+          setExcelFileName(prev => prev !== data.excelFileName ? data.excelFileName : prev);
+          try { safeSetItem('ST_EXCEL_FILE_NAME_V1', data.excelFileName); } catch {}
+        }
+        if (data.excelOldFileName !== undefined) {
+          setExcelOldFileName(prev => prev !== data.excelOldFileName ? data.excelOldFileName : prev);
+          try { safeSetItem('ST_EXCEL_OLD_FILE_NAME_V1', data.excelOldFileName); } catch {}
+        }
+        if (data.topPercentRankLimit !== undefined) {
+          setTopPercentRankLimit(prev => prev !== data.topPercentRankLimit ? data.topPercentRankLimit : prev);
+        }
+        if (data.topPercentRankLimitOld !== undefined) {
+          setTopPercentRankLimitOld(prev => prev !== data.topPercentRankLimitOld ? data.topPercentRankLimitOld : prev);
+        }
 
-            if (data.stores) {
-              try { safeSetItem('ST_THUONG_ST_ALL_STORES_V1', JSON.stringify(data.stores)); } catch {}
-              updateAllStoreTargets((prev: any) => {
-                const next = { ...prev };
-                for (const [key, sData] of Object.entries(data.stores as Record<string, any>)) {
-                  next[key] = {
-                    ...(next[key] || {}),
-                    excelFileName: sData.excelFileName || data.excelFileName || '',
-                    thuongStRows: sData.thuongStRows || [],
-                    topPercentRankLimit: sData.topPercentRankLimit ?? data.topPercentRankLimit ?? 7,
-                    excelOldFileName: sData.excelOldFileName || data.excelOldFileName || '',
-                    thuongStOldRows: sData.thuongStOldRows || [],
-                    topPercentRankLimitOld: sData.topPercentRankLimitOld ?? data.topPercentRankLimitOld ?? 7,
-                  };
-                }
-                return next;
-              });
-
-              const activeCandidates = [
-                localStorage.getItem('rtst_selected_store_filter'),
-                currentStoreId,
-                stNameRef.current
-              ].filter(Boolean) as string[];
-
-              let activeStoreData: any = null;
-              for (const cand of activeCandidates) {
-                const normCand = normalize(cand);
-                for (const [k, sData] of Object.entries(data.stores as Record<string, any>)) {
-                  const normK = normalize(k);
-                  if (normK === normCand || normK.includes(normCand) || normCand.includes(normK)) {
-                    activeStoreData = sData;
-                    break;
-                  }
-                  const codeCand = cand.match(/\b\d{3,5}\b/);
-                  const codeK = k.match(/\b\d{3,5}\b/);
-                  if (codeCand && codeK && codeCand[0] === codeK[0]) {
-                    activeStoreData = sData;
-                    break;
-                  }
-                }
-                if (activeStoreData) break;
-              }
-
-              if (!activeStoreData && clusterStoreNames && clusterStoreNames.length > 0) {
-                // Only fall back within user's own cluster/declared stores, never jump into another warehouse
-                activeStoreData = Object.values(data.stores as Record<string, any>).find((s: any) => {
-                  const sName = s.storeName || '';
-                  return clusterStoreNames.some(cs => {
-                    const normCs = normalize(cs);
-                    const normS = normalize(sName);
-                    return normCs && normS && (normS === normCs || normS.includes(normCs) || normCs.includes(normS));
-                  }) && s.thuongStRows?.length > 0;
-                });
-              }
-
-              const areRowsEqual = (a: any[], b: any[]) => {
-                if (a === b) return true;
-                if (!a || !b || a.length !== b.length) return false;
-                if (a.length === 0) return true;
-                return a[0]?.categoryName === b[0]?.categoryName && a[0]?.bonus === b[0]?.bonus && a[a.length - 1]?.categoryName === b[b.length - 1]?.categoryName;
+        if (data.stores) {
+          try { safeSetItem('ST_THUONG_ST_ALL_STORES_V1', JSON.stringify(data.stores)); } catch {}
+          updateAllStoreTargets((prev: any) => {
+            const next = { ...prev };
+            for (const [key, sData] of Object.entries(data.stores as Record<string, any>)) {
+              next[key] = {
+                ...(next[key] || {}),
+                excelFileName: sData.excelFileName || data.excelFileName || '',
+                thuongStRows: sData.thuongStRows || [],
+                topPercentRankLimit: sData.topPercentRankLimit ?? data.topPercentRankLimit ?? 7,
+                excelOldFileName: sData.excelOldFileName || data.excelOldFileName || '',
+                thuongStOldRows: sData.thuongStOldRows || [],
+                topPercentRankLimitOld: sData.topPercentRankLimitOld ?? data.topPercentRankLimitOld ?? 7,
               };
+            }
+            return next;
+          });
 
-              if (activeStoreData) {
-                const effectiveNewFile = activeStoreData.excelFileName || data.excelFileName || '';
-                const effectiveOldFile = activeStoreData.excelOldFileName || data.excelOldFileName || '';
+          const activeCandidates = [
+            localStorage.getItem('rtst_selected_store_filter'),
+            currentStoreId,
+            stNameRef.current
+          ].filter(Boolean) as string[];
 
-                if (effectiveNewFile) {
-                  setExcelFileName(effectiveNewFile);
-                  try { safeSetItem('ST_EXCEL_FILE_NAME_V1', effectiveNewFile); } catch {}
-                }
-                if (effectiveOldFile !== undefined) {
-                  setExcelOldFileName(effectiveOldFile);
-                  try { safeSetItem('ST_EXCEL_OLD_FILE_NAME_V1', effectiveOldFile); } catch {}
-                }
-                if (activeStoreData.thuongStRows && activeStoreData.thuongStRows.length > 0) {
-                  const incoming = activeStoreData.thuongStRows || [];
-                  setThuongStRows(prev => !areRowsEqual(prev, incoming) ? incoming : prev);
-                  try { safeSetItem('ST_THUONG_ST_ROWS_V1', JSON.stringify(incoming)); } catch {}
-                }
-                if (activeStoreData.topPercentRankLimit !== undefined) setTopPercentRankLimit(activeStoreData.topPercentRankLimit);
-                if (activeStoreData.thuongStOldRows && activeStoreData.thuongStOldRows.length > 0) {
-                  const incomingOld = activeStoreData.thuongStOldRows || [];
-                  setThuongStOldRows(prev => !areRowsEqual(prev, incomingOld) ? incomingOld : prev);
-                  try { safeSetItem('ST_THUONG_ST_OLD_ROWS_V1', JSON.stringify(incomingOld)); } catch {}
-                }
-                if (activeStoreData.topPercentRankLimitOld !== undefined) setTopPercentRankLimitOld(activeStoreData.topPercentRankLimitOld);
+          let activeStoreData: any = null;
+          for (const cand of activeCandidates) {
+            const normCand = normalize(cand);
+            for (const [k, sData] of Object.entries(data.stores as Record<string, any>)) {
+              const normK = normalize(k);
+              if (normK === normCand || normK.includes(normCand) || normCand.includes(normK)) {
+                activeStoreData = sData;
+                break;
+              }
+              const codeCand = cand.match(/\b\d{3,5}\b/);
+              const codeK = k.match(/\b\d{3,5}\b/);
+              if (codeCand && codeK && codeCand[0] === codeK[0]) {
+                activeStoreData = sData;
+                break;
               }
             }
+            if (activeStoreData) break;
+          }
+
+          if (!activeStoreData && clusterStoreNames && clusterStoreNames.length > 0) {
+            // Only fall back within user's own cluster/declared stores, never jump into another warehouse
+            activeStoreData = Object.values(data.stores as Record<string, any>).find((s: any) => {
+              const sName = s.storeName || '';
+              return clusterStoreNames.some(cs => {
+                const normCs = normalize(cs);
+                const normS = normalize(sName);
+                return normCs && normS && (normS === normCs || normS.includes(normCs) || normCs.includes(normS));
+              }) && s.thuongStRows?.length > 0;
+            });
+          }
+
+          const areRowsEqual = (a: any[], b: any[]) => {
+            if (a === b) return true;
+            if (!a || !b || a.length !== b.length) return false;
+            if (a.length === 0) return true;
+            return a[0]?.categoryName === b[0]?.categoryName && a[0]?.bonus === b[0]?.bonus && a[a.length - 1]?.categoryName === b[b.length - 1]?.categoryName;
+          };
+
+          if (activeStoreData) {
+            const effectiveNewFile = activeStoreData.excelFileName || data.excelFileName || '';
+            const effectiveOldFile = activeStoreData.excelOldFileName || data.excelOldFileName || '';
+
+            if (effectiveNewFile) {
+              setExcelFileName(effectiveNewFile);
+              try { safeSetItem('ST_EXCEL_FILE_NAME_V1', effectiveNewFile); } catch {}
+            }
+            if (effectiveOldFile !== undefined) {
+              setExcelOldFileName(effectiveOldFile);
+              try { safeSetItem('ST_EXCEL_OLD_FILE_NAME_V1', effectiveOldFile); } catch {}
+            }
+            if (activeStoreData.thuongStRows && activeStoreData.thuongStRows.length > 0) {
+              const incoming = activeStoreData.thuongStRows || [];
+              setThuongStRows(prev => !areRowsEqual(prev, incoming) ? incoming : prev);
+              try { safeSetItem('ST_THUONG_ST_ROWS_V1', JSON.stringify(incoming)); } catch {}
+            }
+            if (activeStoreData.topPercentRankLimit !== undefined) setTopPercentRankLimit(activeStoreData.topPercentRankLimit);
+            if (activeStoreData.thuongStOldRows && activeStoreData.thuongStOldRows.length > 0) {
+              const incomingOld = activeStoreData.thuongStOldRows || [];
+              setThuongStOldRows(prev => !areRowsEqual(prev, incomingOld) ? incomingOld : prev);
+              try { safeSetItem('ST_THUONG_ST_OLD_ROWS_V1', JSON.stringify(incomingOld)); } catch {}
+            }
+            if (activeStoreData.topPercentRankLimitOld !== undefined) setTopPercentRankLimitOld(activeStoreData.topPercentRankLimitOld);
           }
         }
-      }, (err) => {
-        console.warn('[useRTSTSharedData] Thưởng ST onSnapshot listener error:', err);
-      });
+      }
+    });
 
-      return () => unsub();
-    } catch (err) {
-      console.warn('[useRTSTSharedData] Firebase onSnapshot setup failed:', err);
-    }
+    return () => unsub();
   }, [updateAllStoreTargets]);
 
   const VALID_STORE_PREFIXES = ['ĐML', 'ĐMM', 'ĐMS', 'ĐMS3', 'TGD', 'AAR', 'DML', 'DMM', 'DMS', 'DMS3', 'ÐML', 'ÐMM', 'ÐMS', 'ÐMS3'];
@@ -390,7 +454,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     }
   }, [selectedMonth]);
 
-  const hasLoadedFromDB = useRef(false);
+  const hasLoadedFromDB = useRef(isGlobalSharedFresh);
 
   // PERF: Debounce localStorage writes — previously 17 synchronous writes on every state change
   // MULTI-STORE: Per-store fields use prefixed keys via setStoreItem
@@ -478,6 +542,34 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     if (lastSavedRevenueSnapshotRef.current === currentSnapshotKey) {
       console.log('[RTSTSharedData] Skip save — no change detected');
       return;
+    }
+
+    // For silent background auto-saves, also verify against the loaded DB target entry
+    // so derived display updates (stDtlk, stDtqd, daysPassed, etc.) never trigger Firestore writes
+    if (silent) {
+      const existingDb =
+        allStoreTargetsRef.current?.[cleanStore.toUpperCase()] ||
+        allStoreTargetsRef.current?.[normalize(cleanStore)];
+      if (existingDb) {
+        const isConfigSame =
+          Number(existingDb.stTargetQuyDoi ?? 0) === Number(stTargetQuyDoi ?? 0) &&
+          Number(existingDb.stPercentTarget ?? 100) === Number(stPercentTarget ?? 100) &&
+          Number(existingDb.stTargetSauHeSo ?? 0) === Number(stTargetSauHeSo ?? 0) &&
+          Number(existingDb.manualAdjustment ?? 0) === Number(manualAdjustment ?? 0) &&
+          String(existingDb.selectedMonth || selectedMonth) === String(selectedMonth) &&
+          String(existingDb.linkBcTongHop || '') === String(linkBcTongHop || '') &&
+          String(existingDb.linkNganhHangTongHop || '') === String(linkNganhHangTongHop || '') &&
+          String(existingDb.staffListFileName || '') === String(staffListFileName || '') &&
+          String(existingDb.categoryMappingInput || '') === String(categoryMappingInput || '') &&
+          JSON.stringify(existingDb.excludedStaffIds || []) === JSON.stringify(excludedStaffIds || []) &&
+          JSON.stringify(existingDb.storeSettings || {}) === JSON.stringify(storeSettings || {}) &&
+          JSON.stringify(existingDb.drillFilterStaff || []) === JSON.stringify(drillFilterStaff || []);
+
+        if (isConfigSame) {
+          lastSavedRevenueSnapshotRef.current = currentSnapshotKey;
+          return;
+        }
+      }
     }
 
     setIsSavingStoreRevenue(true);
@@ -653,6 +745,8 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         setCategoryMappingInput('');
       }
       hasLoadedFromDB.current = true;
+      globalSharedLoadedMaKho = maKho;
+      globalSharedLoadedAt = Date.now();
     } catch (error) {
       console.error('Lỗi tải cài đặt:', error);
     } finally {
@@ -663,10 +757,13 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
 
   useEffect(() => {
     if (maKho && (maKho !== lastLoadedMaKho)) {
+      if (globalSharedLoadedMaKho === maKho && Object.keys(globalAllStoreTargets).length > 0 && Date.now() - globalSharedLoadedAt < 60000) {
+        hasLoadedFromDB.current = true;
+        setLastLoadedMaKho(maKho);
+        return;
+      }
       console.log('[SharedData] maKho changed, resetting state for:', maKho);
       hasLoadedFromDB.current = false;
-      // DO NOT clear stale targets, keep them in cache for fast switching!
-      // setAllStoreTargets({});
       
       loadStoreRevenue(maKho, stName).then(() => {
         setLastLoadedMaKho(maKho);
@@ -801,6 +898,11 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     if (cached?.drillFilterStaff) setDrillFilterStaff(cached.drillFilterStaff);
     if (cached?.categoryMappingInput) setCategoryMappingInput(cached.categoryMappingInput);
     
+    if (cached && globalSharedLoadedMaKho === maKho && Date.now() - globalSharedLoadedAt < 60000) {
+      hasLoadedFromDB.current = true;
+      return;
+    }
+
     // Reload from DB for the new store (sets hasLoadedFromDB = true on completion)
     loadStoreRevenue(maKho, currentStoreId);
   }, [currentStoreId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -838,17 +940,11 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
   }, [
     maKho,
     stName,
-    stDtlk,
-    stDtqd,
-    stDtDuKienQD,
-    stPercentHTTargetDuKienQD,
     stTargetQuyDoi,
     stPercentTarget,
     stTargetSauHeSo,
     manualAdjustment,
     selectedMonth,
-    daysPassed,
-    totalDays,
     linkBcTongHop,
     linkNganhHangTongHop,
     staffListFileName,
@@ -862,7 +958,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
   // Force-save listener: flush pending store revenue data before version-update reload
   useEffect(() => {
     const handleForceSave = () => {
-      console.log('[RTSTSharedData] Force-save triggered before reload — flushing pending store revenue data');
+      const hadPendingTimer = autoSaveTimerRef.current !== null;
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
         autoSaveTimerRef.current = null;
@@ -871,8 +967,8 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         clearTimeout(localStorageTimerRef.current);
         localStorageTimerRef.current = null;
       }
-      // Save immediately without debounce
-      if (saveStoreRevenueRef.current && maKho && stNameRef.current) {
+      // Only flush to Firestore if there was actually a pending debounced change
+      if (hadPendingTimer && saveStoreRevenueRef.current && maKho && stNameRef.current) {
         saveStoreRevenueRef.current(maKho, stNameRef.current, true);
       }
     };
@@ -880,10 +976,12 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     return () => window.removeEventListener('force-save-before-reload', handleForceSave);
   }, [maKho]);
 
-  // Force-save dirty data before page refresh (F5) or close
+  // Force-save dirty data before page refresh (F5) or close ONLY when a pending change timer is active
   useEffect(() => {
     const handleBeforeUnload = () => {
-      if (saveStoreRevenueRef.current && maKho && stNameRef.current) {
+      if (autoSaveTimerRef.current !== null && saveStoreRevenueRef.current && maKho && stNameRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
         saveStoreRevenueRef.current(maKho, stNameRef.current, true);
       }
     };

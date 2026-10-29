@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Trophy, TrendingDown, Camera } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { BarChart3, Crown } from 'lucide-react';
 import { StaffData } from '../../RTST/types';
 import { cn, formatCurrencyValue, extractStaffRevFromReport, getStoredStaffThucInput } from '../../RTST/utils';
 
@@ -63,21 +62,23 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
     };
   }, []);
 
-  // Parse Doanh Thu Thực (Cột 3 từ trái sang)
+  // Parse Doanh Thu Thực (Cột DOANH THU THỰC)
   const thucMap = useMemo(() => {
-    const raw = (dtThucNv && dtThucNv.trim()) ? dtThucNv : getStoredStaffThucInput();
+    const storeHint = data.find(s => s.storeName && s.storeName !== 'N/A')?.storeName;
+    const raw = (dtThucNv && dtThucNv.trim()) ? dtThucNv : getStoredStaffThucInput(storeHint);
     return raw ? extractStaffRevFromReport(raw) : new Map();
-  }, [dtThucNv, thucVersion]);
+  }, [dtThucNv, thucVersion, data]);
 
-  // Helper tìm doanh thu thực của nhân viên từ thucMap hoặc staff.actualVal
+  // Helper tìm doanh thu thực của nhân viên từ thucMap hoặc staff.actualVal (ưu tiên tuyệt đối Mã NV)
   const getStaffActualRevenue = (staff: StaffData): number => {
-    let a = staff.actualVal || 0;
+    let a = staff.actualVal ?? 0;
     if (thucMap.size > 0) {
       const cleanId = (staff.fullId || '').replace(/\D/g, '');
-      const staffNorm = (staff.displayName || '')
+      const pureStaffName = (staff.employeeName || (staff.displayName.split(/[-–—]/).slice(1).join(' ') || staff.displayName))
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[đĐ]/g, 'd')
         .replace(/[^a-z0-9]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
@@ -86,24 +87,28 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
       if (!m) {
         for (const item of thucMap.values()) {
           const itemCleanId = (item.id || '').replace(/\D/g, '');
-          if (cleanId && itemCleanId && cleanId === itemCleanId) {
-            m = item;
-            break;
+          if (cleanId && itemCleanId) {
+            if (cleanId === itemCleanId) {
+              m = item;
+              break;
+            }
+            continue;
           }
-          const itemNorm = (item.name || item.id || '')
+          const itemNorm = (item.name || '')
             .toLowerCase()
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[đĐ]/g, 'd')
             .replace(/[^a-z0-9]/g, ' ')
             .replace(/\s+/g, ' ')
             .trim();
-          if (itemNorm && (staffNorm.includes(itemNorm) || itemNorm.includes(staffNorm))) {
+          if (pureStaffName && itemNorm && pureStaffName === itemNorm) {
             m = item;
             break;
           }
         }
       }
-      if (m && m.revenue > 0) {
+      if (m && m.revenue !== null && m.revenue !== undefined && !isNaN(m.revenue)) {
         a = m.revenue;
       }
     }
@@ -332,59 +337,110 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
 
   return (
     <div className="w-full flex justify-center" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
-      <div className="w-full max-w-[900px] bg-white border border-slate-200/90 p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl shadow-sm flex flex-col">
-        {/* Top Header Banner: Emerald Gradient with Gold/Yellow Title matching Bảng 2 */}
-        <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-2.5 sm:p-4 rounded-xl sm:rounded-2xl text-white relative shrink-0 mb-2 sm:mb-2.5 text-center flex flex-col items-center justify-center">
-          <h2 className="text-[17px] sm:text-[23px] md:text-[27px] font-black text-[#FEF08A] uppercase tracking-wide leading-tight whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
-            BẢNG XẾP HẠNG DOANH THU
-          </h2>
-          <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-1.5 sm:gap-2 mt-1 sm:mt-1.5 text-[10.5px] sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
-            <span className="flex items-center gap-1 whitespace-nowrap">
-              ⚡ Luỹ kế dự kiến đến ngày: {yesterdayDate}
-            </span>
-            <span className="opacity-70">||</span>
-            <span className="text-white font-extrabold whitespace-nowrap">
-              TGSD: {daysPassed}/{totalDays}
-            </span>
+      <div className="w-full max-w-[900px] bg-[#F4F8FC] border border-[#DCE7F2] p-[10px] sm:p-[16px] rounded-[18px] sm:rounded-[22px] shadow-[0_6px_24px_-4px_rgba(16,35,63,0.05)] flex flex-col gap-[12px] sm:gap-[14px] overflow-hidden">
+        {/* Enterprise Header Card (Date selector button hidden as required) */}
+        <div className="relative overflow-hidden bg-white border border-[#DCE7F2] rounded-[16px] sm:rounded-[18px] px-[14px] py-[12px] sm:px-[20px] sm:py-[16px] shadow-[0_2px_10px_rgba(16,35,63,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-[10px] shrink-0">
+          {/* Decorative soft wave & chart watermark on the right matching reference image */}
+          <svg
+            className="pointer-events-none select-none absolute bottom-0 right-0 w-[56%] h-full opacity-60"
+            viewBox="0 0 520 96"
+            preserveAspectRatio="none"
+          >
+            <path
+              d="M0,96 C115,94 185,32 300,52 C385,66 445,14 520,24 L520,96 Z"
+              fill="#E3F8EF"
+            />
+            <path
+              d="M110,96 C210,96 270,48 370,62 C435,72 480,30 520,38 L520,96 Z"
+              fill="#D0F2E4"
+              opacity="0.7"
+            />
+          </svg>
+          <div className="pointer-events-none select-none hidden sm:flex items-end gap-[5px] absolute right-[22px] bottom-[16px] opacity-80">
+            <span className="w-[5px] h-[10px] rounded-full bg-[#34D399]" />
+            <span className="w-[5px] h-[18px] rounded-full bg-[#10B981]" />
+            <span className="w-[5px] h-[25px] rounded-full bg-[#059669]" />
+            <span className="w-[5px] h-[33px] rounded-full bg-[#047857]" />
+          </div>
+
+          <div className="relative z-10 flex items-start sm:items-center gap-[12px] sm:gap-[14px] min-w-0">
+            <div className="w-[44px] h-[44px] sm:w-[50px] sm:h-[50px] rounded-[13px] sm:rounded-[15px] bg-gradient-to-b from-[#009B83] via-[#007F5F] to-[#055A44] flex items-center justify-center text-white shadow-[0_6px_14px_rgba(0,127,95,0.26)] shrink-0">
+              <BarChart3 size={24} className="stroke-[2.5] shrink-0" />
+            </div>
+            <div className="min-w-0 flex-1 text-left">
+              <h2
+                className="text-[16px] sm:text-[21px] font-black text-[#10233F] uppercase tracking-tight leading-snug break-words"
+                style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}
+              >
+                BẢNG XẾP HẠNG DOANH THU
+              </h2>
+              <div
+                className="flex flex-wrap items-center gap-x-[8px] gap-y-[3px] mt-[3px] text-[11.5px] sm:text-[13px] font-bold text-[#64748B] leading-snug"
+                style={{ fontFamily: "'UTM Avo', sans-serif" }}
+              >
+                <span className="inline-flex items-center gap-[5px]">
+                  <span className="text-[#F59E0B]">⚡</span>
+                  <span>Lũy kế dự kiến đến ngày: <strong className="font-black text-[#10233F]">{yesterdayDate}</strong></span>
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Table Container */}
         <div 
-          className="overflow-x-auto w-full grow rounded-xl sm:rounded-2xl border border-emerald-300/80 custom-scrollbar"
+          className="overflow-x-auto w-full grow rounded-[14px] sm:rounded-[16px] border border-[#DCE7F2] bg-white shadow-[0_2px_12px_rgba(16,35,63,0.03)] custom-scrollbar"
           style={{ WebkitOverflowScrolling: 'touch' }}
         >
           <table 
-            className="w-full border-separate border-spacing-0 table-fixed bg-white text-[12px] sm:text-[14.5px]" 
+            className="w-full border-separate border-spacing-0 table-fixed bg-white text-[12px] sm:text-[13.5px]" 
             style={{ 
               fontFamily: "'UTM Avo', 'Inter', sans-serif", 
               fontWeight: 900, 
-              minWidth: '860px',
+              minWidth: '868px',
               width: '100%'
             }}
           >
             <colgroup>
-              <col style={{ width: '42px', minWidth: '42px' }} />
-              <col style={{ width: '258px', minWidth: '240px' }} />
-              <col style={{ width: '80px', minWidth: '80px' }} />
-              <col style={{ width: '85px', minWidth: '85px' }} />
-              <col style={{ width: '85px', minWidth: '85px' }} />
-              <col style={{ width: '75px', minWidth: '75px' }} />
-              <col style={{ width: '90px', minWidth: '90px' }} />
-              <col style={{ width: '90px', minWidth: '90px' }} />
-              <col style={{ width: '55px', minWidth: '55px' }} />
+              <col style={{ width: '52px', minWidth: '52px' }} />
+              <col style={{ width: '236px', minWidth: '220px' }} />
+              <col style={{ width: '82px', minWidth: '82px' }} />
+              <col style={{ width: '88px', minWidth: '88px' }} />
+              <col style={{ width: '84px', minWidth: '84px' }} />
+              <col style={{ width: '84px', minWidth: '84px' }} />
+              <col style={{ width: '82px', minWidth: '82px' }} />
+              <col style={{ width: '82px', minWidth: '82px' }} />
+              <col style={{ width: '78px', minWidth: '78px' }} />
             </colgroup>
             <thead>
-              <tr className="text-white font-black text-[12px] sm:text-[13.5px] uppercase tracking-tight h-[38px] sm:h-[44px]">
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap">STT</th>
-                <th style={{ fontWeight: 900 }} className="px-2 sm:px-3.5 py-0 text-left text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap">NHÂN VIÊN</th>
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap">TARGET</th>
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap">DT. THỰC</th>
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap">DTQĐ</th>
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap">%HT</th>
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap">HQ.QĐ</th>
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap">% T.CHẬM</th>
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-b border-emerald-600 bg-[#047857] whitespace-nowrap">XH</th>
+              <tr className="text-white font-black text-[11.5px] sm:text-[12.5px] uppercase tracking-wide h-[42px] sm:h-[46px]">
+                <th style={{ fontWeight: 900 }} className="px-[6px] py-0 text-center text-white border-r border-white/10 border-b border-[#065F46] bg-[#007F5F] whitespace-nowrap">
+                  STT
+                </th>
+                <th style={{ fontWeight: 900 }} className="px-[10px] sm:px-[14px] py-0 text-left text-white border-r border-white/10 border-b border-[#065F46] bg-[#007F5F] whitespace-nowrap">
+                  NHÂN VIÊN
+                </th>
+                <th style={{ fontWeight: 900 }} className="px-[6px] py-0 text-center text-white border-r border-white/10 border-b border-[#065F46] bg-[#037559] whitespace-nowrap">
+                  TARGET
+                </th>
+                <th style={{ fontWeight: 900 }} className="px-[6px] py-0 text-center text-white border-r border-white/10 border-b border-[#065F46] bg-[#046C52] whitespace-nowrap">
+                  DT. THỰC
+                </th>
+                <th style={{ fontWeight: 900 }} className="px-[6px] py-0 text-center text-white border-r border-white/10 border-b border-[#065F46] bg-[#05634C] whitespace-nowrap">
+                  DTQĐ
+                </th>
+                <th style={{ fontWeight: 900 }} className="px-[6px] py-0 text-center text-white border-r border-white/10 border-b border-[#065F46] bg-[#065A46] whitespace-nowrap">
+                  %HT
+                </th>
+                <th style={{ fontWeight: 900 }} className="px-[6px] py-0 text-center text-white border-r border-white/10 border-b border-[#065F46] bg-[#075140] whitespace-nowrap">
+                  HQ.QĐ
+                </th>
+                <th style={{ fontWeight: 900 }} className="px-[6px] py-0 text-center text-white border-r border-white/10 border-b border-[#065F46] bg-[#08473A] whitespace-nowrap">
+                  % T.CHẬM
+                </th>
+                <th style={{ fontWeight: 900 }} className="px-[6px] py-0 text-center text-white border-b border-[#065F46] bg-[#0A3E36] whitespace-nowrap">
+                  XH
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -419,84 +475,132 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
 
                   const hasTraCham = staff.fullId in traChamMap;
                   const traChamPercent = hasTraCham ? (traChamMap[staff.fullId] ?? 0) : null;
+                  const isLowEff = effQd < (totalEffQd !== 0 ? totalEffQd : stPercentHTTargetDuKienQD);
 
                   return (
                     <tr 
                       key={staff.fullId}
                       onClick={() => onSelectStaff && onSelectStaff(staff.fullId)}
                       className={cn(
-                        "transition-colors h-[38px] sm:h-[40px] cursor-pointer border-b border-emerald-100/90",
-                        isEven ? "bg-white" : "bg-emerald-50/20",
-                        "hover:bg-emerald-50/70",
+                        "transition-colors h-[42px] sm:h-[45px] cursor-pointer",
+                        isBottom
+                          ? "bg-[#FFF5F7] hover:bg-[#FFEBEF]"
+                          : isEven
+                          ? "bg-white hover:bg-[#F2FBF7]"
+                          : "bg-[#F8FBFF] hover:bg-[#F2FBF7]",
                         selectedStaffId === staff.fullId && "!bg-emerald-100/60"
                       )}
                     >
-                      <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[12px] sm:text-[14.5px] text-slate-700 bg-emerald-50/40 whitespace-nowrap">
-                        #{index + 1}
-                      </td>
-                      <td style={{ fontWeight: 900 }} className="px-2 sm:px-3.5 py-1 border-r border-b border-emerald-100/90 text-left">
-                        <div className="flex flex-col justify-center min-w-0 leading-tight">
-                          <span className={cn(
-                            "font-black uppercase tracking-tight text-[12px] sm:text-[14px] truncate block",
-                            isBottom ? "text-rose-600" : "text-slate-900"
-                          )} title={`${formatName(staff.displayName)} - ${staff.fullId}`}>
-                            {formatName(staff.displayName)}
-                            <span className="text-slate-500 font-bold text-[11px] sm:text-[13px] ml-1">
-                              - {staff.fullId}
-                            </span>
+                      {/* 1. STT */}
+                      <td style={{ fontWeight: 900 }} className="px-[6px] py-[4px] text-center border-r border-b border-[#E8EFF7] whitespace-nowrap">
+                        {index === 0 ? (
+                          <span className="inline-flex items-center justify-center w-[26px] h-[26px] rounded-full bg-gradient-to-b from-[#FDE047] via-[#F59E0B] to-[#D97706] text-white font-black text-[12px] shadow-[0_2px_5px_rgba(245,158,11,0.35)] border border-[#FEF08A]">
+                            1
                           </span>
-                        </div>
-                      </td>
-                      <td style={{ fontWeight: 900 }} className="px-1 sm:px-1.5 py-0 text-center border-r border-b border-emerald-100/90 font-bold text-[12px] sm:text-[14.5px] text-slate-800 whitespace-nowrap">
-                        {targetQdPerStaff > 0 ? formatStaffTarget(targetQdPerStaff) : '0'}
-                      </td>
-                      <td style={{ fontWeight: 900 }} className="px-1 sm:px-1.5 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[12px] sm:text-[14.5px] text-emerald-700 whitespace-nowrap">
-                        {displayActual > 0 ? formatCurrencyValue(displayActual) : '-'}
-                      </td>
-                      <td style={{ fontWeight: 900 }} className="px-1 sm:px-1.5 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[12px] sm:text-[14.5px] text-rose-600 whitespace-nowrap">
-                        {formatCurrencyValue(staff.virtualVal || 0)}
-                      </td>
-                      <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
-                        <span className={cn(
-                          "inline-flex items-center justify-center px-1.5 sm:px-2 py-0.5 rounded sm:rounded-md font-black text-[11px] sm:text-[13px] leading-none",
-                          percentHT >= 100 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-600"
-                        )}>
-                          {Math.round(percentHT)}%
-                        </span>
-                      </td>
-                      <td style={{ fontWeight: 900 }} className="px-1 sm:px-1.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
-                        {effQd < (totalEffQd !== 0 ? totalEffQd : stPercentHTTargetDuKienQD) ? (
-                          <span className="inline-flex items-center justify-center px-1.5 sm:px-2 py-0.5 rounded sm:rounded-md font-black text-[11px] sm:text-[13px] leading-none bg-rose-50 text-rose-600 border border-rose-400">
-                            {effQd.toFixed(1)}%
+                        ) : index === 1 ? (
+                          <span className="inline-flex items-center justify-center w-[26px] h-[26px] rounded-full bg-gradient-to-b from-[#CBD5E1] via-[#94A3B8] to-[#64748B] text-white font-black text-[12px] shadow-[0_2px_5px_rgba(100,116,139,0.28)] border border-[#E2E8F0]">
+                            2
+                          </span>
+                        ) : index === 2 ? (
+                          <span className="inline-flex items-center justify-center w-[26px] h-[26px] rounded-full bg-gradient-to-b from-[#FB923C] via-[#EA580C] to-[#9A3412] text-white font-black text-[12px] shadow-[0_2px_5px_rgba(234,88,12,0.3)] border border-[#FED7AA]">
+                            3
                           </span>
                         ) : (
-                          <span className="font-black text-[11px] sm:text-[14.5px] text-emerald-700">
-                            {effQd.toFixed(1)}%
+                          <span className={cn(
+                            "inline-flex items-center justify-center w-[26px] h-[26px] rounded-full font-black text-[12px]",
+                            isBottom ? "bg-[#FFE3E8] text-[#F4144F]" : "bg-[#EDF2F7] text-[#10233F]"
+                          )}>
+                            {index + 1}
                           </span>
                         )}
                       </td>
+
+                      {/* 2. NHÂN VIÊN */}
+                      <td style={{ fontWeight: 900 }} className="px-[10px] sm:px-[14px] py-[4px] border-r border-b border-[#E8EFF7] text-left">
+                        <div className="flex flex-wrap items-baseline gap-x-[4px] gap-y-[1px] min-w-0 leading-snug">
+                          <span className={cn(
+                            "font-black uppercase tracking-tight text-[12px] sm:text-[13.5px]",
+                            isBottom ? "text-[#F4144F]" : "text-[#10233F]"
+                          )} title={`${formatName(staff.displayName)} - ${staff.fullId}`}>
+                            {formatName(staff.displayName)}
+                          </span>
+                          <span className="text-[#64748B] font-bold text-[11px] sm:text-[12.5px] whitespace-nowrap">
+                            - {staff.fullId}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* 3. TARGET */}
+                      <td style={{ fontWeight: 900 }} className="px-[6px] py-[4px] text-center border-r border-b border-[#E8EFF7] font-black text-[12.5px] sm:text-[13.5px] text-[#10233F] whitespace-nowrap">
+                        {targetQdPerStaff > 0 ? formatStaffTarget(targetQdPerStaff) : '0'}
+                      </td>
+
+                      {/* 4. DT. THỰC (Chỉ hiển thị số căn giữa màu xanh lá đậm, KHÔNG có thanh progress bar) */}
+                      <td style={{ fontWeight: 900 }} className="px-[6px] py-[4px] text-center border-r border-b border-[#E8EFF7] font-black text-[12.5px] sm:text-[13.5px] text-[#007F5F] whitespace-nowrap">
+                        {displayActual !== null && displayActual !== undefined && displayActual !== 0 ? formatCurrencyValue(displayActual) : (rawActual === 0 ? '0' : '-')}
+                      </td>
+
+                      {/* 5. DTQĐ */}
+                      <td style={{ fontWeight: 900 }} className="px-[6px] py-[4px] text-center border-r border-b border-[#E8EFF7] font-black text-[12.5px] sm:text-[13.5px] text-[#F4144F] whitespace-nowrap">
+                        {formatCurrencyValue(staff.virtualVal || 0)}
+                      </td>
+
+                      {/* 6. %HT */}
+                      <td style={{ fontWeight: 900 }} className="px-[6px] py-[4px] text-center border-r border-b border-[#E8EFF7] whitespace-nowrap">
+                        <span className={cn(
+                          "inline-flex items-center justify-center gap-[3px] min-w-[58px] px-[9px] py-[4px] rounded-[7px] font-black text-[11.5px] sm:text-[12.5px] leading-none",
+                          percentHT >= 100 ? "bg-[#DDF8E9] text-[#007F5F]" : "bg-[#FFE3E8] text-[#F4144F]"
+                        )}>
+                          <span>{Math.round(percentHT)}%</span>
+                          <span className="text-[10.5px] leading-none">{percentHT >= 100 ? '↑' : '↓'}</span>
+                        </span>
+                      </td>
+
+                      {/* 7. HQ.QĐ */}
+                      <td style={{ fontWeight: 900 }} className="px-[6px] py-[4px] text-center border-r border-b border-[#E8EFF7] whitespace-nowrap">
+                        <span className={cn(
+                          "inline-flex items-center justify-center min-w-[56px] px-[9px] py-[4px] rounded-[7px] font-black text-[11.5px] sm:text-[12.5px] leading-none",
+                          isLowEff
+                            ? "bg-[#FFE3E8] text-[#F4144F]"
+                            : "bg-[#DDF8E9] text-[#007F5F]"
+                        )}>
+                          {effQd.toFixed(1)}%
+                        </span>
+                      </td>
+
+                      {/* 8. % T.CHẬM */}
                       <td style={{ fontWeight: 900 }} className={cn(
-                        "px-1 sm:px-1.5 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[11px] sm:text-[14.5px] whitespace-nowrap",
+                        "px-[6px] py-[4px] text-center border-r border-b border-[#E8EFF7] font-black text-[12px] sm:text-[13px] whitespace-nowrap",
                         traChamPercent !== null
-                          ? (traChamPercent >= 50 ? "text-emerald-700 font-black" : "text-rose-600 font-bold")
-                          : "text-slate-400"
+                          ? (traChamPercent >= 50 ? "text-[#007F5F]" : "text-[#F4144F]")
+                          : "text-[#64748B]"
                       )}>
                         {traChamPercent !== null ? `${traChamPercent.toFixed(1)}%` : '-'}
                       </td>
-                      <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-b border-emerald-100/90 whitespace-nowrap font-black text-[11px] sm:text-[14px]">
+
+                      {/* 9. XH */}
+                      <td style={{ fontWeight: 900 }} className="px-[6px] py-[4px] text-center border-b border-[#E8EFF7] whitespace-nowrap">
                         {isTop ? (
-                          <span className="text-emerald-700 font-black">Top</span>
+                          <span className="inline-flex items-center justify-center gap-[4px] px-[9px] py-[4px] rounded-[8px] bg-[#DDF8E9] text-[#007F5F] font-black text-[11px] sm:text-[12px] leading-none">
+                            <Crown size={12} className="text-[#F59E0B] fill-[#F59E0B] shrink-0" />
+                            <span>Top</span>
+                          </span>
                         ) : isBottom ? (
-                          <span className="text-rose-600 font-black">Bot</span>
-                        ) : null}
+                          <span className="inline-flex items-center justify-center gap-[4px] px-[9px] py-[4px] rounded-[8px] bg-[#FFE3E8] text-[#F4144F] font-black text-[11px] sm:text-[12px] leading-none">
+                            <span>↓</span>
+                            <span>Bot</span>
+                          </span>
+                        ) : (
+                          <span className="text-[#64748B] font-bold text-[12px]">-</span>
+                        )}
                       </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center h-[100px]">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  <td colSpan={9} className="px-[16px] py-[40px] text-center h-[100px]">
+                    <p className="text-[12.5px] font-bold text-slate-400 uppercase tracking-widest">
                       Chưa có dữ liệu xếp hạng doanh thu
                     </p>
                   </td>
@@ -505,29 +609,49 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
             </tbody>
             {sortedData.length > 0 && (
               <tfoot>
-                <tr className="h-[38px] sm:h-[44px] text-white">
-                  <td colSpan={2} style={{ fontWeight: 900 }} className="px-2 sm:px-3 py-0 text-center border-r border-emerald-600/50 font-black text-[12px] sm:text-[15px] text-white uppercase tracking-widest whitespace-nowrap bg-[#047857]">
-                    TỔNG
+                <tr className="h-[46px] sm:h-[50px] bg-[#E3F7ED]">
+                  <td colSpan={2} style={{ fontWeight: 900 }} className="px-[10px] sm:px-[14px] py-[6px] text-left border-t border-r border-[#C3ECDA] bg-[#E3F7ED] whitespace-nowrap">
+                    <div className="flex items-center gap-[10px]">
+                      <span className="w-[28px] h-[28px] rounded-[8px] bg-white border border-[#C3ECDA] text-[#007F5F] inline-flex items-center justify-center shrink-0 shadow-2xs">
+                        <BarChart3 size={15} className="stroke-[2.5]" />
+                      </span>
+                      <span className="font-black text-[13.5px] sm:text-[15px] text-[#10233F] uppercase tracking-wide">
+                        TỔNG
+                      </span>
+                    </div>
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-1 sm:px-1.5 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[12px] sm:text-[15px] whitespace-nowrap bg-[#047857]">
+                  <td style={{ fontWeight: 900 }} className="px-[6px] py-[6px] text-center border-t border-r border-[#C3ECDA] text-[#10233F] font-black text-[13.5px] sm:text-[15px] whitespace-nowrap bg-[#E3F7ED]">
                     {totalTargetQd > 0 ? formatCurrencyValue(totalTargetQd) : '0'}
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-1 sm:px-1.5 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[12px] sm:text-[15px] whitespace-nowrap bg-[#047857]">
+                  <td style={{ fontWeight: 900 }} className="px-[6px] py-[6px] text-center border-t border-r border-[#C3ECDA] text-[#10233F] font-black text-[13.5px] sm:text-[15px] whitespace-nowrap bg-[#E3F7ED]">
                     {totalActualDisplay > 0 ? formatCurrencyValue(totalActualDisplay) : '-'}
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-1 sm:px-1.5 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[12px] sm:text-[15px] whitespace-nowrap bg-[#047857]">
+                  <td style={{ fontWeight: 900 }} className="px-[6px] py-[6px] text-center border-t border-r border-[#C3ECDA] text-[#10233F] font-black text-[13.5px] sm:text-[15px] whitespace-nowrap bg-[#E3F7ED]">
                     {formatCurrencyValue(totalVirtual)}
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[11px] sm:text-[15px] whitespace-nowrap bg-[#047857]">
-                    {Math.round(totalPercentHT)}%
+                  <td style={{ fontWeight: 900 }} className="px-[6px] py-[6px] text-center border-t border-r border-[#C3ECDA] whitespace-nowrap bg-[#E3F7ED]">
+                    <span className={cn(
+                      "inline-flex items-center justify-center min-w-[58px] px-[10px] py-[4px] rounded-[8px] font-black text-[12px] sm:text-[13px] leading-none",
+                      totalPercentHT >= 100 ? "bg-[#ADEAD0] text-[#00684A]" : "bg-[#FFE3E8] text-[#F4144F]"
+                    )}>
+                      {Math.round(totalPercentHT)}%
+                    </span>
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-1 sm:px-1.5 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[11px] sm:text-[14.5px] whitespace-nowrap bg-[#047857]">
-                    {totalEffQd !== 0 ? `${totalEffQd.toFixed(1)}%` : (stPercentHTTargetDuKienQD > 0 ? `${stPercentHTTargetDuKienQD.toFixed(1)}%` : '')}
+                  <td style={{ fontWeight: 900 }} className="px-[6px] py-[6px] text-center border-t border-r border-[#C3ECDA] whitespace-nowrap bg-[#E3F7ED]">
+                    {(totalEffQd !== 0 || stPercentHTTargetDuKienQD > 0) ? (
+                      <span className="inline-flex items-center justify-center min-w-[56px] px-[10px] py-[4px] rounded-[8px] bg-[#FFE3E8] text-[#F4144F] font-black text-[12px] sm:text-[13px] leading-none">
+                        {totalEffQd !== 0 ? `${totalEffQd.toFixed(1)}%` : `${stPercentHTTargetDuKienQD.toFixed(1)}%`}
+                      </span>
+                    ) : (
+                      <span className="text-[#64748B] font-bold">-</span>
+                    )}
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-1 sm:px-1.5 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[11px] sm:text-[14.5px] whitespace-nowrap bg-[#047857]">
-                    {validTraChamVals.length > 0 ? `${avgTraCham.toFixed(1)}%` : ''}
+                  <td style={{ fontWeight: 900 }} className="px-[6px] py-[6px] text-center border-t border-r border-[#C3ECDA] text-[#10233F] font-black text-[12.5px] sm:text-[13.5px] whitespace-nowrap bg-[#E3F7ED]">
+                    {validTraChamVals.length > 0 ? `${avgTraCham.toFixed(1)}%` : '-'}
                   </td>
-                  <td className="px-1 py-0 text-center whitespace-nowrap bg-[#047857]"></td>
+                  <td style={{ fontWeight: 900 }} className="px-[6px] py-[6px] text-center border-t border-[#C3ECDA] text-[#10233F] font-black text-[12.5px] whitespace-nowrap bg-[#E3F7ED]">
+                    -
+                  </td>
                 </tr>
               </tfoot>
             )}

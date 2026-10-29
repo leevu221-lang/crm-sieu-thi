@@ -27,6 +27,7 @@ import {
   cleanCategoryName
 } from '../pages/RTST/utils';
 import { cleanBiReportText } from '../utils/rtstHelpers';
+import { mergeStaffCategoryReportSections } from '../pages/EmployeeHealth/components/SummaryThiDuaTable';
 const initGlobalAllStoresCache = (): Record<string, any> => {
   try {
     const saved = localStorage.getItem('crm_all_stores_cache_v2');
@@ -167,6 +168,25 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const categoryTargetsRef = useRef(categoryTargets);
   const percentCacheRef = useRef<Map<string, number>>(new Map());
   const activeStoreRef = useRef(activeStore);
+  const lastSavedClusterLkSnapshotRef = useRef<string | null>(null);
+
+  const isFieldClearedLocally = useCallback((clearKey: string, updatedAt?: any) => {
+    try {
+      const clearedTsStr = localStorage.getItem(clearKey);
+      if (!clearedTsStr) return false;
+      const clearedTs = Number(clearedTsStr) || 0;
+      const docTs = updatedAt
+        ? (typeof updatedAt === 'string' ? new Date(updatedAt).getTime() : (updatedAt?.toMillis ? updatedAt.toMillis() : 0))
+        : 0;
+      if (docTs && !isNaN(docTs) && docTs > clearedTs + 5000) {
+        localStorage.removeItem(clearKey);
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
   
   useEffect(() => { activeStoreRef.current = activeStore; }, [activeStore]);
 
@@ -285,16 +305,19 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updated_at: new Date().toISOString()
       };
 
+      const isLkDtClear = fieldName === 'LUỸ KẾ DT' || fieldName === 'rt_catrev' || fieldName === 'LUỸ KẾ DOANH THU QUY ĐỔI';
+      const isLkTdClear = fieldName === 'LUỸ KẾ THI ĐUA' || fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk' || fieldName === 'LUỸ KẾ THI ĐUA NGÀNH HÀNG';
+
       // Only include LK fields if they actually have content, or if this save was explicitly triggered for that field
       if (summaryVal) {
         payload.lk_bi_tong_quan = summaryVal;
-      } else if (fieldName === 'LUỸ KẾ DT' || fieldName === 'rt_catrev') {
+      } else if (isLkDtClear) {
         payload.lk_bi_tong_quan = '';
       }
 
       if (categoryVal) {
         payload.lk_nh_sieu_thi = categoryVal;
-      } else if (fieldName === 'LUỸ KẾ THI ĐUA' || fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') {
+      } else if (isLkTdClear) {
         payload.lk_nh_sieu_thi = '';
       }
 
@@ -360,17 +383,23 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
 
       // Synchronize LK cluster fields (LUỸ KẾ DT & LUỸ KẾ TĐ) to all configured sibling stores in this warehouse
-      const clusterLkFieldsToSync: any = {};
-      if (summaryVal) {
-        clusterLkFieldsToSync.lk_bi_tong_quan = summaryVal;
-      } else if (fieldName === 'LUỸ KẾ DT' || fieldName === 'rt_catrev') {
-        clusterLkFieldsToSync.lk_bi_tong_quan = '';
-      }
+      // ONLY when at least one LK cluster field actually changed!
+      const currentClusterLkSnapshotKey = JSON.stringify([summaryVal, categoryVal]);
+      const clusterLkChanged = lastSavedClusterLkSnapshotRef.current !== currentClusterLkSnapshotKey || isLkDtClear || isLkTdClear;
 
-      if (categoryVal) {
-        clusterLkFieldsToSync.lk_nh_sieu_thi = categoryVal;
-      } else if (fieldName === 'LUỸ KẾ THI ĐUA' || fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') {
-        clusterLkFieldsToSync.lk_nh_sieu_thi = '';
+      const clusterLkFieldsToSync: any = {};
+      if (clusterLkChanged) {
+        if (summaryVal) {
+          clusterLkFieldsToSync.lk_bi_tong_quan = summaryVal;
+        } else if (isLkDtClear) {
+          clusterLkFieldsToSync.lk_bi_tong_quan = '';
+        }
+
+        if (categoryVal) {
+          clusterLkFieldsToSync.lk_nh_sieu_thi = categoryVal;
+        } else if (isLkTdClear) {
+          clusterLkFieldsToSync.lk_nh_sieu_thi = '';
+        }
       }
 
       if (Object.keys(clusterLkFieldsToSync).length > 0) {
@@ -427,6 +456,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       isDirtyRef.current = false;
       dbStoreSnapshotsRef.current[storeKey] = currentSnapshotKey;
+      lastSavedClusterLkSnapshotRef.current = currentClusterLkSnapshotKey;
 
       // Keep allStoresCache in sync after successful save
       setAllStoresCache(prev => {
@@ -513,17 +543,19 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // so the auto-save effect can save them immediately for the active store
   const targetsJustProcessedRef = useRef(false);
 
-  const handleProcess = useCallback((existingTargets?: any[], overrideSummary?: string, overrideCategory?: string, overrideStaff?: string) => {
+  const handleProcess = useCallback((existingTargets?: any[], overrideSummary?: string, overrideCategory?: string, overrideStaff?: string, overrideStore?: string) => {
     try {
       const summaryToUse = overrideSummary !== undefined ? overrideSummary : clusterSummaryInput;
       const categoryToUse = overrideCategory !== undefined ? overrideCategory : clusterCategoryInput;
       const staffToUse = overrideStaff !== undefined ? overrideStaff : staffInput;
+      const effectiveActiveStore = overrideStore || activeStore;
 
       const inputToParse = extractSection(summaryToUse, "1. BC TỔNG HỢP CỤM");
       const markets = parseMarketData(inputToParse, 0, 'LUYKE');
       
       try {
-        const rawLkThuc = (activeStore && localStorage.getItem(`rtst_luyke_dt_thuc_${activeStore}`)) || localStorage.getItem('rtst_luyke_dt_thuc') || localStorage.getItem('rt_catrev_thuc') || '';
+        const isLkThucCleared = !!localStorage.getItem('crm_field_cleared_rt_catrev_thuc');
+        const rawLkThuc = isLkThucCleared ? '' : ((effectiveActiveStore && localStorage.getItem(`rtst_luyke_dt_thuc_${effectiveActiveStore}`)) || localStorage.getItem('rtst_luyke_dt_thuc') || localStorage.getItem('rt_catrev_thuc') || '');
         if (rawLkThuc) {
           const thucLkMarkets = parseMarketData(rawLkThuc, 0, 'LUYKE');
           if (thucLkMarkets.length > 0) {
@@ -553,27 +585,27 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       } catch {}
       
-      // Fallback: If no markets found (user pasted only category data), default to activeStore
+      // Fallback: If no markets found (user pasted only category data), default to effectiveActiveStore
       const effectiveMarkets = markets.length > 0 ? markets : 
-        (activeStore && activeStore !== 'ALL' ? [{ 
-          name: activeStore, targetST: 0, actualReal: 0, actualVirtual: 0, 
+        (effectiveActiveStore && effectiveActiveStore !== 'ALL' ? [{ 
+          name: effectiveActiveStore, targetST: 0, actualReal: 0, actualVirtual: 0, 
           dtHomQua: 0, percentHT: 0, isExplicitTarget: false 
         } as MarketInfo] : []);
       
       // Parse category data from both inputs in LUYKE mode.
-      // We pass the full list of effective markets in the cluster, but with activeStore prioritized at index 0
+      // We pass the full list of effective markets in the cluster, but with effectiveActiveStore prioritized at index 0
       // to act as the default fallback for parseCategoryData when no header matches. This allows the parser
       // to correctly detect headers for and group categories by their respective cluster stores, rather than
       // forcing everything into a single active store.
       const marketsForParsing = [...effectiveMarkets];
-      if (activeStore && activeStore !== 'ALL') {
-        const activeIdx = marketsForParsing.findIndex(m => normalize(m.name) === normalize(activeStore));
+      if (effectiveActiveStore && effectiveActiveStore !== 'ALL') {
+        const activeIdx = marketsForParsing.findIndex(m => normalize(m.name) === normalize(effectiveActiveStore));
         if (activeIdx !== -1) {
           const [activeMarket] = marketsForParsing.splice(activeIdx, 1);
           marketsForParsing.unshift(activeMarket);
         } else {
           marketsForParsing.unshift({
-            name: activeStore,
+            name: effectiveActiveStore,
             targetST: 0,
             actualReal: 0,
             actualVirtual: 0,
@@ -612,15 +644,15 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Cập nhật activeStore nếu tìm thấy tên siêu thị hợp lệ trong dữ liệu mới và activeStore hiện tại chưa hợp lệ
       if (markets.length > 0 && markets[0].name) {
         const detectedStore = markets[0].name.trim();
-        const currentIsFullStore = isValidStoreName(activeStore);
+        const currentIsFullStore = isValidStoreName(effectiveActiveStore);
         
         // STRICT GUARD: ONLY switch if detectedStore matches one of the user's declared availableStores in their warehouse!
         const availableNames = (availableStores || []).map((s: any) => s.name);
         const isStoreInWarehouse = availableNames.includes(detectedStore);
 
         if (isValidStoreName(detectedStore) && isStoreInWarehouse) {
-          if (!currentIsFullStore || activeStore.match(/^\d+$/)) {
-            if (detectedStore !== activeStore) {
+          if (!currentIsFullStore || effectiveActiveStore.match(/^\d+$/)) {
+            if (detectedStore !== effectiveActiveStore) {
               setActiveStore(detectedStore);
               setCurrentStoreId(detectedStore); // Sync global store context!
               saveLuykeData(true, 'auto', detectedStore);
@@ -630,7 +662,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
 
       // Merge categories with targets
-      // IMPORTANT: Filter categories by activeStore to ensure per-store isolation.
+      // IMPORTANT: Filter categories by effectiveActiveStore to ensure per-store isolation.
       // Without this filter, both stores get the same merged targets because
       // uniqueParsed deduplicates by name (keeping only the first store's values).
       if (categories.length > 0) {
@@ -640,76 +672,104 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           const savedGlobalPercent = localStorage.getItem('rtst_global_percent');
           const defaultPercent = savedGlobalPercent ? Number(savedGlobalPercent) : 100;
           
-          const percentMap = new Map(currentTargets.map((item: any) => [item.name, item.percent]));
+          const percentMap = new Map(currentTargets.map((item: any) => [normalize(item.name || ''), item.percent]));
           
           // Filter categories to only include those belonging to the active store
-          const normActiveStore = (activeStore || '').toUpperCase().replace(/[\s_]+/g, '');
-          const storeCategories = isValidStoreName(activeStore)
+          const normActiveStore = normalize(effectiveActiveStore || '');
+          const storeCategories = isValidStoreName(effectiveActiveStore)
             ? categories.filter(c => {
                 if (!c.marketName) return false;
-                const normMarket = c.marketName.toUpperCase().replace(/[\s_]+/g, '');
+                const normMarket = normalize(c.marketName);
                 return normMarket === normActiveStore ||
                        normMarket.includes(normActiveStore) ||
                        normActiveStore.includes(normMarket);
               })
             : categories;
           
-          // Fallback: if no store-specific categories found, use all (e.g. single-store cluster)
-          const catsToUse = storeCategories.length > 0 ? storeCategories : categories;
+          // Fallback: if no store-specific categories found, only fall back to all categories if they belong to a single store or lack explicit store names
+          const distinctValidStores = new Set(
+            categories
+              .filter(c => c.marketName && isValidStoreName(c.marketName))
+              .map(c => normalize(c.marketName))
+          );
+          const catsToUse = storeCategories.length > 0
+            ? storeCategories
+            : (distinctValidStores.size <= 1 ? categories : []);
           
-          const uniqueParsed = new Map<string, { target: number; type: 'SL' | 'DT' | 'ALL' }>();
+          const uniqueParsed = new Map<string, { name: string; target: number; type: 'SL' | 'DT' | 'ALL' }>();
           catsToUse.forEach(p => {
-            if (!uniqueParsed.has(p.name)) {
-              uniqueParsed.set(p.name, { target: p.target, type: p.type || 'ALL' });
+            const normKey = `${normalize(p.name)}__${p.type || 'ALL'}`;
+            if (!uniqueParsed.has(normKey)) {
+              uniqueParsed.set(normKey, { name: p.name, target: p.target, type: p.type || 'ALL' });
             }
           });
 
           const newTargets: any[] = [];
-          const processedNames = new Set<string>();
+          const processedKeys = new Set<string>();
+          const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+          // Precompute which uniqueParsed keys have an exact normalized name match in currentTargets
+          const currentTargetNormNames = new Set(currentTargets.map((item: any) => normalize(item?.name || '')));
 
           // 1. First add items from currentTargets that are still present in uniqueParsed, in their existing order
           currentTargets.forEach((item: any) => {
+            if (!item || !item.name) return;
+            const normItemName = normalize(item.name);
             const cleanItemName = cleanCategoryName(item.name);
             let matchedKey: string | null = null;
-            let matchedData: any = null;
+            let matchedData: { name: string; target: number; type: 'SL' | 'DT' | 'ALL' } | null = null;
             
+            // Pass 1: Exact normalized name match (prevents merging "T10 - HÚT BỤI" with "T10 - Hút bụi - 20 Tỉnh")
             uniqueParsed.forEach((data, key) => {
-              if (matchedKey) return;
-              if (cleanCategoryName(key) === cleanItemName) {
+              if (matchedKey || processedKeys.has(key)) return;
+              if (normalize(data.name) === normItemName && (!item.type || data.type === item.type)) {
                 matchedKey = key;
                 matchedData = data;
               }
             });
 
-            if (matchedKey && matchedData) {
-              const cachedPercent = percentCacheRef.current.get(cleanCategoryName(matchedKey));
+            // Pass 2: Fallback to cleanCategoryName match ONLY if neither side has a conflicting exact match
+            if (!matchedKey && cleanItemName) {
+              uniqueParsed.forEach((data, key) => {
+                if (matchedKey || processedKeys.has(key)) return;
+                if (currentTargetNormNames.has(normalize(data.name))) return;
+                if (cleanCategoryName(data.name) === cleanItemName && (!item.type || data.type === item.type)) {
+                  matchedKey = key;
+                  matchedData = data;
+                }
+              });
+            }
+
+            if (matchedKey && matchedData && !processedKeys.has(matchedKey)) {
+              const cachedPercent = percentCacheRef.current.get(cleanCategoryName(matchedData.name));
               const percent = item.percent !== undefined ? item.percent : (cachedPercent !== undefined ? cachedPercent : defaultPercent);
               
               newTargets.push({
-                name: matchedKey, // Use the parsed name to keep it in sync
+                name: matchedData.name,
                 target: matchedData.target,
-                adjustedTarget: matchedData.target * (percent / 100),
+                adjustedTarget: round2(matchedData.target * (percent / 100)),
                 percent,
                 type: matchedData.type
               });
-              processedNames.add(matchedKey);
+              processedKeys.add(matchedKey);
             }
           });
 
           // 2. Then append any remaining items from uniqueParsed that were not in currentTargets
-          uniqueParsed.forEach((data, name) => {
-            if (!processedNames.has(name)) {
-              const existingPercent = percentMap.get(name);
-              const cachedPercent = percentCacheRef.current.get(cleanCategoryName(name));
+          uniqueParsed.forEach((data, key) => {
+            if (!processedKeys.has(key)) {
+              const existingPercent = percentMap.get(normalize(data.name));
+              const cachedPercent = percentCacheRef.current.get(cleanCategoryName(data.name));
               const percent = existingPercent !== undefined ? existingPercent : (cachedPercent !== undefined ? cachedPercent : defaultPercent);
               
               newTargets.push({
-                name,
+                name: data.name,
                 target: data.target,
-                adjustedTarget: data.target * (percent / 100),
+                adjustedTarget: round2(data.target * (percent / 100)),
                 percent,
                 type: data.type
               });
+              processedKeys.add(key);
             }
           });
 
@@ -728,15 +788,18 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           }
 
           // Mark that targets were freshly processed from cluster data
-          // → the dedicated effect below will auto-save them for the active store
-          if (newTargets.length > 0) {
+          // ONLY when user actually edited data (isDirtyRef.current is true) so initial page loads / store switches do NOT auto-save to Firestore
+          if (newTargets.length > 0 && isDirtyRef.current) {
             targetsJustProcessedRef.current = true;
           }
 
           return newTargets;
         });
       } else {
-        setCategoryTargets(prev => prev.length === 0 ? prev : []);
+        setCategoryTargets(prev => {
+          if (Array.isArray(existingTargets) && existingTargets.length > 0) return existingTargets;
+          return prev.length === 0 ? prev : [];
+        });
       }
 
       // Auto-sync tragopMatran if empty
@@ -978,8 +1041,12 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // MULTI-STORE: Cache-first store switching to prevent UI white-screens/delays
     const cachedData = globalAllStoresCache[targetStore];
     if (cachedData) {
-      setClusterSummaryInput(cachedData.clusterSummaryInput || '');
-      setClusterCategoryInput(cachedData.clusterCategoryInput || '');
+      const isSummaryCleared = isFieldClearedLocally('crm_field_cleared_rt_catrev');
+      const isCategoryCleared = isFieldClearedLocally('crm_field_cleared_rt_catlk');
+      const cachedSummary = isSummaryCleared ? '' : (cachedData.clusterSummaryInput || '');
+      const cachedCategory = isCategoryCleared ? '' : (cachedData.clusterCategoryInput || '');
+      setClusterSummaryInput(cachedSummary);
+      setClusterCategoryInput(cachedCategory);
       setStaffInput(cachedData.staffInput || '');
       setStaffCategoryInput(cachedData.staffCategoryInput || '');
       setStaffListInput(''); // Note: staff list isn't cached
@@ -993,9 +1060,10 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Process synchronously to instantly display cached data without 300ms wait
       (handleProcessRef.current || handleProcess)(
         cachedData.categoryTargets || [],
-        cachedData.clusterSummaryInput || '',
-        cachedData.clusterCategoryInput || '',
-        cachedData.staffInput || ''
+        cachedSummary,
+        cachedCategory,
+        cachedData.staffInput || '',
+        targetStore
       );
     }
     
@@ -1045,8 +1113,10 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       // Find fallback cluster data from any row in this warehouse that has it
       const rowWithCluster = storeRows.find(r => r.lk_bi_tong_quan || r.lk_nh_sieu_thi);
-      const warehouseFallbackSummary = rowWithCluster ? await sanitizeField(rowWithCluster.lk_bi_tong_quan) : '';
-      const warehouseFallbackCategory = rowWithCluster ? await sanitizeField(rowWithCluster.lk_nh_sieu_thi) : '';
+      const rawFallbackSummary = rowWithCluster ? await sanitizeField(rowWithCluster.lk_bi_tong_quan) : '';
+      const rawFallbackCategory = rowWithCluster ? await sanitizeField(rowWithCluster.lk_nh_sieu_thi) : '';
+      const warehouseFallbackSummary = isFieldClearedLocally('crm_field_cleared_rt_catrev', rowWithCluster?.updated_at) ? '' : rawFallbackSummary;
+      const warehouseFallbackCategory = isFieldClearedLocally('crm_field_cleared_rt_catlk', rowWithCluster?.updated_at) ? '' : rawFallbackCategory;
 
       // Populate global cache and DB snapshots for all found store rows in this warehouse
       for (const row of storeRows) {
@@ -1054,8 +1124,8 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (!rowStoreName) continue;
         const rawRowSummary = await sanitizeField(row.lk_bi_tong_quan);
         const rawRowCategory = await sanitizeField(row.lk_nh_sieu_thi);
-        const rowSummary = rawRowSummary || warehouseFallbackSummary;
-        const rowCategory = rawRowCategory || warehouseFallbackCategory;
+        const rowSummary = isFieldClearedLocally('crm_field_cleared_rt_catrev', row.updated_at) ? '' : (rawRowSummary || warehouseFallbackSummary);
+        const rowCategory = isFieldClearedLocally('crm_field_cleared_rt_catlk', row.updated_at) ? '' : (rawRowCategory || warehouseFallbackCategory);
         const rowTargets = Array.isArray(row.category_targets) ? row.category_targets : [];
 
         // Save DB snapshot for this store to prevent redundant saves
@@ -1122,9 +1192,12 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       let data: any = null;
       if (targetStore) {
         const cleanTarget = targetStore.trim().toUpperCase();
+        const normTarget = normalize(cleanTarget);
         data = storeRows.find(d => 
           (d.id || '').trim().toUpperCase() === normalizeStoreId(cleanTarget) ||
-          (d.ten_sieu_thi || '').trim().toUpperCase() === cleanTarget
+          (d.ten_sieu_thi || '').trim().toUpperCase() === cleanTarget ||
+          normalize(d.id || '') === normTarget ||
+          normalize(d.ten_sieu_thi || '') === normTarget
         );
         if (!data) {
           data = storeRows.find(d =>
@@ -1151,10 +1224,17 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (data) {
         const rawSummary = await sanitizeField(data.lk_bi_tong_quan);
         const rawCategory = await sanitizeField(data.lk_nh_sieu_thi);
-        clusterSummary = rawSummary || warehouseFallbackSummary;
-        clusterCategory = rawCategory || warehouseFallbackCategory;
+        clusterSummary = isFieldClearedLocally('crm_field_cleared_rt_catrev', data.updated_at) ? '' : (rawSummary || warehouseFallbackSummary);
+        clusterCategory = isFieldClearedLocally('crm_field_cleared_rt_catlk', data.updated_at) ? '' : (rawCategory || warehouseFallbackCategory);
         const activeName = data.ten_sieu_thi || targetStore || '';
         console.log(`[LuykeData] ✓ Data loaded for: "${activeName}"`);
+
+        if (Array.isArray(data.category_targets)) {
+          loadedTargets = data.category_targets;
+          setCategoryTargets(data.category_targets);
+        } else {
+          setCategoryTargets([]);
+        }
 
         if (globalPendingSaves.has(targetStore)) {
           console.log(`[LuykeData] Save in progress for "${targetStore}", skipping DB overwrite for input fields`);
@@ -1203,7 +1283,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             } catch {}
           }
           
-          handleProcess(loadedTargets, clusterSummary || clusterSummaryInputRef.current, clusterCategory || clusterCategoryInputRef.current, data.lk_dt_nv || staffInputRef.current || '');
+          handleProcess(loadedTargets, clusterSummary, clusterCategory, data.lk_dt_nv || staffInputRef.current || '', activeName);
         }
 
         // PER-STORE DATA: ALWAYS set all per-store fields (clean string if missing in DB to avoid bleed)
@@ -1215,12 +1295,6 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setTragopMatran(data.tragop_matran || '');
         setTragopNv(data.tragop_nv || '');
         setBanKemNvState(data.ban_kem_nv || '');
-        if (Array.isArray(data.category_targets)) {
-          setCategoryTargets(data.category_targets);
-          loadedTargets = data.category_targets;
-        } else {
-          setCategoryTargets([]);
-        }
         if (data.ten_sieu_thi) setActiveStore(data.ten_sieu_thi);
 
         // Store snapshot for targetStore
@@ -1242,13 +1316,14 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (data.id) {
           dbStoreSnapshotsRef.current[normalizeStoreId(data.id)] = targetSnapshot;
         }
+        lastSavedClusterLkSnapshotRef.current = JSON.stringify([clusterSummary, clusterCategory]);
       } else {
         console.log(`[LuykeData] ✗ No data found in DB for: "${targetStore}" → cleanly initialize empty per-store state`);
         clusterSummary = warehouseFallbackSummary;
         clusterCategory = warehouseFallbackCategory;
-        if (clusterSummary) setClusterSummaryInput(clusterSummary);
-        if (clusterCategory) setClusterCategoryInput(clusterCategory);
-        (handleProcessRef.current || handleProcess)([], clusterSummary || clusterSummaryInputRef.current, clusterCategory || clusterCategoryInputRef.current, '');
+        setClusterSummaryInput(clusterSummary || '');
+        setClusterCategoryInput(clusterCategory || '');
+        (handleProcessRef.current || handleProcess)([], clusterSummary, clusterCategory, '', targetStore);
 
         // CLEAR all per-store fields so NOTHING from previous store bleeds through!
         setStaffInput('');
@@ -1265,12 +1340,13 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         // Record baseline snapshot so blurring or store switching does NOT perform an unnecessary save
         const emptySnapshot = computeStoreSnapshotKey(
           targetStore,
-          cleanBiReportText(clusterSummary || clusterSummaryInputRef.current || ''),
-          cleanBiReportText(clusterCategory || clusterCategoryInputRef.current || ''),
+          cleanBiReportText(clusterSummary || ''),
+          cleanBiReportText(clusterCategory || ''),
           [],
           '', '', '', '', null, '', '', ''
         );
         dbStoreSnapshotsRef.current[normalizeStoreId(targetStore)] = emptySnapshot;
+        lastSavedClusterLkSnapshotRef.current = JSON.stringify([clusterSummary, clusterCategory]);
       }
 
       skipAutoSaveRef.current = true;
@@ -1386,12 +1462,18 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             skipAutoSaveRef.current = true;
             
             // Update both cluster-level and store-specific fields from the matching store record
-            setClusterSummaryInput((prev: string) => 
-              prev !== (record.lk_bi_tong_quan || '') ? (record.lk_bi_tong_quan || '') : prev
-            );
-            setClusterCategoryInput((prev: string) => 
-              prev !== (record.lk_nh_sieu_thi || '') ? (record.lk_nh_sieu_thi || '') : prev
-            );
+            const clearedClusterSummary = isFieldClearedLocally('crm_field_cleared_rt_catrev');
+            const clearedClusterCategory = isFieldClearedLocally('crm_field_cleared_rt_catlk');
+            if (!clearedClusterSummary) {
+              setClusterSummaryInput((prev: string) => 
+                prev !== (record.lk_bi_tong_quan || '') ? (record.lk_bi_tong_quan || '') : prev
+              );
+            }
+            if (!clearedClusterCategory) {
+              setClusterCategoryInput((prev: string) => 
+                prev !== (record.lk_nh_sieu_thi || '') ? (record.lk_nh_sieu_thi || '') : prev
+              );
+            }
             setStaffInput((prev: string) => 
               prev !== (record.lk_dt_nv || '') ? (record.lk_dt_nv || '') : prev
             );
@@ -1639,9 +1721,14 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setClusterSummaryInput(newVal);
     try {
       if (newVal) {
+        localStorage.removeItem('crm_field_cleared_rt_catrev');
         localStorage.setItem('rt_catrev', newVal);
         localStorage.setItem('rtst_cluster_summary', newVal);
         localStorage.setItem('rtst_catrev', newVal);
+      } else {
+        localStorage.removeItem('rt_catrev');
+        localStorage.removeItem('rtst_cluster_summary');
+        localStorage.removeItem('rtst_catrev');
       }
     } catch {}
   }, []);
@@ -1651,6 +1738,15 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     clusterCategoryInputRef.current = newVal;
     isDirtyRef.current = true;
     setClusterCategoryInput(newVal);
+    try {
+      if (newVal) {
+        localStorage.removeItem('crm_field_cleared_rt_catlk');
+      } else {
+        localStorage.removeItem('rt_catlk');
+        localStorage.removeItem('rtst_catlk');
+        localStorage.removeItem('rtst_cluster_category');
+      }
+    } catch {}
   }, []);
   const setStaffInputSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(staffInputRef.current) : val;
@@ -1660,7 +1756,10 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setStaffInput(newVal);
   }, []);
   const setStaffCategoryInputSync = useCallback((val: string | ((prev: string) => string)) => {
-    const newVal = typeof val === 'function' ? val(staffCategoryInputRef.current) : val;
+    const rawVal = typeof val === 'function' ? val(staffCategoryInputRef.current) : val;
+    const newVal = rawVal && rawVal.trim()
+      ? mergeStaffCategoryReportSections(staffCategoryInputRef.current, rawVal)
+      : rawVal;
     if (newVal === staffCategoryInputRef.current) return;
     staffCategoryInputRef.current = newVal;
     isDirtyRef.current = true;
@@ -1735,10 +1834,11 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         else if (setter === setBanKemNvState || setter === setBanKemNvSync) resolvedFieldName = 'BÁN KÈM NV';
       }
 
-      if (resolvedFieldName === 'LUỸ KẾ DT' || resolvedFieldName === 'rt_catrev') {
+      if (resolvedFieldName === 'LUỸ KẾ DT' || resolvedFieldName === 'LUỸ KẾ DOANH THU QUY ĐỔI' || resolvedFieldName === 'rt_catrev') {
         clusterSummaryInputRef.current = '';
         setClusterSummaryInput('');
         try {
+          localStorage.setItem('crm_field_cleared_rt_catrev', String(Date.now()));
           localStorage.removeItem('rt_catrev');
           localStorage.removeItem('rtst_cluster_summary');
           localStorage.removeItem('rtst_catrev');
@@ -1748,11 +1848,17 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             localStorage.removeItem(`rtst_cluster_summary_${shortMaKho}`);
             localStorage.removeItem(`rtst_catrev_${shortMaKho}`);
           }
+          Object.keys(globalAllStoresCache).forEach(k => {
+            if (globalAllStoresCache[k]) globalAllStoresCache[k].clusterSummaryInput = '';
+          });
+          setAllStoresCache({ ...globalAllStoresCache });
+          localStorage.setItem('crm_all_stores_cache_v2', JSON.stringify(globalAllStoresCache));
         } catch {}
-      } else if (resolvedFieldName === 'LUỸ KẾ THI ĐUA' || resolvedFieldName === 'LUỸ KẾ TĐ' || resolvedFieldName === 'rt_catlk') {
+      } else if (resolvedFieldName === 'LUỸ KẾ THI ĐUA' || resolvedFieldName === 'LUỸ KẾ TĐ' || resolvedFieldName === 'LUỸ KẾ THI ĐUA NGÀNH HÀNG' || resolvedFieldName === 'rt_catlk') {
         clusterCategoryInputRef.current = '';
         setClusterCategoryInput('');
         try {
+          localStorage.setItem('crm_field_cleared_rt_catlk', String(Date.now()));
           localStorage.removeItem('rt_catlk');
           localStorage.removeItem('rtst_catlk');
           localStorage.removeItem('rtst_cluster_category');
@@ -1761,6 +1867,11 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             localStorage.removeItem(`rtst_catlk_${shortMaKho}`);
             localStorage.removeItem(`rtst_cluster_category_${shortMaKho}`);
           }
+          Object.keys(globalAllStoresCache).forEach(k => {
+            if (globalAllStoresCache[k]) globalAllStoresCache[k].clusterCategoryInput = '';
+          });
+          setAllStoresCache({ ...globalAllStoresCache });
+          localStorage.setItem('crm_all_stores_cache_v2', JSON.stringify(globalAllStoresCache));
         } catch {}
       } else if (resolvedFieldName === 'DOANH THU NV' || resolvedFieldName === 'D.THU QUY ĐỔI NHÂN VIÊN') {
         staffInputRef.current = '';

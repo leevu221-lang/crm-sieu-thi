@@ -11,10 +11,10 @@ import html2canvas from 'html2canvas';
 import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
 import { startCaptureSession, endCaptureSession } from '../utils/captureUtil';
 import { 
-  RefreshCw, ShoppingBag, ShoppingCart, Clock, PieChart, FileText, TrendingUp, Camera, LayoutGrid, Activity, Globe, ChevronDown, Zap, Upload, Trash2, 
+  RefreshCw, ShoppingBag, ShoppingCart, Clock, PieChart, FileText, TrendingUp, TrendingDown, Camera, LayoutGrid, Activity, Globe, ChevronDown, ChevronUp, Zap, Upload, Trash2, 
   HelpCircle, FileSpreadsheet, X, AlertCircle, Trophy, Target, BarChart3, CreditCard, Calendar, ArrowUpRight, 
   ArrowDownRight, MessageSquare, Layers, Store, Smartphone, Watch, Monitor, Award, Filter, Sparkles, Loader2, Copy, Check,
-  Eye, EyeOff, Search, SlidersHorizontal, RotateCcw
+  Eye, EyeOff, Search, SlidersHorizontal, RotateCcw, Download, Bell, ArrowRight, MoreHorizontal
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
@@ -28,10 +28,11 @@ import { useStore } from '../contexts/StoreContext';
 import OverviewDashboard from './RTST/components/OverviewDashboard';
 import CategoryTable from './RTST/components/CategoryTable';
 import { BonusCalculatorForm } from './BonusCalculatorForm';
+import { EnterpriseCategoryAnalytics } from '../components/EnterpriseCategoryAnalytics';
 
 import { ConfirmationModal } from './RTST/components/Modals';
 import { getCustomCategoryIndex } from './EmployeeHealth/components/SummaryThiDuaTable';
-import { normalize, isKhoLuuDong, cleanNum, resolveLuykeTraChamRate } from './RTST/utils';
+import { normalize, isKhoLuuDong, cleanNum, resolveLuykeTraChamRate, isValidStoreName } from './RTST/utils';
 import BcDtNganhHang from './BcDtNganhHang';
 import SSGBoss from './SSGBoss';
 import ClusterReportTab from './ClusterReportTab';
@@ -262,6 +263,78 @@ const AutoZoomText: React.FC<{
   );
 };
 
+const execStatThemeMap: Record<string, {
+  cardBg: string;
+  borderColor: string;
+  iconBg: string;
+  titleColor: string;
+  waveColor: string;
+  waveGradId: string;
+}> = {
+  rose: {
+    // 1. TARGET QĐ — Blue Theme
+    cardBg: 'linear-gradient(180deg, #F5FAFF 0%, #EBF4FF 100%)',
+    borderColor: '#D4E6FF',
+    iconBg: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+    titleColor: '#1E3A8A',
+    waveColor: '#2563EB',
+    waveGradId: 'lk-kpi-wave-blue',
+  },
+  indigo: {
+    // 2. DOANH THU QUY ĐỔI — Emerald Green Theme
+    cardBg: 'linear-gradient(180deg, #F3FDF8 0%, #E6FAEF 100%)',
+    borderColor: '#C6F1D8',
+    iconBg: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+    titleColor: '#065F46',
+    waveColor: '#10B981',
+    waveGradId: 'lk-kpi-wave-emerald',
+  },
+  emerald: {
+    // 3. %HT — Purple/Violet Theme
+    cardBg: 'linear-gradient(180deg, #F9F6FF 0%, #F1EAFF 100%)',
+    borderColor: '#DFD2FF',
+    iconBg: 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)',
+    titleColor: '#4C1D95',
+    waveColor: '#8B5CF6',
+    waveGradId: 'lk-kpi-wave-purple',
+  },
+  amber: {
+    // 4. TỶ TRỌNG TRẢ GÓP — Orange Theme
+    cardBg: 'linear-gradient(180deg, #FFF9F3 0%, #FFF0E0 100%)',
+    borderColor: '#FDE0C0',
+    iconBg: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
+    titleColor: '#9A3412',
+    waveColor: '#F97316',
+    waveGradId: 'lk-kpi-wave-orange',
+  },
+  orange: {
+    // 5. % QĐ — Red/Crimson Theme
+    cardBg: 'linear-gradient(180deg, #FFF6F6 0%, #FFEBEB 100%)',
+    borderColor: '#FECACA',
+    iconBg: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
+    titleColor: '#991B1B',
+    waveColor: '#EF4444',
+    waveGradId: 'lk-kpi-wave-red',
+  },
+  blue: {
+    // 6. LNTT — Amber/Gold Theme
+    cardBg: 'linear-gradient(180deg, #FFFDF4 0%, #FEF8D8 100%)',
+    borderColor: '#FDE68A',
+    iconBg: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+    titleColor: '#92400E',
+    waveColor: '#F59E0B',
+    waveGradId: 'lk-kpi-wave-gold',
+  },
+  default: {
+    cardBg: 'linear-gradient(180deg, #F5FAFF 0%, #EBF4FF 100%)',
+    borderColor: '#D4E6FF',
+    iconBg: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+    titleColor: '#1E3A8A',
+    waveColor: '#2563EB',
+    waveGradId: 'lk-kpi-wave-default',
+  },
+};
+
 const StatCard: React.FC<{
   title: string;
   value: string | number;
@@ -272,54 +345,98 @@ const StatCard: React.FC<{
   delay?: number;
   isLarge?: boolean;
 }> = ({ title, value, subValue, icon: Icon, trend, color = 'default', delay = 0, isLarge = false }) => {
-  const theme = pastelColorMap[color] || pastelColorMap.default;
+  const theme = execStatThemeMap[color] || execStatThemeMap.default;
+  const rawStr = String(value ?? '').trim();
+  const isLongTitle = String(title || '').length > 14;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.3 }}
-      className={`bg-white/95 backdrop-blur-md p-3 sm:p-3.5 md:p-4 lg:p-4.5 xl:p-5 rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_35px_-5px_rgba(2,132,199,0.16)] hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between h-full min-h-[92px] sm:min-h-[102px] md:min-h-[112px] lg:min-h-[120px] xl:min-h-[128px] group ${isLarge ? 'md:col-span-2' : ''}`}
-      style={{ fontFamily: "'UTM Avo', sans-serif" }}
+      className={`exec-stat-card relative overflow-hidden p-[10px] sm:p-[13px] md:p-[15px] pb-[22px] sm:pb-[26px] rounded-[16px] border shadow-[0_4px_16px_-4px_rgba(11,31,58,0.06)] hover:shadow-[0_10px_24px_-6px_rgba(11,31,58,0.12)] hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between h-full min-h-[104px] sm:min-h-[122px] md:min-h-[130px] group ${isLarge ? 'md:col-span-2' : ''}`}
+      style={{
+        background: theme.cardBg,
+        borderColor: theme.borderColor,
+        fontFamily: "'UTM Avo', sans-serif",
+      }}
     >
-      {/* Top Badge: Icon + Title */}
-      <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3 flex-nowrap min-w-0">
-        <div
-          className={`stat-card-badge inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.2 rounded-full text-[8.5px] sm:text-[9.5px] md:text-[10.5px] lg:text-[11.5px] font-black uppercase tracking-wider ${theme.bg} ${theme.text} border ${theme.border} shadow-2xs whitespace-nowrap shrink-0 max-w-full`}
-        >
-          <Icon size={13} strokeWidth={2.6} className="shrink-0 sm:w-3.5 sm:h-3.5" />
+      {/* Header Row: Solid Rounded-XL Colored Icon Box + Title on Left, Ellipsis / Trend on Right */}
+      <div className="relative z-10 flex items-center justify-between gap-[6px] w-full mb-[6px] sm:mb-[8px] min-w-0">
+        <div className="flex items-center gap-[7px] sm:gap-[9px] min-w-0 flex-1">
+          <div
+            className="stat-card-badge w-[26px] h-[26px] sm:w-[30px] sm:h-[30px] rounded-[9px] sm:rounded-[10px] flex items-center justify-center shrink-0 text-white shadow-xs"
+            style={{ background: theme.iconBg }}
+          >
+            <Icon size={15} strokeWidth={2.3} className="shrink-0 text-white" />
+          </div>
           <span
-            className="stat-card-title whitespace-nowrap leading-none truncate"
+            className={`stat-card-title font-black uppercase leading-[1.2] line-clamp-2 sm:truncate ${
+              isLongTitle
+                ? 'text-[9.5px] sm:text-[10px] md:text-[10.5px] tracking-tight'
+                : 'text-[10px] sm:text-[11px] md:text-[11.5px] tracking-wide'
+            }`}
+            style={{ color: theme.titleColor }}
             title={title}
           >
             {title}
           </span>
         </div>
-        {trend !== undefined && (
+
+        {trend !== undefined ? (
           <div
-            className={`flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-[8.5px] md:text-[9px] font-black ml-auto shrink-0 border border-white/60 whitespace-nowrap ${
-              trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+            className={`flex items-center gap-[2px] px-[6px] py-[2px] rounded-full text-[8.5px] font-black shrink-0 border whitespace-nowrap ${
+              trend > 0 ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-rose-50 text-rose-600 border-rose-200'
             }`}
           >
             {trend > 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
             {Math.abs(trend)}%
           </div>
+        ) : (
+          <span className="hidden sm:inline text-slate-400/80 text-[12px] font-black tracking-widest leading-none select-none shrink-0">
+            •••
+          </span>
         )}
       </div>
 
-      {/* Main Big Number Row - Takes 100% of card width */}
-      <div className="pt-0.5 sm:pt-1">
-        <AutoZoomText
-          value={value}
-          className="font-bold text-[28px] xs:text-[32px] sm:text-[36px] md:text-[40px] lg:text-[42px] xl:text-[46px] 2xl:text-[50px] tracking-tight text-[#0F172A] leading-none font-oswald"
-        />
+      {/* Main Primary Value Row */}
+      <div className="relative z-10 my-auto py-[2px] min-w-0">
+        <span
+          className="exec-stat-num block font-black text-[22px] sm:text-[26px] md:text-[29px] lg:text-[31px] tracking-tight leading-none whitespace-nowrap truncate"
+          style={{ color: '#0B1F3A', fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}
+        >
+          {rawStr}
+        </span>
       </div>
 
       {subValue && (
-        <div className="text-[9px] sm:text-[10px] md:text-[11px] font-medium text-slate-400 truncate pt-1.5 border-t border-slate-100/60 mt-auto">
+        <div className="relative z-10 text-[10px] sm:text-[11px] font-bold text-slate-500 truncate mt-[4px]">
           {subValue}
         </div>
       )}
+
+      {/* Bottom Decorative Mini Area Sparkline Wave */}
+      <div className="absolute bottom-0 left-0 right-0 h-[22px] sm:h-[26px] pointer-events-none overflow-hidden opacity-90">
+        <svg viewBox="0 0 200 36" preserveAspectRatio="none" className="w-full h-full">
+          <defs>
+            <linearGradient id={theme.waveGradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={theme.waveColor} stopOpacity="0.26" />
+              <stop offset="100%" stopColor={theme.waveColor} stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M0,28 C25,18 45,30 75,20 C105,10 125,26 155,10 C175,2 190,12 200,16 L200,36 L0,36 Z"
+            fill={`url(#${theme.waveGradId})`}
+          />
+          <path
+            d="M0,28 C25,18 45,30 75,20 C105,10 125,26 155,10 C175,2 190,12 200,16"
+            fill="none"
+            stroke={theme.waveColor}
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+        </svg>
+      </div>
     </motion.div>
   );
 };
@@ -951,8 +1068,19 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
   }, [allStoreTargets, filteredMarkets, excelFileName, excelOldFileName, selectedStoreExcelData, activeExcelFileName]);
 
   // Bonus Filter & Comment states for THƯỞNG ST
-  // 'ALL' | 'BONUS' | 'DECREASED' | 'INCREASED'
-  const [bonusFilterTab, setBonusFilterTab] = useState<'ALL' | 'BONUS' | 'DECREASED' | 'INCREASED'>('ALL');
+  // 'ALL' | 'BONUS' | 'NEAR' | 'NOT_YET' | 'DECREASED' | 'INCREASED' | 'EXCEEDED'
+  const [bonusFilterTab, setBonusFilterTab] = useState<'ALL' | 'BONUS' | 'NEAR' | 'NOT_YET' | 'DECREASED' | 'INCREASED' | 'EXCEEDED'>('ALL');
+  const [thuongStSearchQuery, setThuongStSearchQuery] = useState<string>('');
+  const [thuongStGroupFilter, setThuongStGroupFilter] = useState<'ALL' | 'yellow' | 'green' | 'blue'>('ALL');
+  const [thuongStViewMode, setThuongStViewMode] = useState<'GROUPED' | 'FLAT' | 'SORT_HT_DESC' | 'SORT_BONUS_DESC'>('GROUPED');
+  const [collapsedThuongStGroups, setCollapsedThuongStGroups] = useState<Record<'yellow' | 'green' | 'blue', boolean>>({
+    yellow: false,
+    green: false,
+    blue: false
+  });
+  const [showThuongStWarning, setShowThuongStWarning] = useState<boolean>(true);
+  const thuongStUploadInputRef = useRef<HTMLInputElement>(null);
+
   const [thuongStComment, setThuongStComment] = useState('');
   const [showThuongStComment, setShowThuongStComment] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
@@ -1030,10 +1158,15 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     return enriched;
   }, [selectedStoreExcelData.rows, selectedStoreExcelData.oldRows]);
 
-  // Overall Statistics for today vs yesterday
+  // Overall Statistics for today vs yesterday + SaaS KPI cards
   const thuongStStats = React.useMemo(() => {
     const all = comparedThuongStRows || [];
+    const limit = selectedStoreExcelData.limit || 7;
     const bonusRows = all.filter((r: any) => r.bonusCurrent > 0);
+    const nearRows = all.filter((r: any) => (r.bonusCurrent || 0) === 0 && r.completionCurrent >= 82);
+    const notYetRows = all.filter((r: any) => (r.bonusCurrent || 0) === 0 && r.completionCurrent < 82);
+    const exceededRows = all.filter((r: any) => (r.completionRankCurrent > 0 && r.completionRankCurrent <= limit));
+
     const decreasedRows = all.filter((r: any) => r.isBonusDecreased).sort((a: any, b: any) => a.bonusDiff - b.bonusDiff);
     const increasedRows = all.filter((r: any) => r.isBonusIncreased).sort((a: any, b: any) => b.bonusDiff - a.bonusDiff);
     const lostRows = all.filter((r: any) => r.isBonusLost);
@@ -1046,9 +1179,32 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     const totalDecreasedAmount = decreasedRows.reduce((sum: number, r: any) => sum + Math.abs(r.bonusDiff), 0);
     const totalIncreasedAmount = increasedRows.reduce((sum: number, r: any) => sum + r.bonusDiff, 0);
 
+    const avgCompletion = all.length > 0
+      ? all.reduce((sum: number, r: any) => sum + (r.completionCurrent || 0), 0) / all.length
+      : 0;
+
+    // Detect active month from category names (e.g. "T10 - ...") or file name (e.g. "09/10.xlsx")
+    let detectedMonth = '';
+    for (const r of all) {
+      const mMatch = String(r.categoryName || '').match(/\bT(\d{1,2})\b/i);
+      if (mMatch) {
+        detectedMonth = mMatch[1];
+        break;
+      }
+    }
+    if (!detectedMonth && selectedStoreExcelData.fileName) {
+      const fMatch = selectedStoreExcelData.fileName.match(/\d{1,2}[\/\-](\d{1,2})/);
+      if (fMatch) {
+        detectedMonth = String(parseInt(fMatch[1], 10));
+      }
+    }
+
     return {
       all,
       bonusRows,
+      nearRows,
+      notYetRows,
+      exceededRows,
       decreasedRows,
       increasedRows,
       lostRows,
@@ -1057,9 +1213,11 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       totalBonusOld,
       totalBonusDiff,
       totalDecreasedAmount,
-      totalIncreasedAmount
+      totalIncreasedAmount,
+      avgCompletion,
+      detectedMonth
     };
-  }, [comparedThuongStRows]);
+  }, [comparedThuongStRows, selectedStoreExcelData.limit, selectedStoreExcelData.fileName]);
 
   const handleGenerateAIComment = (template: 1 | 2 | 3 = 1) => {
     setIsGeneratingAI(true);
@@ -1222,15 +1380,44 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
   };
 
   const filteredThuongStRows = React.useMemo(() => {
-    let rows = comparedThuongStRows;
-    if (rows.length === 0) return { yellow: [], green: [], blue: [], all: [] };
+    let rows = [...comparedThuongStRows];
+    if (rows.length === 0) {
+      return { yellow: [], green: [], blue: [], all: [], yellowAvg: 0, greenAvg: 0, blueAvg: 0 };
+    }
 
+    const limit = selectedStoreExcelData.limit || 7;
+
+    // 1. Status filter
     if (bonusFilterTab === 'BONUS') {
       rows = rows.filter((r: any) => (r.bonusCurrent || 0) > 0);
+    } else if (bonusFilterTab === 'NEAR') {
+      rows = rows.filter((r: any) => (r.bonusCurrent || 0) === 0 && r.completionCurrent >= 82);
+    } else if (bonusFilterTab === 'NOT_YET') {
+      rows = rows.filter((r: any) => (r.bonusCurrent || 0) === 0 && r.completionCurrent < 82);
     } else if (bonusFilterTab === 'DECREASED') {
       rows = rows.filter((r: any) => r.isBonusDecreased);
     } else if (bonusFilterTab === 'INCREASED') {
       rows = rows.filter((r: any) => r.isBonusIncreased);
+    } else if (bonusFilterTab === 'EXCEEDED') {
+      rows = rows.filter((r: any) => (r.completionRankCurrent > 0 && r.completionRankCurrent <= limit));
+    }
+
+    // 2. Category group filter
+    if (thuongStGroupFilter !== 'ALL') {
+      rows = rows.filter((r: any) => getCategoryGroup(r.categoryName) === thuongStGroupFilter);
+    }
+
+    // 3. Search query filter
+    if (thuongStSearchQuery.trim() !== '') {
+      const q = normalize(thuongStSearchQuery.trim());
+      rows = rows.filter((r: any) => normalize(r.categoryName || '').includes(q));
+    }
+
+    // 4. Optional sorting modes
+    if (thuongStViewMode === 'SORT_HT_DESC') {
+      rows.sort((a: any, b: any) => (b.completionCurrent || 0) - (a.completionCurrent || 0));
+    } else if (thuongStViewMode === 'SORT_BONUS_DESC') {
+      rows.sort((a: any, b: any) => (b.bonusCurrent || 0) - (a.bonusCurrent || 0) || (b.completionCurrent || 0) - (a.completionCurrent || 0));
     }
 
     const yellowGroup: any[] = [];
@@ -1244,136 +1431,364 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       else blueGroup.push(row);
     });
 
+    const calcAvg = (arr: any[]) =>
+      arr.length > 0 ? arr.reduce((s, r) => s + (r.completionCurrent || 0), 0) / arr.length : 0;
+
     return {
       yellow: yellowGroup,
       green: greenGroup,
       blue: blueGroup,
-      all: rows
+      all: rows,
+      yellowAvg: calcAvg(yellowGroup),
+      greenAvg: calcAvg(greenGroup),
+      blueAvg: calcAvg(blueGroup)
     };
-  }, [comparedThuongStRows, bonusFilterTab]);
+  }, [comparedThuongStRows, bonusFilterTab, thuongStGroupFilter, thuongStSearchQuery, thuongStViewMode, selectedStoreExcelData.limit]);
+
+  const handleExportThuongStExcel = () => {
+    const rowsToExport = filteredThuongStRows.all;
+    if (!rowsToExport || rowsToExport.length === 0) {
+      alert('Không có dữ liệu để xuất Excel!');
+      return;
+    }
+
+    const groupLabelMap: Record<'yellow' | 'green' | 'blue', string> = {
+      yellow: 'NHÓM ĐIỆN THOẠI - CÔNG NGHỆ',
+      green: 'NHÓM TÀI CHÍNH - DỊCH VỤ',
+      blue: 'NHÓM ĐIỆN MÁY - GIA DỤNG'
+    };
+
+    const sheetData = rowsToExport.map((row: any, idx: number) => {
+      const grp = getCategoryGroup(row.categoryName);
+      const baseRecord: Record<string, any> = {
+        'STT': idx + 1,
+        'Siêu thị': row.storeName || selectedStoreFilter,
+        'Phân nhóm': groupLabelMap[grp],
+        'Nhóm hàng': row.categoryName,
+        'Hoàn thành dự kiến (%)': Number((row.completionCurrent || 0).toFixed(1)),
+        'Hạng HT.Target (Theo kênh)': row.completionRankCurrent > 0 ? row.completionRankCurrent : '-',
+        'Hạng Vượt Trội (DT/SL theo kênh)': row.exceededRankCurrent > 0 ? row.exceededRankCurrent : '-',
+        'Thưởng dự kiến (VNĐ)': row.bonusCurrent || 0
+      };
+      if (isComparing) {
+        baseRecord['Thưởng hôm qua (VNĐ)'] = row.bonusOld || 0;
+        baseRecord['Chênh lệch thưởng (VNĐ)'] = row.bonusDiff || 0;
+      }
+      return baseRecord;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(sheetData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Thuong_Thi_Dua_ST');
+    const safeStore = String(selectedStoreFilter || 'SieuThi').replace(/[^a-zA-Z0-9_-]/g, '_');
+    XLSX.writeFile(wb, `Thuong_Thi_Dua_${safeStore}.xlsx`);
+  };
 
   const totalBonusSum = React.useMemo(() => {
     return thuongStStats.totalBonusCurrent;
   }, [thuongStStats]);
 
-  const renderThuongStRow = (row: any, idx: number, group: 'yellow' | 'green' | 'blue') => {
-    let dotColor = 'bg-amber-500';
-    if (group === 'green') dotColor = 'bg-emerald-500';
-    else if (group === 'blue') dotColor = 'bg-blue-500';
+  const toggleThuongStGroupCollapse = (group: 'yellow' | 'green' | 'blue') => {
+    setCollapsedThuongStGroups(prev => ({
+      ...prev,
+      [group]: !prev[group]
+    }));
+  };
+
+  const renderThuongStGroupHeader = (group: 'yellow' | 'green' | 'blue', groupRows: any[], groupAvg: number) => {
+    if (groupRows.length === 0) return null;
+    const isCollapsed = collapsedThuongStGroups[group];
+
+    const config = {
+      yellow: {
+        title: 'NHÓM ĐIỆN THOẠI - CÔNG NGHỆ',
+        rowBg: 'linear-gradient(90deg, #FFE4DF 0%, #FFF0ED 55%, #FFE7E2 100%)',
+        borderColor: '#F6C2B8',
+        circleBg: '#E54839',
+        iconBoxBg: 'linear-gradient(135deg, #F25746 0%, #D93829 100%)',
+        titleColor: '#7A2017',
+        subTextColor: '#8C2D23',
+        badgeBg: 'rgba(255,255,255,0.82)',
+        badgeBorder: '#F3B7AC',
+        Icon: Smartphone
+      },
+      green: {
+        title: 'NHÓM TÀI CHÍNH - DỊCH VỤ',
+        rowBg: 'linear-gradient(90deg, #D3F8E6 0%, #E6FCF1 55%, #D8F9E9 100%)',
+        borderColor: '#A3E8C7',
+        circleBg: '#079B78',
+        iconBoxBg: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+        titleColor: '#065F46',
+        subTextColor: '#047857',
+        badgeBg: 'rgba(255,255,255,0.82)',
+        badgeBorder: '#9CE4C2',
+        Icon: CreditCard
+      },
+      blue: {
+        title: 'NHÓM ĐIỆN MÁY - GIA DỤNG',
+        rowBg: 'linear-gradient(90deg, #D9EAFF 0%, #EBF3FF 55%, #DFEDFF 100%)',
+        borderColor: '#B3D1FF',
+        circleBg: '#1769FF',
+        iconBoxBg: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+        titleColor: '#1E3A8A',
+        subTextColor: '#1D4ED8',
+        badgeBg: 'rgba(255,255,255,0.82)',
+        badgeBorder: '#ADCBFF',
+        Icon: Monitor
+      }
+    }[group];
+
+    const GroupIcon = config.Icon;
+
+    return (
+      <tr
+        key={`group-header-${group}`}
+        onClick={() => toggleThuongStGroupCollapse(group)}
+        className="cursor-pointer select-none transition-opacity hover:opacity-95 h-[42px]"
+        style={{ background: config.rowBg }}
+      >
+        <td
+          colSpan={6}
+          className="px-3.5 py-1.5 border-y"
+          style={{ borderColor: config.borderColor }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            {/* Left: Circle indicator + Group icon box + Group Title */}
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span
+                className="w-[18px] h-[18px] rounded-full flex items-center justify-center text-white shrink-0"
+                style={{ backgroundColor: config.circleBg }}
+              >
+                {isCollapsed ? <ChevronDown size={11} strokeWidth={3} /> : <ChevronUp size={11} strokeWidth={3} />}
+              </span>
+              <span
+                className="w-[28px] h-[28px] rounded-[8px] flex items-center justify-center text-white shrink-0"
+                style={{ background: config.iconBoxBg }}
+              >
+                <GroupIcon size={15} strokeWidth={2.4} />
+              </span>
+              <span
+                className="text-[12.5px] sm:text-[13px] font-black uppercase tracking-wide truncate"
+                style={{ color: config.titleColor }}
+              >
+                {config.title}
+              </span>
+            </div>
+
+            {/* Right: Group count badge + Average Completion + Collapse chevron */}
+            <div className="flex items-center gap-2.5 sm:gap-3.5 shrink-0">
+              <span
+                className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border"
+                style={{
+                  backgroundColor: config.badgeBg,
+                  borderColor: config.badgeBorder,
+                  color: config.titleColor
+                }}
+              >
+                {groupRows.length} nhóm hàng
+              </span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-[11.5px] font-semibold hidden sm:inline" style={{ color: config.subTextColor }}>
+                  Hoàn thành TB
+                </span>
+                <span className="text-[13.5px] sm:text-[14.5px] font-black" style={{ color: config.titleColor }}>
+                  {groupAvg.toFixed(1)}%
+                </span>
+              </div>
+              <span
+                className="w-[22px] h-[22px] rounded-md flex items-center justify-center bg-white/75 border"
+                style={{ borderColor: config.badgeBorder, color: config.titleColor }}
+              >
+                {isCollapsed ? <ChevronDown size={13} strokeWidth={2.5} /> : <ChevronUp size={13} strokeWidth={2.5} />}
+              </span>
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  const renderThuongStRow = (row: any, idx: number, group: 'yellow' | 'green' | 'blue', customStt?: number) => {
+    let dotColor = 'bg-[#F97316]';
+    if (group === 'green') dotColor = 'bg-[#079B78]';
+    else if (group === 'blue') dotColor = 'bg-[#1769FF]';
 
     const isCompletionRankHighlighted = row.completionRankCurrent > 0 && row.completionRankCurrent <= selectedStoreExcelData.limit;
     const isExceededRankHighlighted = row.exceededRankCurrent > 0 && row.exceededRankCurrent <= selectedStoreExcelData.limit;
 
-    const completionFormatted = `${row.completionCurrent.toFixed(1)}%`;
+    const completionVal = row.completionCurrent || 0;
+    const completionFormatted = `${completionVal.toFixed(1)}%`;
+    const barPercent = completionVal <= 0 ? 0 : Math.min(100, Math.max(8, completionVal));
+    const isTargetMet = completionVal >= 100;
 
     // Calculate sequential index across groups
-    let stt = idx + 1;
-    if (group === 'green') {
-      stt += filteredThuongStRows.yellow.length;
-    } else if (group === 'blue') {
-      stt += filteredThuongStRows.yellow.length + filteredThuongStRows.green.length;
+    let stt = customStt ?? (idx + 1);
+    if (customStt === undefined) {
+      if (group === 'green') {
+        stt += filteredThuongStRows.yellow.length;
+      } else if (group === 'blue') {
+        stt += filteredThuongStRows.yellow.length + filteredThuongStRows.green.length;
+      }
     }
 
     const isEven = stt % 2 === 0;
 
     return (
-      <tr key={`${group}-${idx}`} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} ${row.isBonusLost ? 'bg-rose-50/30' : ''} hover:bg-emerald-50/70 transition-colors h-[44px]`}>
-        <td className="px-1 py-0 text-[13px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">
+      <tr
+        key={`${group}-${row.categoryName || idx}-${stt}`}
+        className={`${isEven ? 'bg-[#F8FAFD]' : 'bg-white'} ${row.isBonusLost ? 'bg-rose-50/40' : ''} hover:bg-[#EDF5FF] transition-colors h-[42px]`}
+      >
+        {/* Col 1: STT */}
+        <td className="px-1.5 py-1 text-[12.5px] font-bold text-[#475569] text-center border-r border-b border-[#E6EEF6]">
           {stt}
         </td>
-        <td className="px-3 py-1 border-r border-b border-emerald-100/90 text-left font-black text-[12.5px] uppercase text-slate-900 truncate" title={row.categoryName}>
-          <div className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full ${dotColor} shrink-0 ring-2 ring-white shadow-xs`} />
-            <span className="truncate">{row.categoryName}</span>
+
+        {/* Col 2: NHÓM HÀNG */}
+        <td className="px-3 py-1 border-r border-b border-[#E6EEF6] text-left font-bold text-[12.5px] uppercase text-[#172B4D] truncate" title={row.categoryName}>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className={`w-2.5 h-2.5 rounded-full ${dotColor} shrink-0`} />
+            <span className="truncate font-extrabold tracking-tight text-[#172B4D]">{row.categoryName}</span>
             {isComparing && row.isBonusLost && (
-              <span className="px-1.5 py-0.2 rounded bg-rose-500 text-white text-[9.5px] font-black shrink-0">
+              <span className="px-1.5 py-0.5 rounded bg-[#F04464] text-white text-[9.5px] font-black shrink-0">
                 MẤT THƯỞNG
               </span>
             )}
           </div>
         </td>
-        <td className="px-2 py-0 border-r border-b border-emerald-100/90 text-center font-bold text-[13px] text-slate-800">
-          <div>{completionFormatted}</div>
-          {isComparing && row.hasComparison && row.completionDiff !== 0 && (
-            <div className={`text-[10px] font-black ${row.completionDiff > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-              {row.completionDiff > 0 ? `▲+${row.completionDiff.toFixed(1)}%` : `▼${row.completionDiff.toFixed(1)}%`}
+
+        {/* Col 3: HOÀN THÀNH (DỰ KIẾN) with Progress Bar */}
+        <td className="px-2.5 py-1 border-r border-b border-[#E6EEF6] text-center">
+          <div className="flex items-center justify-center gap-2">
+            <span className="w-[50px] text-right font-extrabold text-[12.5px] text-[#172B4D] shrink-0 tabular-nums">
+              {completionFormatted}
+            </span>
+            <div className="relative w-[72px] sm:w-[88px] h-[10px] rounded-full bg-[#E5ECF4] overflow-hidden shrink-0">
+              {barPercent > 0 && (
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{
+                    width: `${barPercent}%`,
+                    background: isTargetMet
+                      ? 'linear-gradient(90deg, #079B78 0%, #10B981 100%)'
+                      : 'linear-gradient(90deg, #1769FF 0%, #3B82F6 100%)'
+                  }}
+                />
+              )}
             </div>
-          )}
+            {isComparing && row.hasComparison && Math.abs(row.completionDiff) >= 0.05 && (
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold shrink-0 tabular-nums ${
+                  row.completionDiff > 0
+                    ? 'bg-[#D5F7E8] text-[#079B78]'
+                    : 'bg-[#FFE4E9] text-[#E11D48]'
+                }`}
+              >
+                {row.completionDiff > 0 ? `▲ +${row.completionDiff.toFixed(1)}%` : `▼ ${Math.abs(row.completionDiff).toFixed(1)}%`}
+              </span>
+            )}
+          </div>
         </td>
-        <td className="px-2 py-0 border-r border-b border-emerald-100/90 text-center text-[13px]">
-          {isCompletionRankHighlighted ? (
-            <span className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full bg-emerald-600 text-white font-black text-xs shadow-xs">
-              #{row.completionRankCurrent}
-            </span>
-          ) : (
-            <span className="font-extrabold text-slate-700">
-              {row.completionRankCurrent === 0 ? '-' : row.completionRankCurrent}
-            </span>
-          )}
-          {isComparing && row.hasComparison && row.completionRankDiff !== 0 && (
-            <div className={`text-[9.5px] font-black ${row.completionRankDiff > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-              {row.completionRankDiff > 0 ? `▲+${row.completionRankDiff} bậc` : `▼${Math.abs(row.completionRankDiff)} bậc`}
-            </div>
-          )}
+
+        {/* Col 4: HẠNG H.TARGET (THEO KÊNH) */}
+        <td className="px-2 py-1 border-r border-b border-[#E6EEF6] text-center text-[12.5px]">
+          <div className="flex flex-col items-center justify-center leading-tight">
+            {isCompletionRankHighlighted ? (
+              <span className="inline-flex items-center justify-center min-w-[34px] h-[22px] px-2.5 rounded-full bg-[#079B78] text-white font-extrabold text-[12px]">
+                #{row.completionRankCurrent}
+              </span>
+            ) : (
+              <span className="font-bold text-[#334155]">
+                {row.completionRankCurrent === 0 ? '-' : row.completionRankCurrent}
+              </span>
+            )}
+            {isComparing && row.hasComparison && row.completionRankDiff !== 0 && (
+              <span className={`text-[10px] font-extrabold mt-0.5 ${row.completionRankDiff > 0 ? 'text-[#079B78]' : 'text-[#E11D48]'}`}>
+                {row.completionRankDiff > 0 ? `▲ +${row.completionRankDiff} bậc` : `▼ ${Math.abs(row.completionRankDiff)} bậc`}
+              </span>
+            )}
+          </div>
         </td>
-        <td className="px-2 py-0 border-r border-b border-emerald-100/90 text-center text-[13px]">
-          {isExceededRankHighlighted ? (
-            <span className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full bg-emerald-600 text-white font-black text-xs shadow-xs">
-              #{row.exceededRankCurrent}
-            </span>
-          ) : (
-            <span className="font-extrabold text-slate-700">
-              {row.exceededRankCurrent === 0 ? '-' : row.exceededRankCurrent}
-            </span>
-          )}
-          {isComparing && row.hasComparison && row.exceededRankDiff !== 0 && (
-            <div className={`text-[9.5px] font-black ${row.exceededRankDiff > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-              {row.exceededRankDiff > 0 ? `▲+${row.exceededRankDiff} bậc` : `▼${Math.abs(row.exceededRankDiff)} bậc`}
-            </div>
-          )}
+
+        {/* Col 5: HẠNG VƯỢT TRỘI (DT/SL THEO KÊNH) */}
+        <td className="px-2 py-1 border-r border-b border-[#E6EEF6] text-center text-[12.5px]">
+          <div className="flex flex-col items-center justify-center leading-tight">
+            {isExceededRankHighlighted ? (
+              <span className="inline-flex items-center justify-center min-w-[34px] h-[22px] px-2.5 rounded-full bg-[#079B78] text-white font-extrabold text-[12px]">
+                #{row.exceededRankCurrent}
+              </span>
+            ) : (
+              <span className="font-bold text-[#334155]">
+                {row.exceededRankCurrent === 0 ? '-' : row.exceededRankCurrent}
+              </span>
+            )}
+            {isComparing && row.hasComparison && row.exceededRankDiff !== 0 && (
+              <span className={`text-[10px] font-extrabold mt-0.5 ${row.exceededRankDiff > 0 ? 'text-[#079B78]' : 'text-[#E11D48]'}`}>
+                {row.exceededRankDiff > 0 ? `▲ +${row.exceededRankDiff} bậc` : `▼ ${Math.abs(row.exceededRankDiff)} bậc`}
+              </span>
+            )}
+          </div>
         </td>
-        <td className="px-3 py-1 border-b border-emerald-100/90 text-right">
+
+        {/* Col 6: THƯỞNG DỰ KIẾN */}
+        <td className="px-3 py-1 border-b border-[#E6EEF6] text-right">
           {!isComparing ? (
-            <div className={`text-[13px] font-black ${row.bonusCurrent > 0 ? 'text-rose-600' : 'text-slate-400 font-medium'}`}>
-              {row.bonusCurrent > 0 ? `+${row.bonusCurrent.toLocaleString('vi-VN')} ₫` : '-'}
-            </div>
+            row.bonusCurrent > 0 ? (
+              <div className="inline-flex items-center justify-end gap-1.5">
+                <span className="text-amber-400 text-[12px] leading-none">✨</span>
+                <span className="text-[13px] font-black text-[#E11D48] tabular-nums whitespace-nowrap">
+                  +{row.bonusCurrent.toLocaleString('vi-VN')} đ
+                </span>
+              </div>
+            ) : (
+              <span className="text-[13px] text-[#94A3B8] font-semibold">-</span>
+            )
           ) : (
-            <div>
+            <div className="flex items-center justify-end gap-1.5 flex-wrap">
               {row.isBonusLost ? (
-                <div>
-                  <div className="text-[12px] font-black text-slate-400">0 ₫</div>
-                  <div className="text-[10px] font-black text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-md inline-block">
-                    🚨 -{row.bonusOld.toLocaleString('vi-VN')} ₫
-                  </div>
-                </div>
+                <>
+                  <span className="text-[12px] font-bold text-slate-400">0 đ</span>
+                  <span className="px-2 py-0.5 rounded-md bg-[#FFE4E9] border border-[#F8BBC6] text-[#E11D48] text-[10px] font-extrabold whitespace-nowrap">
+                    🚨 -{row.bonusOld.toLocaleString('vi-VN')} đ
+                  </span>
+                </>
               ) : row.isBonusDecreased ? (
-                <div>
-                  <div className="text-[13px] font-black text-rose-600">+{row.bonusCurrent.toLocaleString('vi-VN')} ₫</div>
-                  <div className="text-[10px] font-black text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-md inline-block">
-                    🔻 -{Math.abs(row.bonusDiff).toLocaleString('vi-VN')} ₫
-                  </div>
-                </div>
+                <>
+                  <span className="text-[13px] font-black text-[#E11D48] tabular-nums whitespace-nowrap">
+                    +{row.bonusCurrent.toLocaleString('vi-VN')} đ
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-[#FFE4E9] border border-[#F8BBC6] text-[#E11D48] text-[10px] font-extrabold whitespace-nowrap">
+                    🔻 -{Math.abs(row.bonusDiff).toLocaleString('vi-VN')} đ
+                  </span>
+                </>
               ) : row.isBonusGained ? (
-                <div>
-                  <div className="text-[13px] font-black text-rose-600">+{row.bonusCurrent.toLocaleString('vi-VN')} ₫</div>
-                  <div className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md inline-block">
-                    ✨ MỚI ĐẠT
-                  </div>
-                </div>
+                <>
+                  <span className="text-amber-400 text-[12px] leading-none">✨</span>
+                  <span className="text-[13px] font-black text-[#E11D48] tabular-nums whitespace-nowrap">
+                    +{row.bonusCurrent.toLocaleString('vi-VN')} đ
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-[#D5F7E8] border border-[#9FE3C6] text-[#067A5B] text-[10px] font-extrabold uppercase whitespace-nowrap">
+                    MỚI ĐẠT
+                  </span>
+                </>
               ) : row.isBonusIncreased ? (
-                <div>
-                  <div className="text-[13px] font-black text-rose-600">+{row.bonusCurrent.toLocaleString('vi-VN')} ₫</div>
-                  <div className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md inline-block">
-                    ▲ +{row.bonusDiff.toLocaleString('vi-VN')} ₫
-                  </div>
-                </div>
+                <>
+                  <span className="text-amber-400 text-[12px] leading-none">✨</span>
+                  <span className="text-[13px] font-black text-[#E11D48] tabular-nums whitespace-nowrap">
+                    +{row.bonusCurrent.toLocaleString('vi-VN')} đ
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-[#D5F7E8] border border-[#9FE3C6] text-[#067A5B] text-[10px] font-extrabold whitespace-nowrap">
+                    ▲ +{row.bonusDiff.toLocaleString('vi-VN')} đ
+                  </span>
+                </>
               ) : row.bonusCurrent > 0 ? (
-                <div>
-                  <div className="text-[13px] font-black text-rose-600">+{row.bonusCurrent.toLocaleString('vi-VN')} ₫</div>
-                  <div className="text-[9.5px] font-medium text-slate-400">Không đổi</div>
-                </div>
+                <>
+                  <span className="text-amber-400 text-[12px] leading-none">✨</span>
+                  <span className="text-[13px] font-black text-[#E11D48] tabular-nums whitespace-nowrap">
+                    +{row.bonusCurrent.toLocaleString('vi-VN')} đ
+                  </span>
+                </>
               ) : (
-                <div className="text-[13px] text-slate-400 font-medium">-</div>
+                <span className="text-[13px] text-[#94A3B8] font-semibold">-</span>
               )}
             </div>
           )}
@@ -1498,31 +1913,42 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
   const filteredCategories = React.useMemo(() => {
     let cats = adjustedCategories;
     if (marketFilter !== 'ALL') {
+      const normFilter = normalize(marketFilter);
+      const distinctCatMarkets = new Set(
+        cats
+          .map((c: any) => normalize(c.marketName || ''))
+          .filter(Boolean)
+      );
       cats = cats.filter((c: any) => {
-        // Data is already isolated per-store from the DB via useLuykeData.
-        // Bypassing strict string matching prevents "Chưa có dữ liệu" bugs 
-        // caused by React state sync delays between marketFilter and activeStore.
         if (!c.marketName) return true;
         
         const normMarketName = normalize(c.marketName);
-        const normFilter = normalize(marketFilter);
+        if (!normMarketName || !normFilter) return true;
         
-        // If they match, great. If not, still return true to trust the DB isolation,
-        // unless we explicitly know it belongs to a completely different store (multi-store edge case).
-        if (normMarketName && normFilter && normMarketName !== normFilter && !normMarketName.includes(normFilter) && !normFilter.includes(normMarketName)) {
-           // In single-store view, even if names mismatch slightly, we trust the data source.
-           // Only filter if we have multiple stores loaded in filteredDisplayData.markets.
-           if (filteredDisplayData.markets && filteredDisplayData.markets.length > 1) {
-             return false;
-           }
+        if (
+          normMarketName === normFilter ||
+          normMarketName.includes(normFilter) ||
+          normFilter.includes(normMarketName)
+        ) {
+          return true;
+        }
+        
+        // Prevent cross-store bleed when switching stores or in multi-store clusters:
+        // Filter out if multiple stores exist in categories/markets, or if c.marketName is an explicit valid store name that doesn't match marketFilter.
+        if (
+          distinctCatMarkets.size > 1 ||
+          (filteredDisplayData.markets && filteredDisplayData.markets.length > 1) ||
+          isValidStoreName(c.marketName)
+        ) {
+          return false;
         }
         return true;
       });
     }
-    // Dedup by name + type (prevent duplicate category rows from broad matching)
+    // Dedup by normalized name + type (prevent duplicate category rows from broad matching)
     const seen = new Set<string>();
     const deduped = cats.filter((c: any) => {
-      const key = `${(c.name || '').trim().toUpperCase()}__${c.type || ''}`;
+      const key = `${normalize(c.name || '')}__${c.type || ''}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -1532,19 +1958,22 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     deduped.sort((a: any, b: any) => getCustomCategoryIndex(a.name || '') - getCustomCategoryIndex(b.name || ''));
 
     // Fast O(1) Map lookup for TARGET THI ĐUA matching
-    const targetMap = new Map<string, number>();
+    const targetMap = new Map<string, { adjustedTarget: number; percent?: number }>();
     (categoryTargets || []).forEach((t: any) => {
       if (typeof t.adjustedTarget === 'number') {
-        targetMap.set(`${normalize(t.name)}__${t.type}`, t.adjustedTarget);
+        targetMap.set(`${normalize(t.name)}__${t.type}`, {
+          adjustedTarget: t.adjustedTarget,
+          percent: t.percent
+        });
       }
     });
 
     return deduped.map((cat: any) => {
-      const adjustedTarget = targetMap.get(`${normalize(cat.name)}__${cat.type}`);
-      if (typeof adjustedTarget === 'number') {
+      const entry = targetMap.get(`${normalize(cat.name)}__${cat.type}`);
+      if (entry && (entry.adjustedTarget > 0 || entry.percent === 0)) {
         return {
           ...cat,
-          target: adjustedTarget
+          target: entry.adjustedTarget
         };
       }
       return cat;
@@ -1842,11 +2271,11 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     const actualVirtual = market.actualVirtual || 0;
     const actualReal = market.actualReal || 0;
     const percentHTVal = displayTargetQD > 0 ? Math.round((daysPassed > 0 && totalDays > 0 ? (((actualVirtual) / daysPassed) * totalDays) : actualVirtual) / displayTargetQD * 100 * 10) / 10 : 0;
-    const dtlkVal = targetData?.stDtlk || actualReal || 0;
-    const dtqdVal = targetData?.stDtqd || actualVirtual || 0;
+    const dtlkVal = actualReal > 0 ? actualReal : (targetData?.stDtlk || 0);
+    const dtqdVal = actualVirtual > 0 ? actualVirtual : (targetData?.stDtqd || 0);
     const percentQDVal = dtlkVal > 0 ? ((dtqdVal - dtlkVal) / dtlkVal) * 100 : (market.percentQD || 0);
     const tcRate = resolveLuykeTraChamRate(market.name);
-    const installmentRate = (tcRate !== null && !isNaN(tcRate) && tcRate > 0)
+    const installmentRate = (tcRate !== null && !isNaN(tcRate) && tcRate >= 0)
       ? (Math.round(tcRate * 10) / 10).toFixed(1)
       : (((market.installmentRate || market.percentTraGop || 0) > 0)
           ? (Math.round((market.installmentRate || market.percentTraGop) * 10) / 10).toFixed(1)
@@ -2099,8 +2528,8 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
         htmlEl.style.transform = 'none';
       });
 
-      // Hide no-capture elements, buttons, and textareas
-      clone.querySelectorAll('.no-capture, button, textarea, .screenshot-comment').forEach(el => {
+      // Hide no-capture elements, buttons (except inside ThuongSt toolbar/cards), and textareas
+      clone.querySelectorAll(isThuongSt ? '.no-capture, textarea, .screenshot-comment' : '.no-capture, button, textarea, .screenshot-comment').forEach(el => {
         (el as HTMLElement).style.display = 'none';
       });
 
@@ -2175,15 +2604,9 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
           htmlEl.style.setProperty('color', '#0B2545', 'important');
           htmlEl.style.setProperty('font-family', "'UTM Avo', sans-serif", 'important');
         });
-        htmlBanner.querySelectorAll('.exec-banner-sub, .exec-banner-sub span').forEach(el => {
+        htmlBanner.querySelectorAll('.exec-banner-sub').forEach(el => {
           const htmlEl = el as HTMLElement;
-          htmlEl.style.setProperty('font-size', '13px', 'important');
-          htmlEl.style.setProperty('line-height', '1.3', 'important');
-        });
-        htmlBanner.querySelectorAll('.exec-banner-sub svg').forEach(el => {
-          const htmlEl = el as HTMLElement;
-          htmlEl.style.setProperty('width', '13px', 'important');
-          htmlEl.style.setProperty('height', '13px', 'important');
+          htmlEl.style.setProperty('display', 'none', 'important');
         });
         htmlBanner.querySelectorAll('.exec-banner-slash').forEach(el => {
           const htmlEl = el as HTMLElement;
@@ -2204,10 +2627,10 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
         });
       });
 
-      // Explicitly style ONLY emerald/sky table banner headers with crisp bold text (excluding .exec-header-banner)
-      clone.querySelectorAll('.bg-gradient-to-r:not(.exec-header-banner) h2, [class*="from-[#047857]"] h2, [class*="from-[#0284C7]"] h2').forEach(h2 => {
+      // Explicitly style ONLY emerald/sky table banner headers with crisp bold text (excluding .exec-header-banner and .thuong-st-navy-header)
+      clone.querySelectorAll('.bg-gradient-to-r:not(.exec-header-banner):not(.thuong-st-navy-header) h2, [class*="from-[#047857]"] h2, [class*="from-[#0284C7]"] h2').forEach(h2 => {
         const el = h2 as HTMLElement;
-        if (el.closest('.exec-header-banner')) return;
+        if (el.closest('.exec-header-banner') || el.closest('.thuong-st-navy-header')) return;
         el.style.color = '#ffffff';
         el.style.fontFamily = "'UTM Avo', sans-serif";
         el.style.fontWeight = '900';
@@ -2219,7 +2642,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       // Explicitly ensure section titles (like "CHI TIẾT NGÀNH HÀNG" and Store Name) are SOLID BLACK & explicitly named
       clone.querySelectorAll('h2, h3').forEach(header => {
         const el = header as HTMLElement;
-        if (el.closest('.exec-header-banner')) return;
+        if (el.closest('.exec-header-banner') || el.closest('.thuong-st-navy-header')) return;
         const text = (el.textContent || '').trim().normalize('NFC').toUpperCase();
         if (text.includes('CHI TIẾT NGÀNH')) {
           el.textContent = 'CHI TIẾT NGÀNH HÀNG';
@@ -2241,7 +2664,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       // Ensure subtitle lines in banners are white and visible (excluding .exec-header-banner)
       clone.querySelectorAll('.bg-gradient-to-r:not(.exec-header-banner) span, .bg-gradient-to-r:not(.exec-header-banner) p, .bg-gradient-to-r:not(.exec-header-banner) div, [class*="from-[#047857]"] span, [class*="from-[#0284C7]"] span').forEach(node => {
         const el = node as HTMLElement;
-        if (el.closest('.exec-header-banner')) return;
+        if (el.closest('.exec-header-banner') || el.closest('.thuong-st-navy-header')) return;
         if (el.textContent && (el.textContent.includes('Luỹ kế:') || el.textContent.includes('Realtime:') || el.textContent.includes('ĐẠT') || el.textContent.includes('TGSD'))) {
           el.style.color = '#ffffff';
           el.style.fontFamily = "'UTM Avo', sans-serif";
@@ -2252,7 +2675,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       // Ensure description texts outside banners stay readable slate
       clone.querySelectorAll('p').forEach(p => {
         const el = p as HTMLElement;
-        if (!el.closest('.bg-gradient-to-r')) {
+        if (!el.closest('.bg-gradient-to-r') && !el.closest('.thuong-st-navy-header')) {
           el.style.color = '#64748b';
         }
       });
@@ -2261,7 +2684,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       const grids = clone.querySelectorAll('.grid, [class*="grid-cols-"]');
       grids.forEach(g => {
         const htmlG = g as HTMLElement;
-        if (htmlG.classList.contains('thuong-st-kpi-grid') || htmlG.classList.contains('thuong-st-diff-grid')) {
+        if (htmlG.classList.contains('thuong-st-kpi-grid') || htmlG.classList.contains('thuong-st-diff-grid') || htmlG.classList.contains('thuong-st-summary-grid')) {
           return;
         }
         if (htmlG.children.length === 6) {
@@ -2281,32 +2704,42 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
         }
       });
 
-      // Top KPI Cards grid in BaoCaoThuongSt: 2 columns exactly matching on-screen UI (Ảnh 2)
+      // Top KPI Cards grid in BaoCaoThuongSt: 3 columns matching SaaS V2 design
       const kpiGrids = clone.querySelectorAll('.thuong-st-kpi-grid');
       kpiGrids.forEach(kg => {
         const htmlKg = kg as HTMLElement;
         htmlKg.style.display = 'grid';
-        htmlKg.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+        htmlKg.style.gridTemplateColumns = 'repeat(3, minmax(0, 1fr))';
         htmlKg.style.gap = '14px';
         htmlKg.style.width = '100%';
         htmlKg.style.boxSizing = 'border-box';
       });
 
-      // Card 3: spans full width across both columns (grid-column: 1 / -1) exactly like on-screen UI
+      // Summary 6 KPI Cards grid in BaoCaoThuongSt
+      clone.querySelectorAll('.thuong-st-summary-grid').forEach(sg => {
+        const htmlSg = sg as HTMLElement;
+        htmlSg.style.display = 'grid';
+        htmlSg.style.gridTemplateColumns = 'repeat(6, minmax(0, 1fr))';
+        htmlSg.style.gap = '10px';
+        htmlSg.style.width = '100%';
+        htmlSg.style.boxSizing = 'border-box';
+      });
+
+      // Card 3: 3rd column in 3-col grid
       clone.querySelectorAll('.thuong-st-card-3').forEach(c3 => {
         const htmlC3 = c3 as HTMLElement;
-        htmlC3.style.gridColumn = '1 / -1';
+        htmlC3.style.gridColumn = 'auto';
         htmlC3.style.width = '100%';
         htmlC3.style.boxSizing = 'border-box';
       });
 
-      // Card 3 Diff Grid: Force 2 equal columns with clean gap and prevent any inner wrapping/overlaps
+      // Card 3 Diff Grid: 2 stacked rows
       const diffGrids = clone.querySelectorAll('.thuong-st-diff-grid');
       diffGrids.forEach(dg => {
         const htmlDg = dg as HTMLElement;
-        htmlDg.style.display = 'grid';
-        htmlDg.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
-        htmlDg.style.gap = '12px';
+        htmlDg.style.display = 'flex';
+        htmlDg.style.flexDirection = 'column';
+        htmlDg.style.gap = '8px';
         htmlDg.style.width = '100%';
         htmlDg.style.boxSizing = 'border-box';
       });
@@ -2411,6 +2844,42 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
               (childEl.style as any).webkitLineClamp = 'unset';
             }
           });
+        });
+      });
+
+      // Ensure Exec StatCards & Enterprise Analytics Grid render with crisp desktop sizing on screenshot export
+      clone.querySelectorAll('.enterprise-analytics-grid').forEach(g => {
+        const htmlG = g as HTMLElement;
+        htmlG.style.setProperty('display', 'grid', 'important');
+        htmlG.style.setProperty('grid-template-columns', '5fr 3fr 4fr', 'important');
+        htmlG.style.setProperty('gap', '16px', 'important');
+        htmlG.style.setProperty('width', '100%', 'important');
+        Array.from(htmlG.children).forEach(child => {
+          (child as HTMLElement).style.setProperty('grid-column', 'auto', 'important');
+        });
+      });
+
+      clone.querySelectorAll('.exec-stat-card').forEach(card => {
+        const htmlCard = card as HTMLElement;
+        htmlCard.style.setProperty('padding', '16px 16px 26px 16px', 'important');
+        htmlCard.style.setProperty('border-radius', '16px', 'important');
+        htmlCard.style.setProperty('min-height', '128px', 'important');
+        htmlCard.querySelectorAll('.stat-card-badge').forEach(b => {
+          const htmlB = b as HTMLElement;
+          htmlB.style.setProperty('width', '32px', 'important');
+          htmlB.style.setProperty('height', '32px', 'important');
+        });
+        htmlCard.querySelectorAll('.stat-card-title').forEach(t => {
+          const htmlT = t as HTMLElement;
+          const len = (htmlT.textContent || '').trim().length;
+          htmlT.style.setProperty('font-size', len > 14 ? '10.5px' : '11.5px', 'important');
+          htmlT.style.setProperty('font-weight', '900', 'important');
+          htmlT.style.setProperty('white-space', 'nowrap', 'important');
+        });
+        htmlCard.querySelectorAll('.exec-stat-num').forEach(n => {
+          const htmlN = n as HTMLElement;
+          htmlN.style.setProperty('font-size', '30px', 'important');
+          htmlN.style.setProperty('font-weight', '900', 'important');
         });
       });
 
@@ -2681,11 +3150,11 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                     const actualVirtual = market.actualVirtual || 0;
                     const actualReal = market.actualReal || 0;
                     const percentHTVal = displayTargetQD > 0 ? Math.round((daysPassed > 0 && totalDays > 0 ? (((actualVirtual) / daysPassed) * totalDays) : actualVirtual) / displayTargetQD * 100 * 10) / 10 : 0;
-                    const dtlkVal = targetData?.stDtlk || actualReal || 0;
-                    const dtqdVal = targetData?.stDtqd || actualVirtual || 0;
+                    const dtlkVal = actualReal > 0 ? actualReal : (targetData?.stDtlk || 0);
+                    const dtqdVal = actualVirtual > 0 ? actualVirtual : (targetData?.stDtqd || 0);
                     const percentQDVal = dtlkVal > 0 ? ((dtqdVal - dtlkVal) / dtlkVal) * 100 : (market.percentQD || 0);
                     const tcRate = resolveLuykeTraChamRate(market.name);
-                    const installmentRate = (tcRate !== null && !isNaN(tcRate) && tcRate > 0)
+                    const installmentRate = (tcRate !== null && !isNaN(tcRate) && tcRate >= 0)
                       ? (Math.round(tcRate * 10) / 10).toFixed(1)
                       : (((market.installmentRate || market.percentTraGop || 0) > 0)
                           ? (Math.round((market.installmentRate || market.percentTraGop) * 10) / 10).toFixed(1)
@@ -2696,46 +3165,83 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                     const lnttVal = getLnttForMarket(market.name, market.percentHTTargetDuKienLNTT ?? (targetData as any)?.percentHTTargetDuKienLNTT ?? 0);
 
                     return (
-                      <div key={market.name || mIdx} className="relative overflow-hidden bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 lg:p-7 rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] space-y-4 md:space-y-5">
+                      <div key={market.name || mIdx} className="relative overflow-hidden bg-white/95 backdrop-blur-md p-[12px] sm:p-[16px] md:p-[20px] rounded-[16px] md:rounded-[20px] border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] space-y-[12px] md:space-y-[16px]">
                         {/* Ambient background glow */}
                         <div className="absolute -top-10 -right-10 w-44 h-44 bg-gradient-to-br from-sky-200/30 to-transparent rounded-full blur-2xl pointer-events-none" />
                         <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-gradient-to-tr from-blue-100/30 to-transparent rounded-full blur-2xl pointer-events-none" />
 
-                        {/* Store Header with address & Camera */}
-                        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 pb-3.5 border-b border-slate-100/80">
-                          <div className="flex items-center gap-3.5">
-                            {/* 3D Gradient Store Icon Box */}
-                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#38BDF8] via-[#0EA5E9] to-[#0284C7] text-white flex items-center justify-center text-xl shadow-[0_4px_14px_-2px_rgba(2,132,199,0.35)] shrink-0 border border-white/50">
-                              <Store size={22} strokeWidth={2.2} />
+                        {/* Store Header with Enterprise Analytics Top Bar */}
+                        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-[10px] sm:gap-[14px] pb-[12px] sm:pb-[14px] border-b border-slate-100">
+                          <div className="flex items-center gap-[10px] sm:gap-[14px] min-w-0">
+                            <div
+                              className="w-[38px] h-[38px] sm:w-[44px] sm:h-[44px] rounded-[12px] sm:rounded-[14px] text-white flex items-center justify-center shrink-0 shadow-md"
+                              style={{ background: 'linear-gradient(135deg, #1D7AFC 0%, #0055CC 100%)' }}
+                            >
+                              <Store size={20} strokeWidth={2.2} />
                             </div>
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap mb-1">
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-50 border border-sky-200/80 text-[10.5px] font-extrabold uppercase tracking-wider text-sky-700 shadow-2xs">
-                                  <span className="w-2 h-2 rounded-full bg-sky-500 animate-ping inline-block" />
-                                  ĐANG HOẠT ĐỘNG
-                                </span>
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-blue-50 border border-blue-200/70 text-[10.5px] font-extrabold uppercase tracking-wider text-blue-700">
-                                  📊 BÁO CÁO LUỸ KẾ THÁNG
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-[8px] flex-wrap">
+                                <h2
+                                  className="text-[15px] sm:text-[19px] md:text-[21px] font-black text-[#0B1F3A] tracking-tight uppercase leading-tight"
+                                  style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}
+                                >
+                                  TỔNG QUAN DOANH THU &amp; NGÀNH HÀNG
+                                </h2>
+                                <span className="inline-flex items-center gap-[5px] px-[8px] py-[2px] rounded-full bg-blue-50 border border-blue-200/80 text-[9.5px] sm:text-[10px] font-extrabold uppercase tracking-wider text-blue-700">
+                                  <span className="w-[6px] h-[6px] rounded-full bg-blue-500 animate-ping inline-block" />
+                                  LUỸ KẾ THÁNG
                                 </span>
                               </div>
-                              <h2 className="text-lg sm:text-xl md:text-2xl font-black text-slate-850 tracking-tight uppercase flex items-center gap-2 flex-wrap">
-                                <span className="bg-gradient-to-r from-slate-900 via-sky-950 to-slate-800 bg-clip-text text-transparent">{market.name}</span>
-                                {storeAddress && <span className="text-xs font-bold text-slate-400 font-normal">| {storeAddress}</span>}
-                              </h2>
+                              <div className="flex items-center gap-[6px] mt-[2px] text-[11.5px] sm:text-[13px] font-bold text-slate-500 truncate">
+                                <span className="text-[#0B1F3A] font-extrabold truncate">{market.name}</span>
+                                {storeAddress && <span className="text-[11px] font-bold text-slate-400 font-normal">| {storeAddress}</span>}
+                              </div>
                             </div>
                           </div>
 
-                          <button
-                            onClick={() => captureElement(captureRefs.fullDashboard, 'TongQuan_LuyKe')}
-                            className="no-capture inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#38BDF8] via-[#0EA5E9] to-[#0284C7] hover:from-[#0EA5E9] hover:to-[#0369A1] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-[0_4px_14px_-2px_rgba(2,132,199,0.35)] hover:shadow-[0_6px_20px_-2px_rgba(2,132,199,0.45)] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer w-full sm:w-auto self-start sm:self-auto border border-white/20"
-                          >
-                            <Camera size={16} />
-                            <span>Chụp tổng quan</span>
-                          </button>
+                          {/* Right Filter & Status Controls */}
+                          <div className="flex flex-wrap items-center gap-[6px] sm:gap-[8px] shrink-0">
+                            {/* Date Pill */}
+                            <div className="inline-flex items-center gap-[6px] px-[10px] py-[5px] rounded-[10px] bg-slate-50 border border-slate-200/90 text-[11px] font-bold text-[#0B1F3A]">
+                              <Calendar size={14} className="text-[#1D7AFC] shrink-0" />
+                              <div className="flex flex-col leading-tight">
+                                <span className="text-[9px] font-bold text-slate-400 uppercase">Kỳ luỹ kế</span>
+                                <span className="text-[11px] font-black text-[#0B1F3A]">
+                                  {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Store Filter Selector (if multiple markets) */}
+                            {filteredMarkets.length > 1 && (
+                              <div className="no-capture relative inline-flex items-center">
+                                <select
+                                  value={marketFilter}
+                                  onChange={(e) => setMarketFilter(e.target.value)}
+                                  className="appearance-none bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-[10px] pl-[10px] pr-[24px] py-[7px] text-[11px] font-black text-[#0B1F3A] uppercase cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                >
+                                  <option value="ALL">TẤT CẢ SIÊU THỊ</option>
+                                  {filteredMarkets.map((fm: any) => (
+                                    <option key={fm.name} value={fm.name}>{fm.name}</option>
+                                  ))}
+                                </select>
+                                <ChevronDown size={13} className="absolute right-[8px] pointer-events-none text-slate-500" />
+                              </div>
+                            )}
+
+                            <button
+                              onClick={() => captureElement(captureRefs.fullDashboard, 'TongQuan_LuyKe')}
+                              className="no-capture inline-flex items-center justify-center gap-[6px] px-[12px] py-[7px] sm:px-[14px] sm:py-[8px] text-white rounded-[10px] text-[11px] sm:text-[11.5px] font-black uppercase tracking-wider transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-md"
+                              style={{ background: 'linear-gradient(90deg, #1D7AFC 0%, #0EA5E9 100%)' }}
+                            >
+                              <Camera size={14} />
+                              <span>Chụp tổng quan</span>
+                            </button>
+                          </div>
                         </div>
 
-                        {/* 6 Gradient StatCards */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 md:gap-3.5 lg:gap-4.5 xl:gap-5">
+                        {/* 6 Enterprise KPI StatCards */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-[8px] sm:gap-[10px] md:gap-[12px]">
                           <StatCard
                             title="TARGET QĐ"
                             value={formatCurrencyUnit(displayTargetQD)}
@@ -2776,6 +3282,20 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                       </div>
                     );
                   })}
+
+                  {/* Enterprise Analytics Row: Bar Chart + Donut Chart + Top Contributing Categories */}
+                  {visibleCategoriesDT.length > 0 && (
+                    <EnterpriseCategoryAnalytics
+                      categories={visibleCategoriesDT}
+                      isMonthly={true}
+                      onViewDetail={() => {
+                        if (captureRefs.category.current) {
+                          captureRefs.category.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                      }}
+                    />
+                  )}
+
                   {/* CHI TIẾT NGÀNH HÀNG (LUỸ KẾ) */}
                   <div ref={captureRefs.category} className="space-y-3.5">
                     {/* Pill Actions & Sort Controls (Hidden on screenshot export) */}
@@ -2910,7 +3430,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                   </button>
                                 </div>
                               </div>
-                              <div className="exec-banner-sub flex items-center flex-nowrap whitespace-nowrap gap-1 sm:gap-2 mt-0.5 text-[8px] sm:text-xs text-slate-600 font-semibold" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                              <div className="exec-banner-sub hidden items-center flex-nowrap whitespace-nowrap gap-1 sm:gap-2 mt-0.5 text-[8px] sm:text-xs text-slate-600 font-semibold" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                                 <span className="flex items-center gap-1 whitespace-nowrap">
                                   <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-[#1E4B7A] shrink-0" />
                                   Realtime: {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} - {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }).replace(/\//g, '-')}
@@ -3164,7 +3684,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                   </button>
                                 </div>
                               </div>
-                              <div className="exec-banner-sub flex items-center flex-nowrap whitespace-nowrap gap-1 sm:gap-2 mt-0.5 text-[8px] sm:text-xs text-slate-600 font-semibold" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                              <div className="exec-banner-sub hidden items-center flex-nowrap whitespace-nowrap gap-1 sm:gap-2 mt-0.5 text-[8px] sm:text-xs text-slate-600 font-semibold" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                                 <span className="flex items-center gap-1 whitespace-nowrap">
                                   <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-[#1E4B7A] shrink-0" />
                                   Realtime: {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} - {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }).replace(/\//g, '-')}
@@ -3598,88 +4118,28 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                     </div>
                   </div>
                 ) : (
-                  /* Display modern V2 table */
-                  <div className="space-y-4">
-                    {/* Action Bar with Filter & AI Comment buttons */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs no-capture">
-                      {/* Left: Filter Buttons */}
+                  /* Display SaaS V2 Competition Bonus Dashboard */
+                  <div className="space-y-3.5" style={{ fontFamily: "'Inter', 'UTM Avo', sans-serif" }}>
+                    {/* Hidden File Input for quick comparison / update */}
+                    <input
+                      ref={thuongStUploadInputRef}
+                      type="file"
+                      multiple
+                      accept=".xlsx, .xls"
+                      onChange={handleExcelUpload}
+                      className="hidden"
+                    />
+
+                    {/* Top Utility Action Bar (AI Analysis & Screenshot Export - excluded from capture) */}
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 bg-white px-4 py-2.5 rounded-2xl border border-[#DCE6F0] shadow-2xs no-capture">
                       <div className="flex items-center gap-2 flex-wrap">
-                        {/* Tab: Tất cả */}
-                        <button
-                          onClick={() => setBonusFilterTab('ALL')}
-                          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all cursor-pointer border active:scale-95 ${
-                            bonusFilterTab === 'ALL'
-                              ? 'bg-slate-800 border-slate-800 text-white shadow-sm'
-                              : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                          }`}
-                        >
-                          <span>TẤT CẢ</span>
-                          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${bonusFilterTab === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                            {thuongStStats.all.length}
-                          </span>
-                        </button>
-
-                        {/* Tab: Có thưởng */}
-                        <button
-                          onClick={() => setBonusFilterTab('BONUS')}
-                          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all cursor-pointer border active:scale-95 ${
-                            bonusFilterTab === 'BONUS'
-                              ? 'bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-500/20'
-                              : 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
-                          }`}
-                          title="Lọc chỉ hiển thị các ngành hàng có thưởng hôm nay"
-                        >
-                          <Award size={13} />
-                          <span>CÓ THƯỞNG</span>
-                          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${bonusFilterTab === 'BONUS' ? 'bg-white/25 text-white' : 'bg-emerald-200 text-emerald-900'}`}>
-                            {thuongStStats.bonusRows.length}
-                          </span>
-                        </button>
-
-                        {/* Tab: Giảm/Mất thưởng (Khi so sánh) */}
-                        {isComparing && (
-                          <button
-                            onClick={() => setBonusFilterTab('DECREASED')}
-                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all cursor-pointer border active:scale-95 ${
-                              bonusFilterTab === 'DECREASED'
-                                ? 'bg-rose-600 border-rose-600 text-white shadow-md shadow-rose-500/20'
-                                : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'
-                            }`}
-                            title="Lọc các ngành hàng bị giảm tiền thưởng hoặc mất thưởng so với hôm qua"
-                          >
-                            <span>🔴 GIẢM THƯỞNG</span>
-                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${bonusFilterTab === 'DECREASED' ? 'bg-white/25 text-white' : 'bg-rose-200 text-rose-900'}`}>
-                              {thuongStStats.decreasedRows.length}
-                            </span>
-                          </button>
-                        )}
-
-                        {/* Tab: Tăng thưởng (Khi so sánh) */}
-                        {isComparing && (
-                          <button
-                            onClick={() => setBonusFilterTab('INCREASED')}
-                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all cursor-pointer border active:scale-95 ${
-                              bonusFilterTab === 'INCREASED'
-                                ? 'bg-teal-600 border-teal-600 text-white shadow-md shadow-teal-500/20'
-                                : 'bg-teal-50 border-teal-200 text-teal-800 hover:bg-teal-100'
-                            }`}
-                            title="Lọc các ngành hàng tăng thêm tiền thưởng hoặc mới đạt thưởng"
-                          >
-                            <span>🟢 TĂNG THƯỞNG</span>
-                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${bonusFilterTab === 'INCREASED' ? 'bg-white/25 text-white' : 'bg-teal-200 text-teal-900'}`}>
-                              {thuongStStats.increasedRows.length}
-                            </span>
-                          </button>
-                        )}
-
-                        {/* AI Comment Button */}
                         <button
                           onClick={() => {
                             handleGenerateAIComment(thuongStTemplate);
                             setThuongStCommentOpen(true);
                           }}
                           disabled={isGeneratingAI}
-                          className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl text-xs font-black transition-all shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer disabled:opacity-60"
+                          className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-[#0B2E59] via-[#1769FF] to-[#079B78] hover:opacity-95 text-white rounded-xl text-xs font-extrabold transition-all shadow-xs active:scale-95 cursor-pointer disabled:opacity-60"
                           title="Tự động phân tích dữ liệu thi đua và tạo nhận xét AI"
                         >
                           {isGeneratingAI ? (
@@ -3689,260 +4149,734 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                             </>
                           ) : (
                             <>
-                              <Sparkles size={14} className="animate-pulse" />
+                              <Sparkles size={14} />
                               <span>NHẬN XÉT AI</span>
                             </>
                           )}
                         </button>
+                        {!showThuongStWarning && (
+                          <button
+                            onClick={() => setShowThuongStWarning(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FFF7E8] border border-[#F6DFB0] text-[#A85B12] text-xs font-bold cursor-pointer"
+                          >
+                            <Bell size={13} />
+                            <span>Hiện lưu ý quỹ thưởng</span>
+                          </button>
+                        )}
                       </div>
 
-                      {/* Right Action: Camera Export Button */}
                       <button
                         onClick={() => captureElement(captureRefs.thuongSt, 'BaoCaoThuongSt')}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer"
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#079B78] to-[#057A5E] hover:from-[#057A5E] hover:to-[#04634C] text-white rounded-xl text-xs font-extrabold uppercase tracking-wider transition-all shadow-xs active:scale-95 cursor-pointer"
                       >
                         <Camera size={15} />
                         <span>Chụp ảnh báo cáo</span>
                       </button>
                     </div>
 
-                    {/* Main Capture Box */}
-                    <div ref={captureRefs.thuongSt} className="bg-white rounded-3xl border border-slate-200/90 overflow-hidden flex flex-col p-4 sm:p-5 shadow-sm space-y-4">
-                      {/* Unified Emerald Gradient Header Banner */}
-                      <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 sm:p-5 rounded-2xl text-white relative shadow-sm">
-                        <div className="flex flex-col items-center justify-center text-center">
-                          <h2 className="text-[22px] sm:text-[26px] font-black text-[#FEF08A] uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
-                            THƯỞNG THI ĐUA SIÊU THỊ
-                          </h2>
-                          <div className="flex items-center justify-center flex-wrap gap-2 sm:gap-3 mt-1.5 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
-                            <span className="flex items-center gap-1 whitespace-nowrap">
-                              🏪 {selectedStoreFilter}
-                            </span>
-                            <span className="opacity-70">||</span>
-                            <span className="text-white font-extrabold whitespace-nowrap">
-                              🏆 TOP 10% HẠNG ≤ {selectedStoreExcelData.limit}
-                            </span>
-                            <span className="opacity-70">||</span>
-                            <span className="text-emerald-100 font-bold whitespace-nowrap">
-                              ⚡ LUỸ KẾ THÁNG
-                            </span>
-                            {isComparing && (
-                              <>
-                                <span className="opacity-70">||</span>
-                                <span className="text-yellow-200 font-black whitespace-nowrap bg-emerald-800/60 px-2 py-0.5 rounded-lg border border-yellow-300/40">
-                                  📊 SO SÁNH VỚI HÔM QUA
-                                </span>
-                              </>
-                            )}
+                    {/* Main Capture Container matching Design Reference #2 */}
+                    <div
+                      ref={captureRefs.thuongSt}
+                      className="bg-[#F4F7FB] rounded-[20px] border border-[#DCE6F0] overflow-hidden flex flex-col p-3.5 sm:p-5 space-y-3.5"
+                    >
+                      {/* 3. PHẦN HEADER: Navy Gradient Banner with Trophy & Crown */}
+                      <div
+                        className="thuong-st-navy-header rounded-[15px] px-4 sm:px-6 py-3.5 text-white relative overflow-hidden border border-[#1E4985]"
+                        style={{
+                          background: 'linear-gradient(100deg, #061836 0%, #0B2E59 45%, #164B96 80%, #0E356B 100%)'
+                        }}
+                      >
+                        {/* Subtle radial light glow */}
+                        <div
+                          className="absolute inset-0 pointer-events-none opacity-35"
+                          style={{
+                            background: 'radial-gradient(circle at 28% 20%, rgba(56, 189, 248, 0.35) 0%, transparent 50%), radial-gradient(circle at 82% 50%, rgba(250, 204, 21, 0.22) 0%, transparent 45%)'
+                          }}
+                        />
+
+                        <div className="relative z-10 flex items-center justify-between gap-3 sm:gap-5">
+                          {/* Left: Gold Trophy Illustration + Title & Metadata */}
+                          <div className="flex items-center gap-3.5 sm:gap-4 min-w-0 flex-1">
+                            {/* 3D-style Gold Trophy SVG on Pedestal */}
+                            <div className="w-[52px] h-[52px] sm:w-[60px] sm:h-[60px] shrink-0 flex items-center justify-center">
+                              <svg viewBox="0 0 64 64" className="w-full h-full">
+                                <defs>
+                                  <linearGradient id="hdrTrophyGold" x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stopColor="#FFF085" />
+                                    <stop offset="45%" stopColor="#F59E0B" />
+                                    <stop offset="100%" stopColor="#B45309" />
+                                  </linearGradient>
+                                  <linearGradient id="hdrPedestalBlue" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#38BDF8" />
+                                    <stop offset="100%" stopColor="#0369A1" />
+                                  </linearGradient>
+                                </defs>
+                                <ellipse cx="32" cy="56" rx="22" ry="6" fill="url(#hdrPedestalBlue)" stroke="#7DD3FC" strokeWidth="1.2" />
+                                <rect x="22" y="47" width="20" height="7" rx="2.5" fill="#1E293B" stroke="#F59E0B" strokeWidth="1" />
+                                <rect x="28" y="37" width="8" height="11" rx="2" fill="url(#hdrTrophyGold)" />
+                                <path d="M18 14 H46 V24 C46 33 40 39 32 39 C24 39 18 33 18 24 Z" fill="url(#hdrTrophyGold)" />
+                                <path d="M18 17 H12 C10 17 9 19 9 22 C9 27 13 31 18 31" fill="none" stroke="url(#hdrTrophyGold)" strokeWidth="3.5" strokeLinecap="round" />
+                                <path d="M46 17 H52 C54 17 55 19 55 22 C55 27 51 31 46 31" fill="none" stroke="url(#hdrTrophyGold)" strokeWidth="3.5" strokeLinecap="round" />
+                                <polygon points="32,19 34.2,23.5 39,24.2 35.5,27.6 36.3,32.4 32,30.1 27.7,32.4 28.5,27.6 25,24.2 29.8,23.5" fill="#FFFBEB" />
+                              </svg>
+                            </div>
+
+                            {/* Center/Left Title & Badges Row */}
+                            <div className="min-w-0 flex-1">
+                              <h2
+                                className="text-[20px] sm:text-[25px] md:text-[27px] font-black text-white uppercase tracking-wide leading-tight"
+                                style={{ color: '#FFFFFF', fontWeight: 900 }}
+                              >
+                                THƯỞNG THI ĐUA SIÊU THỊ
+                              </h2>
+
+                              <div className="flex flex-wrap items-center justify-between gap-2 mt-1.5">
+                                {/* Store Code & Name */}
+                                <div className="flex items-center gap-1.5 text-[12px] sm:text-[13.5px] font-bold text-white/95 min-w-0">
+                                  <span className="w-5 h-5 rounded-md bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white shrink-0">
+                                    <Store size={12} />
+                                  </span>
+                                  <span className="truncate">{selectedStoreFilter}</span>
+                                </div>
+
+                                {/* Right Pill Badges */}
+                                <div className="flex items-center flex-wrap gap-1.5 sm:gap-2">
+                                  {/* Badge 1: TOP 10% HẠNG ≤ X */}
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#071936]/90 border border-amber-400/50 text-[11px] font-extrabold text-amber-300 whitespace-nowrap">
+                                    <span>⭐</span>
+                                    <span>TOP 10% HẠNG ≤ {selectedStoreExcelData.limit}</span>
+                                  </span>
+
+                                  {/* Badge 2: LŨY KẾ THÁNG X */}
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#09224A]/90 border border-sky-400/40 text-[11px] font-extrabold text-sky-100 whitespace-nowrap">
+                                    <BarChart3 size={12} className="text-sky-400" />
+                                    <span>LŨY KẾ THÁNG {thuongStStats.detectedMonth || (new Date().getMonth() + 1)}</span>
+                                  </span>
+
+                                  {/* Badge 3: SO SÁNH VỚI HÔM QUA */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (isComparing) {
+                                        setBonusFilterTab(prev => prev === 'INCREASED' ? 'ALL' : 'INCREASED');
+                                      } else {
+                                        thuongStUploadInputRef.current?.click();
+                                      }
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#09224A]/95 hover:bg-[#10316B] border border-amber-300/45 text-[11px] font-extrabold text-white whitespace-nowrap cursor-pointer transition-colors"
+                                    title={isComparing ? 'Đang bật chế độ so sánh với hôm qua' : 'Nhấn để tải thêm file so sánh với hôm qua'}
+                                  >
+                                    <TrendingUp size={12} className="text-amber-400" />
+                                    <span>SO SÁNH VỚI HÔM QUA</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right Decorative Royal Crown Illustration */}
+                          <div className="hidden md:flex w-[58px] h-[54px] shrink-0 items-center justify-center">
+                            <svg viewBox="0 0 64 56" className="w-full h-full">
+                              <defs>
+                                <linearGradient id="hdrCrownGold" x1="0" y1="0" x2="1" y2="1">
+                                  <stop offset="0%" stopColor="#FEF08A" />
+                                  <stop offset="50%" stopColor="#F59E0B" />
+                                  <stop offset="100%" stopColor="#B45309" />
+                                </linearGradient>
+                              </defs>
+                              <path
+                                d="M8 42 L4 16 L20 28 L32 10 L44 28 L60 16 L56 42 Z"
+                                fill="url(#hdrCrownGold)"
+                                stroke="#FDE68A"
+                                strokeWidth="1.5"
+                                strokeLinejoin="round"
+                              />
+                              <rect x="8" y="44" width="48" height="6" rx="3" fill="url(#hdrCrownGold)" />
+                              <circle cx="4" cy="14" r="3" fill="#FEF08A" />
+                              <circle cx="32" cy="8" r="3.5" fill="#FEF08A" />
+                              <circle cx="60" cy="14" r="3" fill="#FEF08A" />
+                              <circle cx="32" cy="34" r="2.8" fill="#EF4444" />
+                              <circle cx="20" cy="36" r="2.2" fill="#38BDF8" />
+                              <circle cx="44" cy="36" r="2.2" fill="#38BDF8" />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 4. KHU VỰC THÔNG TIN TỔNG QUAN (3 Cards in 1 Row on Desktop) */}
+                      <div className="thuong-st-kpi-grid grid grid-cols-1 lg:grid-cols-3 gap-3.5">
+                        {/* 4.1. Thẻ kỳ báo cáo và dự kiến thưởng lũy kế */}
+                        <div className="bg-white rounded-[15px] border border-[#DCE6F0] p-3.5 sm:p-4 flex flex-col justify-between shadow-[0_2px_8px_rgba(11,46,89,0.04)]">
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-9 h-9 rounded-[10px] bg-[#EBF3FF] border border-[#CFE0FF] text-[#1769FF] flex items-center justify-center shrink-0 mt-0.5">
+                              <Calendar size={18} strokeWidth={2.2} />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-[11px] font-bold text-[#718198] uppercase tracking-wider">
+                                KỲ BÁO CÁO THI ĐUA
+                              </div>
+                              <div className="text-[16px] sm:text-[17.5px] font-black text-[#0B2E59] uppercase leading-tight mt-0.5">
+                                DỰ KIẾN THƯỞNG LŨY KẾ
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 sm:gap-2 mt-3">
+                            {/* Old Report File Box */}
+                            <div
+                              className="flex-1 min-w-0 bg-[#F4F7FB] border border-[#DCE6F0] rounded-[10px] p-2 flex items-center gap-2"
+                              title={selectedStoreExcelData.oldFileName || 'Chưa có file cũ'}
+                            >
+                              <div className="w-7 h-7 rounded-lg bg-white border border-[#DCE6F0] text-[#64748B] flex items-center justify-center shrink-0">
+                                <FileText size={14} />
+                              </div>
+                              <div className="text-[10.5px] sm:text-[11px] font-bold text-[#172B4D] leading-tight line-clamp-2">
+                                Cũ: {selectedStoreExcelData.oldFileName || 'Chưa có file hôm qua'}
+                              </div>
+                            </div>
+
+                            <span className="text-[#94A3B8] shrink-0 text-xs font-bold">→</span>
+
+                            {/* New Report File Box */}
+                            <div
+                              className="flex-1 min-w-0 bg-[#E5F8F1] border border-[#B5EBD6] rounded-[10px] p-2 flex items-center gap-2"
+                              title={selectedStoreExcelData.fileName || 'File đang hoạt động'}
+                            >
+                              <div className="w-7 h-7 rounded-lg bg-[#079B78] text-white flex items-center justify-center shrink-0 font-black text-[11px]">
+                                +
+                              </div>
+                              <div className="text-[10.5px] sm:text-[11px] font-bold text-[#065F46] leading-tight line-clamp-2">
+                                Mới: {selectedStoreExcelData.fileName || 'Đang hoạt động'}
+                              </div>
+                            </div>
+
+                            {/* Refresh / Swap Action Button */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isComparing) {
+                                  handleSwapOldAndNew();
+                                } else {
+                                  thuongStUploadInputRef.current?.click();
+                                }
+                              }}
+                              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#EBF3FF] hover:bg-[#DCE8FF] border border-[#BFD6FF] text-[#1769FF] flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+                              title={isComparing ? 'Đổi thứ tự File Cũ ⇄ File Mới' : 'Nạp thêm file báo cáo mới'}
+                            >
+                              <RefreshCw size={14} strokeWidth={2.3} />
+                            </button>
                           </div>
                         </div>
 
-                        {/* Camera Capture Button */}
-                        <button
-                          onClick={() => captureElement(captureRefs.thuongSt, 'BaoCaoThuongSt')}
-                          className="no-capture absolute right-3 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
-                          title="Chụp ảnh bảng Thưởng ST"
+                        {/* 4.2. Thẻ tổng thưởng dự kiến (Most Important KPI Card) */}
+                        <div
+                          className="rounded-[15px] border border-[#A5E6CE] p-3.5 sm:p-4 flex items-center justify-between relative overflow-hidden shadow-[0_2px_10px_rgba(7,155,120,0.08)]"
+                          style={{
+                            background: 'linear-gradient(135deg, #E2F8F0 0%, #EEFCF7 52%, #D4F4E7 100%)'
+                          }}
                         >
-                          <Camera size={16} />
-                        </button>
+                          {/* Top-right decorative small badge */}
+                          <span className="absolute top-2.5 right-2.5 w-5 h-5 rounded-md bg-white/75 border border-[#A5E6CE] flex items-center justify-center text-[#079B78] text-[10px] font-bold">
+                            ✦
+                          </span>
+
+                          <div className="space-y-1.5 z-10 min-w-0 flex-1">
+                            <div className="text-[12px] sm:text-[13px] font-extrabold text-[#0F5132] uppercase tracking-wide">
+                              TỔNG THƯỞNG DỰ KIẾN
+                            </div>
+
+                            <div className="text-[28px] sm:text-[33px] xl:text-[36px] font-black text-[#067A5B] leading-none tracking-tight tabular-nums">
+                              {thuongStStats.totalBonusCurrent.toLocaleString('vi-VN')} đ
+                            </div>
+
+                            {/* Difference Badge */}
+                            <div className="pt-0.5">
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/90 border text-[11.5px] font-extrabold tabular-nums ${
+                                  isComparing && thuongStStats.totalBonusDiff < 0
+                                    ? 'border-[#F8BBC6] text-[#E11D48]'
+                                    : 'border-[#A5E6CE] text-[#079B78]'
+                                }`}
+                              >
+                                {isComparing && thuongStStats.totalBonusDiff < 0 ? (
+                                  <>
+                                    <TrendingDown size={12} />
+                                    <span>-{Math.abs(thuongStStats.totalBonusDiff).toLocaleString('vi-VN')} đ</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <TrendingUp size={12} />
+                                    <span>
+                                      +{(isComparing ? thuongStStats.totalBonusDiff : thuongStStats.totalBonusCurrent).toLocaleString('vi-VN')} đ
+                                    </span>
+                                  </>
+                                )}
+                              </span>
+                            </div>
+
+                            {/* Achieved Categories Count */}
+                            <div className="flex items-center gap-1.5 text-[11.5px] font-bold text-[#172B4D] pt-0.5 flex-wrap">
+                              <span className="w-4 h-4 rounded bg-[#079B78] text-white inline-flex items-center justify-center text-[9.5px] shrink-0">
+                                ★
+                              </span>
+                              <span>
+                                Đạt thưởng: <strong className="font-black">{thuongStStats.bonusRows.length}/{thuongStStats.all.length} nhóm hàng</strong>
+                              </span>
+                              <span className="text-[#64748B] font-semibold">
+                                (Hôm qua: {isComparing ? thuongStStats.all.filter((r: any) => r.bonusOld > 0).length : 0})
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Right Trophy Illustration */}
+                          <div className="w-[70px] h-[78px] sm:w-[80px] sm:h-[86px] shrink-0 z-10 flex items-center justify-center ml-2">
+                            <svg viewBox="0 0 80 88" className="w-full h-full">
+                              <defs>
+                                <linearGradient id="kpiTrophyCup" x1="0" y1="0" x2="1" y2="1">
+                                  <stop offset="0%" stopColor="#FEF08A" />
+                                  <stop offset="50%" stopColor="#F59E0B" />
+                                  <stop offset="100%" stopColor="#B45309" />
+                                </linearGradient>
+                                <linearGradient id="kpiTrophyBase" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#92400E" />
+                                  <stop offset="100%" stopColor="#451A03" />
+                                </linearGradient>
+                              </defs>
+                              <circle cx="16" cy="20" r="2.2" fill="#F59E0B" />
+                              <circle cx="66" cy="16" r="2.5" fill="#F59E0B" />
+                              <circle cx="68" cy="44" r="2" fill="#10B981" />
+                              <rect x="20" y="72" width="40" height="8" rx="3" fill="url(#kpiTrophyBase)" />
+                              <rect x="25" y="64" width="30" height="9" rx="2" fill="url(#kpiTrophyCup)" />
+                              <rect x="35" y="49" width="10" height="16" rx="2" fill="url(#kpiTrophyCup)" />
+                              <path d="M20 16 H60 V30 C60 43 51 51 40 51 C29 51 20 43 20 30 Z" fill="url(#kpiTrophyCup)" />
+                              <path d="M20 20 H12 C9 20 8 23 8 27 C8 34 13 39 20 39" fill="none" stroke="url(#kpiTrophyCup)" strokeWidth="4" strokeLinecap="round" />
+                              <path d="M60 20 H68 C71 20 72 23 72 27 C72 34 67 39 60 39" fill="none" stroke="url(#kpiTrophyCup)" strokeWidth="4" strokeLinecap="round" />
+                              <polygon points="40,22 42.6,27.3 48.5,28.1 44.2,32.2 45.2,38 40,35.2 34.8,38 35.8,32.2 31.5,28.1 37.4,27.3" fill="#FFFBEB" />
+                            </svg>
+                          </div>
+                        </div>
+
+                        {/* 4.3. Thẻ biến động so với hôm qua */}
+                        <div className="thuong-st-card-3 bg-white rounded-[15px] border border-[#DCE6F0] p-3.5 sm:p-4 flex flex-col justify-between shadow-[0_2px_8px_rgba(11,46,89,0.04)]">
+                          <div className="flex items-center justify-between pb-1.5">
+                            <span className="text-[11.5px] font-extrabold text-[#4A5B73] uppercase tracking-wider">
+                              BIẾN ĐỘNG SO VỚI HÔM QUA
+                            </span>
+                            <span className="w-5 h-5 rounded-full bg-[#EBF3FF] text-[#1769FF] flex items-center justify-center">
+                              <ChevronDown size={12} strokeWidth={2.5} />
+                            </span>
+                          </div>
+
+                          <div className="thuong-st-diff-grid flex flex-col gap-2 mt-1 grow justify-center">
+                            {/* Sub-card 1: GIẢM/MẤT */}
+                            <div
+                              onClick={() => setBonusFilterTab(prev => prev === 'DECREASED' ? 'ALL' : 'DECREASED')}
+                              className={`px-3 py-2 rounded-[11px] border transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                                bonusFilterTab === 'DECREASED'
+                                  ? 'bg-[#FFE4E9] border-[#F43F5E] ring-1 ring-[#F43F5E]'
+                                  : 'bg-[#FFF2F4] border-[#FAD4DA] hover:bg-[#FFE9ED]'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded-full bg-[#FFE0E6] text-[#F04464] flex items-center justify-center shrink-0">
+                                  <TrendingDown size={15} strokeWidth={2.5} />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-[10px] font-extrabold text-[#D93855] uppercase leading-none">
+                                    GIẢM/MẤT
+                                  </div>
+                                  <div className="text-[15px] sm:text-[16px] font-black text-[#D93855] leading-tight mt-0.5 tabular-nums">
+                                    {thuongStStats.totalDecreasedAmount > 0
+                                      ? `-${thuongStStats.totalDecreasedAmount.toLocaleString('vi-VN')} đ`
+                                      : '0 đ'}
+                                  </div>
+                                </div>
+                              </div>
+                              <span className="px-2.5 py-0.5 rounded-full bg-[#FFE0E6] border border-[#F8BBC6] text-[#D93855] text-[10.5px] font-extrabold shrink-0 whitespace-nowrap">
+                                {thuongStStats.decreasedRows.length} ngành hàng
+                              </span>
+                            </div>
+
+                            {/* Sub-card 2: TĂNG/MỚI */}
+                            <div
+                              onClick={() => setBonusFilterTab(prev => prev === 'INCREASED' ? 'ALL' : 'INCREASED')}
+                              className={`px-3 py-2 rounded-[11px] border transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                                bonusFilterTab === 'INCREASED'
+                                  ? 'bg-[#D5F7E8] border-[#079B78] ring-1 ring-[#079B78]'
+                                  : 'bg-[#ECFDF6] border-[#BDEED9] hover:bg-[#E0FAF0]'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded-full bg-[#D1FAE5] text-[#079B78] flex items-center justify-center shrink-0">
+                                  <TrendingUp size={15} strokeWidth={2.5} />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-[10px] font-extrabold text-[#079B78] uppercase leading-none">
+                                    TĂNG/MỚI
+                                  </div>
+                                  <div className="text-[15px] sm:text-[16px] font-black text-[#067A5B] leading-tight mt-0.5 tabular-nums">
+                                    +{(isComparing ? thuongStStats.totalIncreasedAmount : thuongStStats.totalBonusCurrent).toLocaleString('vi-VN')} đ
+                                  </div>
+                                </div>
+                              </div>
+                              <span className="px-2.5 py-0.5 rounded-full bg-[#D5F7E8] border border-[#9FE3C6] text-[#067A5B] text-[10.5px] font-extrabold shrink-0 whitespace-nowrap">
+                                {isComparing ? thuongStStats.increasedRows.length : thuongStStats.bonusRows.length} ngành hàng
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Top KPI StatCards (2 Cards or 3 Cards when comparing) */}
-                      <div className="thuong-st-kpi-grid grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                        {/* Card 1: Luỹ kế kỳ báo cáo & Đối soát file */}
-                        <div className="bg-slate-50/80 rounded-2xl border border-slate-200/80 p-4 flex items-center justify-between shadow-xs">
-                          <div className="space-y-1 min-w-0">
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                              KỲ BÁO CÁO THI ĐUA
+                      {/* 5. THANH CẢNH BÁO */}
+                      {showThuongStWarning && (
+                        <div className="flex items-center justify-between gap-2.5 px-3.5 py-2 bg-[#FFF7E8] border border-[#F5DFB0] rounded-[10px] text-[12px] font-bold text-[#A85B12]">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Bell size={15} className="shrink-0 text-[#D97706] fill-[#F59E0B]" />
+                            <span>
+                              Nếu Siêu Thị Nằm Top 10% Nhưng Không Có Thưởng Thì Là Do Nhóm Hàng Này Vùng Chưa Đạt Min Để Có Quỹ Thưởng.
                             </span>
-                            <div className="text-lg font-black text-slate-800 uppercase truncate" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
-                              DỰ KIẾN THƯỞNG LUỸ KẾ
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowThuongStWarning(false)}
+                            className="text-[#A85B12]/70 hover:text-[#A85B12] p-0.5 rounded cursor-pointer shrink-0"
+                            title="Ẩn thông báo"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* 6. THANH CÔNG CỤ BẢNG DỮ LIỆU */}
+                      <div className="bg-white border border-[#DCE6F0] rounded-[12px] p-2 flex flex-wrap items-center justify-between gap-2">
+                        {/* Left Filters */}
+                        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+                          {/* 1. Ô tìm kiếm nhóm hàng */}
+                          <div className="relative flex-1 min-w-[180px] sm:max-w-[240px]">
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#718198]" />
+                            <input
+                              type="text"
+                              value={thuongStSearchQuery}
+                              onChange={e => setThuongStSearchQuery(e.target.value)}
+                              placeholder="Tìm nhóm hàng..."
+                              className="w-full h-[38px] pl-8 pr-7 rounded-[9px] border border-[#DCE6F0] bg-[#F8FAFD] focus:bg-white focus:border-[#1769FF] outline-none text-[12.5px] font-medium text-[#172B4D] placeholder:text-[#718198]"
+                            />
+                            {thuongStSearchQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setThuongStSearchQuery('')}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#718198] hover:text-[#172B4D] cursor-pointer"
+                              >
+                                <X size={13} />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* 2. Bộ lọc tất cả nhóm hàng */}
+                          <select
+                            value={thuongStGroupFilter}
+                            onChange={e => setThuongStGroupFilter(e.target.value as any)}
+                            className="h-[38px] px-3 rounded-[9px] border border-[#DCE6F0] bg-white text-[12.5px] font-semibold text-[#172B4D] outline-none focus:border-[#1769FF] cursor-pointer"
+                          >
+                            <option value="ALL">Tất cả nhóm</option>
+                            <option value="yellow">Nhóm Điện thoại - Công nghệ</option>
+                            <option value="green">Nhóm Tài chính - Dịch vụ</option>
+                            <option value="blue">Nhóm Điện máy - Gia dụng</option>
+                          </select>
+
+                          {/* 3. Bộ lọc trạng thái */}
+                          <select
+                            value={bonusFilterTab}
+                            onChange={e => setBonusFilterTab(e.target.value as any)}
+                            className="h-[38px] px-3 rounded-[9px] border border-[#DCE6F0] bg-white text-[12.5px] font-semibold text-[#172B4D] outline-none focus:border-[#1769FF] cursor-pointer"
+                          >
+                            <option value="ALL">Tất cả trạng thái ({thuongStStats.all.length})</option>
+                            <option value="BONUS">Đạt thưởng ({thuongStStats.bonusRows.length})</option>
+                            <option value="NEAR">Đang tiến gần ({thuongStStats.nearRows.length})</option>
+                            <option value="NOT_YET">Chưa đạt ({thuongStStats.notYetRows.length})</option>
+                            <option value="EXCEEDED">Nhóm vượt trội ({thuongStStats.exceededRows.length})</option>
+                            {isComparing && (
+                              <option value="INCREASED">Tăng / Mới đạt ({thuongStStats.increasedRows.length})</option>
+                            )}
+                            {isComparing && (
+                              <option value="DECREASED">Giảm / Mất thưởng ({thuongStStats.decreasedRows.length})</option>
+                            )}
+                          </select>
+
+                          {/* 4. Bộ chọn cách hiển thị nhóm */}
+                          <select
+                            value={thuongStViewMode}
+                            onChange={e => setThuongStViewMode(e.target.value as any)}
+                            className="h-[38px] px-3 rounded-[9px] border border-[#DCE6F0] bg-white text-[12.5px] font-semibold text-[#172B4D] outline-none focus:border-[#1769FF] cursor-pointer"
+                          >
+                            <option value="GROUPED">Theo nhóm hiển thị</option>
+                            <option value="FLAT">Danh sách phẳng</option>
+                            <option value="SORT_HT_DESC">Sắp xếp: % Hoàn thành cao nhất</option>
+                            <option value="SORT_BONUS_DESC">Sắp xếp: Thưởng dự kiến cao nhất</option>
+                          </select>
+                        </div>
+
+                        {/* Right Action Buttons */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {/* 5. Nút SO SÁNH HÔM QUA */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isComparing) {
+                                setBonusFilterTab(prev => prev === 'INCREASED' ? 'ALL' : 'INCREASED');
+                              } else {
+                                thuongStUploadInputRef.current?.click();
+                              }
+                            }}
+                            className="h-[38px] px-3.5 rounded-[9px] border border-[#93C5FD] bg-[#F0F7FF] hover:bg-[#E0EFFE] text-[#1769FF] text-[12.5px] font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                          >
+                            <TrendingUp size={14} />
+                            <span>So sánh hôm qua</span>
+                          </button>
+
+                          {/* 6. Nút XUẤT EXCEL */}
+                          <button
+                            type="button"
+                            onClick={handleExportThuongStExcel}
+                            className="h-[38px] px-4 rounded-[9px] bg-gradient-to-r from-[#1769FF] to-[#0B57D0] hover:from-[#0B57D0] hover:to-[#0842A0] text-white text-[12.5px] font-bold flex items-center gap-1.5 cursor-pointer transition-all"
+                          >
+                            <Download size={14} />
+                            <span>Xuất Excel</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 7. CÁC THẺ THỐNG KÊ NHÓM HÀNG (6 Cards Row) */}
+                      <div className="thuong-st-summary-grid grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                        {/* Card 7.1: Tất cả */}
+                        <div
+                          onClick={() => setBonusFilterTab('ALL')}
+                          className={`rounded-[12px] p-3 border transition-all cursor-pointer flex items-center gap-3 min-h-[76px] ${
+                            bonusFilterTab === 'ALL'
+                              ? 'bg-gradient-to-br from-[#079B78] to-[#058264] border-[#067A5B] text-white'
+                              : 'bg-white border-[#DCE6F0] text-[#172B4D] hover:border-[#079B78]'
+                          }`}
+                        >
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                              bonusFilterTab === 'ALL' ? 'bg-white/20 text-white' : 'bg-[#E5F8F1] text-[#079B78]'
+                            }`}
+                          >
+                            <Award size={20} strokeWidth={2.3} />
+                          </div>
+                          <div className="min-w-0">
+                            <div className={`text-[11.5px] font-bold ${bonusFilterTab === 'ALL' ? 'text-white/90' : 'text-[#718198]'}`}>
+                              Tất cả
                             </div>
-                            <div className="text-xs font-medium text-slate-500 flex items-center gap-1.5 flex-wrap">
-                              {isComparing ? (
+                            <div className="text-[22px] font-black leading-none my-0.5 tabular-nums">
+                              {thuongStStats.all.length}
+                            </div>
+                            <div className={`text-[10.5px] font-semibold ${bonusFilterTab === 'ALL' ? 'text-white/85' : 'text-[#718198]'}`}>
+                              nhóm hàng
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Card 7.2: Đạt thưởng */}
+                        <div
+                          onClick={() => setBonusFilterTab(prev => prev === 'BONUS' ? 'ALL' : 'BONUS')}
+                          className={`rounded-[12px] p-3 border transition-all cursor-pointer flex items-center gap-3 min-h-[76px] ${
+                            bonusFilterTab === 'BONUS'
+                              ? 'bg-[#FFE4E9] border-[#F04464] ring-1 ring-[#F04464]'
+                              : 'bg-[#FFF4F6] border-[#FAD4DA] hover:bg-[#FFEAEF]'
+                          }`}
+                        >
+                          <div className="w-10 h-10 rounded-full bg-[#FFE0E6] text-[#E11D48] flex items-center justify-center shrink-0">
+                            <Trophy size={19} strokeWidth={2.3} />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-[11.5px] font-bold text-[#D93855]">
+                              Đạt thưởng
+                            </div>
+                            <div className="text-[22px] font-black text-[#D93855] leading-none my-0.5 tabular-nums">
+                              {thuongStStats.bonusRows.length}
+                            </div>
+                            <div className="text-[10.5px] font-semibold text-[#D93855]/85">
+                              nhóm hàng
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Card 7.3: Đang tiến gần */}
+                        <div
+                          onClick={() => setBonusFilterTab(prev => prev === 'NEAR' ? 'ALL' : 'NEAR')}
+                          className={`rounded-[12px] p-3 border transition-all cursor-pointer flex items-center gap-3 min-h-[76px] ${
+                            bonusFilterTab === 'NEAR'
+                              ? 'bg-[#DBEAFE] border-[#1769FF] ring-1 ring-[#1769FF]'
+                              : 'bg-[#EFF6FF] border-[#CFE0FF] hover:bg-[#E4F0FF]'
+                          }`}
+                        >
+                          <div className="w-10 h-10 rounded-full bg-[#DCEBFF] text-[#1769FF] flex items-center justify-center shrink-0">
+                            <Target size={20} strokeWidth={2.3} />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-[11.5px] font-bold text-[#1769FF]">
+                              Đang tiến gần
+                            </div>
+                            <div className="text-[22px] font-black text-[#1769FF] leading-none my-0.5 tabular-nums">
+                              {thuongStStats.nearRows.length}
+                            </div>
+                            <div className="text-[10.5px] font-semibold text-[#1769FF]/85">
+                              nhóm hàng
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Card 7.4: Chưa đạt */}
+                        <div
+                          onClick={() => setBonusFilterTab(prev => prev === 'NOT_YET' ? 'ALL' : 'NOT_YET')}
+                          className={`rounded-[12px] p-3 border transition-all cursor-pointer flex items-center gap-3 min-h-[76px] ${
+                            bonusFilterTab === 'NOT_YET'
+                              ? 'bg-[#E2E8F0] border-[#64748B] ring-1 ring-[#64748B]'
+                              : 'bg-[#F4F7FB] border-[#DCE6F0] hover:bg-[#EAF0F7]'
+                          }`}
+                        >
+                          <div className="w-10 h-10 rounded-full bg-[#E2E8F0] text-[#64748B] flex items-center justify-center shrink-0">
+                            <MoreHorizontal size={20} strokeWidth={2.5} />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-[11.5px] font-bold text-[#475569]">
+                              Chưa đạt
+                            </div>
+                            <div className="text-[22px] font-black text-[#172B4D] leading-none my-0.5 tabular-nums">
+                              {thuongStStats.notYetRows.length}
+                            </div>
+                            <div className="text-[10.5px] font-semibold text-[#64748B]">
+                              nhóm hàng
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Card 7.5: Hoàn thành TB */}
+                        <div className="rounded-[12px] p-3 bg-white border border-[#DCE6F0] flex flex-col justify-between min-h-[76px]">
+                          <div className="text-[11.5px] font-bold text-[#475569]">
+                            Hoàn thành TB
+                          </div>
+                          <div className="text-[21px] font-black text-[#079B78] leading-none my-1 tabular-nums">
+                            {thuongStStats.avgCompletion.toFixed(1)}%
+                          </div>
+                          <div className="w-full h-2.5 rounded-full bg-[#E5ECF4] overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${Math.min(100, Math.max(0, thuongStStats.avgCompletion))}%`,
+                                background: 'linear-gradient(90deg, #079B78 0%, #10B981 100%)'
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Card 7.6: Số nhóm vượt trội */}
+                        <div
+                          onClick={() => setBonusFilterTab(prev => prev === 'EXCEEDED' ? 'ALL' : 'EXCEEDED')}
+                          className={`rounded-[12px] p-3 border transition-all cursor-pointer flex items-center gap-3 min-h-[76px] ${
+                            bonusFilterTab === 'EXCEEDED'
+                              ? 'bg-[#E5F8F1] border-[#079B78] ring-1 ring-[#079B78]'
+                              : 'bg-white border-[#DCE6F0] hover:bg-[#F4FBF8]'
+                          }`}
+                        >
+                          <div className="w-10 h-10 rounded-[10px] bg-[#E5F8F1] border border-[#B5EBD6] text-[#079B78] flex items-center justify-center shrink-0">
+                            <TrendingUp size={20} strokeWidth={2.4} />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-[11px] font-bold text-[#475569] truncate">
+                              Số nhóm vượt trội
+                            </div>
+                            <div className="text-[22px] font-black text-[#079B78] leading-none my-0.5 tabular-nums">
+                              {thuongStStats.exceededRows.length}
+                            </div>
+                            <div className="text-[10.5px] font-semibold text-[#64748B]">
+                              nhóm hàng
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 8 & 9. BẢNG THƯỞNG CHI TIẾT & PHÂN NHÓM NGÀNH HÀNG */}
+                      <div className="bg-white rounded-[14px] border border-[#DCE6F0] overflow-hidden shadow-[0_2px_8px_rgba(11,46,89,0.03)]">
+                        <div className="overflow-x-auto w-full">
+                          <table className="w-full border-separate border-spacing-0 table-fixed min-w-[780px]">
+                            <colgroup>
+                              <col style={{ width: '50px' }} />
+                              <col style={{ width: 'auto' }} />
+                              <col style={{ width: isComparing ? '210px' : '185px' }} />
+                              <col style={{ width: '130px' }} />
+                              <col style={{ width: '140px' }} />
+                              <col style={{ width: isComparing ? '195px' : '155px' }} />
+                            </colgroup>
+                            <thead>
+                              <tr
+                                className="h-[46px] text-[#1E3A5F]"
+                                style={{
+                                  background: 'linear-gradient(180deg, #EEF4FB 0%, #E3ECF8 100%)'
+                                }}
+                              >
+                                <th className="px-2 py-1 text-[11.5px] font-extrabold uppercase text-center border-r border-b border-[#CFDCEB]">
+                                  STT
+                                </th>
+                                <th className="px-3.5 py-1 text-[11.5px] font-extrabold uppercase text-left border-r border-b border-[#CFDCEB]">
+                                  NHÓM HÀNG
+                                </th>
+                                <th className="px-2 py-1 text-[11.5px] font-extrabold uppercase text-center border-r border-b border-[#CFDCEB] leading-tight">
+                                  HOÀN THÀNH
+                                  <br />
+                                  <span className="text-[10px] font-semibold text-[#5A6E85]">(DỰ KIẾN)</span>
+                                </th>
+                                <th className="px-2 py-1 text-[11.5px] font-extrabold uppercase text-center border-r border-b border-[#CFDCEB] leading-tight">
+                                  HẠNG H.TARGET
+                                  <br />
+                                  <span className="text-[10px] font-semibold text-[#5A6E85]">(THEO KÊNH)</span>
+                                </th>
+                                <th className="px-2 py-1 text-[11.5px] font-extrabold uppercase text-center border-r border-b border-[#CFDCEB] leading-tight">
+                                  HẠNG VƯỢT TRỘI
+                                  <br />
+                                  <span className="text-[10px] font-semibold text-[#5A6E85]">(DT/SL THEO KÊNH)</span>
+                                </th>
+                                <th className="px-3.5 py-1 text-[11.5px] font-extrabold uppercase text-right border-b border-[#CFDCEB]">
+                                  THƯỞNG DỰ KIẾN
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {thuongStViewMode === 'GROUPED' ? (
                                 <>
-                                  <span className="px-1.5 py-0.5 rounded-md bg-slate-200 text-slate-700 text-[10.5px] font-bold truncate max-w-[130px]" title={selectedStoreExcelData.oldFileName}>
-                                    📅 Cũ: {selectedStoreExcelData.oldFileName}
-                                  </span>
-                                  <span>➔</span>
-                                  <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10.5px] font-bold truncate max-w-[130px]" title={selectedStoreExcelData.fileName}>
-                                    ⚡ Mới: {selectedStoreExcelData.fileName}
-                                  </span>
+                                  {/* Nhóm 1: ĐIỆN THOẠI - CÔNG NGHỆ */}
+                                  {renderThuongStGroupHeader('yellow', filteredThuongStRows.yellow, filteredThuongStRows.yellowAvg)}
+                                  {!collapsedThuongStGroups.yellow &&
+                                    filteredThuongStRows.yellow.map((row, idx) => renderThuongStRow(row, idx, 'yellow'))}
+
+                                  {/* Nhóm 2: TÀI CHÍNH - DỊCH VỤ */}
+                                  {renderThuongStGroupHeader('green', filteredThuongStRows.green, filteredThuongStRows.greenAvg)}
+                                  {!collapsedThuongStGroups.green &&
+                                    filteredThuongStRows.green.map((row, idx) => renderThuongStRow(row, idx, 'green'))}
+
+                                  {/* Nhóm 3: ĐIỆN MÁY - GIA DỤNG */}
+                                  {renderThuongStGroupHeader('blue', filteredThuongStRows.blue, filteredThuongStRows.blueAvg)}
+                                  {!collapsedThuongStGroups.blue &&
+                                    filteredThuongStRows.blue.map((row, idx) => renderThuongStRow(row, idx, 'blue'))}
                                 </>
                               ) : (
-                                <span>Áp dụng theo quy chế thi đua tháng hiện tại</span>
+                                filteredThuongStRows.all.map((row: any, idx: number) =>
+                                  renderThuongStRow(row, idx, getCategoryGroup(row.categoryName), idx + 1)
+                                )
                               )}
-                            </div>
-                          </div>
-                          <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 shadow-xs ml-2">
-                            <Trophy size={24} />
-                          </div>
+
+                              {/* Empty placeholder */}
+                              {filteredThuongStRows.all.length === 0 && (
+                                <tr>
+                                  <td colSpan={6} className="px-4 py-12 text-center text-[#718198] font-bold text-sm">
+                                    Không tìm thấy nhóm hàng nào phù hợp với bộ lọc hiện tại.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
                         </div>
-
-                        {/* Card 2: Grand Total Bonus & Difference Badge */}
-                        <div className="bg-gradient-to-br from-emerald-50 via-teal-50/60 to-white rounded-2xl border border-emerald-200 p-4 flex items-center justify-between shadow-xs">
-                          <div className="space-y-1 min-w-0">
-                            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
-                              TỔNG THƯỞNG DỰ KIẾN
-                            </span>
-                            <div className="flex items-baseline gap-2 flex-wrap">
-                              <div className="text-2xl sm:text-3xl font-black text-emerald-700" style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700 }}>
-                                {thuongStStats.totalBonusCurrent.toLocaleString('vi-VN')} ₫
-                              </div>
-                              {isComparing && (
-                                <span className={`text-xs font-black flex items-center gap-1 shrink-0 ${
-                                  thuongStStats.totalBonusDiff < 0 
-                                    ? 'text-rose-600' 
-                                    : (thuongStStats.totalBonusDiff > 0 ? 'text-emerald-700' : 'text-slate-500')
-                                }`}>
-                                  {thuongStStats.totalBonusDiff < 0 ? (
-                                    <>▼ Giảm -{Math.abs(thuongStStats.totalBonusDiff).toLocaleString('vi-VN')} ₫</>
-                                  ) : (
-                                    thuongStStats.totalBonusDiff > 0 ? (
-                                      <>▲ Tăng +{thuongStStats.totalBonusDiff.toLocaleString('vi-VN')} ₫</>
-                                    ) : (
-                                      <>⚖️ Không đổi</>
-                                    )
-                                  )}
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-xs font-bold text-emerald-600 truncate">
-                              ✨ Đạt thưởng: {thuongStStats.bonusRows.length}/{thuongStStats.all.length} nhóm hàng
-                              {isComparing && (
-                                <span className="text-slate-500 font-medium ml-1">
-                                  (Hôm qua: {thuongStStats.all.filter((r: any) => r.bonusOld > 0).length})
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center text-white shrink-0 shadow-md shadow-emerald-500/20 ml-2">
-                            <Award size={24} />
-                          </div>
-                        </div>
-
-                        {/* Card 3: Biến động chi tiết theo ngành (chỉ hiện khi có 2 file) */}
-                        {isComparing && (
-                          <div className="thuong-st-card-3 bg-white rounded-2xl border border-slate-200 p-3.5 flex flex-col justify-between shadow-xs col-span-1 sm:col-span-2 min-h-[110px]">
-                            <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
-                              <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">
-                                BIẾN ĐỘNG SO VỚI HÔM QUA
-                              </span>
-                              <span className="text-[10px] font-bold text-indigo-600 shrink-0 whitespace-nowrap">
-                                {thuongStStats.all.length} nhóm ngành
-                              </span>
-                            </div>
-
-                            <div className="thuong-st-diff-grid grid grid-cols-2 gap-2 mt-2 grow">
-                              {/* Red block: Giảm thưởng */}
-                              <div 
-                                onClick={() => setBonusFilterTab('DECREASED')}
-                                className={`p-2.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between min-h-[64px] ${
-                                  bonusFilterTab === 'DECREASED' 
-                                    ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-400' 
-                                    : 'bg-rose-50/50 border-rose-200/80 hover:bg-rose-50'
-                                }`}
-                              >
-                                <div className="flex items-center justify-between gap-1 leading-none">
-                                  <span className="text-[11px] font-black text-rose-700 uppercase whitespace-nowrap shrink-0">
-                                    🔴 GIẢM/MẤT
-                                  </span>
-                                  <span className="px-1.5 py-0.5 rounded-md bg-rose-200/90 text-rose-800 text-[10px] font-black shrink-0 whitespace-nowrap">
-                                    {thuongStStats.decreasedRows.length} ngành
-                                  </span>
-                                </div>
-                                <div className="text-[13px] font-black text-rose-600 mt-1.5 whitespace-nowrap leading-tight tracking-tight" style={{ fontFamily: "'UTM Avo', 'Oswald', sans-serif" }}>
-                                  -{thuongStStats.totalDecreasedAmount.toLocaleString('vi-VN')} ₫
-                                </div>
-                              </div>
-
-                              {/* Green block: Tăng thưởng */}
-                              <div 
-                                onClick={() => setBonusFilterTab('INCREASED')}
-                                className={`p-2.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between min-h-[64px] ${
-                                  bonusFilterTab === 'INCREASED' 
-                                    ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-400' 
-                                    : 'bg-emerald-50/50 border-emerald-200/80 hover:bg-emerald-50'
-                                }`}
-                              >
-                                <div className="flex items-center justify-between gap-1 leading-none">
-                                  <span className="text-[11px] font-black text-emerald-700 uppercase whitespace-nowrap shrink-0">
-                                    🟢 TĂNG/MỚI
-                                  </span>
-                                  <span className="px-1.5 py-0.5 rounded-md bg-emerald-200/90 text-emerald-800 text-[10px] font-black shrink-0 whitespace-nowrap">
-                                    {thuongStStats.increasedRows.length} ngành
-                                  </span>
-                                </div>
-                                <div className="text-[13px] font-black text-emerald-600 mt-1.5 whitespace-nowrap leading-tight tracking-tight" style={{ fontFamily: "'UTM Avo', 'Oswald', sans-serif" }}>
-                                  +{thuongStStats.totalIncreasedAmount.toLocaleString('vi-VN')} ₫
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Note Pill */}
-                      <div className="flex items-center gap-2.5 px-4 py-2.5 bg-amber-50/70 border border-amber-200/80 rounded-xl text-xs font-bold text-amber-900">
-                        <AlertCircle size={15} className="shrink-0 text-amber-600" />
-                        <span>Nếu Siêu Thị Nằm Top 10% Nhưng Không Có Thưởng Thì Là Do Nhóm Hàng Này Vùng Chưa Đạt Min Để Có Quỹ Thưởng.</span>
-                      </div>
-
-                      {/* Modern Capsule Table */}
-                      <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
-                        <table className="w-full border-separate border-spacing-0 table-fixed" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
-                          <colgroup>
-                            <col style={{ width: '44px' }} />
-                            <col style={{ width: 'auto' }} />
-                            <col style={{ width: isComparing ? '120px' : '115px' }} />
-                            <col style={{ width: isComparing ? '125px' : '125px' }} />
-                            <col style={{ width: isComparing ? '125px' : '125px' }} />
-                            <col style={{ width: isComparing ? '170px' : '135px' }} />
-                          </colgroup>
-                          <thead>
-                            <tr className="text-white h-[46px]">
-                              <th className="px-1 py-0 text-[13px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">STT</th>
-                              <th className="px-3 py-0 text-[13px] font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669]">NHÓM HÀNG</th>
-                              <th className="px-1 py-0 text-[12px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">HOÀN THÀNH<br/><span className="text-[10px] font-bold opacity-90">(DỰ KIẾN)</span></th>
-                              <th className="px-1 py-0 text-[12px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">HẠNG H.T TARGET<br/><span className="text-[10px] font-bold opacity-90">(THEO KÊNH)</span></th>
-                              <th className="px-1 py-0 text-[12px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#059669]">HẠNG VƯỢT TRỘI<br/><span className="text-[10px] font-bold opacity-90">(DT/SL THEO KÊNH)</span></th>
-                              <th className="px-1 py-0 text-[12px] font-black uppercase text-center border-b border-emerald-600 bg-[#047857]">THƯỞNG DỰ KIẾN</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {/* Render Group 1: Yellow */}
-                            {filteredThuongStRows.yellow.map((row, idx) => renderThuongStRow(row, idx, 'yellow'))}
-                            
-                            {/* Separator / Gap between Yellow and Green groups */}
-                            {filteredThuongStRows.yellow.length > 0 && filteredThuongStRows.green.length > 0 && (
-                              <tr className="h-1.5 bg-emerald-100/50">
-                                <td colSpan={6} className="p-0 border-b border-emerald-200 bg-emerald-100/40"></td>
-                              </tr>
-                            )}
-                            
-                            {/* Render Group 2: Green */}
-                            {filteredThuongStRows.green.map((row, idx) => renderThuongStRow(row, idx, 'green'))}
-                            
-                            {/* Separator between Green and Blue groups */}
-                            {filteredThuongStRows.green.length > 0 && filteredThuongStRows.blue.length > 0 && (
-                              <tr className="h-1.5 bg-emerald-100/50">
-                                <td colSpan={6} className="p-0 border-b border-emerald-200 bg-emerald-100/40"></td>
-                              </tr>
-                            )}
-                            
-                            {/* Render Group 3: Blue */}
-                            {filteredThuongStRows.blue.map((row, idx) => renderThuongStRow(row, idx, 'blue'))}
-                            
-                            {/* Empty placeholder */}
-                            {filteredThuongStRows.all.length === 0 && (
-                              <tr>
-                                <td colSpan={6} className="px-4 py-12 text-center text-slate-400 font-bold text-sm border-b border-emerald-100">
-                                  Không có dữ liệu hiển thị cho nhóm hàng này.
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
                       </div>
                     </div>
                   </div>
@@ -4425,4 +5359,4 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
   );
 };
 
-export default LuyKe;
+export default React.memo(LuyKe);

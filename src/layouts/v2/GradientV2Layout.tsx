@@ -37,6 +37,7 @@ interface GradientV2LayoutProps {
   setShowSettings: (show: boolean) => void;
   setShowDeclarationForce: (show: boolean) => void;
   logout: () => void;
+  setShowSubscriptionForce?: (show: boolean) => void;
   supabaseError?: string | null;
   isDirectRealtimeMode?: boolean;
   pageHiddenState?: Record<string, boolean>;
@@ -194,16 +195,19 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
                 animate={{ x: 0 }}
                 exit={{ x: '-100%' }}
                 transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-                className="md:hidden fixed top-0 left-0 bottom-0 z-[101] w-[85vw] max-w-[340px] flex flex-col shadow-2xl border-r border-[#E8ECF4] bg-[#FAFBFF]"
+                className="md:hidden fixed top-0 left-0 bottom-0 z-[101] w-[85vw] max-w-[340px] flex flex-col shadow-2xl border-r border-slate-700/40"
+                style={{
+                  background: 'linear-gradient(180deg, #071936 0%, #0B2247 50%, #051126 100%)',
+                }}
               >
                 {/* Drawer header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-[#E8ECF4] bg-white">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between px-[16px] py-[14px] border-b border-slate-700/40 bg-[#071936]/95">
+                  <div className="flex items-center gap-[10px]">
                     <div
-                      className="w-10 h-10 rounded-[12px] flex items-center justify-center shrink-0"
+                      className="w-[38px] h-[38px] rounded-[12px] flex items-center justify-center shrink-0"
                       style={{
-                        background: 'linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)',
-                        boxShadow: '0 2px 8px rgba(79,70,229,0.25)',
+                        background: 'linear-gradient(135deg, #1D7AFC 0%, #0EA5E9 100%)',
+                        boxShadow: '0 4px 12px rgba(29,122,252,0.35)',
                       }}
                     >
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -211,23 +215,23 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
                       </svg>
                     </div>
                     <div>
-                      <div className="text-[16px] font-extrabold text-[#172033] tracking-tight">CRM Siêu Thị</div>
-                      <div className="text-[12px] text-[#94A3B8] font-medium">Menu chức năng</div>
+                      <div className="text-[16px] font-extrabold text-white tracking-tight uppercase">CRM Siêu Thị</div>
+                      <div className="text-[12px] text-[#94A3B8] font-medium">Quản trị hiệu suất</div>
                     </div>
                   </div>
                   <button
                     onClick={() => setMobileDrawerOpen(false)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                    className="w-[32px] h-[32px] rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
                   >
                     <X size={18} />
                   </button>
                 </div>
 
                 {/* Content wrapper */}
-                <div className="flex-1 flex flex-col min-h-0 bg-[#FAFBFF]">
+                <div className="flex-1 flex flex-col min-h-0">
                   {/* Drag handle indicator */}
                   <div className="flex justify-center py-1.5 md:hidden">
-                    <div className="w-8 h-1 rounded-full" style={{ backgroundColor: '#E8ECF4' }} />
+                    <div className="w-8 h-1 rounded-full bg-slate-700/60" />
                   </div>
                   {/* Reuse sidebar nav inline for mobile */}
                   <MobileSidebarContent
@@ -281,15 +285,21 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
         )}
 
         {/* Page Content */}
-        <main className="flex-1 relative z-10 w-full py-1.5 sm:py-2 pb-[96px] md:pb-6 px-1 sm:px-1.5 md:px-2">
-          <div className="w-full min-w-0">
+        <main
+          className="flex-1 relative z-10 w-full max-w-full min-w-0 overflow-x-hidden py-1 sm:py-2 pb-[96px] md:pb-6 px-[3px] sm:px-1.5 md:px-2 box-border"
+          style={{ paddingBottom: isDesktop ? undefined : 'calc(96px + env(safe-area-inset-bottom, 8px))' }}
+        >
+          <div className="w-full max-w-full min-w-0 box-border">
             {children}
           </div>
         </main>
 
         {/* Footer (Ẩn khi mở từ link chia sẻ) */}
         {!isShareOrGuest && (
-          <footer className="relative z-10 w-full border-t border-[#BAE6FD]/70 bg-white/90 backdrop-blur-md px-2 sm:px-3 md:px-[15px] py-4 sm:py-5 pb-[96px] md:pb-5 print:hidden">
+          <footer
+            className="relative z-10 w-full border-t border-[#BAE6FD]/70 bg-white/90 backdrop-blur-md px-2 sm:px-3 md:px-[15px] py-4 sm:py-5 pb-[96px] md:pb-5 print:hidden"
+            style={{ paddingBottom: isDesktop ? undefined : 'calc(96px + env(safe-area-inset-bottom, 8px))' }}
+          >
             <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
                 <span className="bg-gradient-to-r from-[#0284C7] to-[#0EA5E9] bg-clip-text text-transparent font-black">CRM SIÊU THỊ</span>
@@ -309,10 +319,14 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
       {/* ── Mobile Bottom Floating Navigation (Ẩn khi mở từ link chia sẻ) ── */}
       {!isShareOrGuest && navItems.length > 0 && (
         <nav
-          className="md:hidden fixed bottom-4 left-3 right-3 bg-white/95 backdrop-blur-md border border-slate-200/90 z-40 px-2 py-2 rounded-3xl shadow-xl ring-1 ring-slate-900/5 print:hidden"
-          style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+          className="md:hidden fixed left-[8px] right-[8px] bg-white/95 backdrop-blur-md border border-slate-200/90 z-40 px-[6px] py-[4px] rounded-[20px] shadow-xl ring-1 ring-slate-900/5 print:hidden"
+          style={{
+            bottom: 'max(6px, env(safe-area-inset-bottom, 6px))',
+            willChange: 'transform',
+            transform: 'translateZ(0)',
+          }}
         >
-        <div className="flex items-center justify-around relative overflow-x-auto no-scrollbar py-1">
+        <div className="flex items-center justify-around relative overflow-x-auto no-scrollbar py-[2px]">
           {navItems.map((item) => {
             const isActive = currentPage === item.id;
             const Icon = item.icon;
@@ -321,20 +335,20 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
               <button
                 key={item.id}
                 onClick={() => setCurrentPage(item.id)}
-                className={`relative flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all duration-300 shrink-0 cursor-pointer ${
+                className={`relative flex flex-col items-center justify-center py-[3px] px-[8px] rounded-[14px] transition-all duration-300 shrink-0 cursor-pointer ${
                   isActive
                     ? 'text-[#6366F1]'
                     : 'text-slate-400 hover:text-slate-600'
                 }`}
               >
-                <div className={`p-1.5 rounded-xl transition-all ${
+                <div className={`p-[5px] rounded-[10px] transition-all ${
                   isActive
                     ? 'bg-gradient-to-r from-[#6366F1] to-[#7C3AED] text-white shadow-md shadow-indigo-500/30'
                     : ''
                 }`}>
-                  <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
+                  <Icon size={16} strokeWidth={isActive ? 2.5 : 2} />
                 </div>
-                <span className={`text-[10px] font-black mt-1 uppercase tracking-tight ${
+                <span className={`text-[9.5px] font-black mt-[2px] leading-tight uppercase tracking-tight whitespace-nowrap ${
                   isActive ? 'text-[#6366F1]' : 'text-slate-400'
                 }`}>
                   {item.label}
@@ -406,16 +420,16 @@ const MobileSidebarContent: React.FC<{
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto py-2 px-2.5 space-y-3 pb-24 sidebar-custom-scroll">
+      <div className="flex-1 overflow-y-auto py-[10px] px-[10px] space-y-[12px] pb-[80px] sidebar-custom-scroll">
         {sections.map(section => (
           <div key={section.title}>
             <div
-              className="px-3 pb-[4px] text-[10.5px] font-semibold uppercase tracking-[0.08em]"
-              style={{ color: '#A3B1C6' }}
+              className="px-[10px] pb-[5px] text-[10.5px] font-bold uppercase tracking-[0.08em]"
+              style={{ color: '#64748B' }}
             >
               {section.title}
             </div>
-            <div className="space-y-[2px]">
+            <div className="space-y-[4px]">
               {section.items.map((item: any) => {
                 const isActive = currentPage === item.id;
                 const Icon = item.icon;
@@ -425,16 +439,15 @@ const MobileSidebarContent: React.FC<{
                   <button
                     key={item.id}
                     onClick={() => setCurrentPage(item.id)}
-                    className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-[14px] transition-all cursor-pointer"
+                    className="w-full flex items-center gap-[10px] px-[12px] py-[9px] rounded-[12px] transition-all cursor-pointer"
                     style={{
-                      backgroundColor: isActive ? '#F0F9FF' : 'transparent',
-                      borderLeft: isActive ? '3.5px solid #38BDF8' : '3px solid transparent',
-                      boxShadow: isActive ? '0 1px 6px rgba(56,189,248,0.18)' : 'none',
+                      background: isActive ? 'linear-gradient(90deg, #1D7AFC 0%, #0EA5E9 100%)' : 'transparent',
+                      boxShadow: isActive ? '0 4px 12px rgba(29, 122, 252, 0.35)' : 'none',
                     }}
                   >
                     <div
                       className="shrink-0 flex items-center justify-center"
-                      style={{ color: isActive ? '#0284C7' : '#8190AA' }}
+                      style={{ color: isActive ? '#FFFFFF' : '#94A3B8' }}
                     >
                       <Icon size={21} strokeWidth={isActive ? 2.3 : 1.7} />
                     </div>
@@ -442,7 +455,7 @@ const MobileSidebarContent: React.FC<{
                       <div className="flex items-center gap-1.5">
                         <span
                           className="text-[15px] font-extrabold leading-tight truncate"
-                          style={{ color: isActive ? '#0369A1' : '#172033' }}
+                          style={{ color: isActive ? '#FFFFFF' : '#F1F5F9' }}
                         >
                           {item.label}
                         </span>
@@ -454,7 +467,7 @@ const MobileSidebarContent: React.FC<{
                       </div>
                       <div
                         className="text-[12px] font-medium leading-tight mt-[1px] truncate"
-                        style={{ color: isActive ? '#0EA5E9' : '#8190AA' }}
+                        style={{ color: isActive ? '#E0F2FE' : '#94A3B8' }}
                       >
                         {meta.subtitle}
                       </div>
@@ -463,8 +476,8 @@ const MobileSidebarContent: React.FC<{
                       <span
                         className="shrink-0 text-[10px] font-extrabold uppercase tracking-[0.06em] px-[7px] py-[2px] rounded-[5px] leading-[15px]"
                         style={{
-                          backgroundColor: meta.badgeType === 'hot' ? '#EFF6FF' : '#E0F2FE',
-                          color: meta.badgeType === 'hot' ? '#2563EB' : '#0284C7',
+                          backgroundColor: meta.badgeType === 'hot' ? 'rgba(56,189,248,0.2)' : 'rgba(16,185,129,0.2)',
+                          color: meta.badgeType === 'hot' ? '#38BDF8' : '#34D399',
                         }}
                       >
                         {meta.badge}

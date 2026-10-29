@@ -14,7 +14,9 @@ import {
   onSnapshot,
   writeBatch,
   serverTimestamp,
-  documentId
+  documentId,
+  DocumentReference,
+  SetOptions
 } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 
@@ -26,6 +28,239 @@ const safeDocId = (id: any): string => {
   return String(id ?? '').trim().replace(/\//g, '-');
 };
 
+// ============================================================================
+// FIRESTORE QUOTA PROTECTION, TELEMETRY & IN-MEMORY DEDUPLICATION LAYER
+// ============================================================================
+
+export interface FirestoreStats {
+  reads: number;
+  writes: number;
+  deletes: number;
+  skippedDuplicateWrites: number;
+  deduplicatedQueries: number;
+  quotaErrors: number;
+  activeListeners: number;
+  quotaCircuitOpenUntil: number;
+}
+
+export const firestoreStats: FirestoreStats = {
+  reads: 0,
+  writes: 0,
+  deletes: 0,
+  skippedDuplicateWrites: 0,
+  deduplicatedQueries: 0,
+  quotaErrors: 0,
+  activeListeners: 0,
+  quotaCircuitOpenUntil: 0,
+};
+
+if (typeof window !== 'undefined') {
+  (window as any).__CRM_FIRESTORE_STATS__ = firestoreStats;
+}
+
+const VOLATILE_TIMESTAMP_KEYS = new Set([
+  'updated_at',
+  'updatedAt',
+  'created_at',
+  'createdAt',
+  'lastUpdated',
+  'last_updated',
+]);
+
+// Cache of known document fields in Firestore: key = `${collection}/${safeDocId}`
+const docFieldCache = new Map<string, Record<string, any>>();
+
+// Cache of warehouse ma_kho -> { id, ten_kho } to avoid getDocs + setDoc on every page load
+const warehouseByMaKhoCache = new Map<string, { id: string; ten_kho: string }>();
+
+// Query cache & in-flight deduplication: key = `${tableName}::${querySignature}`
+// Automatically invalidated on any local write or remote onSnapshot update
+const QUERY_CACHE_TTL_MS = 60000;
+const queryResultCache = new Map<string, { data: any[]; timestamp: number }>();
+const inFlightQueries = new Map<string, Promise<any[]>>();
+
+export function invalidateTableQueryCache(tableName: string) {
+  const prefix = `${tableName}::`;
+  for (const key of Array.from(queryResultCache.keys())) {
+    if (key.startsWith(prefix)) queryResultCache.delete(key);
+  }
+}
+
+function stableStringify(val: any): string {
+  if (val === undefined) return '__undefined__';
+  if (val === null || typeof val !== 'object') return JSON.stringify(val);
+  if (Array.isArray(val)) {
+    return '[' + val.map(stableStringify).join(',') + ']';
+  }
+  // Ignore Firestore FieldValue sentinels (e.g. serverTimestamp())
+  if (val._methodName || typeof val.isEqual === 'function') {
+    return '__firestore_sentinel__';
+  }
+  const keys = Object.keys(val).sort();
+  return '{' + keys.map(k => `${JSON.stringify(k)}:${stableStringify(val[k])}`).join(',') + '}';
+}
+
+export function seedDocCache(collectionName: string, docId: string, data: Record<string, any> | null | undefined) {
+  if (!docId || !data || typeof data !== 'object') return;
+  const key = `${collectionName}/${safeDocId(docId)}`;
+  const existing = docFieldCache.get(key) || {};
+  const merged = { ...existing, ...data, id: safeDocId(docId) };
+  docFieldCache.set(key, merged);
+
+  if (collectionName === 'warehouses' && data.ma_kho !== undefined) {
+    const mk = String(data.ma_kho).trim();
+    if (mk) {
+      warehouseByMaKhoCache.set(mk, {
+        id: safeDocId(docId),
+        ten_kho: String(data.ten_kho || ''),
+      });
+    }
+  }
+}
+
+/**
+ * Checks whether all meaningful (non-timestamp) fields in `incomingPatch`
+ * already match the cached document in `docFieldCache`.
+ */
+export function isDocPayloadUnchanged(
+  collectionName: string,
+  docId: string,
+  incomingPatch: Record<string, any>
+): boolean {
+  if (!docId || !incomingPatch || typeof incomingPatch !== 'object') return false;
+  const key = `${collectionName}/${safeDocId(docId)}`;
+  const cached = docFieldCache.get(key);
+  if (!cached) return false;
+
+  const keysToCompare = Object.keys(incomingPatch).filter(
+    k => !VOLATILE_TIMESTAMP_KEYS.has(k) && k !== 'id'
+  );
+  // If payload only had timestamp/id keys, treat as unchanged if doc already exists
+  if (keysToCompare.length === 0) return true;
+
+  for (const k of keysToCompare) {
+    const incomingVal = incomingPatch[k];
+    if (incomingVal && typeof incomingVal === 'object' && incomingVal._methodName) {
+      continue;
+    }
+    // Support dotted field paths in updateDoc (e.g., 'khaiThacSettings.ceBrandOrder')
+    let cachedVal = cached[k];
+    if (cachedVal === undefined && k.includes('.')) {
+      const parts = k.split('.');
+      let cur: any = cached;
+      for (const p of parts) {
+        cur = cur ? cur[p] : undefined;
+      }
+      cachedVal = cur;
+    }
+    if (stableStringify(incomingVal) !== stableStringify(cachedVal)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function isQuotaExhaustedError(err: any): boolean {
+  if (!err) return false;
+  const code = String(err.code || '').toLowerCase();
+  const msg = String(err.message || '').toLowerCase();
+  return (
+    code.includes('resource-exhausted') ||
+    msg.includes('resource-exhausted') ||
+    msg.includes('quota exceeded') ||
+    msg.includes('exceeded your quota')
+  );
+}
+
+function handleWriteError(err: any, context: string) {
+  if (isQuotaExhaustedError(err)) {
+    firestoreStats.quotaErrors++;
+    // Trip circuit breaker for 60 seconds to prevent retry storms
+    firestoreStats.quotaCircuitOpenUntil = Date.now() + 60_000;
+    console.warn(`[FirestoreQuotaGuard] Quota exhausted during ${context}. Pausing non-critical writes for 60s.`);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('crm-firestore-quota-warning', { detail: { context } }));
+    }
+  }
+}
+
+export function isWriteCircuitOpen(): boolean {
+  return Date.now() < firestoreStats.quotaCircuitOpenUntil;
+}
+
+/**
+ * Deduplicated wrapper around Firestore `setDoc`.
+ * Skips the network write if all non-timestamp fields match `docFieldCache`.
+ */
+export async function safeSetDoc(
+  docRef: DocumentReference,
+  data: Record<string, any>,
+  options?: SetOptions
+): Promise<boolean> {
+  const pathParts = docRef.path.split('/');
+  const collectionName = pathParts[0] || '';
+  const docId = pathParts[1] || docRef.id;
+
+  if (isDocPayloadUnchanged(collectionName, docId, data)) {
+    firestoreStats.skippedDuplicateWrites++;
+    return false;
+  }
+
+  if (isWriteCircuitOpen()) {
+    firestoreStats.skippedDuplicateWrites++;
+    return false;
+  }
+
+  try {
+    firestoreStats.writes++;
+    if (options) {
+      await setDoc(docRef, data, options);
+    } else {
+      await setDoc(docRef, data);
+    }
+    seedDocCache(collectionName, docId, data);
+    invalidateTableQueryCache(collectionName);
+    return true;
+  } catch (err) {
+    handleWriteError(err, `safeSetDoc(${docRef.path})`);
+    throw err;
+  }
+}
+
+/**
+ * Deduplicated wrapper around Firestore `updateDoc`.
+ */
+export async function safeUpdateDoc(
+  docRef: DocumentReference,
+  data: Record<string, any>
+): Promise<boolean> {
+  const pathParts = docRef.path.split('/');
+  const collectionName = pathParts[0] || '';
+  const docId = pathParts[1] || docRef.id;
+
+  if (isDocPayloadUnchanged(collectionName, docId, data)) {
+    firestoreStats.skippedDuplicateWrites++;
+    return false;
+  }
+
+  if (isWriteCircuitOpen()) {
+    firestoreStats.skippedDuplicateWrites++;
+    return false;
+  }
+
+  try {
+    firestoreStats.writes++;
+    await updateDoc(docRef, data);
+    seedDocCache(collectionName, docId, data);
+    invalidateTableQueryCache(collectionName);
+    return true;
+  } catch (err) {
+    handleWriteError(err, `safeUpdateDoc(${docRef.path})`);
+    throw err;
+  }
+}
+
+
 /**
  * A lightweight adapter that mimics the Supabase fluent API
  * to minimize refactoring effort during migration.
@@ -33,6 +268,7 @@ const safeDocId = (id: any): string => {
 class FirebaseQueryBuilder {
   private tableName: string;
   private constraints: any[] = [];
+  private sigParts: string[] = [];
   private idValue?: string;
   private orderColumn?: string;
   private orderDirection: 'asc' | 'desc' = 'asc';
@@ -42,11 +278,23 @@ class FirebaseQueryBuilder {
     this.tableName = tableName;
   }
 
+  private getQuerySignature(): string {
+    return [
+      this.idValue !== undefined ? `id=${safeDocId(this.idValue)}` : '',
+      ...this.sigParts,
+      this.orderColumn ? `ord=${this.orderColumn}:${this.orderDirection}` : '',
+      this.limitCount ? `lim=${this.limitCount}` : '',
+    ]
+      .filter(Boolean)
+      .join('&');
+  }
+
   select(columns: string = '*') {
     return this;
   }
 
   eq(column: string, value: any) {
+    this.sigParts.push(`eq:${column}:${String(value)}`);
     if (column === 'id') {
       this.idValue = value;
     } else {
@@ -67,6 +315,7 @@ class FirebaseQueryBuilder {
   }
 
   ilike(column: string, value: string) {
+    this.sigParts.push(`ilike:${column}:${String(value)}`);
     this.constraints.push(where(column, '==', value));
     return this;
   }
@@ -83,6 +332,7 @@ class FirebaseQueryBuilder {
       }
     });
     const unique = [...new Set(expanded)];
+    this.sigParts.push(`in:${column}:${unique.map(String).sort().join(',')}`);
     if (column === 'id') {
       this.constraints.push(where(documentId(), 'in', unique.map(safeDocId).slice(0, 30)));
     } else {
@@ -93,6 +343,7 @@ class FirebaseQueryBuilder {
 
   // Basic .or support for the pattern: column.eq.val1,column.eq.val2...
   or(orString: string) {
+    this.sigParts.push(`or:${orString}`);
     try {
       const parts = orString.split(',');
       const column = parts[0].split('.')[0];
@@ -127,49 +378,88 @@ class FirebaseQueryBuilder {
     return this;
   }
 
-  async single() {
-    if (this.idValue) {
+  private async executeSelectDocs(): Promise<any[]> {
+    const cacheKey = `${this.tableName}::${this.getQuerySignature()}`;
+    const now = Date.now();
+
+    const cached = queryResultCache.get(cacheKey);
+    if (cached && now - cached.timestamp < QUERY_CACHE_TTL_MS) {
+      firestoreStats.deduplicatedQueries++;
+      return cached.data;
+    }
+
+    const inFlight = inFlightQueries.get(cacheKey);
+    if (inFlight) {
+      firestoreStats.deduplicatedQueries++;
+      return inFlight;
+    }
+
+    const fetchPromise = (async () => {
       try {
-        const docRef = doc(db, this.tableName, safeDocId(this.idValue));
-        const docSnap = await getDoc(docRef);
-        if (!docSnap.exists()) {
-          return { data: null, error: { code: 'PGRST116', message: 'Not found' } };
+        if (this.idValue) {
+          const sId = safeDocId(this.idValue);
+          const docRef = doc(db, this.tableName, sId);
+          const docSnap = await getDoc(docRef);
+          firestoreStats.reads += 1;
+          if (!docSnap.exists()) {
+            queryResultCache.set(cacheKey, { data: [], timestamp: Date.now() });
+            return [];
+          }
+          const item = { id: docSnap.id, ...docSnap.data() };
+          seedDocCache(this.tableName, docSnap.id, item);
+          const arr = [item];
+          queryResultCache.set(cacheKey, { data: arr, timestamp: Date.now() });
+          return arr;
+        } else {
+          const q = this.buildQuery();
+          const querySnapshot = await getDocs(q);
+          firestoreStats.reads += Math.max(1, querySnapshot.docs.length);
+          const data = querySnapshot.docs.map(d => {
+            const item = { id: d.id, ...d.data() };
+            seedDocCache(this.tableName, d.id, item);
+            return item;
+          });
+          queryResultCache.set(cacheKey, { data, timestamp: Date.now() });
+          return data;
         }
-        return { data: { id: docSnap.id, ...docSnap.data() }, error: null };
-      } catch (error: any) {
-        return { data: null, error };
+      } finally {
+        inFlightQueries.delete(cacheKey);
       }
+    })();
+
+    inFlightQueries.set(cacheKey, fetchPromise);
+    return fetchPromise;
+  }
+
+  async single() {
+    try {
+      const docs = await this.executeSelectDocs();
+      if (!docs || docs.length === 0) {
+        return { data: null, error: { code: 'PGRST116', message: 'Not found' } };
+      }
+      return { data: docs[0], error: null };
+    } catch (error: any) {
+      return { data: null, error };
     }
-    const q = this.buildQuery();
-    const querySnapshot = await getDocs(q);
-    if (querySnapshot.empty) {
-      return { data: null, error: { code: 'PGRST116', message: 'Not found' } };
-    }
-    return { data: { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() }, error: null };
   }
 
   async maybeSingle() {
-    if (this.idValue) {
-      try {
-        const docRef = doc(db, this.tableName, safeDocId(this.idValue));
-        const docSnap = await getDoc(docRef);
-        if (!docSnap.exists()) {
-          return { data: null, error: null };
-        }
-        return { data: { id: docSnap.id, ...docSnap.data() }, error: null };
-      } catch (error: any) {
-        return { data: null, error };
+    try {
+      const docs = await this.executeSelectDocs();
+      if (!docs || docs.length === 0) {
+        return { data: null, error: null };
       }
+      return { data: docs[0], error: null };
+    } catch (error: any) {
+      return { data: null, error };
     }
-    const q = this.buildQuery();
-    const querySnapshot = await getDocs(q);
-    if (querySnapshot.empty) {
-      return { data: null, error: null };
-    }
-    return { data: { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() }, error: null };
   }
 
   async insert(data: any | any[]) {
+    if (isWriteCircuitOpen()) {
+      firestoreStats.skippedDuplicateWrites++;
+      return { data: null, error: new Error('Firestore write paused due to quota protection') };
+    }
     try {
       const items = Array.isArray(data) ? data : [data];
       const results = [];
@@ -202,39 +492,70 @@ class FirebaseQueryBuilder {
         
         let docRef;
         if (docId) {
-          docRef = doc(db, this.tableName, safeDocId(docId));
+          const sId = safeDocId(docId);
+          if (isDocPayloadUnchanged(this.tableName, sId, item)) {
+            firestoreStats.skippedDuplicateWrites++;
+            results.push({ id: sId, ...item });
+            continue;
+          }
+          docRef = doc(db, this.tableName, sId);
+          firestoreStats.writes++;
           await setDoc(docRef, {
             ...item,
             created_at: serverTimestamp(),
             updated_at: serverTimestamp()
           }, { merge: true });
+          seedDocCache(this.tableName, sId, item);
         } else {
           if (this.tableName === 'store') {
             console.error(`[FirebaseAdapter.insert] REJECTED AUTO-GENERATED ID FOR STORE COLLECTION`);
             continue;
           }
+          firestoreStats.writes++;
           docRef = await addDoc(collection(db, this.tableName), {
             ...item,
             created_at: serverTimestamp(),
             updated_at: serverTimestamp()
           });
+          seedDocCache(this.tableName, docRef.id, item);
         }
         results.push({ id: docRef.id, ...item });
       }
       
+      invalidateTableQueryCache(this.tableName);
       return { data: Array.isArray(data) ? results : results[0], error: null };
     } catch (error: any) {
+      handleWriteError(error, `insert(${this.tableName})`);
       return { data: null, error };
     }
   }
 
   async upsert(data: any | any[], { onConflict = 'id' } = {}) {
+    if (isWriteCircuitOpen()) {
+      firestoreStats.skippedDuplicateWrites++;
+      return { data: Array.isArray(data) ? data : data, error: null };
+    }
     try {
       const items = Array.isArray(data) ? data : [data];
       const results = [];
 
       for (const item of items) {
         let id = item.id;
+
+        // Fast-path for warehouses upserted by ma_kho
+        if (!id && this.tableName === 'warehouses' && onConflict === 'ma_kho' && item.ma_kho !== undefined) {
+          const mk = String(item.ma_kho).trim();
+          const cachedWh = warehouseByMaKhoCache.get(mk);
+          if (cachedWh) {
+            if (cachedWh.ten_kho === String(item.ten_kho || '')) {
+              firestoreStats.skippedDuplicateWrites++;
+              results.push({ id: cachedWh.id, ...item });
+              continue;
+            }
+            id = cachedWh.id;
+          }
+        }
+
         if (!id && onConflict) {
           const conflictFields = onConflict.split(',').map((f: string) => f.trim());
           // If multi-column conflict, we need to find the doc first
@@ -245,6 +566,7 @@ class FirebaseQueryBuilder {
               if (item[field] !== undefined) q = query(q, where(field, '==', item[field]));
             });
             let snap = await getDocs(q);
+            firestoreStats.reads += Math.max(1, snap.docs.length);
             
             // If not found and a field has a numeric value, try alternate type
             // Firestore is type-strict: '1841' !== 1841
@@ -269,10 +591,17 @@ class FirebaseQueryBuilder {
                   }
                 });
                 snap = await getDocs(q);
+                firestoreStats.reads += Math.max(1, snap.docs.length);
               }
             }
             
-            if (!snap.empty) id = snap.docs[0].id;
+            if (!snap.empty) {
+              id = snap.docs[0].id;
+              seedDocCache(this.tableName, id, snap.docs[0].data());
+            } else if (this.tableName === 'warehouses' && item.ma_kho !== undefined) {
+              // Deterministic ID for new warehouse docs so future lookups don't create duplicates
+              id = safeDocId(String(item.ma_kho).trim());
+            }
           }
         }
         
@@ -301,17 +630,27 @@ class FirebaseQueryBuilder {
           continue;
         }
 
+        if (id && isDocPayloadUnchanged(this.tableName, id, item)) {
+          firestoreStats.skippedDuplicateWrites++;
+          results.push({ id: safeDocId(id), ...item });
+          continue;
+        }
+
         const docRef = id ? doc(db, this.tableName, safeDocId(id)) : doc(collection(db, this.tableName));
+        firestoreStats.writes++;
         await setDoc(docRef, {
           ...item,
           updated_at: serverTimestamp()
         }, { merge: true });
+        seedDocCache(this.tableName, docRef.id, item);
         
         results.push({ id: docRef.id, ...item });
       }
 
+      invalidateTableQueryCache(this.tableName);
       return { data: Array.isArray(data) ? results : results[0], error: null };
     } catch (error: any) {
+      handleWriteError(error, `upsert(${this.tableName})`);
       console.error('[FirebaseAdapter] upsert error:', error);
       return { data: null, error };
     }
@@ -331,29 +670,53 @@ class FirebaseQueryBuilder {
   private pendingDelete: boolean = false;
 
   private async executeUpdate() {
+    if (isWriteCircuitOpen()) {
+      firestoreStats.skippedDuplicateWrites++;
+      return { data: [], error: null };
+    }
     try {
       if (this.idValue) {
-        const docRef = doc(db, this.tableName, safeDocId(this.idValue));
+        const sId = safeDocId(this.idValue);
+        if (isDocPayloadUnchanged(this.tableName, sId, this.pendingUpdate)) {
+          firestoreStats.skippedDuplicateWrites++;
+          return { data: [{ id: sId, ...this.pendingUpdate }], error: null };
+        }
+        const docRef = doc(db, this.tableName, sId);
+        firestoreStats.writes++;
         await updateDoc(docRef, {
           ...this.pendingUpdate,
           updated_at: serverTimestamp()
         });
+        seedDocCache(this.tableName, sId, this.pendingUpdate);
+        invalidateTableQueryCache(this.tableName);
         return { data: [{ id: this.idValue, ...this.pendingUpdate }], error: null };
       }
       const q = this.buildQuery();
       const querySnapshot = await getDocs(q);
+      firestoreStats.reads += Math.max(1, querySnapshot.docs.length);
       
       const results = [];
       for (const d of querySnapshot.docs) {
+        const existingData = d.data();
+        seedDocCache(this.tableName, d.id, existingData);
+        if (isDocPayloadUnchanged(this.tableName, d.id, this.pendingUpdate)) {
+          firestoreStats.skippedDuplicateWrites++;
+          results.push({ id: d.id, ...existingData, ...this.pendingUpdate });
+          continue;
+        }
+        firestoreStats.writes++;
         await updateDoc(doc(db, this.tableName, d.id), {
           ...this.pendingUpdate,
           updated_at: serverTimestamp()
         });
-        results.push({ id: d.id, ...d.data(), ...this.pendingUpdate });
+        seedDocCache(this.tableName, d.id, this.pendingUpdate);
+        results.push({ id: d.id, ...existingData, ...this.pendingUpdate });
       }
       
+      invalidateTableQueryCache(this.tableName);
       return { data: results, error: null };
     } catch (error: any) {
+      handleWriteError(error, `update(${this.tableName})`);
       return { data: null, error };
     }
   }
@@ -361,18 +724,27 @@ class FirebaseQueryBuilder {
   private async executeDelete() {
     try {
       if (this.idValue) {
-        await deleteDoc(doc(db, this.tableName, safeDocId(this.idValue)));
+        const sId = safeDocId(this.idValue);
+        firestoreStats.deletes++;
+        await deleteDoc(doc(db, this.tableName, sId));
+        docFieldCache.delete(`${this.tableName}/${sId}`);
+        invalidateTableQueryCache(this.tableName);
         return { error: null };
       }
       const q = this.buildQuery();
       const querySnapshot = await getDocs(q);
+      firestoreStats.reads += Math.max(1, querySnapshot.docs.length);
       
       for (const d of querySnapshot.docs) {
+        firestoreStats.deletes++;
         await deleteDoc(doc(db, this.tableName, d.id));
+        docFieldCache.delete(`${this.tableName}/${d.id}`);
       }
       
+      invalidateTableQueryCache(this.tableName);
       return { error: null };
     } catch (error: any) {
+      handleWriteError(error, `delete(${this.tableName})`);
       return { error };
     }
   }
@@ -386,17 +758,8 @@ class FirebaseQueryBuilder {
       } else if (this.pendingDelete) {
         result = await this.executeDelete();
       } else {
-        if (this.idValue) {
-          const docRef = doc(db, this.tableName, safeDocId(this.idValue));
-          const docSnap = await getDoc(docRef);
-          const data = docSnap.exists() ? [{ id: docSnap.id, ...docSnap.data() }] : [];
-          result = { data, error: null };
-        } else {
-          const q = this.buildQuery();
-          const querySnapshot = await getDocs(q);
-          const data = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-          result = { data, error: null };
-        }
+        const data = await this.executeSelectDocs();
+        result = { data, error: null };
       }
       
       return onfulfilled ? onfulfilled(result) : result;
@@ -432,6 +795,16 @@ class FirebaseQueryBuilder {
   }
 }
 
+// Multiplexed Realtime Channel Registry: shares 1 Firestore onSnapshot across identical table+filter subscriptions
+interface SharedChannelEntry {
+  unsubscribeFirestore: () => void;
+  callbacks: Set<(payload: any) => void>;
+  initialDocsLoaded: boolean;
+  teardownTimer: ReturnType<typeof setTimeout> | null;
+}
+
+const sharedChannelRegistry = new Map<string, SharedChannelEntry>();
+
 export const firebaseAdapter = {
   from: (tableName: string) => new FirebaseQueryBuilder(tableName),
   
@@ -444,40 +817,103 @@ export const firebaseAdapter = {
     return {
       on: function(type: string, filter: any, callback: any) {
         const tableName = filter.table;
-        const filterStr = filter.filter; // e.g. "warehouse_code=eq.123"
-        let q = query(collection(db, tableName));
-        
-        if (filterStr) {
-          try {
-            const [col, valPart] = filterStr.split('=eq.');
-            if (valPart !== undefined) {
-              const cleanVal = valPart.trim();
-              const values: any[] = [cleanVal];
-              const num = Number(cleanVal);
-              if (!isNaN(num) && cleanVal !== '') {
-                values.push(num);
-              }
-              const uniqueValues = [...new Set(values)];
-              if (uniqueValues.length > 1) {
-                q = query(q, where(col, 'in', uniqueValues));
-              } else {
-                q = query(q, where(col, '==', uniqueValues[0]));
-              }
-            }
-          } catch(e) {}
+        const filterStr = filter.filter || ''; // e.g. "warehouse_code=eq.123"
+        const channelKey = `${tableName}::${filterStr}`;
+
+        let entry = sharedChannelRegistry.get(channelKey);
+        if (entry && entry.teardownTimer) {
+          clearTimeout(entry.teardownTimer);
+          entry.teardownTimer = null;
         }
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === "added" || change.type === "modified") {
-              callback({ 
-                new: { id: change.doc.id, ...change.doc.data() },
-                eventType: change.type === "added" ? "INSERT" : "UPDATE"
+        if (!entry) {
+          let q = query(collection(db, tableName));
+          if (filterStr) {
+            try {
+              const [col, valPart] = filterStr.split('=eq.');
+              if (valPart !== undefined) {
+                const cleanVal = valPart.trim();
+                const values: any[] = [cleanVal];
+                const num = Number(cleanVal);
+                if (!isNaN(num) && cleanVal !== '') {
+                  values.push(num);
+                }
+                const uniqueValues = [...new Set(values)];
+                if (uniqueValues.length > 1) {
+                  q = query(q, where(col, 'in', uniqueValues));
+                } else {
+                  q = query(q, where(col, '==', uniqueValues[0]));
+                }
+              }
+            } catch (e) {}
+          }
+
+          const newEntry: SharedChannelEntry = {
+            unsubscribeFirestore: () => {},
+            callbacks: new Set([callback]),
+            initialDocsLoaded: false,
+            teardownTimer: null,
+          };
+          sharedChannelRegistry.set(channelKey, newEntry);
+          firestoreStats.activeListeners++;
+
+          newEntry.unsubscribeFirestore = onSnapshot(
+            q,
+            (snapshot) => {
+              const isInitial = !newEntry.initialDocsLoaded;
+              newEntry.initialDocsLoaded = true;
+
+              snapshot.docChanges().forEach((change) => {
+                const docData = change.doc.data();
+                seedDocCache(tableName, change.doc.id, docData);
+                if (!isInitial) {
+                  invalidateTableQueryCache(tableName);
+                }
+                // Skip broadcasting initial snapshot "added" events since callers already run initial loadData()
+                // Only broadcast genuine real-time INSERT / UPDATE events after subscription
+                if (isInitial && change.type === 'added') {
+                  return;
+                }
+                if (change.type === 'added' || change.type === 'modified') {
+                  const payload = {
+                    new: { id: change.doc.id, ...docData },
+                    eventType: change.type === 'added' ? 'INSERT' : 'UPDATE',
+                  };
+                  newEntry.callbacks.forEach((cb) => {
+                    try {
+                      cb(payload);
+                    } catch (err) {
+                      console.error('[FirebaseAdapter.channel] Callback error:', err);
+                    }
+                  });
+                }
               });
+            },
+            (err) => {
+              handleWriteError(err, `onSnapshot(${channelKey})`);
             }
-          });
-        });
-        this._unsubscribe = unsubscribe;
+          );
+          entry = newEntry;
+        } else {
+          entry.callbacks.add(callback);
+        }
+
+        const currentEntry = entry;
+        this._unsubscribe = () => {
+          currentEntry.callbacks.delete(callback);
+          if (currentEntry.callbacks.size === 0 && !currentEntry.teardownTimer) {
+            // Keep listener warm for 30s across tab switches to avoid re-subscribing reads
+            currentEntry.teardownTimer = setTimeout(() => {
+              if (currentEntry.callbacks.size === 0) {
+                try {
+                  currentEntry.unsubscribeFirestore();
+                } catch {}
+                sharedChannelRegistry.delete(channelKey);
+                firestoreStats.activeListeners = Math.max(0, firestoreStats.activeListeners - 1);
+              }
+            }, 30000);
+          }
+        };
         return this;
       },
       subscribe: function(cb: any) { 

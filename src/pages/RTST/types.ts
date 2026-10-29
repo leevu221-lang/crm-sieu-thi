@@ -73,9 +73,13 @@ export interface CategoryData {
 export interface StaffData {
   displayName: string;
   fullId: string;
+  employeeName?: string;
   department?: string;
+  quantity?: number | null;
   actualVal: number | null;
   virtualVal: number;
+  loanConvertedVal?: number | null;
+  revenueShare?: number | null;
   effVal: number;
   target?: number;
   rate?: number;

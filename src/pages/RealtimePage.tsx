@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useDeferr
 import { createPortal } from 'react-dom';
 import { supabase } from '../supabaseClient';
 import { birthdayService, isStoreMatch } from '../services/birthdayService';
+import { EnterpriseCategoryAnalytics } from '../components/EnterpriseCategoryAnalytics';
 import {
   BarChart,
   Bar,
@@ -223,140 +224,170 @@ const AutoZoomTextRT: React.FC<{
   );
 };
 
-const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0, isLarge = false, isColored = false, isUser43751 = false }: any) => {
-  // Pastel Theme for User 43751
-  if (isUser43751) {
-    const theme = pastelColorMap[color] || { bg: 'bg-[#E0F2FE]', text: 'text-[#0284C7]', border: 'border-[#BAE6FD]' };
+const execStatThemeMap: Record<string, {
+  cardBg: string;
+  borderColor: string;
+  iconBg: string;
+  titleColor: string;
+  waveColor: string;
+  waveGradId: string;
+}> = {
+  rose: {
+    // 1. TARGET QĐ — Blue Theme
+    cardBg: 'linear-gradient(180deg, #F5FAFF 0%, #EBF4FF 100%)',
+    borderColor: '#D4E6FF',
+    iconBg: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+    titleColor: '#1E3A8A',
+    waveColor: '#2563EB',
+    waveGradId: 'kpi-wave-blue',
+  },
+  indigo: {
+    // 2. DOANH THU QUY ĐỔI — Emerald Green Theme
+    cardBg: 'linear-gradient(180deg, #F3FDF8 0%, #E6FAEF 100%)',
+    borderColor: '#C6F1D8',
+    iconBg: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+    titleColor: '#065F46',
+    waveColor: '#10B981',
+    waveGradId: 'kpi-wave-emerald',
+  },
+  emerald: {
+    // 3. %HT — Purple/Violet Theme
+    cardBg: 'linear-gradient(180deg, #F9F6FF 0%, #F1EAFF 100%)',
+    borderColor: '#DFD2FF',
+    iconBg: 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)',
+    titleColor: '#4C1D95',
+    waveColor: '#8B5CF6',
+    waveGradId: 'kpi-wave-purple',
+  },
+  amber: {
+    // 4. TỶ TRỌNG TRẢ GÓP — Orange Theme
+    cardBg: 'linear-gradient(180deg, #FFF9F3 0%, #FFF0E0 100%)',
+    borderColor: '#FDE0C0',
+    iconBg: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
+    titleColor: '#9A3412',
+    waveColor: '#F97316',
+    waveGradId: 'kpi-wave-orange',
+  },
+  orange: {
+    // 5. % QĐ — Red/Crimson Theme
+    cardBg: 'linear-gradient(180deg, #FFF6F6 0%, #FFEBEB 100%)',
+    borderColor: '#FECACA',
+    iconBg: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
+    titleColor: '#991B1B',
+    waveColor: '#EF4444',
+    waveGradId: 'kpi-wave-red',
+  },
+  blue: {
+    // 6. LƯỢT BILL THU HỘ / LNTT — Amber/Gold Theme
+    cardBg: 'linear-gradient(180deg, #FFFDF4 0%, #FEF8D8 100%)',
+    borderColor: '#FDE68A',
+    iconBg: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+    titleColor: '#92400E',
+    waveColor: '#F59E0B',
+    waveGradId: 'kpi-wave-gold',
+  },
+  default: {
+    cardBg: 'linear-gradient(180deg, #F5FAFF 0%, #EBF4FF 100%)',
+    borderColor: '#D4E6FF',
+    iconBg: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+    titleColor: '#1E3A8A',
+    waveColor: '#2563EB',
+    waveGradId: 'kpi-wave-default',
+  },
+};
 
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay, duration: 0.4 }}
-        className={`bg-white/95 backdrop-blur-md p-3 sm:p-3.5 md:p-4 lg:p-4.5 xl:p-5 rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_35px_-5px_rgba(2,132,199,0.16)] hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between h-full min-h-[92px] sm:min-h-[102px] md:min-h-[112px] lg:min-h-[120px] xl:min-h-[128px] group ${isLarge ? 'md:col-span-2' : ''}`}
-        style={{ fontFamily: "'UTM Avo', sans-serif" }}
-      >
-        {/* Top Badge: Icon + Title */}
-        <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3 flex-nowrap min-w-0">
-          <div
-            className={`stat-card-badge inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.2 rounded-full text-[8.5px] sm:text-[9.5px] md:text-[10.5px] lg:text-[11.5px] font-black uppercase tracking-wider ${theme.bg} ${theme.text} border ${theme.border} shadow-2xs whitespace-nowrap shrink-0 max-w-full`}
-          >
-            <Icon size={13} strokeWidth={2.6} className="shrink-0 sm:w-3.5 sm:h-3.5" />
-            <span
-              className="stat-card-title whitespace-nowrap leading-none truncate"
-              title={title}
-            >
-              {title}
-            </span>
-          </div>
-          {trend !== undefined && (
-            <div
-              className={`flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-[8.5px] md:text-[9px] font-black ml-auto shrink-0 border border-white/60 whitespace-nowrap ${
-                trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
-              }`}
-            >
-              {trend > 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
-              {Math.abs(trend)}%
-            </div>
-          )}
-        </div>
-
-        {/* Main Big Number Row - Takes 100% of card width */}
-        <div className="pt-0.5 sm:pt-1">
-          <AutoZoomTextRT
-            value={value}
-            className="font-bold text-[28px] xs:text-[32px] sm:text-[36px] md:text-[40px] lg:text-[42px] xl:text-[46px] 2xl:text-[50px] tracking-tight text-[#0F172A] leading-none font-oswald"
-          />
-        </div>
-
-        {subValue && (
-          <div className="text-[9px] sm:text-[10px] md:text-[11px] font-medium text-slate-400 truncate pt-1.5 border-t border-slate-100/60 mt-auto">
-            {subValue}
-          </div>
-        )}
-      </motion.div>
-    );
-  }
-
-  // Traditional Theme for Other Users
-  if (isColored) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay, duration: 0.4 }}
-        className={`${bgMapTraditional[color] || 'bg-white'} p-3 sm:p-4 md:p-5 lg:p-5.5 xl:p-6 rounded-2xl md:rounded-3xl border transition-all duration-300 flex flex-col justify-between h-full min-h-[86px] sm:min-h-[96px] md:min-h-[110px] lg:min-h-[120px] hover:scale-[1.02] shadow-lg ${isLarge ? 'md:col-span-2' : ''}`}
-        style={{ fontFamily: "'UTM Avo', sans-serif" }}
-      >
-        <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3 flex-nowrap min-w-0">
-          <div
-            className="stat-card-badge inline-flex items-center gap-1 sm:gap-1.5 md:gap-2 px-2 sm:px-2.5 md:px-3 py-0.5 sm:py-1 rounded-full text-[8px] sm:text-[9.5px] md:text-[11px] lg:text-[12px] font-black uppercase tracking-wider bg-white/20 backdrop-blur-md text-white border border-white/20 whitespace-nowrap shrink-0 max-w-full"
-            style={{ whiteSpace: 'nowrap' }}
-          >
-            <Icon size={12} strokeWidth={2.5} className="shrink-0 text-white sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 lg:w-4.5 lg:h-4.5" />
-            <span
-              className="stat-card-title whitespace-nowrap leading-none truncate text-white"
-              style={{ whiteSpace: 'nowrap', wordBreak: 'keep-all', color: '#ffffff' }}
-            >
-              {title}
-            </span>
-          </div>
-          {trend !== undefined && (
-            <div
-              className="flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[8.5px] sm:text-[9px] md:text-[10px] font-black bg-white/25 backdrop-blur-md ml-auto shrink-0 border border-white/20 whitespace-nowrap text-white"
-              style={{ whiteSpace: 'nowrap' }}
-            >
-              {trend > 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
-              {Math.abs(trend)}%
-            </div>
-          )}
-        </div>
-
-        <div>
-          <div
-            className="font-bold text-[24px] xs:text-[29px] sm:text-[36px] md:text-[44px] lg:text-[48px] xl:text-[52px] tracking-tight whitespace-nowrap drop-shadow-sm leading-none py-0.5 sm:py-1 text-white font-oswald truncate"
-            style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700, whiteSpace: 'nowrap' }}
-          >
-            {value}
-          </div>
-          {subValue && (
-            <div className="text-[10px] sm:text-[11px] md:text-[12px] font-medium text-white/80 whitespace-nowrap mt-1 truncate">
-              {subValue}
-            </div>
-          )}
-        </div>
-      </motion.div>
-    );
-  }
+const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0, isLarge = false }: any) => {
+  const theme = execStatThemeMap[color] || execStatThemeMap.default;
+  const rawStr = String(value ?? '').trim();
+  const isLongTitle = String(title || '').length > 14;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.4 }}
-      className={`bg-white p-3 sm:p-4 md:p-5 lg:p-5.5 xl:p-6 rounded-2xl md:rounded-3xl border border-slate-200/80 shadow-sm flex flex-col justify-between h-full min-h-[86px] sm:min-h-[96px] md:min-h-[110px] lg:min-h-[120px] hover:shadow-md transition-shadow ${isLarge ? 'md:col-span-2' : ''}`}
-      style={{ fontFamily: "'UTM Avo', sans-serif" }}
+      transition={{ delay, duration: 0.35 }}
+      className={`exec-stat-card relative overflow-hidden p-[10px] sm:p-[13px] md:p-[15px] pb-[22px] sm:pb-[26px] rounded-[16px] border shadow-[0_4px_16px_-4px_rgba(11,31,58,0.06)] hover:shadow-[0_10px_24px_-6px_rgba(11,31,58,0.12)] hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between h-full min-h-[104px] sm:min-h-[122px] md:min-h-[130px] group ${isLarge ? 'md:col-span-2' : ''}`}
+      style={{
+        background: theme.cardBg,
+        borderColor: theme.borderColor,
+        fontFamily: "'UTM Avo', sans-serif",
+      }}
     >
-      <div className="flex items-center justify-between mb-3">
-        <span className="stat-card-title text-[10px] sm:text-[11px] md:text-[12px] lg:text-[13px] xl:text-[14px] font-black text-slate-500 uppercase tracking-wider truncate">
-          {title}
-        </span>
-        <div className={`p-2 md:p-2.5 lg:p-3 rounded-xl lg:rounded-2xl ${colorMapTraditional[color] || 'text-indigo-600 bg-indigo-50'} shadow-2xs`}>
-          <Icon size={18} className="md:w-5 md:h-5 lg:w-6 lg:h-6" />
-        </div>
-      </div>
-      <div>
-        <div
-          className="font-bold text-[22px] sm:text-[28px] md:text-[34px] lg:text-[38px] xl:text-[44px] tracking-tight text-slate-850 font-oswald truncate"
-          style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700 }}
-        >
-          {value}
-        </div>
-        {subValue && (
-          <div className="text-[10px] sm:text-[11px] md:text-[12px] font-medium text-slate-400 mt-1 truncate">
-            {subValue}
+      {/* Header Row: Solid Rounded-XL Colored Icon Box + Title on Left, Ellipsis / Trend on Right */}
+      <div className="relative z-10 flex items-center justify-between gap-[6px] w-full mb-[6px] sm:mb-[8px] min-w-0">
+        <div className="flex items-center gap-[7px] sm:gap-[9px] min-w-0 flex-1">
+          <div
+            className="stat-card-badge w-[26px] h-[26px] sm:w-[30px] sm:h-[30px] rounded-[9px] sm:rounded-[10px] flex items-center justify-center shrink-0 text-white shadow-xs"
+            style={{ background: theme.iconBg }}
+          >
+            <Icon size={15} strokeWidth={2.3} className="shrink-0 text-white" />
           </div>
+          <span
+            className={`stat-card-title font-black uppercase leading-[1.2] line-clamp-2 sm:truncate ${
+              isLongTitle
+                ? 'text-[9.5px] sm:text-[10px] md:text-[10.5px] tracking-tight'
+                : 'text-[10px] sm:text-[11px] md:text-[11.5px] tracking-wide'
+            }`}
+            style={{ color: theme.titleColor }}
+            title={title}
+          >
+            {title}
+          </span>
+        </div>
+
+        {trend !== undefined ? (
+          <div
+            className={`flex items-center gap-[2px] px-[6px] py-[2px] rounded-full text-[8.5px] font-black shrink-0 border whitespace-nowrap ${
+              trend > 0 ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-rose-50 text-rose-600 border-rose-200'
+            }`}
+          >
+            {trend > 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+            {Math.abs(trend)}%
+          </div>
+        ) : (
+          <span className="hidden sm:inline text-slate-400/80 text-[12px] font-black tracking-widest leading-none select-none shrink-0">
+            •••
+          </span>
         )}
+      </div>
+
+      {/* Main Primary Value Row */}
+      <div className="relative z-10 my-auto py-[2px] min-w-0">
+        <span
+          className="exec-stat-num block font-black text-[22px] sm:text-[26px] md:text-[29px] lg:text-[31px] tracking-tight leading-none whitespace-nowrap truncate"
+          style={{ color: '#0B1F3A', fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}
+        >
+          {rawStr}
+        </span>
+      </div>
+
+      {subValue && (
+        <div className="relative z-10 text-[10px] sm:text-[11px] font-bold text-slate-500 truncate mt-[4px]">
+          {subValue}
+        </div>
+      )}
+
+      {/* Bottom Decorative Mini Area Sparkline Wave */}
+      <div className="absolute bottom-0 left-0 right-0 h-[22px] sm:h-[26px] pointer-events-none overflow-hidden opacity-90">
+        <svg viewBox="0 0 200 36" preserveAspectRatio="none" className="w-full h-full">
+          <defs>
+            <linearGradient id={theme.waveGradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={theme.waveColor} stopOpacity="0.26" />
+              <stop offset="100%" stopColor={theme.waveColor} stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M0,28 C25,18 45,30 75,20 C105,10 125,26 155,10 C175,2 190,12 200,16 L200,36 L0,36 Z"
+            fill={`url(#${theme.waveGradId})`}
+          />
+          <path
+            d="M0,28 C25,18 45,30 75,20 C105,10 125,26 155,10 C175,2 190,12 200,16"
+            fill="none"
+            stroke={theme.waveColor}
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+        </svg>
       </div>
     </motion.div>
   );
@@ -1596,7 +1627,7 @@ const fmtRawDate = (raw: string): string => {
   return raw;
 };
 
-export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, pageHiddenState = {} }: { pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean, useV2Layout?: boolean, pageHiddenState?: Record<string, boolean> }) {
+function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, pageHiddenState = {} }: { pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean, useV2Layout?: boolean, pageHiddenState?: Record<string, boolean> }) {
   const isV2Active = true;
   const { userProfile } = useAuth();
   const isAdmin = userProfile?.username === '43751' || userProfile?.username === 'ADMIN' || userProfile?.role === 'admin';
@@ -1951,7 +1982,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     };
   }, []);
 
-  const [, setTraChamTrigger] = useState(0);
+  const [traChamTrigger, setTraChamTrigger] = useState(0);
   useEffect(() => {
     const handleUpdate = () => setTraChamTrigger(prev => prev + 1);
     window.addEventListener('realtime_tra_cham_updated', handleUpdate);
@@ -1965,6 +1996,46 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   }, []);
 
   const { ycxData, setYcxData, ycxDataMoi, setYcxDataMoi, ycxFileName, setYcxFileName, ycxFileNameMoi, setYcxFileNameMoi, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, hasLoadedFromDB, processError, activeStore, setActiveStore, marketInput, setMarketInput, realtimeDtThuc, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
+
+  // Đồng bộ trực tiếp dữ liệu REALTIME TRẢ CHẬM theo siêu thị đang chọn từ Firestore (đảm bảo F5 hoặc đổi siêu thị luôn chính xác)
+  useEffect(() => {
+    const storesToSync = Array.from(
+      new Set(
+        [activeStore, marketFilter]
+          .map(s => (s || '').trim())
+          .filter(s => s && s !== 'ALL')
+      )
+    );
+    if (storesToSync.length === 0) return;
+
+    const unsubs: (() => void)[] = [];
+    for (const storeName of storesToSync) {
+      try {
+        const docKeyRtTc = `realtime_tra_cham_${storeName}`;
+        const unsub = onSnapshot(doc(db, 'app_settings', docKeyRtTc), (snap) => {
+          if (snap.exists()) {
+            const d = snap.data();
+            const val = typeof d?.value === 'string' ? d.value.trim() : '';
+            try {
+              if (val) {
+                localStorage.setItem(`rtst_realtime_tra_cham_${storeName}`, val);
+              } else {
+                localStorage.removeItem(`rtst_realtime_tra_cham_${storeName}`);
+              }
+            } catch {}
+            setTraChamTrigger(prev => prev + 1);
+          }
+        }, () => {});
+        unsubs.push(unsub);
+      } catch {}
+    }
+
+    return () => {
+      unsubs.forEach(u => {
+        try { u(); } catch {}
+      });
+    };
+  }, [activeStore, marketFilter]);
 
   const daysRemaining = useMemo(() => {
     if (!userProfile?.expiredAt) return null;
@@ -2577,10 +2648,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   const currentYcxData = isMoiTab ? ycxDataMoi : ycxData;
   const currentYcxFileName = isMoiTab ? ycxFileNameMoi : ycxFileName;
 
+  const isYcxDetailTab = activeTab === 'khai_thac' || activeTab === 'khai_thac_moi' || activeTab === 'real_dthu_nv';
+
   const rawYcxRows = useMemo(() => {
-    if (!currentYcxData) return [];
+    if (!isYcxDetailTab || !currentYcxData) return [];
     return currentYcxData.split('\n').filter(line => line.trim()).map(line => line.split('\t'));
-  }, [currentYcxData]);
+  }, [isYcxDetailTab, currentYcxData]);
 
   const filteredRawYcxRows = useMemo(() => {
     if (!rawYcxRows || rawYcxRows.length <= 1) return [];
@@ -2784,18 +2857,6 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       }
 
       if (failStatus || failThuTien || failTra) {
-        if (rIdx < 50) {
-          console.log(`[Filter YCX Row ${rIdx} FAIL status/thutien/tra]`, {
-            product: row[idxProduct],
-            category: row[idxCategory],
-            statusValue,
-            thuTienValue,
-            traValue,
-            failStatus,
-            failThuTien,
-            failTra
-          });
-        }
         return false;
       }
 
@@ -2842,9 +2903,6 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       }
 
       if (shouldExclude) {
-        if (rIdx < 50) {
-          console.log(`[Filter YCX Row ${rIdx} FAIL shouldExclude]`, { product: row[idxProduct], isThoDmxRow });
-        }
         return false;
       }
 
@@ -2859,15 +2917,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       }
 
       if (failNhomLarge) {
-        if (rIdx < 50) {
-          console.log(`[Filter YCX Row ${rIdx} FAIL failNhomLarge]`, { product: row[idxProduct], category, isVasRow });
-        }
         return false;
       }
 
-      if (rIdx < 50) {
-        console.log(`[Filter YCX Row ${rIdx} KEEP]`, { product: row[idxProduct], category, isVasRow });
-      }
       return true;
     });
   }, [rawYcxRows, isMoiTab, customNhomSmallMap, customBaoHiemRules, customExclusionRules]);
@@ -2929,7 +2981,6 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       if (idxGiaBan !== -1 && idxGiaBan < headers.length) return idxGiaBan;
       return findIdx(['gia ban', 'doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá trị đh', 'giá trị'], 36);
     })();
-    console.log('[DrillDown] idxRevenue:', idxRevenue, '| idxGiaBan2:', idxGiaBan2);
     const idxCategory = findIdx(['nhóm hàng', 'tên nhóm hàng', 'ngành hàng', 'nhóm ngành hàng'], -1);
     const idxSmallCat = findIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ'], -1);
     const idxHinhThucXuat = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
@@ -3470,15 +3521,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         htmlEl.style.setProperty('color', '#0B2545', 'important');
         htmlEl.style.setProperty('font-family', "'UTM Avo', sans-serif", 'important');
       });
-      htmlBanner.querySelectorAll('.exec-banner-sub, .exec-banner-sub span').forEach(el => {
+      htmlBanner.querySelectorAll('.exec-banner-sub').forEach(el => {
         const htmlEl = el as HTMLElement;
-        htmlEl.style.setProperty('font-size', '13px', 'important');
-        htmlEl.style.setProperty('line-height', '1.3', 'important');
-      });
-      htmlBanner.querySelectorAll('.exec-banner-sub svg').forEach(el => {
-        const htmlEl = el as HTMLElement;
-        htmlEl.style.setProperty('width', '13px', 'important');
-        htmlEl.style.setProperty('height', '13px', 'important');
+        htmlEl.style.setProperty('display', 'none', 'important');
       });
       htmlBanner.querySelectorAll('.exec-banner-slash').forEach(el => {
         const htmlEl = el as HTMLElement;
@@ -3704,6 +3749,42 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       htmlG.style.setProperty('grid-template-columns', 'repeat(6, minmax(0, 1fr))', 'important');
       htmlG.style.setProperty('gap', '20px', 'important');
       htmlG.style.setProperty('width', '100%', 'important');
+    });
+
+    // 10b. Force Exec StatCards & Enterprise Analytics Grid to Desktop Typography & Sizing
+    root.querySelectorAll('.enterprise-analytics-grid').forEach(g => {
+      const htmlG = g as HTMLElement;
+      htmlG.style.setProperty('display', 'grid', 'important');
+      htmlG.style.setProperty('grid-template-columns', '5fr 3fr 4fr', 'important');
+      htmlG.style.setProperty('gap', '16px', 'important');
+      htmlG.style.setProperty('width', '100%', 'important');
+      Array.from(htmlG.children).forEach(child => {
+        (child as HTMLElement).style.setProperty('grid-column', 'auto', 'important');
+      });
+    });
+
+    root.querySelectorAll('.exec-stat-card').forEach(card => {
+      const htmlCard = card as HTMLElement;
+      htmlCard.style.setProperty('padding', '16px 16px 26px 16px', 'important');
+      htmlCard.style.setProperty('border-radius', '16px', 'important');
+      htmlCard.style.setProperty('min-height', '128px', 'important');
+      htmlCard.querySelectorAll('.stat-card-badge').forEach(b => {
+        const htmlB = b as HTMLElement;
+        htmlB.style.setProperty('width', '32px', 'important');
+        htmlB.style.setProperty('height', '32px', 'important');
+      });
+      htmlCard.querySelectorAll('.stat-card-title').forEach(t => {
+        const htmlT = t as HTMLElement;
+        const len = (htmlT.textContent || '').trim().length;
+        htmlT.style.setProperty('font-size', len > 14 ? '10.5px' : '11.5px', 'important');
+        htmlT.style.setProperty('font-weight', '900', 'important');
+        htmlT.style.setProperty('white-space', 'nowrap', 'important');
+      });
+      htmlCard.querySelectorAll('.exec-stat-num').forEach(n => {
+        const htmlN = n as HTMLElement;
+        htmlN.style.setProperty('font-size', '30px', 'important');
+        htmlN.style.setProperty('font-weight', '900', 'important');
+      });
     });
   };
 
@@ -5606,7 +5687,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   }, [rawYcxRows, filteredRawYcxRows, drillFilterStaff, showKhaiThacCols, khaiThacSortField, khaiThacSortAsc, getRowTotalVisibleQty]);
 
   const crossSellingStats = useMemo(() => {
-    if (rawYcxRows.length <= 1 || filteredRawYcxRows.length === 0) return [];
+    if ((activeTab !== 'khai_thac' && activeTab !== 'khai_thac_moi') || rawYcxRows.length <= 1 || filteredRawYcxRows.length === 0) return [];
     
     const headers = rawYcxRows[0].map(h => String(h || '').trim());
     const findIdx = (names: string[], defaultIdx: number) => {
@@ -5730,9 +5811,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     result.sort((a, b) => b.pctKem - a.pctKem || b.totalBills - a.totalBills);
 
     return result;
-  }, [rawYcxRows, filteredRawYcxRows, selectedStaffs, drillFilterStaff, customNhomSmallMap, customBaoHiemRules]);
+  }, [activeTab, rawYcxRows, filteredRawYcxRows, selectedStaffs, drillFilterStaff, customNhomSmallMap, customBaoHiemRules]);
 
-  // Available options per filter level (dynamic from data)
   // Available options per filter level (dynamic from data)
   const availableOptions = useMemo(() => {
     const stores = new Set<string>();
@@ -5743,7 +5823,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const products = new Set<string>();
     const trangThaiSPs = new Set<string>();
 
-    if (rawYcxRows.length > 1) {
+    if ((activeTab === 'khai_thac' || activeTab === 'khai_thac_moi') && rawYcxRows.length > 1) {
       const headers = rawYcxRows[0].map(h => String(h || '').trim());
       const findIdx = (names: string[], defaultIdx: number) => {
         const normalizedNames = names.map(n => removeAccents(n).toLowerCase().trim());
@@ -5841,7 +5921,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       products: Array.from(products).sort().map(p => ({ key: p, name: p })),
       trangThaiSPs: Array.from(trangThaiSPs).sort().map(s => ({ key: s, name: s })),
     };
-  }, [rawYcxRows, customNhomSmallMap, customBaoHiemRules]);
+  }, [activeTab, rawYcxRows, customNhomSmallMap, customBaoHiemRules]);
 
   const availableNhomSmall = availableOptions.nhoms;
   const availableStaff = availableOptions.staffs.map(s => s.name);
@@ -6625,7 +6705,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const actualVirtual = formatCurrencyUnit(parsedMarket.actualVirtual || 0);
     const percentHT = dailyPercentHT;
     const tcRate = resolveRealtimeTraChamRate(activeDeclared?.name || parsedMarket?.name || '');
-    const installmentRate = (tcRate !== null && !isNaN(tcRate) && tcRate > 0)
+    const installmentRate = (tcRate !== null && !isNaN(tcRate) && tcRate >= 0)
       ? (Math.round(tcRate * 10) / 10).toFixed(1)
       : (((parsedMarket.installmentRate || parsedMarket.percentTraGop || 0) > 0)
           ? (Math.round((parsedMarket.installmentRate || parsedMarket.percentTraGop) * 10) / 10).toFixed(1)
@@ -6776,7 +6856,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         text: t3
       }
     ];
-  }, [filteredMarkets, marketFilter, processedData.markets, processedData.staffs, filteredCategories, visibleCategoriesSL, visibleCategoriesDT, lastUpdated]);
+  }, [filteredMarkets, marketFilter, processedData.markets, processedData.staffs, filteredCategories, visibleCategoriesSL, visibleCategoriesDT, lastUpdated, traChamTrigger]);
 
   const handleOpenCommentModal = () => {
     setCommentText(realtimeCommentTemplates[selectedCommentTemplate]?.text || realtimeCommentTemplates[0]?.text || '');
@@ -7415,55 +7495,72 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                         return (
                           <div key={mIdx} className={`relative overflow-hidden ${
                             isEffective43751
-                              ? 'bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 lg:p-7 rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] space-y-4 md:space-y-5.5'
-                              : 'bg-white p-4 sm:p-5 md:p-6 lg:p-7 rounded-2xl md:rounded-3xl border border-slate-200/80 shadow-sm space-y-4 md:space-y-5.5'
+                              ? 'bg-white/95 backdrop-blur-md p-[12px] sm:p-[16px] md:p-[20px] rounded-[16px] md:rounded-[20px] border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] space-y-[12px] md:space-y-[16px]'
+                              : 'bg-white p-[12px] sm:p-[16px] md:p-[20px] rounded-[16px] md:rounded-[20px] border border-slate-200/80 shadow-sm space-y-[12px] md:space-y-[16px]'
                           }`}>
                             {/* Ambient background glow */}
                             <div className="absolute -top-10 -right-10 w-44 h-44 bg-gradient-to-br from-sky-200/30 to-transparent rounded-full blur-2xl pointer-events-none" />
                             <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-gradient-to-tr from-blue-100/30 to-transparent rounded-full blur-2xl pointer-events-none" />
 
-                            {/* Header: Supermarket Banner */}
-                            <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 pb-3.5 border-b border-slate-100/80">
-                              <div className="flex items-center gap-3.5">
-                                {/* 3D Gradient Store Icon Box */}
-                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#38BDF8] via-[#0EA5E9] to-[#0284C7] text-white flex items-center justify-center text-xl shadow-[0_4px_14px_-2px_rgba(2,132,199,0.35)] shrink-0 border border-white/50">
-                                  <Store size={22} strokeWidth={2.2} />
+                            {/* Header: Enterprise Analytics Top Bar */}
+                            <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-[10px] sm:gap-[14px] pb-[12px] sm:pb-[14px] border-b border-slate-100">
+                              <div className="flex items-center gap-[10px] sm:gap-[14px] min-w-0">
+                                <div
+                                  className="w-[38px] h-[38px] sm:w-[44px] sm:h-[44px] rounded-[12px] sm:rounded-[14px] text-white flex items-center justify-center shrink-0 shadow-md"
+                                  style={{ background: 'linear-gradient(135deg, #1D7AFC 0%, #0055CC 100%)' }}
+                                >
+                                  <Store size={20} strokeWidth={2.2} />
                                 </div>
-                                <div>
-                                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-50 border border-sky-200/80 text-[10.5px] font-extrabold uppercase tracking-wider text-sky-700 shadow-2xs">
-                                      <span className="w-2 h-2 rounded-full bg-sky-500 animate-ping inline-block" />
-                                      ĐANG HOẠT ĐỘNG
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-[8px] flex-wrap">
+                                    <h3
+                                      className="text-[15px] sm:text-[19px] md:text-[21px] font-black text-[#0B1F3A] tracking-tight uppercase leading-tight"
+                                      style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}
+                                    >
+                                      TỔNG QUAN DOANH THU &amp; NGÀNH HÀNG
+                                    </h3>
+                                    <span className="inline-flex items-center gap-[5px] px-[8px] py-[2px] rounded-full bg-emerald-50 border border-emerald-200/80 text-[9.5px] sm:text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">
+                                      <span className="w-[6px] h-[6px] rounded-full bg-emerald-500 animate-ping inline-block" />
+                                      REALTIME NGÀY
                                     </span>
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-blue-50 border border-blue-200/70 text-[10.5px] font-extrabold uppercase tracking-wider text-blue-700">
-                                      ⚡ BÁO CÁO REALTIME NGÀY
-                                    </span>
-                                    {lastUpdated && (
-                                      <span className="text-[11px] font-bold text-slate-400">
-                                        Cập nhật: {lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                                      </span>
-                                    )}
                                   </div>
-                                  <h3 className="text-lg sm:text-xl md:text-2xl font-black text-slate-850 tracking-tight uppercase flex items-center gap-2">
-                                    <span className="bg-gradient-to-r from-slate-900 via-sky-950 to-slate-800 bg-clip-text text-transparent">
-                                      {declaredMarket.name}
-                                    </span>
-                                  </h3>
+                                  <div className="flex items-center gap-[6px] mt-[2px] text-[11.5px] sm:text-[13px] font-bold text-slate-500 truncate">
+                                    <span className="text-[#0B1F3A] font-extrabold truncate">{declaredMarket.name}</span>
+                                  </div>
                                 </div>
                               </div>
-                              <button
-                                onClick={captureOverview}
-                                className={`no-capture inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer w-full sm:w-auto self-start sm:self-auto ${
-                                  isEffective43751
-                                    ? 'bg-gradient-to-r from-[#38BDF8] via-[#0EA5E9] to-[#0284C7] hover:from-[#0EA5E9] hover:to-[#0369A1] text-white shadow-[0_4px_14px_-2px_rgba(2,132,199,0.35)] hover:shadow-[0_6px_20px_-2px_rgba(2,132,199,0.45)] border border-white/20'
-                                    : 'bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white shadow-md shadow-indigo-100'
-                                }`}
-                              >
-                                <Camera size={16} />
-                                <span>Chụp tổng quan</span>
-                              </button>
+
+                              {/* Right Filter & Status Controls */}
+                              <div className="flex flex-wrap items-center gap-[6px] sm:gap-[8px] shrink-0">
+                                {/* Store Filter Selector (if multiple markets) */}
+                                {filteredMarkets.length > 1 && (
+                                  <div className="no-capture relative inline-flex items-center">
+                                    <select
+                                      value={marketFilter}
+                                      onChange={(e) => setMarketFilter(e.target.value)}
+                                      className="appearance-none bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-[10px] pl-[10px] pr-[24px] py-[7px] text-[11px] font-black text-[#0B1F3A] uppercase cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                    >
+                                      <option value="ALL">TẤT CẢ SIÊU THỊ</option>
+                                      {filteredMarkets.map((fm: any) => (
+                                        <option key={fm.name} value={fm.name}>{fm.name}</option>
+                                      ))}
+                                    </select>
+                                    <ChevronDown size={13} className="absolute right-[8px] pointer-events-none text-slate-500" />
+                                  </div>
+                                )}
+
+                                {/* Capture Overview Button */}
+                                <button
+                                  onClick={captureOverview}
+                                  className="no-capture inline-flex items-center justify-center gap-[6px] px-[12px] py-[7px] sm:px-[14px] sm:py-[8px] rounded-[10px] text-[11px] sm:text-[11.5px] font-black uppercase tracking-wider text-white transition-all hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer shadow-md"
+                                  style={{ background: 'linear-gradient(90deg, #1D7AFC 0%, #0EA5E9 100%)' }}
+                                >
+                                  <Camera size={14} />
+                                  <span>Chụp tổng quan</span>
+                                </button>
+                              </div>
                             </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 md:gap-3.5 lg:gap-4.5 xl:gap-5">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-[8px] sm:gap-[10px] md:gap-[12px]">
                               <StatCard
                                 title="TARGET QĐ"
                                 value={formatCurrencyUnit(dailyTargetQD)}
@@ -7495,7 +7592,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 title="Tỷ Trọng Trả Góp"
                                 value={(() => {
                                   const tcRate = resolveRealtimeTraChamRate(declaredMarket.name);
-                                  if (tcRate !== null && !isNaN(tcRate) && tcRate > 0) {
+                                  if (tcRate !== null && !isNaN(tcRate) && tcRate >= 0) {
                                     const rounded = Math.round(tcRate * 10) / 10;
                                     return `${rounded.toFixed(1)}%`;
                                   }
@@ -7535,6 +7632,20 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                         );
                       })}
                   </div>
+
+                  {/* Enterprise Analytics Row: Bar Chart + Donut Chart + Top Contributing Categories */}
+                  {visibleCategoriesDT.length > 0 && (
+                    <EnterpriseCategoryAnalytics
+                      categories={visibleCategoriesDT}
+                      onViewDetail={() => {
+                        if (categoryDTRef.current) {
+                          categoryDTRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        } else if (categoriesRef.current) {
+                          categoriesRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                      }}
+                    />
+                  )}
 
                   {/* Categories Tables in Summary */}
                   <div className="space-y-3.5" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
@@ -7652,7 +7763,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         </button>
                                       </div>
                                     </div>
-                                    <div className="exec-banner-sub flex items-center flex-nowrap whitespace-nowrap gap-1 sm:gap-2 mt-0.5 text-[8.5px] sm:text-xs text-slate-600 font-semibold" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                    <div className="exec-banner-sub hidden items-center flex-nowrap whitespace-nowrap gap-1 sm:gap-2 mt-0.5 text-[8.5px] sm:text-xs text-slate-600 font-semibold" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                                       <span className="flex items-center gap-1 whitespace-nowrap">
                                         <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-[#1E4B7A] shrink-0" />
                                         Realtime: {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} - {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }).replace(/\//g, '-')}
@@ -7924,7 +8035,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         </button>
                                       </div>
                                     </div>
-                                    <div className="exec-banner-sub flex items-center flex-nowrap whitespace-nowrap gap-1 sm:gap-2 mt-0.5 text-[8.5px] sm:text-xs text-slate-600 font-semibold" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                    <div className="exec-banner-sub hidden items-center flex-nowrap whitespace-nowrap gap-1 sm:gap-2 mt-0.5 text-[8.5px] sm:text-xs text-slate-600 font-semibold" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                                       <span className="flex items-center gap-1 whitespace-nowrap">
                                         <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-[#1E4B7A] shrink-0" />
                                         Realtime: {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} - {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }).replace(/\//g, '-')}
@@ -11515,3 +11626,5 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     </>
   );
 }
+
+export default React.memo(NewRealtimePage);

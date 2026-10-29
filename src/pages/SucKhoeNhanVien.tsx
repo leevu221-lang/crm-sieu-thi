@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as htmlToImage from 'html-to-image';
 import { domToPng, domToBlob } from 'modern-screenshot';
 import html2canvas from 'html2canvas';
-import { ensureFontsReady, EXPORT_FONT_STYLE, ensureSharedCaptureStyle, getPreloadedFontCss, injectFontStyleIntoClone, preloadFontDataCache } from '../utils/fontExportUtil';
+import { ensureFontsReady, EXPORT_FONT_STYLE, ensureSharedCaptureStyle, getPreloadedFontCss, injectFontStyleIntoClone, preloadFontDataCache, computeOptimalExportScale, getPreEncodedExportSvgStyleTag, renderIsolatedCardFastToBlob } from '../utils/fontExportUtil';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -26,13 +26,13 @@ import { useNotification } from '../contexts/NotificationContext';
 import { useStore } from '../contexts/StoreContext';
 import RevenueRankingTableQd from './EmployeeHealth/components/RevenueRankingTableQd';
 import EmployeeDetailTable from './EmployeeHealth/components/EmployeeDetailTable';
-import SummaryThiDuaTable, { parseStaffMatrixDataRefined } from './EmployeeHealth/components/SummaryThiDuaTable';
+import SummaryThiDuaTable, { parseStaffMatrixDataRefined, mergeStaffCategoryReportSections, isSameCategoryClean } from './EmployeeHealth/components/SummaryThiDuaTable';
 import CategoryDetailByStaffTable from './EmployeeHealth/components/CategoryDetailByStaffTable';
 import TongHopNvTable from './EmployeeHealth/components/TongHopNvTable';
 import StaffComparisonModal, { StaffComparisonData } from './EmployeeHealth/components/StaffComparisonModal';
 import { GiaTriDhTab } from './EmployeeHealth/components/GiaTriDhTab';
 import { extractStaffNameAndId } from './EmployeeHealth/utils/staffParserHelper';
-import { cn, parseStaffRankData, parseYcxData, normalizeStoreId, parseStaffValueList, normalize, parseCategoryData, cleanCategoryName, isKhoLuuDong, formatCurrencyValue, extractCategoriesFromStoreThiDua, extractStaffRevFromReport, getStoredStaffThucInput } from './RTST/utils';
+import { cn, parseStaffRankData, parseYcxData, normalizeStoreId, parseStaffValueList, normalize, parseCategoryData, cleanCategoryName, isKhoLuuDong, formatCurrencyValue, extractCategoriesFromStoreThiDua, extractStaffRevFromReport, getStoredStaffThucInput, isNonCategoryNoiseLine } from './RTST/utils';
 import { useCategoryConfig } from '../hooks/useCategoryConfig';
 
 const removeAccents = (str: string): string => {
@@ -131,23 +131,50 @@ const BONUS_COLS = [
 ];
 
 const LiveClockBadge = React.memo(() => {
-  const [liveClockStr, setLiveClockStr] = useState(() => {
-    const now = new Date();
-    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')} - ${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
-  });
+  const formatClock = (now: Date) => {
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mo = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = now.getFullYear();
+    return `${hh}:${mm}:${ss} - ${dd}/${mo}/${yyyy}`;
+  };
+
+  const [liveClockStr, setLiveClockStr] = useState(() => formatClock(new Date()));
 
   useEffect(() => {
     const timer = setInterval(() => {
-      const now = new Date();
-      setLiveClockStr(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')} - ${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`);
+      setLiveClockStr(formatClock(new Date()));
     }, 1000);
     return () => clearInterval(timer);
   }, []);
 
   return (
-    <div className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3.5 py-1 sm:py-2 bg-gradient-to-r from-slate-50 to-emerald-50/40 border border-emerald-200/90 text-emerald-800 rounded-full text-[9.5px] sm:text-xs md:text-sm font-black tracking-tight shadow-2xs whitespace-nowrap">
-      <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 animate-pulse" />
-      <span>{liveClockStr}</span>
+    <div className="w-full min-[1150px]:w-auto flex items-center justify-between gap-[6px] min-[768px]:gap-[12px] px-[8px] min-[768px]:px-[16px] h-[50px] min-[768px]:h-[60px] bg-white/95 rounded-[14px] min-[768px]:rounded-[20px] border border-[#E5EAF3] shadow-[0_4px_14px_-2px_rgba(15,23,42,0.04)] transition-all duration-200 select-none min-w-0 overflow-hidden min-[1150px]:shrink-0">
+      <div
+        className="w-[30px] h-[30px] min-[768px]:w-[40px] min-[768px]:h-[40px] rounded-[9px] min-[768px]:rounded-[12px] flex items-center justify-center shrink-0"
+        style={{ backgroundColor: '#D1FAE5', color: '#059669' }}
+      >
+        <svg className="w-[15px] h-[15px] min-[768px]:w-[20px] min-[768px]:h-[20px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="16" height="16" rx="2.5" />
+          <line x1="14" y1="2" x2="14" y2="6" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="3" y1="9" x2="19" y2="9" />
+          <circle cx="17.5" cy="17.5" r="4.5" fill="#ECFDF5" stroke="currentColor" strokeWidth="2" />
+          <path d="M17.5 15.8v1.8l1.2 1" />
+        </svg>
+      </div>
+      <div className="flex flex-col items-start justify-center min-w-0 flex-1 overflow-hidden">
+        <span className="text-[9px] min-[768px]:text-[11px] font-bold text-[#64748B] uppercase tracking-[0.03em] leading-tight truncate w-full">
+          THỜI GIAN
+        </span>
+        <div className="inline-flex items-center gap-[3px] min-[768px]:gap-[4px] mt-[2px] text-[9.5px] min-[768px]:text-[13px] font-black text-[#059669] tracking-tight leading-tight whitespace-nowrap tabular-nums max-w-full overflow-hidden">
+          <Clock size={11} className="text-[#059669] shrink-0 stroke-[2.5] hidden min-[400px]:inline-block min-[768px]:w-[13px] min-[768px]:h-[13px]" />
+          <span className="truncate">{liveClockStr}</span>
+        </div>
+      </div>
+      <ChevronDown size={15} className="text-[#64748B] shrink-0 hidden min-[768px]:block" />
     </div>
   );
 });
@@ -526,6 +553,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   const [maKho, setMaKho] = useState(() => userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '');
   const [isCapturing, setIsCapturing] = useState(false);
   const [batchExportProgress, setBatchExportProgress] = useState<{ current: number; total: number; percent: number } | null>(null);
+  const isExportingAllRef = useRef(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [compareStaffAId, setCompareStaffAId] = useState<string>('');
@@ -666,7 +694,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       clone.style.maxWidth = `${actualContentWidth}px`;
       clone.style.margin = '0 auto';
 
-      const innerCards = clone.querySelectorAll('.max-w-\\[880px\\], .max-w-\\[800px\\], .max-w-\\[960px\\], .max-w-\\[1260px\\], .w-full');
+      const innerCards = clone.querySelectorAll('.max-w-\\[880px\\], .max-w-\\[900px\\], .max-w-\\[800px\\], .max-w-\\[960px\\], .max-w-\\[1260px\\]');
       innerCards.forEach(c => {
         (c as HTMLElement).style.maxWidth = `${actualContentWidth}px`;
         (c as HTMLElement).style.width = `${actualContentWidth}px`;
@@ -688,10 +716,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     clone.style.boxShadow = 'none';
     clone.style.fontFamily = "'UTM Avo', 'Inter', sans-serif";
 
-    // Make sure overflow wrappers in the clone are visible and fill full width
-    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
+    // Make sure table overflow wrappers in the clone are visible and fill full width
+    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-auto, .overflow-hidden');
     scrollContainers.forEach((el) => {
       const htmlEl = el as HTMLElement;
+      const wrapsTable = Boolean(htmlEl.querySelector('table')) || htmlEl.classList.contains('overflow-x-auto') || htmlEl.classList.contains('overflow-y-auto') || htmlEl.classList.contains('overflow-auto');
+      if (!wrapsTable) return;
       htmlEl.style.overflow = 'visible';
       htmlEl.style.width = '100%';
       htmlEl.style.minWidth = '100%';
@@ -713,9 +743,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         htmlTable.style.maxWidth = '100%';
         
         if (isDoanhThuNvTab) {
-          htmlTable.style.minWidth = '860px';
+          htmlTable.style.minWidth = '868px';
           const cols = htmlTable.querySelectorAll('colgroup col');
-          const defaultColWidths = ['42px', '258px', '80px', '85px', '85px', '75px', '90px', '90px', '55px'];
+          const defaultColWidths = ['52px', '236px', '82px', '88px', '84px', '84px', '82px', '82px', '78px'];
           cols.forEach((col, idx) => {
             if (defaultColWidths[idx]) {
               (col as HTMLElement).style.width = defaultColWidths[idx];
@@ -787,22 +817,28 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
   type CaptureStrategy = 'htmlToImage' | 'domToPng' | 'html2canvas';
 
-  const runCaptureStrategy = async (frameWrapper: HTMLElement, strategy: CaptureStrategy, scale: number = 1.75): Promise<Blob | string> => {
-    const frameHeight = Math.max(800, (frameWrapper.offsetHeight || frameWrapper.scrollHeight || 1200) + 4);
+  const runCaptureStrategy = async (frameWrapper: HTMLElement, strategy: CaptureStrategy, scale?: number): Promise<Blob | string> => {
+    const EXPORT_WIDTH = 880;
     const fontCss = getPreloadedFontCss() || await preloadFontDataCache();
     await injectFontStyleIntoClone(frameWrapper);
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    const frameHeight = Math.max(
+      600,
+      Math.ceil(Math.max(frameWrapper.scrollHeight, frameWrapper.offsetHeight)) + 4
+    );
+    const effectiveScale = scale ?? computeOptimalExportScale(EXPORT_WIDTH, frameHeight, 3, 4);
 
     if (strategy === 'htmlToImage') {
       const blob = await htmlToImage.toBlob(frameWrapper, {
         backgroundColor: '#ffffff',
-        pixelRatio: scale,
+        pixelRatio: effectiveScale,
         skipFonts: false,
         fontEmbedCSS: fontCss,
         skipAutoScale: true,
         cacheBust: false,
-        width: 1120,
+        width: EXPORT_WIDTH,
         height: frameHeight,
-        style: { ...EXPORT_FONT_STYLE },
+        style: { ...EXPORT_FONT_STYLE, zoom: '1', transform: 'none' },
       });
       if (!blob || blob.size === 0) throw new Error('htmlToImage produced no blob');
       return blob;
@@ -810,9 +846,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     if (strategy === 'domToPng') {
       const dataUrl = await domToPng(frameWrapper, {
         backgroundColor: '#ffffff',
-        scale: scale,
+        scale: effectiveScale,
         font: { cssText: fontCss },
-        width: 1120,
+        width: EXPORT_WIDTH,
         height: frameHeight,
         drawImageInterval: 20,
         features: {
@@ -826,52 +862,41 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       return dataUrl;
     }
     const canvas = await html2canvas(frameWrapper, {
-      scale: scale,
+      scale: effectiveScale,
       backgroundColor: '#ffffff',
       logging: false,
       useCORS: true,
       allowTaint: true,
-      width: 1120,
-      windowWidth: 1120,
+      width: EXPORT_WIDTH,
+      height: frameHeight,
+      windowWidth: 1440,
+      windowHeight: frameHeight + 200,
+      scrollX: 0,
+      scrollY: 0,
+      x: 0,
+      y: 0,
     });
-    const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+    const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
     if (!blob) throw new Error('html2canvas produced no blob');
     return blob;
   };
 
   // Builds the capture-ready frame wrapper for an employee detail card.
   // Optimizations:
-  // 1. Relies on globally injected shared UTM Avo stylesheet from ensureSharedCaptureStyle().
-  // 2. Physically strips non-export nodes (.remove()) to reduce DOM serialization tree by ~40%.
-  // 3. Zero-Shadow Export rule per AGENTS.md.
+  // 1. Relies on globally & locally injected shared UTM Avo stylesheet (idempotent).
+  // 2. Physically strips non-export nodes (.remove()) including hidden tfoot/elements to reduce DOM serialization tree by >45%.
+  // 3. Preserves UI gradients, shadows, progress bars, and 880px desktop proportions.
   const buildCaptureFrame = (element: HTMLElement): { frameWrapper: HTMLElement } => {
-    ensureSharedCaptureStyle();
+    const EXPORT_WIDTH = 880;
     const frameWrapper = document.createElement('div');
     frameWrapper.className = 'export-isolated-card';
-    frameWrapper.style.cssText = 'width:1120px;min-width:1120px;max-width:1120px;padding:20px;background-color:#ffffff;box-sizing:border-box;border-radius:24px;box-shadow:none;display:block;';
+    frameWrapper.style.cssText = `width:${EXPORT_WIDTH}px;min-width:${EXPORT_WIDTH}px;max-width:${EXPORT_WIDTH}px;padding:12px;background-color:#ffffff;box-sizing:border-box;border-radius:24px;display:block;overflow:visible;zoom:1;transform:none;`;
 
     const clone = element.cloneNode(true) as HTMLElement;
 
-    // Physically purge non-capture elements (buttons, toolbars, inputs)
-    clone.querySelectorAll('.no-capture, button, textarea, .capture-btn, input, select').forEach(el => el.remove());
-    clone.style.cssText = "width:100%;min-width:100%;max-width:100%;height:auto;margin:0;padding:0;background-color:transparent;display:block;box-sizing:border-box;box-shadow:none;font-family:'UTM Avo', 'Inter', sans-serif;opacity:1;transform:none;";
-
-    // Zero-Shadow Export per AGENTS.md rule
-    clone.querySelectorAll('*').forEach(el => {
-      const htmlEl = el as HTMLElement;
-      if (htmlEl.style) {
-        htmlEl.style.boxShadow = 'none';
-        htmlEl.style.textShadow = 'none';
-        htmlEl.style.filter = 'none';
-      }
-      if (htmlEl.classList) {
-        Array.from(htmlEl.classList).forEach(cls => {
-          if (cls.startsWith('shadow') || cls.startsWith('drop-shadow') || cls.startsWith('ring')) {
-            htmlEl.classList.remove(cls);
-          }
-        });
-      }
-    });
+    // Physically purge non-capture elements (buttons, toolbars, hidden nodes, inputs, mobile style tags)
+    clone.querySelectorAll('.no-capture, .hidden, tfoot.hidden, button, textarea, .capture-btn, input, select, style:not([data-font-inject="true"])').forEach(el => el.remove());
+    clone.style.cssText = "width:100%;min-width:100%;max-width:100%;height:auto;margin:0;padding:0;background-color:transparent;display:block;box-sizing:border-box;font-family:'UTM Avo', 'Inter', sans-serif;opacity:1;transform:none;zoom:1;";
 
     frameWrapper.appendChild(clone);
     return { frameWrapper };
@@ -880,13 +905,35 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   const DEFAULT_CAPTURE_ORDER: CaptureStrategy[] = ['htmlToImage', 'domToPng', 'html2canvas'];
 
   const captureSingleEmployeeCard = async (element: HTMLElement, order: CaptureStrategy[] = DEFAULT_CAPTURE_ORDER): Promise<Blob | string> => {
+    ensureSharedCaptureStyle();
+    const EXPORT_WIDTH = 880;
+    const isDesktopBodyZoomed = typeof window !== 'undefined' && window.innerWidth >= 768;
+    const containerZoom = isDesktopBodyZoomed ? '1.333333' : '1';
     const tempContainer = document.createElement('div');
-    tempContainer.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:visible;pointer-events:none;z-index:-9999;background:#ffffff;';
+    tempContainer.style.cssText = `position:fixed;top:0;left:-9999px;width:${EXPORT_WIDTH}px;overflow:visible;pointer-events:none;z-index:-9999;background:#ffffff;zoom:${containerZoom};transform:none;`;
     const { frameWrapper } = buildCaptureFrame(element);
     tempContainer.appendChild(frameWrapper);
     document.body.appendChild(tempContainer);
 
     try {
+      await ensureFontsReady();
+      const frameHeight = Math.max(600, Math.ceil(Math.max(frameWrapper.scrollHeight, frameWrapper.offsetHeight)) + 4);
+      const effectiveScale = computeOptimalExportScale(EXPORT_WIDTH, frameHeight, 2, 2.5);
+      try {
+        const preEncodedStyleTag = await getPreEncodedExportSvgStyleTag();
+        const fastRes = await renderIsolatedCardFastToBlob(
+          frameWrapper,
+          EXPORT_WIDTH,
+          frameHeight,
+          effectiveScale,
+          undefined,
+          preEncodedStyleTag
+        );
+        return fastRes.blob;
+      } catch (fastErr) {
+        console.warn('[Export Single] Fast SVG renderer failed, falling back:', fastErr);
+      }
+
       let lastErr: unknown = null;
       for (const strategy of order) {
         try {
@@ -903,46 +950,69 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   };
 
   const handleExportAllStaffDetails = async () => {
+    // Prevent duplicate rapid clicks before React state commits
+    if (isExportingAllRef.current || isCapturing) return;
+
+    const tTotalStart = performance.now();
+    const tDataPrepStart = performance.now();
+
     const tables = Array.from(document.querySelectorAll('[id^="employee-detail-"]')) as HTMLElement[];
     if (tables.length === 0) {
       showNotification('Không tìm thấy danh sách nhân viên nào để xuất!', 'warning');
       return;
     }
 
-    // 1. Immediately activate capturing state & initialize progress counter
+    // 1. Immediately lock and activate capturing state & initialize progress counter
+    isExportingAllRef.current = true;
     setIsCapturing(true);
     setBatchExportProgress({ current: 0, total: tables.length, percent: 0 });
+    const dataPrepMs = performance.now() - tDataPrepStart;
 
-    // 2. Yield control to browser paint cycle so React renders the loading overlay instantly (0ms lag)
-    await new Promise(resolve => setTimeout(resolve, 30));
-
-    const startTime = Date.now();
+    // Yield 1 macrotask so React paints the progress state immediately (and works even if tab is backgrounded)
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
 
     // Balanced worker pool (2 workers on mobile / low-spec, up to 3 on desktop)
     const hwCores = typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency || 4) : 4;
     const CONCURRENCY = Math.min(tables.length, Math.max(2, Math.min(3, hwCores)));
+    const isDesktopBodyZoomed = typeof window !== 'undefined' && window.innerWidth >= 768;
+    const containerZoom = isDesktopBodyZoomed ? '1.333333' : '1';
 
-    const workerContainers: HTMLElement[] = [];
-    const fragment = document.createDocumentFragment();
-    for (let w = 0; w < CONCURRENCY; w++) {
-      const wc = document.createElement('div');
-      wc.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:visible;pointer-events:none;z-index:-9999;background:#ffffff;';
-      fragment.appendChild(wc);
-      workerContainers.push(wc);
-    }
-    document.body.appendChild(fragment);
+    let fallbackContainer: HTMLElement | null = null;
 
     try {
+      // 2. Stage 2: DOM Preparation & Single-Pass Batch Measurement (0 layout thrashing)
+      const tDomPrepStart = performance.now();
       await ensureFontsReady();
       ensureSharedCaptureStyle();
+      const preEncodedStyleTag = await getPreEncodedExportSvgStyleTag();
 
-      // Pre-clone and prepare all card frames upfront in one fast pass (< 10ms)
+      const measureContainer = document.createElement('div');
+      measureContainer.style.cssText = `position:fixed;top:0;left:-9999px;width:880px;overflow:visible;pointer-events:none;z-index:-9999;background:#ffffff;zoom:${containerZoom};transform:none;contain:layout style;`;
+      const measureFragment = document.createDocumentFragment();
+
       const preparedCards = tables.map((element, idx) => {
         const rawName = element.id.replace('employee-detail-', '').trim();
         const cleanName = rawName.replace(/[/\\?%*:|"<>]/g, '_');
         const { frameWrapper } = buildCaptureFrame(element);
-        return { idx, rawName, cleanName, frameWrapper };
+        measureFragment.appendChild(frameWrapper);
+        return { idx, rawName, cleanName, frameWrapper, cardHeight: 1200, cardScale: 2 };
       });
+
+      measureContainer.appendChild(measureFragment);
+      document.body.appendChild(measureContainer);
+
+      // Single synchronous layout read pass across all cards (prevents interleaved write/read reflows)
+      for (let i = 0; i < preparedCards.length; i++) {
+        const fw = preparedCards[i].frameWrapper;
+        const h = Math.max(600, Math.ceil(Math.max(fw.scrollHeight, fw.offsetHeight)) + 4);
+        preparedCards[i].cardHeight = h;
+        preparedCards[i].cardScale = computeOptimalExportScale(880, h, 2, 2.5);
+      }
+
+      // Immediately detach all cloned cards and remove the offscreen container before workers run
+      measureContainer.replaceChildren();
+      measureContainer.remove();
+      const domPrepMs = performance.now() - tDomPrepStart;
 
       const zip = new JSZip();
       const failedNames: string[] = [];
@@ -953,89 +1023,160 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         setBatchExportProgress({ current, total, percent });
       };
 
-      // Crisp 1.5x scale (1680px width) delivers crystal clear UTM Avo font, ultra fast rendering, light memory
-      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-      const exportScale = isMobile ? 1.5 : 1.75;
-
       let currentIndex = 0;
       let completedCount = 0;
+      let totalRenderCanvasMs = 0;
+      let totalCanvasToBlobMs = 0;
 
-      const runWorker = async (workerIndex: number) => {
-        const workerContainer = workerContainers[workerIndex];
-        if (workerIndex > 0) {
-          // Stagger worker start by 25ms so workers do not clash during initial compile
-          await new Promise(resolve => setTimeout(resolve, workerIndex * 25));
+      const getFallbackContainer = () => {
+        if (!fallbackContainer) {
+          fallbackContainer = document.createElement('div');
+          fallbackContainer.style.cssText = `position:fixed;top:0;left:-9999px;width:880px;overflow:visible;pointer-events:none;z-index:-9999;background:#ffffff;zoom:${containerZoom};transform:none;`;
+          document.body.appendChild(fallbackContainer);
         }
+        return fallbackContainer;
+      };
 
-        while (currentIndex < preparedCards.length) {
-          const cardIdx = currentIndex++;
-          if (cardIdx >= preparedCards.length) break;
+      // 3 & 4. Stage 3 (Render HTML to Canvas) & Stage 4 (Canvas to Blob) via Worker Pool
+      const runWorker = async () => {
+        // Each worker reuses a single HTMLCanvasElement and releases it immediately upon completion
+        const reusableCanvas = document.createElement('canvas');
 
-          const card = preparedCards[cardIdx];
-          const { idx, rawName, cleanName, frameWrapper } = card;
+        try {
+          while (currentIndex < preparedCards.length) {
+            const cardIdx = currentIndex++;
+            if (cardIdx >= preparedCards.length) break;
 
-          try {
-            workerContainer.replaceChildren(frameWrapper);
+            const card = preparedCards[cardIdx];
+            const { idx, rawName, cleanName, frameWrapper, cardHeight, cardScale } = card;
 
-            let result: Blob | string | null = null;
-            let lastErr: unknown = null;
+            try {
+              let result: Blob | string | null = null;
+              let lastErr: unknown = null;
 
-            for (const strategy of order) {
+              // Primary Fast Path: Direct SVG foreignObject + pre-encoded shared CSS + reusable Canvas + toBlob()
               try {
-                result = await Promise.race([
-                  runCaptureStrategy(frameWrapper, strategy, exportScale),
-                  new Promise<never>((_, reject) =>
-                    setTimeout(() => reject(new Error(`${strategy} timed out after 12s`)), 12000)
-                  ),
-                ]);
-                if (result) break;
-              } catch (strategyErr) {
-                lastErr = strategyErr;
-                console.warn(`[Export ${rawName}] ${strategy} failed, falling back:`, strategyErr);
+                const fastRes = await renderIsolatedCardFastToBlob(
+                  frameWrapper,
+                  880,
+                  cardHeight,
+                  cardScale,
+                  reusableCanvas,
+                  preEncodedStyleTag
+                );
+                totalRenderCanvasMs += fastRes.renderCanvasMs;
+                totalCanvasToBlobMs += fastRes.canvasToBlobMs;
+                result = fastRes.blob;
+              } catch (fastErr) {
+                lastErr = fastErr;
+                console.warn(`[Export ${rawName}] Fast SVG path failed, falling back to strategy chain:`, fastErr);
               }
-            }
 
-            if (!result) {
-              throw lastErr instanceof Error ? lastErr : new Error('Capture failed');
-            }
+              // Fallback Strategy Chain (only if fast path fails)
+              if (!result) {
+                const fbContainer = getFallbackContainer();
+                fbContainer.replaceChildren(frameWrapper);
+                for (const strategy of order) {
+                  try {
+                    const tFallbackStart = performance.now();
+                    result = await Promise.race([
+                      runCaptureStrategy(frameWrapper, strategy, cardScale),
+                      new Promise<never>((_, reject) =>
+                        setTimeout(() => reject(new Error(`${strategy} timed out after 15s`)), 15000)
+                      ),
+                    ]);
+                    totalRenderCanvasMs += performance.now() - tFallbackStart;
+                    if (result) break;
+                  } catch (strategyErr) {
+                    lastErr = strategyErr;
+                    console.warn(`[Export ${rawName}] ${strategy} failed, falling back:`, strategyErr);
+                  }
+                }
+                fbContainer.replaceChildren();
+              }
 
-            // Directly append to JSZip
-            const fileName = `ChiTiet_${String(idx + 1).padStart(2, '0')}_${cleanName}.png`;
-            if (result instanceof Blob) {
-              zip.file(fileName, result);
-            } else if (typeof result === 'string') {
-              const base64Data = result.includes(',') ? result.split(',')[1] : result;
-              zip.file(fileName, base64Data, { base64: true });
-            }
-          } catch (err) {
-            console.error(`[Export] FAILED for "${rawName}" (card ${idx + 1}/${preparedCards.length}):`, err);
-            failedNames.push(rawName);
-          } finally {
-            // Free worker container DOM memory immediately
-            workerContainer.replaceChildren();
-            completedCount++;
-            reportProgress(completedCount, preparedCards.length);
+              if (!result) {
+                throw lastErr instanceof Error ? lastErr : new Error('Capture failed');
+              }
 
-            // Micro-yield to browser event loop so progress bar updates smoothly on screen
-            await new Promise(resolve => setTimeout(resolve, 15));
+              // Directly append to JSZip
+              const fileName = `ChiTiet_${String(idx + 1).padStart(2, '0')}_${cleanName}.png`;
+              if (result instanceof Blob) {
+                zip.file(fileName, result);
+              } else if (typeof result === 'string') {
+                const base64Data = result.includes(',') ? result.split(',')[1] : result;
+                zip.file(fileName, base64Data, { base64: true });
+              }
+            } catch (err) {
+              console.error(`[Export] FAILED for "${rawName}" (card ${idx + 1}/${preparedCards.length}):`, err);
+              failedNames.push(rawName);
+            } finally {
+              // Release detached DOM children immediately to minimize peak memory
+              frameWrapper.replaceChildren();
+              completedCount++;
+              reportProgress(completedCount, preparedCards.length);
+
+              // Yield 1 macrotask to browser event loop so progress UI updates smoothly without artificial sleep
+              await new Promise<void>(resolve => setTimeout(resolve, 0));
+            }
           }
+        } finally {
+          reusableCanvas.width = 0;
+          reusableCanvas.height = 0;
         }
       };
 
       // Execute workers concurrently
-      await Promise.all(workerContainers.map((_, idx) => runWorker(idx)));
+      await Promise.all(Array.from({ length: CONCURRENCY }, () => runWorker()));
 
       // Final progress update
       reportProgress(preparedCards.length, preparedCards.length);
 
-      // Fast STORE compression (images are already PNG compressed)
+      // 5. Stage 5: Generate ZIP & Trigger File Download with ObjectURL cleanup
+      const tDownloadStart = performance.now();
       const content = await zip.generateAsync({
         type: "blob",
         compression: "STORE"
       });
 
-      const durationSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
-      saveAs(content, `ChiTiet_All_${preparedCards.length}_NV.zip`);
+      const zipFileName = `ChiTiet_All_${preparedCards.length}_NV.zip`;
+      let downloadTriggered = false;
+      if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+        const objectUrl = URL.createObjectURL(content);
+        try {
+          const link = document.createElement('a');
+          link.href = objectUrl;
+          link.download = zipFileName;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          downloadTriggered = true;
+        } finally {
+          setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+        }
+      }
+      if (!downloadTriggered) {
+        saveAs(content, zipFileName);
+      }
+
+      const fileDownloadMs = performance.now() - tDownloadStart;
+      const totalMs = performance.now() - tTotalStart;
+      const durationSeconds = (totalMs / 1000).toFixed(2);
+
+      const perfMetrics = {
+        staffCount: preparedCards.length,
+        concurrency: CONCURRENCY,
+        dataPrepMs: Number(dataPrepMs.toFixed(1)),
+        domPrepMs: Number(domPrepMs.toFixed(1)),
+        renderCanvasMs: Number(totalRenderCanvasMs.toFixed(1)),
+        canvasToBlobMs: Number(totalCanvasToBlobMs.toFixed(1)),
+        fileDownloadMs: Number(fileDownloadMs.toFixed(1)),
+        totalMs: Number(totalMs.toFixed(1)),
+      };
+      (window as unknown as Record<string, unknown>).__lastExportAllPerf = perfMetrics;
+      console.info('[ExportAllStaff Performance]', perfMetrics);
+
       const successCount = preparedCards.length - failedNames.length;
       if (failedNames.length > 0) {
         console.warn(`[Export] ${failedNames.length} nhân viên bị lỗi/timeout:`, failedNames);
@@ -1047,7 +1188,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       console.error('Batch export error:', err);
       showNotification('Có lỗi xảy ra khi xuất ảnh hàng loạt!', 'error');
     } finally {
-      workerContainers.forEach(wc => wc.remove());
+      if (fallbackContainer) {
+        (fallbackContainer as HTMLElement).remove();
+      }
+      isExportingAllRef.current = false;
       setIsCapturing(false);
       setBatchExportProgress(null);
     }
@@ -1307,7 +1451,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     saveBanKemNv,
     saveNganhhangChinhNv,
     saveTragopNv,
-    tenSieuThi
+    tenSieuThi,
+    storeCategoryTargets
   } = useEmployeeHealth(maKho, marketFilter !== 'ALL' ? marketFilter : undefined);
   const { 
     stTargetSauHeSo, setStTargetSauHeSo,
@@ -1322,7 +1467,47 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     stPercentHTTargetDuKienQD, setStPercentHTTargetDuKienQD,
     allStoreTargets
   } = useRTSTSharedData(maKho);
-  const { tragopMatran, tragopNv: luykeTragopNv, categoryTargets, processedData, staffInput, staffCategoryInput, loadData: loadLuykeData, isLoading: isLuykeLoading, allStoresCache } = useLuykeData(maKho);
+  const { tragopMatran, tragopNv: luykeTragopNv, categoryTargets: luykeCategoryTargets, processedData, staffInput, staffCategoryInput, loadData: loadLuykeData, isLoading: isLuykeLoading, allStoresCache } = useLuykeData(maKho);
+
+  // Merge categoryTargets from store document (useEmployeeHealth) and LuykeDataContext so all 40 configured store targets are always available
+  const categoryTargets = useMemo(() => {
+    const merged: any[] = [];
+    const addTargets = (arr?: any[]) => {
+      if (!Array.isArray(arr)) return;
+      arr.forEach(item => {
+        if (!item || !item.name || isNonCategoryNoiseLine(item.name)) return;
+        const clean = cleanCategoryName(item.name);
+        if (!clean) return;
+        const normName = normalize(item.name);
+        const existingIdx = merged.findIndex(m => normalize(m.name) === normName && (!m.type || !item.type || m.type === item.type));
+        if (existingIdx === -1) {
+          merged.push(item);
+        } else {
+          const existing = merged[existingIdx];
+          const existingVal = existing.adjustedTarget ?? existing.target ?? 0;
+          const newVal = item.adjustedTarget ?? item.target ?? 0;
+          if (existingVal <= 0 && newVal > 0) {
+            merged[existingIdx] = item;
+          }
+        }
+      });
+    };
+    // Prefer freshly processed LuykeDataContext targets first, then fallback to storeCategoryTargets
+    addTargets(luykeCategoryTargets);
+    addTargets(storeCategoryTargets);
+    if (merged.length === 0 && allStoresCache && marketFilter && marketFilter !== 'ALL') {
+      const normFilter = normalize(marketFilter);
+      const cacheEntry = Object.entries(allStoresCache).find(([k, v]: [string, any]) => {
+        const nk = normalize(k);
+        const nTen = normalize(v?.tenSieuThi || '');
+        return nk === normFilter || nTen === normFilter || (normFilter && (nk.includes(normFilter) || normFilter.includes(nk)));
+      });
+      if (cacheEntry && Array.isArray((cacheEntry[1] as any)?.categoryTargets)) {
+        addTargets((cacheEntry[1] as any).categoryTargets);
+      }
+    }
+    return merged;
+  }, [storeCategoryTargets, luykeCategoryTargets, allStoresCache, marketFilter]);
 
   const currentSystemMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
@@ -1360,8 +1545,33 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   }, [processedData.markets]);
 
   const filteredLuykeCategories = useMemo(() => {
-    return (processedData?.categories || []).filter((c: any) => isCategoryForMarket(c, marketFilter));
-  }, [processedData?.categories, marketFilter]);
+    const baseCats = (processedData?.categories || []).filter((c: any) => isCategoryForMarket(c, marketFilter));
+    if (!luyKeNganhHang || !luyKeNganhHang.trim()) {
+      return baseCats;
+    }
+    const effectiveMarkets = allowedMarkets.length > 0
+      ? allowedMarkets
+      : [{ name: marketFilter !== 'ALL' ? marketFilter : (tenSieuThi || maKho), targetST: 0, actualReal: 0, actualVirtual: 0, dtHomQua: 0, percentHT: 0 }];
+    const parsedFromStoreRaw = parseCategoryData(luyKeNganhHang, daysPassed, totalDays, effectiveMarkets as any, 'LUYKE');
+    const matchingFromStoreRaw = parsedFromStoreRaw.filter((c: any) => {
+      if (!marketFilter || marketFilter === 'ALL') return true;
+      if (!c?.marketName) return true;
+      return isCategoryForMarket({ ...c, target: Math.max(c.target || 0, 1) }, marketFilter);
+    });
+    if (baseCats.length === 0) {
+      return matchingFromStoreRaw.length > 0 ? matchingFromStoreRaw : parsedFromStoreRaw;
+    }
+    const merged = [...baseCats];
+    const sourceToMerge = matchingFromStoreRaw.length > 0 ? matchingFromStoreRaw : parsedFromStoreRaw;
+    sourceToMerge.forEach((c: any) => {
+      const normName = normalize(c.name || '');
+      if (!normName) return;
+      if (!merged.some(m => normalize(m.name || '') === normName && (!m.type || !c.type || m.type === c.type))) {
+        merged.push(c);
+      }
+    });
+    return merged;
+  }, [processedData?.categories, marketFilter, luyKeNganhHang, daysPassed, totalDays, allowedMarkets, tenSieuThi, maKho]);
 
   const currentMarket = useMemo(() => {
     if (!marketFilter || marketFilter === 'ALL') {
@@ -1503,42 +1713,48 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
   // Use KHAI BÁO inputs (DOANH THU + THI ĐUA NV) when available, otherwise use DB data
   const biRevenueData = React.useMemo(() => {
-    const baseList = staffInput ? parseStaffRankData(staffInput, effectiveStaffInputThuc) : dbBiRevenueData;
+    const activeStoreKey = marketFilter !== 'ALL' ? marketFilter : (tenSieuThi || stName || maKho || '');
+    const baseList = staffInput ? parseStaffRankData(staffInput, effectiveStaffInputThuc, activeStoreKey) : dbBiRevenueData;
     if (!effectiveStaffInputThuc || baseList.length === 0) return baseList;
 
-    // Ensure actualVal and effVal are mapped onto each staff member
+    // Ensure actualVal and effVal are mapped onto each staff member strictly by employee code first
     const thucMap = extractStaffRevFromReport(effectiveStaffInputThuc);
     if (thucMap.size === 0) return baseList;
 
     const norm = (str: string) => 
-      (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+      (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
 
     return baseList.map(staff => {
       const cleanId = (staff.fullId || '').replace(/\D/g, '');
-      const staffNorm = norm(staff.displayName);
+      const pureStaffName = norm(
+        staff.employeeName || (staff.displayName.split(/[-–—]/).slice(1).join(' ') || staff.displayName)
+      );
       let match = (cleanId ? thucMap.get(cleanId) : null) || thucMap.get(staff.fullId);
       if (!match) {
         for (const item of thucMap.values()) {
           const itemCleanId = (item.id || '').replace(/\D/g, '');
-          if (cleanId && itemCleanId && cleanId === itemCleanId) {
-            match = item;
-            break;
+          if (cleanId && itemCleanId) {
+            if (cleanId === itemCleanId) {
+              match = item;
+              break;
+            }
+            continue;
           }
-          const itemNorm = norm(item.name || item.id);
-          if (itemNorm && (staffNorm.includes(itemNorm) || itemNorm.includes(staffNorm))) {
+          const itemNorm = norm(item.name);
+          if (pureStaffName && itemNorm && pureStaffName === itemNorm) {
             match = item;
             break;
           }
         }
       }
 
-      if (match && match.revenue > 0) {
+      if (match && match.revenue !== null && match.revenue !== undefined && !isNaN(match.revenue)) {
         const vRaw = staff.virtualVal || 0;
         const aRaw = match.revenue;
         let actualVal = aRaw;
         if (Math.abs(vRaw) <= 1000000 && Math.abs(aRaw) > 1000000) {
           actualVal = Math.round(aRaw / 1000000);
-        } else if (Math.abs(vRaw) > 1000000 && Math.abs(aRaw) <= 1000000) {
+        } else if (Math.abs(vRaw) > 1000000 && Math.abs(aRaw) <= 1000000 && aRaw !== 0) {
           actualVal = aRaw * 1000000;
         }
 
@@ -1555,18 +1771,39 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       }
       return staff;
     });
-  }, [staffInput, effectiveStaffInputThuc, dbBiRevenueData]);
+  }, [staffInput, effectiveStaffInputThuc, dbBiRevenueData, marketFilter, tenSieuThi, stName, maKho]);
 
   const thiDuaNv = React.useMemo(() => {
-    if (staffCategoryInput && staffCategoryInput.trim()) return staffCategoryInput;
-    if (dbThiDuaNv && dbThiDuaNv.trim()) return dbThiDuaNv;
-    if (marketFilter && marketFilter !== 'ALL' && allStoresCache?.[marketFilter]?.staffCategoryInput) {
-      return allStoresCache[marketFilter].staffCategoryInput;
+    const candidates: string[] = [];
+    if (staffCategoryInput && staffCategoryInput.trim()) {
+      candidates.push(staffCategoryInput);
     }
-    const anyCached = Object.values(allStoresCache || {}).find((s: any) => s?.staffCategoryInput?.trim()) as any;
-    if (anyCached?.staffCategoryInput) return anyCached.staffCategoryInput;
+    if (dbThiDuaNv && dbThiDuaNv.trim()) {
+      candidates.push(dbThiDuaNv);
+    }
+    if (marketFilter && marketFilter !== 'ALL' && allStoresCache?.[marketFilter]?.staffCategoryInput?.trim()) {
+      candidates.push(allStoresCache[marketFilter].staffCategoryInput);
+    }
+    const storeKey = marketFilter !== 'ALL' ? marketFilter : (tenSieuThi || stName || '');
+    if (storeKey && allStoresCache) {
+      const cleanStoreKey = storeKey.replace(/^(\d+\s*[-–—]\s*)/, '').trim().toLowerCase();
+      const found = Object.entries(allStoresCache).find(([k, v]: [string, any]) => {
+        const cleanK = k.replace(/^(\d+\s*[-–—]\s*)/, '').trim().toLowerCase();
+        return (cleanK === cleanStoreKey || k.toLowerCase().includes(cleanStoreKey) || cleanStoreKey.includes(cleanK)) && v?.staffCategoryInput?.trim();
+      });
+      if (found && (found[1] as any)?.staffCategoryInput) {
+        candidates.push((found[1] as any).staffCategoryInput);
+      }
+    }
+    if (candidates.length > 0) {
+      return candidates.reduce((acc, cur) => (acc ? mergeStaffCategoryReportSections(cur, acc) : cur), '');
+    }
+    if (!storeKey || storeKey === 'ALL') {
+      const anyCached = Object.values(allStoresCache || {}).find((s: any) => s?.staffCategoryInput?.trim()) as any;
+      if (anyCached?.staffCategoryInput) return anyCached.staffCategoryInput;
+    }
     return '';
-  }, [staffCategoryInput, dbThiDuaNv, marketFilter, allStoresCache]);
+  }, [staffCategoryInput, dbThiDuaNv, marketFilter, tenSieuThi, stName, allStoresCache]);
 
   const effectiveTragopNv = React.useMemo(() => {
     if (luykeTragopNv && luykeTragopNv.trim()) return luykeTragopNv;
@@ -2654,11 +2891,21 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maKho, biRevenueData]); // intentionally omit marketFilter & selectedStaffIds to avoid race condition
 
+  // --- State & Memoized Filtering cho Tab CHI TIẾT NHÂN VIÊN (Độc lập 100% với danh sách gốc) ---
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'all' | 'single'>('single');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+  const [isToolbarStaffOpen, setIsToolbarStaffOpen] = useState<boolean>(false);
+  const toolbarStaffRef = useRef<HTMLDivElement>(null);
+
   // Close filter when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
         setIsFilterOpen(false);
+      }
+      if (toolbarStaffRef.current && !toolbarStaffRef.current.contains(event.target as Node)) {
+        setIsToolbarStaffOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -2675,6 +2922,68 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const matchesSelection = selectedStaffIds.includes(staff.fullId);
     return matchesSearch && matchesSelection;
   }), [biRevenueData, searchTerm, selectedStaffIds]);
+
+  // Danh sách nhân viên gốc (bất biến đối với thao tác tìm kiếm / xem riêng)
+  const allEmployees = useMemo(() => {
+    return selectedStaffIds
+      .map(id => biRevenueData.find(s => s.fullId === id))
+      .filter((s): s is NonNullable<typeof s> => Boolean(s));
+  }, [selectedStaffIds, biRevenueData]);
+
+  // Danh sách nhân viên khớp từ khóa tìm kiếm (họ tên đầy đủ, mã NV, một phần tên/mã, có dấu & không dấu)
+  const searchMatchedEmployees = useMemo(() => {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return allEmployees;
+    const queryLower = trimmed.toLowerCase();
+    const queryNoAccent = removeAccents(trimmed).toLowerCase();
+
+    return allEmployees.filter(staff => {
+      const { name: pureName } = extractStaffNameAndId(staff.displayName);
+      const cleanName = (pureName || staff.displayName).trim();
+      const fullLabel = `${cleanName} - ${staff.fullId}`;
+      const fullLabelLower = fullLabel.toLowerCase();
+      const fullLabelNoAccent = removeAccents(fullLabel).toLowerCase();
+      const idLower = staff.fullId.toLowerCase().trim();
+
+      return (
+        idLower.includes(queryLower) ||
+        fullLabelLower.includes(queryLower) ||
+        fullLabelNoAccent.includes(queryNoAccent)
+      );
+    });
+  }, [allEmployees, searchQuery]);
+
+  // Nhân viên đang được chọn trong chế độ "Xem riêng"
+  const selectedEmployee = useMemo(() => {
+    if (selectedEmployeeId) {
+      const matchedInSearch = searchMatchedEmployees.find(s => s.fullId === selectedEmployeeId);
+      if (matchedInSearch) return matchedInSearch;
+      if (!searchQuery.trim()) {
+        const foundInAll = allEmployees.find(s => s.fullId === selectedEmployeeId);
+        if (foundInAll) return foundInAll;
+      }
+    }
+    if (searchMatchedEmployees.length > 0) {
+      return searchMatchedEmployees[0];
+    }
+    return null;
+  }, [allEmployees, selectedEmployeeId, searchMatchedEmployees, searchQuery]);
+
+  // Danh sách nhân viên hiển thị cuối cùng trên giao diện
+  const filteredEmployees = useMemo(() => {
+    if (viewMode === 'single') {
+      if (searchQuery.trim() && searchMatchedEmployees.length === 0) {
+        return [];
+      }
+      return selectedEmployee ? [selectedEmployee] : [];
+    }
+    return searchMatchedEmployees;
+  }, [viewMode, searchQuery, searchMatchedEmployees, selectedEmployee]);
+
+  const filteredEmployeeIdSet = useMemo(
+    () => new Set(filteredEmployees.map(s => s.fullId)),
+    [filteredEmployees]
+  );
 
   const { traChamRows, traChamPartners } = useMemo(() => {
     const res = parseTraChamData(effectiveTragopNv);
@@ -2903,6 +3212,16 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     tracham2Sum,
     tracham3Sum
   } = useMemo(() => {
+    if (activeTab !== 'RANK_3T_NV') {
+      return {
+        dtqd1Sum: 0, dtqd2Sum: 0, dtqd3Sum: 0,
+        thunhap1Sum: 0, thunhap2Sum: 0, thunhap3Sum: 0,
+        nganhhang1Sum: 0, nganhhang2Sum: 0, nganhhang3Sum: 0,
+        giocong1Sum: 0, giocong2Sum: 0, giocong3Sum: 0,
+        thidua1Sum: 0, thidua2Sum: 0, thidua3Sum: 0,
+        tracham1Sum: 0, tracham2Sum: 0, tracham3Sum: 0,
+      };
+    }
     const parsedDtqd1 = parseStaffRankData(dtqd3t1).map(s => ({ id: s.fullId || '', name: s.displayName, value: s.virtualVal || s.actualVal || 0 }));
     const parsedDtqd2 = parseStaffRankData(dtqd3t2).map(s => ({ id: s.fullId || '', name: s.displayName, value: s.virtualVal || s.actualVal || 0 }));
     const parsedDtqd3 = parseStaffRankData(dtqd3t3).map(s => ({ id: s.fullId || '', name: s.displayName, value: s.virtualVal || s.actualVal || 0 }));
@@ -2955,7 +3274,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       tracham2Sum: parsedTracham2.length > 0 ? calcRawSum(parsedTracham2) / parsedTracham2.length : 0,
       tracham3Sum: parsedTracham3.length > 0 ? calcRawSum(parsedTracham3) / parsedTracham3.length : 0,
     };
-  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, thidua3t1, thidua3t2, thidua3t3, tracham3t1, tracham3t2, tracham3t3, parseTn]);
+  }, [activeTab, dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, thidua3t1, thidua3t2, thidua3t3, tracham3t1, tracham3t2, tracham3t3, parseTn]);
 
   const formatValueForDisplay = (val: number, isCurrency: boolean = false) => {
     if (val === 0) return isCurrency ? '0 đ' : '0';
@@ -3022,6 +3341,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   };
 
   const parsedRank3TData = useMemo(() => {
+    if (activeTab !== 'RANK_3T_NV') return [];
     const parseDtqdWithEff = (rawText: string) => {
       if (!rawText || !rawText.trim()) return [];
       const list = parseStaffRankData(rawText);
@@ -3330,9 +3650,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     })
     .filter(emp => emp.dtqd > 0 || emp.thunhap > 0 || emp.nganhhang > 0 || emp.giocong > 0 || emp.tracham > 0)
     .sort((a, b) => b.dtqd - a.dtqd);
-  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, tracham3t1, tracham3t2, tracham3t3, parseTn, isProjectedMonth1, isProjectedMonth2, isProjectedMonth3, daysPassed, totalDays, rankMonth1, rankMonth2, rankMonth3, rankMonth1DaysInfo, rankMonth2DaysInfo, rankMonth3DaysInfo]);
+  }, [activeTab, dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, tracham3t1, tracham3t2, tracham3t3, parseTn, isProjectedMonth1, isProjectedMonth2, isProjectedMonth3, daysPassed, totalDays, rankMonth1, rankMonth2, rankMonth3, rankMonth1DaysInfo, rankMonth2DaysInfo, rankMonth3DaysInfo]);
 
   const filteredRank3TData = useMemo(() => {
+    if (activeTab !== 'RANK_3T_NV') return [];
     // Synchronize 3-Month Ranking table directly with BỘ LỌC NHÂN VIÊN ở đầu trang (selectedStaffIds)
     if (biRevenueData && biRevenueData.length > 0) {
       // 1. Only include staff that are ticked/checked in the top staff filter
@@ -3412,7 +3733,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       removeAccents((emp.name || '').toLowerCase()).includes(cleanSearch) ||
       (emp.id || '').toLowerCase().includes(cleanSearch)
     );
-  }, [parsedRank3TData, searchTerm, selectedStaffIds, biRevenueData]);
+  }, [activeTab, parsedRank3TData, searchTerm, selectedStaffIds, biRevenueData]);
 
   const rank3TTopBotStats = useMemo(() => {
     if (!filteredRank3TData || filteredRank3TData.length === 0) return { stats: {}, sets: null };
@@ -3456,9 +3777,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const seen = new Set<string>();
     const unique: any[] = [];
     filtered.forEach((c: any) => {
-      const clean = cleanCategoryName(c.name);
-      if (clean && !seen.has(clean)) {
-        seen.add(clean);
+      const key = `${normalize(c.name || '')}__${c.type || ''}`;
+      if (c.name && !seen.has(key)) {
+        seen.add(key);
         unique.push(c);
       }
     });
@@ -3467,17 +3788,19 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
   // Extract categories strictly from "Thi Đua Siêu Thị (Tháng 7)" and "(Tháng 8)"
   const m1StoreData = useMemo(() => {
+    if (activeTab !== 'RANK_3T_NV') return { categories: [], categoryObjects: [], totalCat: 0 };
     return extractCategoriesFromStoreThiDua(thidua3t1, marketFilter);
-  }, [thidua3t1, marketFilter]);
+  }, [activeTab, thidua3t1, marketFilter]);
 
   const m2StoreData = useMemo(() => {
+    if (activeTab !== 'RANK_3T_NV') return { categories: [], categoryObjects: [], totalCat: 0 };
     if (thidua3t2 && thidua3t2.trim().length > 0) {
       const parsed = extractCategoriesFromStoreThiDua(thidua3t2, marketFilter);
       if (parsed.totalCat > 0) return parsed;
     }
     // Fallback to Thi Đua Siêu Thị (Tháng 7) as requested
     return m1StoreData;
-  }, [thidua3t2, marketFilter, m1StoreData]);
+  }, [activeTab, thidua3t2, marketFilter, m1StoreData]);
 
   const rank3TNganhHangScores = useMemo(() => {
     if (!filteredRank3TData || filteredRank3TData.length === 0) return {};
@@ -4196,20 +4519,29 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   ];
 
   const renderStaffFilterDropdown = () => (
-    <div className="relative z-50" ref={filterRef}>
+    <div className="relative z-[1000] w-full min-[1150px]:w-auto min-w-0 min-[1150px]:shrink-0" ref={filterRef}>
       <button
+        type="button"
         onClick={() => setIsFilterOpen(!isFilterOpen)}
-        className="flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-4 py-1 sm:py-2 bg-white border border-slate-200 rounded-full text-[10.5px] sm:text-sm font-black text-slate-700 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+        className="w-full min-[1150px]:w-auto flex items-center justify-between gap-[6px] min-[768px]:gap-[12px] px-[8px] min-[768px]:px-[16px] h-[50px] min-[768px]:h-[60px] bg-white/95 hover:bg-white rounded-[14px] min-[768px]:rounded-[20px] border border-[#E5EAF3] hover:border-[#CBD5E1] shadow-[0_4px_14px_-2px_rgba(15,23,42,0.04)] hover:shadow-[0_6px_18px_-3px_rgba(37,99,235,0.08)] transition-all duration-200 cursor-pointer min-w-0 overflow-hidden"
       >
-        <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-emerald-500 rounded-full shrink-0" />
-        <span className="truncate uppercase tracking-tight">
-          {selectedStaffIds.length === biRevenueData.length
-            ? "Tất cả nhân viên"
-            : selectedStaffIds.length === 0
-              ? "Chưa chọn NV"
-              : `Đã chọn ${selectedStaffIds.length} NV`}
-        </span>
-        <ChevronDown size={13} className={cn("transition-transform text-slate-400 sm:w-4 sm:h-4 shrink-0", isFilterOpen && "rotate-180")} />
+        <div
+          className="w-[30px] h-[30px] min-[768px]:w-[40px] min-[768px]:h-[40px] rounded-[9px] min-[768px]:rounded-[12px] flex items-center justify-center shrink-0"
+          style={{ backgroundColor: '#F3E8FF', color: '#7C3AED' }}
+        >
+          <Users size={15} className="min-[768px]:w-[20px] min-[768px]:h-[20px]" strokeWidth={2.2} />
+        </div>
+        <div className="flex flex-col items-start justify-center text-left min-w-0 flex-1 overflow-hidden">
+          <span className="text-[9px] min-[768px]:text-[11px] font-bold text-[#64748B] uppercase tracking-[0.03em] leading-tight truncate w-full">
+            NHÂN VIÊN
+          </span>
+          <span className="mt-[2px] text-[10.5px] min-[768px]:text-[14px] font-black text-[#172554] uppercase tracking-tight leading-tight whitespace-nowrap truncate w-full">
+            {selectedStaffIds.length === 0
+              ? 'CHƯA CHỌN NV'
+              : `ĐÃ CHỌN ${selectedStaffIds.length} NV`}
+          </span>
+        </div>
+        <ChevronDown size={13} className={cn("transition-transform duration-200 text-[#64748B] shrink-0 min-[768px]:w-[15px] min-[768px]:h-[15px]", isFilterOpen && "rotate-180")} />
       </button>
 
       <AnimatePresence>
@@ -4218,7 +4550,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
-            className="absolute top-full left-0 sm:right-0 sm:left-auto mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[9999] overflow-hidden"
+            className="absolute top-[calc(100%+8px)] right-0 w-80 max-w-[calc(100vw-24px)] bg-white border border-slate-200 rounded-2xl shadow-2xl z-[9999] overflow-hidden"
           >
             <div className="p-3 border-b border-slate-100 bg-slate-50/50">
               <div className="relative">
@@ -4233,7 +4565,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
               </div>
             </div>
 
-            <div className="max-h-72 overflow-y-auto p-2">
+            <div className="max-h-[min(360px,65vh)] overflow-y-auto overscroll-contain p-2">
               <div className="flex items-center justify-between px-3 mb-2.5">
                 <button
                   onClick={() => {
@@ -4316,7 +4648,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
   // Pre-calculate comparison staff list and detail categories for Head-to-Head Arena
   const { comparisonStaffList, detailComparisonCategories } = useMemo(() => {
-    if (!biRevenueData || biRevenueData.length === 0) {
+    if ((activeTab !== 'CHI_TIET' && !isCompareOpen) || !biRevenueData || biRevenueData.length === 0) {
       return { comparisonStaffList: [], detailComparisonCategories: [] };
     }
 
@@ -4404,98 +4736,168 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     });
 
     return { comparisonStaffList: list, detailComparisonCategories: detailCategories };
-  }, [biRevenueData, filteredBiData, thiDuaNv, categoryTargets, processedData.categories, marketFilter, daysPassed, totalDays, displayTargetQD, thuongData, parsedTraChamRows, nganhhangChinhNv]);
+  }, [activeTab, isCompareOpen, biRevenueData, filteredBiData, thiDuaNv, categoryTargets, processedData.categories, marketFilter, daysPassed, totalDays, displayTargetQD, thuongData, parsedTraChamRows, nganhhangChinhNv]);
 
   return (
-    <div className="w-full min-h-screen bg-slate-50 overflow-x-hidden font-sans" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
-      <main className="flex-1 overflow-auto relative bg-slate-50/50">
-        <div className="p-2.5 sm:p-5 lg:p-6 w-full min-h-full">
+    <div className="w-full max-w-full min-w-0 min-h-screen bg-slate-50 overflow-x-hidden box-border font-sans" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
+      <main className="flex-1 w-full max-w-full min-w-0 overflow-x-hidden overflow-y-auto relative bg-slate-50/50 box-border">
+        <div
+          className="px-[4px] pt-[8px] pb-[96px] md:pb-6 sm:p-5 lg:p-6 w-full max-w-full min-w-0 min-h-full box-border"
+        >
           
-          {/* V2 Gradient Top Header Banner */}
-          <div className="relative z-30 bg-white/95 backdrop-blur-xl rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-lg sm:shadow-xl shadow-slate-200/30 p-3.5 sm:p-5 mb-4 sm:mb-6">
-            {/* Top brand gradient highlight strip */}
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#2563EB] via-[#7C3AED] to-[#EC4899] rounded-t-2xl sm:rounded-t-3xl" />
-            
-            <div className="flex flex-col gap-3 sm:gap-4">
-              {/* Top Deck: Branding + Staff & Store Info + Live Sync & Action Controls */}
-              <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-2.5 sm:pb-3 border-b border-slate-100">
-                {/* Left: Branding & Module Title */}
-                <div className="flex items-center gap-2.5 sm:gap-3.5">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-[#2563EB] via-[#7C3AED] to-[#EC4899] text-white flex items-center justify-center shadow-md shadow-indigo-500/25 shrink-0">
-                    <HeartPulse size={22} className="sm:w-[26px] sm:h-[26px]" strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-base sm:text-xl md:text-2xl font-black bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-800 bg-clip-text text-transparent uppercase tracking-tight leading-tight">Sức Khỏe Nhân Viên</h2>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 text-emerald-700 text-[10px] sm:text-xs font-black rounded-full uppercase tracking-wider shadow-2xs">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Realtime
-                      </span>
-                    </div>
-                    <p className="text-[11px] sm:text-xs md:text-sm font-semibold text-slate-500 truncate max-w-[280px] sm:max-w-none">Hệ thống phân tích hiệu suất & thi đua siêu thị</p>
-                  </div>
-                </div>
-
-                {/* Middle/Right: Quick Filters & System Status Badges */}
-                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5 w-full sm:w-auto justify-start sm:justify-end">
-                  {/* Staff Multi-Select Filter */}
-                  <div className="flex items-center gap-1 sm:gap-2 bg-gradient-to-r from-slate-50 to-indigo-50/30 border border-slate-200/90 rounded-full pl-2 sm:pl-3.5 pr-0.5 sm:pr-1 py-0.5 sm:py-1 shadow-2xs">
-                    <span className="font-black text-slate-600 uppercase tracking-wider text-[9px] sm:text-xs">NHÂN VIÊN:</span>
-                    {renderStaffFilterDropdown()}
-                  </div>
-
-                  {/* Warehouse Badge */}
-                  <div className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3.5 py-1 sm:py-2 bg-slate-50 border border-slate-200/90 rounded-full shadow-2xs">
-                    <span className="text-[9px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">MÃ KHO:</span>
-                    <span className="font-black text-[#2563EB] text-[10.5px] sm:text-sm">{maKho || 'CHƯA CHỌN'}</span>
-                  </div>
-
-                  {/* Live Clock / Update Indicator */}
-                  <LiveClockBadge />
-
-                  {/* Refresh Button */}
-                  <button
-                    onClick={() => {
-                      refresh();
-                      showNotification('Đang làm mới dữ liệu Sức Khỏe NV...', 'info');
-                    }}
-                    className="inline-flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1 sm:py-2 bg-gradient-to-r from-[#2563EB] to-[#7C3AED] hover:from-[#1D4ED8] hover:to-[#6D28D9] text-white rounded-full text-[9.5px] sm:text-xs md:text-sm font-black uppercase tracking-wider shadow-md shadow-indigo-500/20 cursor-pointer transition-all active:scale-95 ml-auto sm:ml-0"
-                  >
-                    <RotateCcw size={12} className="sm:w-[15px] sm:h-[15px]" />
-                    <span>Cập nhật</span>
-                  </button>
-                </div>
+          {/* Modern SaaS Dashboard Header Card */}
+          <div
+            className={cn(
+              "relative rounded-[20px] min-[768px]:rounded-[24px] p-[1.5px] mb-[12px] min-[768px]:mb-[20px] shadow-[0_12px_32px_-10px_rgba(37,99,235,0.12)]",
+              isFilterOpen ? "z-[1000]" : "z-[200]"
+            )}
+            style={{
+              background: 'linear-gradient(105deg, rgba(147,197,253,0.75) 0%, rgba(196,181,253,0.65) 50%, rgba(249,168,212,0.85) 100%)',
+            }}
+          >
+            <div
+              className="relative rounded-[18.5px] min-[768px]:rounded-[22.5px] px-[12px] py-[12px] min-[768px]:px-[24px] min-[768px]:py-[16px] overflow-visible"
+              style={{
+                background: 'linear-gradient(110deg, #EFF6FF 0%, #FFFFFF 46%, #FDF2F8 100%)',
+              }}
+            >
+              {/* Subtle decorative soft geometric highlights inside Header */}
+              <div className="pointer-events-none select-none absolute inset-0 rounded-[18.5px] min-[768px]:rounded-[22.5px] overflow-hidden">
+                <svg className="absolute left-0 top-0 h-full w-[420px] opacity-55" viewBox="0 0 420 120" preserveAspectRatio="none" fill="none">
+                  <polygon points="0,0 165,0 95,120 0,120" fill="#DBEAFE" fillOpacity="0.55" />
+                  <polygon points="110,0 295,0 215,120 45,120" fill="#E0E7FF" fillOpacity="0.45" />
+                  <polygon points="240,120 355,25 410,120" fill="#DDD6FE" fillOpacity="0.35" />
+                </svg>
+                <svg className="absolute right-0 top-0 h-full w-[340px] opacity-65" viewBox="0 0 340 120" preserveAspectRatio="none" fill="none">
+                  <polygon points="140,0 340,0 340,120 60,120" fill="#FCE7F3" fillOpacity="0.55" />
+                  <polygon points="230,0 340,0 340,95" fill="#F5D0FE" fillOpacity="0.65" />
+                </svg>
               </div>
 
-              {/* Bottom Deck: Segmented Tab Bar Navigation — Mobile only */}
-              <div className="md:hidden w-full overflow-hidden">
-                <div className="flex items-center gap-1 sm:gap-1.5 p-1 sm:p-1.5 bg-slate-100/80 backdrop-blur-md rounded-xl sm:rounded-2xl border border-slate-200/80 overflow-x-auto no-scrollbar shadow-inner">
-                  {menuItems
-                    .filter(item => isUser43751 || !pageHiddenState[`health_${item.id}`])
-                    .map((item) => {
-                    const isActive = activeTab === item.id;
-                    const Icon = item.icon;
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => setActiveTab(item.id as any)}
-                        className={`flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 rounded-lg sm:rounded-xl text-[10px] sm:text-[13px] font-black uppercase tracking-tight sm:tracking-wide whitespace-nowrap transition-all duration-200 cursor-pointer shrink-0 ${
-                          isActive
-                            ? 'bg-gradient-to-r from-[#2563EB] via-[#4F46E5] to-[#7C3AED] text-white shadow-md shadow-indigo-500/25 scale-[1.02] border border-indigo-400/30'
-                            : 'bg-white/80 text-slate-600 hover:text-slate-900 hover:bg-white border border-slate-200/60 hover:shadow-2xs'
-                        }`}
+              <div className="relative z-10 flex flex-col gap-[12px] w-full min-w-0">
+                {/* Main Header Row: Brand Identity (Left) + 4 Info/Action Cards (Right) */}
+                <div className="relative z-30 flex flex-col min-[1150px]:flex-row min-[1150px]:items-center min-[1150px]:justify-between gap-[12px] min-[1150px]:gap-[18px] w-full min-w-0">
+                  {/* 2.2. Khu vực nhận diện thương hiệu bên trái */}
+                  <div className="flex items-center gap-[10px] min-[768px]:gap-[16px] min-w-0">
+                    <div
+                      className="w-[44px] h-[44px] min-[768px]:w-[58px] min-[768px]:h-[58px] rounded-[13px] min-[768px]:rounded-[18px] text-white flex items-center justify-center shrink-0 shadow-[0_8px_20px_-4px_rgba(124,58,237,0.45)] border border-white/40"
+                      style={{
+                        background: 'linear-gradient(135deg, #2563EB 0%, #7C3AED 55%, #EC4899 100%)',
+                      }}
+                    >
+                      <HeartPulse size={23} className="min-[768px]:w-[30px] min-[768px]:h-[30px] text-white" strokeWidth={2.3} />
+                    </div>
+
+                    <div className="flex flex-col justify-center min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-[6px] min-[768px]:gap-[12px]">
+                        <h2 className="text-[16px] min-[390px]:text-[17.5px] min-[768px]:text-[26px] font-black text-[#172554] uppercase tracking-[-0.02em] leading-[1.15] whitespace-nowrap">
+                          SỨC KHỎE NHÂN VIÊN
+                        </h2>
+
+                        {/* Badge trạng thái REALTIME */}
+                        <span
+                          className="inline-flex items-center gap-[4px] min-[768px]:gap-[6px] px-[8px] min-[768px]:px-[12px] py-[2px] min-[768px]:py-[4px] border text-[9px] min-[768px]:text-[11.5px] font-black rounded-full uppercase tracking-wider shadow-[0_2px_6px_rgba(5,150,105,0.08)] shrink-0"
+                          style={{ backgroundColor: '#ECFDF5', borderColor: '#A7F3D0', color: '#059669' }}
+                        >
+                          <span className="w-[6px] h-[6px] min-[768px]:w-[7px] min-[768px]:h-[7px] rounded-full bg-[#10B981] animate-pulse shrink-0" />
+                          <span>REALTIME</span>
+                          <svg className="w-[11px] h-[11px] min-[768px]:w-[14px] min-[768px]:h-[14px] text-[#0284C7] ml-[1px] shrink-0" viewBox="0 0 14 14" fill="none">
+                            <rect x="1" y="8" width="2.5" height="5" rx="0.7" fill="#38BDF8" />
+                            <rect x="5.2" y="5" width="2.5" height="8" rx="0.7" fill="#0284C7" />
+                            <rect x="9.4" y="2" width="2.5" height="11" rx="0.7" fill="#1D4ED8" />
+                          </svg>
+                        </span>
+                      </div>
+
+                      <p className="text-[11px] min-[768px]:text-[13.5px] font-semibold text-[#64748B] mt-[2px] truncate">
+                        Hệ thống phân tích hiệu suất &amp; thi đua siêu thị
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 2.3. Khu vực thông tin bên phải */}
+                  <div className="flex flex-nowrap items-stretch min-[1150px]:items-center justify-end gap-[8px] min-[768px]:gap-[14px] w-full min-[1150px]:w-auto min-w-0 min-[1150px]:shrink-0">
+                    {/* A. THÔNG TIN NHÂN VIÊN */}
+                    {renderStaffFilterDropdown()}
+
+                    {/* B. MÃ KHO (Đã ẩn theo yêu cầu) */}
+                    <div className="hidden w-full min-[1150px]:w-auto items-center justify-between gap-[6px] min-[768px]:gap-[12px] px-[8px] min-[768px]:px-[16px] h-[50px] min-[768px]:h-[60px] bg-white/95 rounded-[14px] min-[768px]:rounded-[20px] border border-[#E5EAF3] shadow-[0_4px_14px_-2px_rgba(15,23,42,0.04)] transition-all duration-200 select-none min-w-0 overflow-hidden min-[1150px]:shrink-0">
+                      <div
+                        className="w-[30px] h-[30px] min-[768px]:w-[40px] min-[768px]:h-[40px] rounded-[9px] min-[768px]:rounded-[12px] flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: '#DBEAFE', color: '#2563EB' }}
                       >
-                        <Icon size={13} className={cn("sm:w-4 sm:h-4", isActive ? 'text-white' : 'text-slate-500')} strokeWidth={isActive ? 2.5 : 2} />
-                        <span>{item.label}</span>
-                      </button>
-                    );
-                  })}
+                        <svg className="w-[15px] h-[15px] min-[768px]:w-[20px] min-[768px]:h-[20px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 9l1.8-5h14.4L21 9" />
+                          <path d="M3 9c0 1.7 1.3 3 3 3s3-1.3 3-3c0 1.7 1.3 3 3 3s3-1.3 3-3c0 1.7 1.3 3 3 3s3-1.3 3-3" />
+                          <path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+                          <path d="M10 16h4v5h-4z" />
+                        </svg>
+                      </div>
+                      <div className="flex flex-col items-start justify-center min-w-0 flex-1 overflow-hidden">
+                        <span className="text-[9px] min-[768px]:text-[11px] font-bold text-[#64748B] uppercase tracking-[0.03em] leading-tight truncate w-full">
+                          MÃ KHO
+                        </span>
+                        <span className="mt-[2px] text-[12px] min-[768px]:text-[16px] font-black text-[#2563EB] tracking-tight leading-tight whitespace-nowrap truncate tabular-nums w-full">
+                          {maKho || 'CHƯA CHỌN'}
+                        </span>
+                      </div>
+                      <ChevronDown size={15} className="text-[#64748B] shrink-0 hidden min-[768px]:block" />
+                    </div>
+
+                    {/* C. THỜI GIAN (Đã ẩn theo yêu cầu) */}
+                    <div className="hidden">
+                      <LiveClockBadge />
+                    </div>
+
+                    {/* D. NÚT CẬP NHẬT (Đã ẩn theo yêu cầu) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        refresh();
+                        showNotification('Đang làm mới dữ liệu Sức Khỏe NV...', 'info');
+                      }}
+                      className="hidden w-full min-[1150px]:w-auto items-center justify-center gap-[6px] min-[768px]:gap-[10px] px-[10px] min-[768px]:px-[24px] h-[50px] min-[768px]:h-[56px] text-white rounded-[14px] min-[768px]:rounded-[18px] text-[11.5px] min-[768px]:text-[14px] font-black uppercase tracking-wider shadow-[0_8px_20px_-4px_rgba(79,70,229,0.42)] hover:brightness-105 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 cursor-pointer min-[1150px]:shrink-0 min-w-0"
+                      style={{
+                        background: 'linear-gradient(100deg, #2563EB 0%, #7C3AED 100%)',
+                      }}
+                    >
+                      <RefreshCw size={15} className="min-[768px]:w-[19px] min-[768px]:h-[19px] shrink-0 stroke-[2.4]" />
+                      <span className="whitespace-nowrap">CẬP NHẬT</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Bottom Deck: Segmented Tab Bar Navigation — Mobile only (< 768px) */}
+                <div className="relative z-10 min-[768px]:hidden w-full min-w-0 overflow-hidden pt-[6px] border-t border-slate-200/50">
+                  <div className="flex items-center gap-[6px] p-[4px] bg-slate-100/80 rounded-[12px] border border-slate-200/80 overflow-x-auto no-scrollbar shadow-inner w-0 min-w-full">
+                    {menuItems
+                      .filter(item => isUser43751 || !pageHiddenState[`health_${item.id}`])
+                      .map((item) => {
+                      const isActive = activeTab === item.id;
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => setActiveTab(item.id as any)}
+                          className={`flex items-center gap-[5px] px-[10px] py-[6px] rounded-[9px] text-[10.5px] font-black uppercase tracking-tight whitespace-nowrap transition-all duration-200 cursor-pointer shrink-0 ${
+                            isActive
+                              ? 'bg-gradient-to-r from-[#2563EB] via-[#4F46E5] to-[#7C3AED] text-white shadow-md shadow-indigo-500/25 border border-indigo-400/30'
+                              : 'bg-white/80 text-slate-600 hover:text-slate-900 hover:bg-white border border-slate-200/60'
+                          }`}
+                        >
+                          <Icon size={13} className={isActive ? 'text-white' : 'text-slate-500'} strokeWidth={isActive ? 2.5 : 2} />
+                          <span>{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Main Content Area */}
-          <div className="space-y-10">
+          <div className="relative z-10 space-y-10">
             {((pageMaintenanceState[`health_${activeTab}`] && !isUser43751Local) || (!isUser43751 && pageHiddenState[`health_${activeTab}`])) ? (
               <div className="flex items-center justify-center h-full p-6 mt-12">
                 <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-amber-200 shadow-xl w-full">
@@ -4637,69 +5039,377 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="bg-white rounded-[32px] p-1.5 sm:p-2 md:p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-full mx-auto space-y-6 relative overflow-hidden pb-28 sm:pb-6"
+                  className="bg-transparent sm:bg-white rounded-[18px] sm:rounded-[32px] px-0 pt-[4px] pb-[96px] sm:p-[12px] md:p-[24px] sm:shadow-xl sm:shadow-slate-200/50 border-0 sm:border sm:border-slate-100 w-full max-w-full min-w-0 mx-auto space-y-[8px] sm:space-y-[16px] relative overflow-visible"
                 >
                   {renderLoadingOverlay()}
-                  {/* Export & Compare Actions Toolbar */}
-                  {selectedStaffIds.length > 0 && (
-                    <div className="flex items-center justify-end gap-3 my-4 flex-wrap">
-                      {/* BUTTON SO SÁNH NV XỊN XÒ NHẤT */}
-                      <button
-                        onClick={() => {
-                          if (comparisonStaffList.length >= 2) {
-                            if (!compareStaffAId) setCompareStaffAId(comparisonStaffList[0].fullId);
-                            if (!compareStaffBId) setCompareStaffBId(comparisonStaffList[1].fullId);
-                          }
-                          setIsCompareOpen(true);
-                        }}
-                        disabled={comparisonStaffList.length < 2}
-                        className="flex items-center gap-2 px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-lg active:scale-95 cursor-pointer bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white shadow-orange-500/25 border border-amber-300/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Mở bảng so sánh & đối đầu trực tiếp 2 nhân viên"
-                      >
-                        <Swords size={16} />
-                        <span>SO SÁNH NV</span>
-                      </button>
-
-                      {/* BUTTON XUẤT ALL NV */}
-                      <button
-                        disabled={isCapturing}
-                        onClick={handleExportAllStaffDetails}
-                        className={cn(
-                          "relative overflow-hidden flex items-center gap-2 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer",
-                          isCapturing 
-                            ? "bg-slate-800 cursor-not-allowed text-white/95 ring-2 ring-indigo-400/50 shadow-indigo-500/30" 
-                            : "bg-gradient-to-r from-[#2563EB] to-[#7C3AED] hover:from-[#1D4ED8] hover:to-[#6D28D9] shadow-indigo-500/20"
-                        )}
-                        title="Xuất trọn bộ file ZIP chứa tất cả ảnh Chi tiết nhân viên"
-                      >
-                        {batchExportProgress ? (
-                          <>
-                            <Loader2 size={15} className="animate-spin text-amber-300 shrink-0" />
-                            <span className="font-mono tracking-normal">
-                              ĐANG XUẤT {batchExportProgress.current}/{batchExportProgress.total} NV ({batchExportProgress.percent}%)
-                            </span>
-                            {/* Animated progress bar fill */}
-                            <div 
-                              className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-300 to-emerald-400 transition-all duration-200" 
-                              style={{ width: `${batchExportProgress.percent}%` }}
+                  {/* 3. THIẾT KẾ TOOLBAR TÌM KIẾM VÀ THAO TÁC */}
+                  {allEmployees.length > 0 && (
+                    <div className="no-capture flex flex-col gap-[10px] my-[4px] min-[768px]:my-[8px] px-[2px] min-[768px]:px-0 w-full max-w-full min-w-0 overflow-visible">
+                      <div className="flex flex-col min-[1150px]:flex-row min-[1150px]:items-center min-[1150px]:justify-between gap-[10px] min-[768px]:gap-[18px] bg-white px-[12px] py-[12px] min-[768px]:px-[24px] min-[768px]:py-[16px] rounded-[20px] min-[768px]:rounded-[24px] border border-[#E5EAF3] shadow-[0_8px_28px_-8px_rgba(15,23,42,0.06)] w-full max-w-full min-w-0">
+                        {/* Left & Center: Ô tìm kiếm + Bộ lọc nhân viên + Nút Xem riêng */}
+                        <div className="flex flex-col min-[1150px]:flex-row items-stretch min-[1150px]:items-center gap-[10px] min-[768px]:gap-[18px] flex-1 min-w-0">
+                          {/* 3.2. Ô tìm kiếm nhân viên */}
+                          <div className="relative flex items-center w-full min-[1150px]:flex-1 min-w-0 h-[46px] min-[768px]:h-[54px] shrink-0 min-[1150px]:shrink bg-white rounded-[14px] min-[768px]:rounded-[18px] border border-[#DCE6F4] focus-within:border-[#2563EB] focus-within:ring-4 focus-within:ring-[#2563EB]/10 transition-all duration-200 shadow-[0_2px_8px_rgba(15,23,42,0.02)]">
+                            <Search size={18} className="ml-[14px] min-[768px]:ml-[16px] text-[#475569] shrink-0 pointer-events-none stroke-[2.2]" />
+                            <input
+                              type="text"
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              placeholder="Tìm tên hoặc mã nhân viên..."
+                              aria-label="Tìm tên hoặc mã nhân viên"
+                              className="w-full h-full pl-[10px] min-[768px]:pl-[12px] pr-[64px] min-[768px]:pr-[84px] bg-transparent text-[13px] min-[768px]:text-[15px] font-semibold text-[#172554] placeholder:text-[#64748B] placeholder:font-medium focus:outline-none min-w-0"
                             />
-                          </>
-                        ) : (
-                          <>
-                            <Camera size={15} />
-                            <span>XUẤT ALL NV ({selectedStaffIds.length})</span>
-                          </>
-                        )}
+                            <div className="absolute right-[12px] flex items-center gap-[6px]">
+                              {searchQuery.trim() !== '' && (
+                                <span className="px-[8px] py-[2px] rounded-[6px] bg-[#EFF6FF] border border-[#BFDBFE] text-[11px] min-[768px]:text-[12px] font-black text-[#2563EB] tabular-nums">
+                                  {searchMatchedEmployees.length}/{allEmployees.length}
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (searchQuery !== '') {
+                                    setSearchQuery('');
+                                    setViewMode('all');
+                                    setSelectedEmployeeId(null);
+                                  }
+                                }}
+                                title={searchQuery !== '' ? "Xóa nội dung tìm kiếm" : "Tìm kiếm nhân viên"}
+                                aria-label="Xóa nội dung tìm kiếm"
+                                className={cn(
+                                  "w-[22px] h-[22px] rounded-full flex items-center justify-center transition-all duration-150",
+                                  searchQuery !== ''
+                                    ? "bg-[#CBD5E1] hover:bg-[#94A3B8] text-white cursor-pointer"
+                                    : "bg-[#CBD5E1]/80 text-white cursor-default"
+                                )}
+                              >
+                                <X size={13} strokeWidth={2.8} />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 min-[1150px]:flex items-center gap-[8px] min-[768px]:gap-[16px] min-[1150px]:shrink-0 w-full min-[1150px]:w-auto min-w-0">
+                            {/* 3.3. Bộ lọc nhân viên (Tất cả nhân viên + Badge 13 + Dropdown) */}
+                            <div className="relative min-w-0 min-[1150px]:shrink-0" ref={toolbarStaffRef}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (viewMode === 'single') {
+                                    setViewMode('all');
+                                    setSelectedEmployeeId(null);
+                                  }
+                                  setIsToolbarStaffOpen(prev => !prev);
+                                }}
+                                className="w-full min-[1150px]:w-auto flex items-center justify-between min-[1150px]:justify-center gap-[4px] min-[768px]:gap-[10px] px-[7px] min-[768px]:px-[20px] h-[46px] min-[768px]:h-[54px] rounded-[14px] min-[768px]:rounded-[18px] border border-[#DCE6F4] bg-[#F8FAFC] hover:bg-[#F1F5F9] text-[#172554] text-[10.5px] min-[768px]:text-[14.5px] font-black transition-all duration-200 cursor-pointer whitespace-nowrap shadow-[0_2px_8px_rgba(15,23,42,0.03)] min-w-0 overflow-hidden"
+                              >
+                                <div className="flex items-center gap-[4px] min-[768px]:gap-[8px] min-w-0 overflow-hidden">
+                                  <Users size={13} className="text-[#334155] shrink-0 stroke-[2.2] min-[768px]:w-[18px] min-[768px]:h-[18px]" />
+                                  <span className="truncate min-[1150px]:overflow-visible">Tất cả nhân viên</span>
+                                  <span
+                                    className="px-[5px] min-[768px]:px-[9px] py-[1.5px] min-[768px]:py-[2px] rounded-full text-[9.5px] min-[768px]:text-[12.5px] font-black tabular-nums leading-tight shrink-0"
+                                    style={{ backgroundColor: '#E0E7FF', color: '#3730A3' }}
+                                  >
+                                    {allEmployees.length}
+                                  </span>
+                                </div>
+                                <ChevronDown size={12} className={cn("text-[#475569] transition-transform duration-200 shrink-0 min-[768px]:w-[16px] min-[768px]:h-[16px]", isToolbarStaffOpen && "rotate-180")} />
+                              </button>
+
+                              <AnimatePresence>
+                                {isToolbarStaffOpen && (
+                                  <motion.div
+                                    initial={{ opacity: 0, y: 8 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 8 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="absolute top-full left-0 mt-[8px] w-[280px] bg-white border border-[#E5EAF3] rounded-[16px] shadow-[0_16px_36px_-8px_rgba(15,23,42,0.16)] z-[9999] overflow-hidden p-[6px]"
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setViewMode('all');
+                                        setSelectedEmployeeId(null);
+                                        setIsToolbarStaffOpen(false);
+                                      }}
+                                      className={cn(
+                                        "w-full flex items-center justify-between px-[12px] py-[10px] rounded-[12px] text-[12.5px] font-black transition-colors cursor-pointer",
+                                        viewMode === 'all'
+                                          ? "bg-[#EFF6FF] text-[#2563EB]"
+                                          : "text-[#172554] hover:bg-slate-50"
+                                      )}
+                                    >
+                                      <span>Hiển thị tất cả nhân viên</span>
+                                      <span className="px-[8px] py-[2px] rounded-full bg-[#DBEAFE] text-[#1D4ED8] text-[11px] font-black tabular-nums">
+                                        {allEmployees.length}
+                                      </span>
+                                    </button>
+                                    <div className="my-[4px] border-t border-slate-100" />
+                                    <div className="max-h-[250px] overflow-y-auto custom-scrollbar space-y-[2px]">
+                                      {allEmployees.map(staff => {
+                                        const { name: pureName } = extractStaffNameAndId(staff.displayName);
+                                        const isSelectedSingle = viewMode === 'single' && selectedEmployee?.fullId === staff.fullId;
+                                        return (
+                                          <button
+                                            key={`toolbar-emp-${staff.fullId}`}
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedEmployeeId(staff.fullId);
+                                              setViewMode('single');
+                                              setIsToolbarStaffOpen(false);
+                                            }}
+                                            className={cn(
+                                              "w-full flex items-center justify-between px-[12px] py-[8px] rounded-[10px] text-left text-[12px] font-bold transition-colors cursor-pointer",
+                                              isSelectedSingle
+                                                ? "bg-[#ECFDF5] text-[#059669] font-black"
+                                                : "text-slate-700 hover:bg-slate-50"
+                                            )}
+                                          >
+                                            <span className="truncate pr-[8px] uppercase">{pureName || staff.displayName}</span>
+                                            <span className="text-[11px] text-slate-400 font-mono shrink-0">{staff.fullId}</span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+
+                            {/* Subtle vertical divider on desktop */}
+                            <div className="hidden min-[1150px]:block h-[32px] w-[1.5px] bg-[#E5EAF3] shrink-0" />
+
+                            {/* 3.4. Nút XEM RIÊNG */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setViewMode('single');
+                                if (!selectedEmployeeId && (searchMatchedEmployees[0] || allEmployees[0])) {
+                                  setSelectedEmployeeId((searchMatchedEmployees[0] || allEmployees[0]).fullId);
+                                }
+                              }}
+                              className={cn(
+                                "w-full min-[1150px]:w-auto flex items-center justify-center gap-[6px] min-[768px]:gap-[8px] px-[10px] min-[768px]:px-[22px] h-[46px] min-[768px]:h-[54px] rounded-[14px] min-[768px]:rounded-[16px] text-[12px] min-[768px]:text-[14.5px] font-black text-white transition-all duration-200 cursor-pointer whitespace-nowrap hover:brightness-105 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] min-w-0 min-[1150px]:shrink-0",
+                                viewMode === 'single'
+                                  ? "shadow-[0_8px_18px_-4px_rgba(5,150,105,0.42)] ring-2 ring-[#10B981]/30"
+                                  : "opacity-90 hover:opacity-100 shadow-[0_6px_14px_-4px_rgba(5,150,105,0.30)]"
+                              )}
+                              style={{
+                                background: 'linear-gradient(100deg, #059669 0%, #10B981 100%)',
+                              }}
+                            >
+                              <Eye size={16} className="text-white shrink-0 stroke-[2.3] min-[768px]:w-[18px] min-[768px]:h-[18px]" />
+                              <span className="truncate min-[1150px]:overflow-visible">Xem riêng</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Right: Divider + 3.5. SO SÁNH NV & 3.6. XUẤT ALL NV */}
+                        <div className="grid grid-cols-2 min-[1150px]:flex items-center justify-center min-[1150px]:justify-end gap-[8px] min-[768px]:gap-[14px] min-[1150px]:shrink-0 w-full min-[1150px]:w-auto min-w-0">
+                          {/* Subtle vertical divider on desktop */}
+                          <div className="hidden min-[1150px]:block h-[32px] w-[1.5px] bg-[#E5EAF3] shrink-0 mr-[2px]" />
+
+                          {/* 3.5. Nút SO SÁNH NV */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (comparisonStaffList.length >= 2) {
+                                if (!compareStaffAId) setCompareStaffAId(comparisonStaffList[0].fullId);
+                                if (!compareStaffBId) setCompareStaffBId(comparisonStaffList[1].fullId);
+                              }
+                              setIsCompareOpen(true);
+                            }}
+                            disabled={comparisonStaffList.length < 2}
+                            className="w-full min-[1150px]:w-auto flex items-center justify-center gap-[6px] min-[768px]:gap-[9px] px-[10px] min-[768px]:px-[24px] h-[46px] min-[768px]:h-[54px] rounded-[14px] min-[768px]:rounded-[16px] font-black text-[11.5px] min-[768px]:text-[14px] uppercase tracking-wider text-white transition-all duration-200 shadow-[0_8px_20px_-4px_rgba(249,115,22,0.40)] hover:brightness-105 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap min-w-0 min-[1150px]:shrink-0"
+                            style={{
+                              background: 'linear-gradient(100deg, #F59E0B 0%, #F97316 50%, #F43F5E 100%)',
+                            }}
+                            title="Mở bảng so sánh & đối đầu trực tiếp 2 nhân viên"
+                          >
+                            <Swords size={15} className="shrink-0 stroke-[2.3] min-[768px]:w-[18px] min-[768px]:h-[18px]" />
+                            <span className="truncate min-[1150px]:overflow-visible">SO SÁNH NV</span>
+                          </button>
+
+                          {/* 3.6. Nút XUẤT ALL NV (Luôn xuất toàn bộ danh sách gốc allEmployees) */}
+                          <button
+                            type="button"
+                            disabled={isCapturing}
+                            onClick={handleExportAllStaffDetails}
+                            className={cn(
+                              "w-full min-[1150px]:w-auto relative overflow-hidden flex items-center justify-center gap-[6px] min-[768px]:gap-[9px] text-white px-[10px] min-[768px]:px-[24px] h-[46px] min-[768px]:h-[54px] rounded-[14px] min-[768px]:rounded-[16px] font-black text-[11.5px] min-[768px]:text-[14px] uppercase tracking-wider transition-all duration-200 cursor-pointer whitespace-nowrap min-w-0 min-[1150px]:shrink-0",
+                              isCapturing 
+                                ? "bg-slate-800 cursor-not-allowed text-white/95 ring-2 ring-indigo-400/50 shadow-indigo-500/30" 
+                                : "shadow-[0_8px_20px_-4px_rgba(79,70,229,0.42)] hover:brightness-105 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
+                            )}
+                            style={
+                              isCapturing
+                                ? undefined
+                                : { background: 'linear-gradient(100deg, #2563EB 0%, #7C3AED 100%)' }
+                            }
+                            title="Xuất trọn bộ file ZIP chứa tất cả ảnh Chi tiết nhân viên trong danh sách gốc"
+                          >
+                            {batchExportProgress ? (
+                              <>
+                                <Loader2 size={15} className="animate-spin text-amber-300 shrink-0 min-[768px]:w-[17px] min-[768px]:h-[17px]" />
+                                <span className="font-mono tracking-normal truncate">
+                                  ĐANG XUẤT {batchExportProgress.current}/{batchExportProgress.total} NV ({batchExportProgress.percent}%)
+                                </span>
+                                <div 
+                                  className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-300 to-emerald-400 transition-all duration-200" 
+                                  style={{ width: `${batchExportProgress.percent}%` }}
+                                />
+                              </>
+                            ) : (
+                              <>
+                                <Camera size={15} className="shrink-0 stroke-[2.3] min-[768px]:w-[18px] min-[768px]:h-[18px]" />
+                                <span className="truncate min-[1150px]:overflow-visible">XUẤT ALL NV ({allEmployees.length})</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Contextual Single-Employee Focus Banner (Hidden per user request) */}
+                      {false && viewMode === 'single' && (
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 bg-gradient-to-r from-emerald-50/90 via-teal-50/70 to-slate-50 px-3 sm:px-4 py-2.5 sm:py-3 rounded-2xl border border-emerald-200/80 shadow-xs w-full max-w-full min-w-0 overflow-hidden">
+                          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setViewMode('all');
+                                setSelectedEmployeeId(null);
+                                setSearchQuery('');
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-white hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-300 text-xs sm:text-[13px] font-black transition-all shadow-2xs active:scale-95 cursor-pointer shrink-0"
+                            >
+                              <span>← Quay lại tất cả nhân viên</span>
+                            </button>
+
+                            {selectedEmployee && (
+                              <div className="flex items-center gap-1.5 text-xs sm:text-[13px] font-bold text-slate-700 min-w-0">
+                                <span className="text-slate-500 shrink-0">Đang xem riêng:</span>
+                                <span className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-black tracking-tight shadow-2xs truncate">
+                                  {(() => {
+                                    const { name: pureName } = extractStaffNameAndId(selectedEmployee.displayName);
+                                    return `${pureName || selectedEmployee.displayName} - ${selectedEmployee.fullId}`;
+                                  })()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Quick switcher pills in single mode */}
+                          {(searchQuery.trim() ? searchMatchedEmployees : allEmployees).length > 1 && (
+                            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-w-full min-w-0 no-scrollbar">
+                              <span className="text-xs sm:text-[13px] font-bold text-slate-500 shrink-0 mr-1">Chuyển nhanh:</span>
+                              {(searchQuery.trim() ? searchMatchedEmployees : allEmployees).map(staff => {
+                                const { name: pureName } = extractStaffNameAndId(staff.displayName);
+                                const isCurrent = selectedEmployee?.fullId === staff.fullId;
+                                return (
+                                  <button
+                                    key={`quick-single-${staff.fullId}`}
+                                    type="button"
+                                    onClick={() => setSelectedEmployeeId(staff.fullId)}
+                                    className={cn(
+                                      "px-2.5 py-1 rounded-lg text-xs sm:text-[13px] font-black whitespace-nowrap transition-all cursor-pointer shrink-0 border",
+                                      isCurrent
+                                        ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
+                                        : "bg-white text-slate-600 border-slate-200 hover:border-emerald-300 hover:text-emerald-700"
+                                    )}
+                                  >
+                                    {pureName || staff.displayName} ({staff.fullId})
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {viewMode === 'all' && searchQuery.trim() !== '' && searchMatchedEmployees.length > 0 && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 bg-emerald-50/70 px-3 sm:px-4 py-2.5 rounded-2xl border border-emerald-200/80 w-full max-w-full min-w-0 overflow-hidden">
+                          <div className="flex items-center gap-2 flex-wrap min-w-0">
+                            <span className="text-xs sm:text-[13px] font-extrabold text-emerald-800 shrink-0">
+                              {searchMatchedEmployees.length === 1
+                                ? 'Tìm thấy 1 nhân viên phù hợp:'
+                                : `Tìm thấy ${searchMatchedEmployees.length}/${allEmployees.length} nhân viên — Chọn để xem riêng:`}
+                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                              {searchMatchedEmployees.map(staff => {
+                                const { name: pureName } = extractStaffNameAndId(staff.displayName);
+                                return (
+                                  <button
+                                    key={`search-pill-${staff.fullId}`}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedEmployeeId(staff.fullId);
+                                      setViewMode('single');
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-300 text-xs sm:text-[13px] font-black transition-all shadow-2xs active:scale-95 cursor-pointer max-w-full truncate"
+                                    title="Chuyển sang chế độ xem riêng nhân viên này"
+                                  >
+                                    <Eye size={14} className="shrink-0" />
+                                    <span className="truncate">Xem riêng: {pureName || staff.displayName} - {staff.fullId}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSearchQuery('');
+                              setViewMode('all');
+                              setSelectedEmployeeId(null);
+                            }}
+                            className="inline-flex items-center gap-1 text-xs sm:text-[13px] font-black text-slate-500 hover:text-rose-600 transition-colors cursor-pointer shrink-0"
+                          >
+                            <X size={14} />
+                            <span>Xóa lọc</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Empty state when search query matches no employee */}
+                  {allEmployees.length > 0 && filteredEmployees.length === 0 && (
+                    <div className="no-capture bg-slate-50/90 border-2 border-dashed border-slate-200 rounded-[24px] p-8 sm:p-12 text-center my-2">
+                      <Search size={42} className="mx-auto text-slate-300 mb-3" />
+                      <h3 className="text-base sm:text-lg font-black text-slate-600 uppercase tracking-wide mb-1">
+                        Không tìm thấy nhân viên phù hợp
+                      </h3>
+                      <p className="text-slate-400 text-xs sm:text-sm font-semibold mb-4">
+                        Không có nhân viên nào khớp với từ khóa <span className="text-slate-600 font-bold">"{searchQuery.trim()}"</span> trong danh sách {allEmployees.length} nhân viên.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchQuery('');
+                          setViewMode('all');
+                          setSelectedEmployeeId(null);
+                        }}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-[13px] font-black uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer"
+                      >
+                        <span>← Quay lại tất cả nhân viên ({allEmployees.length})</span>
                       </button>
                     </div>
                   )}
 
-                  {/* Employee Detail Table Section */}
-                  {selectedStaffIds.length > 0 ? (
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-2.5">
-                      {selectedStaffIds.map((id, idx) => {
-                        const staff = biRevenueData.find(s => s.fullId === id);
-                        if (!staff) return null;
+                  {/* Employee Detail Table Section (All original cards stay mounted in DOM so XUẤT ALL NV always exports 100% of allEmployees) */}
+                  {allEmployees.length > 0 ? (
+                    <div
+                      className={cn(
+                        "grid gap-[12px] sm:gap-[16px] w-full max-w-full min-w-0",
+                        viewMode === 'single'
+                          ? "grid-cols-1 max-w-[920px] mx-auto"
+                          : "grid-cols-1 xl:grid-cols-2",
+                        filteredEmployees.length === 0 && "hidden"
+                      )}
+                    >
+                      {allEmployees.map((staff, idx) => {
+                        const id = staff.fullId;
+                        const isVisible = filteredEmployeeIdSet.has(id);
                         const targetQdPerStaff = filteredBiData.length > 0 ? displayTargetQD / filteredBiData.length : 0;
                         const actualTargetQd = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
                         // DTQĐ lấy từ cột "L.kế" ở bảng Doanh thu nv (virtualVal)
@@ -4752,21 +5462,21 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           : effQd;
 
                         return (
-                          <motion.div
+                          <div
                             key={`detail-${id}`}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.1 + (idx * 0.05) }}
+                            className={cn("w-full max-w-full min-w-0", isVisible ? "block" : "hidden")}
                           >
                             <EmployeeDetailTable
                               staffName={formattedStaffName}
                               luyKeNganhHang={luyKeNganhHang}
                               thiDuaNv={thiDuaNv}
                               staffCount={selectedStaffIds.length}
+                              selectedStaffIds={selectedStaffIds}
                               daysPassed={daysPassed}
                               totalDays={totalDays}
                               categoryTargets={categoryTargets}
                               luykeCategories={filteredLuykeCategories}
+                              categoryConfig={categoryConfig}
                               staffTargetQd={targetQdPerStaff}
                               staffDtqd={staffDtqdVal}
                               staffPercentHT={staffPercentHT}
@@ -4783,7 +5493,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                 setIsCompareOpen(true);
                               }}
                             />
-                          </motion.div>
+                          </div>
                         );
                       })}
                     </div>
@@ -4828,7 +5538,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="max-w-[calc(100%-1px)] mx-auto relative overflow-hidden rounded-[16px]"
+                  className="w-full max-w-full min-w-0 box-border mx-auto relative z-10 overflow-visible rounded-[16px]"
                 >
                   {renderLoadingOverlay()}
                   <CategoryDetailByStaffTable
@@ -7853,4 +8563,4 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   );
 };
 
-export default EmployeeHealth;
+export default React.memo(EmployeeHealth);

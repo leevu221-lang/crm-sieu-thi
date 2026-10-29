@@ -341,7 +341,7 @@ function getColumnIndices(headers: string[]) {
   const findIdx = (predicate: (h: string) => boolean) => normHeaders.findIndex(predicate);
 
   const soLuongIdx = findIdx(h => h.includes('số lượng') || h.includes('so luong') || h === 'sl');
-  const doanhThuQDIdx = findIdx(h => h.includes('qđ') || h.includes('quy đổi') || h.includes('qd'));
+  const doanhThuQDIdx = findIdx(h => (h.includes('qđ') || h.includes('quy đổi') || h.includes('qd')) && !h.includes('khoản vay') && !h.includes('khoan vay') && !h.includes('bhkv') && !h.includes('target') && !h.includes('mục tiêu') && !h.includes('%'));
   const tiTrongIdx = findIdx(h => (h.includes('tỉ trọng') || h.includes('tỷ trọng') || h.includes('%')) && !h.includes('trả') && !h.includes('tg') && !h.includes('tc') && !h.includes('ht') && !h.includes('tt') && !h.includes('tiến độ'));
   const doanhThuIdx = findIdx(h => (h === 'doanh thu' || h.includes('dtlk') || h.includes('lũy kế') || h.includes('doanh thu lũy kế')) && !h.includes('qđ') && !h.includes('quy đổi') && !h.includes('trả') && !h.includes('dự kiến') && !h.includes('target'));
   const targetIdx = findIdx(h => (h.includes('target') || h.includes('mục tiêu')) && !h.includes('qđ') && !h.includes('%'));
@@ -435,10 +435,10 @@ function parseConsolidatedFormat(
       const doanhThu = colMap.doanhThuIdx !== -1 && colMap.doanhThuIdx < cols.length ? cleanRawNum(cols[colMap.doanhThuIdx]) : 0;
       const target = colMap.targetIdx !== -1 && colMap.targetIdx < cols.length ? cleanRawNum(cols[colMap.targetIdx]) : 0;
       const rawPercentHtTarget = colMap.percentHtTargetIdx !== -1 && colMap.percentHtTargetIdx < cols.length ? cleanRawNum(cols[colMap.percentHtTargetIdx]) : 0;
-      const tb3Thang = colMap.tb3ThangIdx !== -1 && colMap.tb3ThangIdx < cols.length ? cleanRawNum(cols[colMap.tb3ThangIdx]) : (cols.length >= 8 ? cleanRawNum(cols[cols.length - 4]) : 0);
-      const percentTT = colMap.percentTTIdx !== -1 && colMap.percentTTIdx < cols.length ? cleanRawNum(cols[colMap.percentTTIdx]) : (cols.length >= 8 ? cleanRawNum(cols[cols.length - 3]) : 0);
-      const dtTraGop = colMap.dtTraGopIdx !== -1 && colMap.dtTraGopIdx < cols.length ? cleanRawNum(cols[colMap.dtTraGopIdx]) : (cols.length >= 4 ? cleanRawNum(cols[cols.length - 2]) : 0);
-      const percentTraGop = colMap.percentTraGopIdx !== -1 && colMap.percentTraGopIdx < cols.length ? cleanRawNum(cols[colMap.percentTraGopIdx]) : (cols.length >= 4 ? cleanRawNum(cols[cols.length - 1]) : 0);
+      const tb3Thang = colMap.tb3ThangIdx !== -1 && colMap.tb3ThangIdx < cols.length ? cleanRawNum(cols[colMap.tb3ThangIdx]) : (cols.length >= 10 ? cleanRawNum(cols[cols.length - 4]) : 0);
+      const percentTT = colMap.percentTTIdx !== -1 && colMap.percentTTIdx < cols.length ? cleanRawNum(cols[colMap.percentTTIdx]) : (cols.length >= 10 ? cleanRawNum(cols[cols.length - 3]) : 0);
+      const dtTraGop = colMap.dtTraGopIdx !== -1 && colMap.dtTraGopIdx < cols.length ? cleanRawNum(cols[colMap.dtTraGopIdx]) : (cols.length >= 10 ? cleanRawNum(cols[cols.length - 2]) : 0);
+      const percentTraGop = colMap.percentTraGopIdx !== -1 && colMap.percentTraGopIdx < cols.length ? cleanRawNum(cols[colMap.percentTraGopIdx]) : (cols.length >= 10 ? cleanRawNum(cols[cols.length - 1]) : 0);
 
       // %HT V.TRỘI tính dự kiến của cột L.KẾ QĐ: (L.KẾ QĐ / daysPassed * totalDays) / TARGET
       const dtDuKienQD = (daysPassed && daysPassed > 0 && totalDays && totalDays > 0)
@@ -531,14 +531,16 @@ function parseConsolidatedFormat(
         const soLuong = getVal(colMap.soLuongIdx, cleanRawNum(rowValues[0]));
         const doanhThuQD = getVal(colMap.doanhThuQDIdx, cleanRawNum(rowValues[1]));
         const tiTrong = getVal(colMap.tiTrongIdx, cleanRawNum(rowValues[2]));
-        const doanhThu = getVal(colMap.doanhThuIdx, cleanRawNum(rowValues[3]));
+        const doanhThu = colMap.doanhThuIdx !== -1
+          ? getVal(colMap.doanhThuIdx, 0)
+          : (rowValues.length >= 6 && !rowValues[3]?.includes('%') ? cleanRawNum(rowValues[3]) : 0);
         const target = getVal(colMap.targetIdx, cleanRawNum(rowValues[4]));
         const rawPercentHtTarget = getVal(colMap.percentHtTargetIdx, cleanRawNum(rowValues[5]));
 
-        const tb3Thang = getVal(colMap.tb3ThangIdx, rowValues.length >= 8 ? cleanRawNum(rowValues[rowValues.length - 4]) : 0);
-        const percentTT = getVal(colMap.percentTTIdx, rowValues.length >= 8 ? cleanRawNum(rowValues[rowValues.length - 3]) : 0);
-        const dtTraGop = getVal(colMap.dtTraGopIdx, rowValues.length >= 4 ? cleanRawNum(rowValues[rowValues.length - 2]) : 0);
-        const percentTraGop = getVal(colMap.percentTraGopIdx, rowValues.length >= 4 ? cleanRawNum(rowValues[rowValues.length - 1]) : 0);
+        const tb3Thang = getVal(colMap.tb3ThangIdx, rowValues.length >= 9 ? cleanRawNum(rowValues[rowValues.length - 4]) : 0);
+        const percentTT = getVal(colMap.percentTTIdx, rowValues.length >= 9 ? cleanRawNum(rowValues[rowValues.length - 3]) : 0);
+        const dtTraGop = getVal(colMap.dtTraGopIdx, rowValues.length >= 9 ? cleanRawNum(rowValues[rowValues.length - 2]) : 0);
+        const percentTraGop = getVal(colMap.percentTraGopIdx, rowValues.length >= 9 ? cleanRawNum(rowValues[rowValues.length - 1]) : 0);
 
         // %HT V.TRỘI tính dự kiến của cột L.KẾ QĐ: (L.KẾ QĐ / daysPassed * totalDays) / TARGET
         const dtDuKienQD = (daysPassed && daysPassed > 0 && totalDays && totalDays > 0)

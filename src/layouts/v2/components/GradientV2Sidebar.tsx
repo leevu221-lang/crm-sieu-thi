@@ -30,35 +30,36 @@ import {
 } from 'lucide-react';
 import { useStore } from '../../../contexts/StoreContext';
 
-/* ── Design Tokens ── */
+/* ── Enterprise Navy Design Tokens ── */
 const COLORS = {
-  bg: '#F0F7FF',
-  surface: '#FFFFFF',
-  // Main Tab: Pastel Blue when active
-  mainActive: '#0284C7',
-  mainActiveBg: '#F0F9FF',
+  bg: '#081A38',
+  bgGradient: 'linear-gradient(180deg, #071936 0%, #0B2247 50%, #051126 100%)',
+  surface: '#0B2247',
+  // Main Tab: Vibrant Royal/Sky Blue when active
+  mainActive: '#FFFFFF',
+  mainActiveBg: 'linear-gradient(90deg, #1D7AFC 0%, #0EA5E9 100%)',
   mainActiveBorder: '#38BDF8',
-  mainActiveText: '#0369A1',
-  mainActiveSub: '#0EA5E9',
-  mainHover: '#F0F7FF',
-  primaryHover: '#E0F2FE',
+  mainActiveText: '#FFFFFF',
+  mainActiveSub: '#E0F2FE',
+  mainHover: 'rgba(255, 255, 255, 0.07)',
+  primaryHover: 'rgba(255, 255, 255, 0.1)',
 
-  // Sub Tab: Pastel Sky / Cerulean Blue when active
-  subActive: '#0284C7',
-  subActiveBg: '#E0F2FE',
-  subActiveBorder: '#0EA5E9',
-  subActiveText: '#0369A1',
+  // Sub Tab: Luminous Navy-Blue when active
+  subActive: '#38BDF8',
+  subActiveBg: 'rgba(29, 122, 252, 0.22)',
+  subActiveBorder: '#38BDF8',
+  subActiveText: '#FFFFFF',
   subActiveDot: '#38BDF8',
-  subHover: '#F0F9FF',
+  subHover: 'rgba(255, 255, 255, 0.06)',
 
-  textPrimary: '#0F172A',
-  textSecondary: '#475569',
+  textPrimary: '#F1F5F9',
+  textSecondary: '#94A3B8',
   textMuted: '#64748B',
-  border: '#BAE6FD',
-  borderLight: '#E0F2FE',
-  badgeHot: { bg: '#EFF6FF', text: '#0284C7' },
-  badgeMoi: { bg: '#E0F2FE', text: '#0284C7' },
-  online: '#38BDF8',
+  border: 'rgba(148, 163, 184, 0.15)',
+  borderLight: 'rgba(148, 163, 184, 0.16)',
+  badgeHot: { bg: 'rgba(56, 189, 248, 0.18)', text: '#38BDF8' },
+  badgeMoi: { bg: 'rgba(16, 185, 129, 0.2)', text: '#34D399' },
+  online: '#34D399',
 };
 
 interface NavItem {
@@ -318,7 +319,7 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
       <div
         className="absolute inset-0 w-full h-full pointer-events-none"
         style={{
-          backgroundColor: COLORS.bg,
+          background: COLORS.bgGradient,
           borderRight: `1px solid ${COLORS.border}`,
         }}
       />
@@ -328,8 +329,11 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
 
         {/* ═══════════════ HEADER ═══════════════ */}
         <div
-          className="shrink-0 sticky top-0 z-20 backdrop-blur-md bg-white/95"
-          style={{ borderBottom: `1px solid ${COLORS.border}` }}
+          className="shrink-0 sticky top-0 z-20 backdrop-blur-md"
+          style={{
+            backgroundColor: 'rgba(7, 25, 54, 0.92)',
+            borderBottom: `1px solid ${COLORS.border}`,
+          }}
         >
           {expanded ? (
             <div className="flex items-center gap-3 px-5 py-3.5">
@@ -337,8 +341,8 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
               <div
                 className="w-[42px] h-[42px] rounded-[12px] flex items-center justify-center shrink-0"
                 style={{
-                  background: 'linear-gradient(135deg, #38BDF8 0%, #0284C7 100%)',
-                  boxShadow: '0 4px 12px rgba(2,132,199,0.3)',
+                  background: 'linear-gradient(135deg, #1D7AFC 0%, #0EA5E9 100%)',
+                  boxShadow: '0 4px 14px rgba(29,122,252,0.4)',
                 }}
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -365,9 +369,9 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                   />
                   <span
                     className="text-[12.5px] font-medium"
-                    style={{ color: COLORS.textMuted }}
+                    style={{ color: COLORS.textSecondary }}
                   >
-                    Online
+                    Quản trị hiệu suất
                   </span>
                 </div>
               </motion.div>
@@ -375,14 +379,14 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
               <button
                 onClick={onToggle}
                 className="w-[32px] h-[32px] rounded-[10px] flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer shrink-0"
-                style={{ color: COLORS.textMuted }}
+                style={{ color: COLORS.textSecondary }}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLElement).style.backgroundColor = COLORS.primaryHover;
-                  (e.currentTarget as HTMLElement).style.color = COLORS.textSecondary;
+                  (e.currentTarget as HTMLElement).style.color = COLORS.textPrimary;
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
-                  (e.currentTarget as HTMLElement).style.color = COLORS.textMuted;
+                  (e.currentTarget as HTMLElement).style.color = COLORS.textSecondary;
                 }}
                 title="Thu gọn menu"
               >
@@ -396,8 +400,8 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                 onClick={onToggle}
                 className="w-[46px] h-[46px] rounded-[12px] flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer shrink-0"
                 style={{
-                  background: 'linear-gradient(135deg, #38BDF8 0%, #0284C7 100%)',
-                  boxShadow: '0 4px 12px rgba(2,132,199,0.3)',
+                  background: 'linear-gradient(135deg, #1D7AFC 0%, #0EA5E9 100%)',
+                  boxShadow: '0 4px 14px rgba(29,122,252,0.4)',
                 }}
                 title="Mở rộng menu"
               >
@@ -417,7 +421,7 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="px-5 pt-3 pb-[4px] text-[12px] font-semibold uppercase tracking-[0.08em]"
+                    className="px-5 pt-3 pb-[4px] text-[11.5px] font-bold uppercase tracking-[0.08em]"
                     style={{ color: COLORS.textMuted }}
                   >
                     {section.title}
@@ -432,7 +436,7 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                 )}
 
                 {/* Items */}
-                <div className={expanded ? 'px-3 space-y-[3px]' : 'px-2 space-y-1'}>
+                <div className={expanded ? 'px-3 space-y-[4px]' : 'px-2 space-y-1'}>
                   {section.items.map((item) => {
                     const isActive = currentPage === item.id;
                     const Icon = item.icon;
@@ -447,26 +451,23 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                           title={!expanded ? item.label : undefined}
                           className="group relative w-full flex items-center transition-all duration-200 cursor-pointer"
                           style={{
-                            padding: expanded ? '9px 13px' : '0',
+                            padding: expanded ? '10px 14px' : '0',
                             gap: expanded ? '12px' : '0',
-                            borderRadius: expanded ? '14px' : '0',
-                            backgroundColor: expanded
+                            borderRadius: expanded ? '12px' : '0',
+                            background: expanded
                               ? (isActive ? COLORS.mainActiveBg : 'transparent')
                               : 'transparent',
-                            borderLeft: expanded
-                              ? (isActive ? `3.5px solid ${COLORS.mainActiveBorder}` : '3.5px solid transparent')
-                              : 'none',
-                            boxShadow: (expanded && isActive) ? '0 1px 6px rgba(56,189,248,0.2)' : 'none',
+                            boxShadow: (expanded && isActive) ? '0 4px 14px rgba(29, 122, 252, 0.35)' : 'none',
                             justifyContent: expanded ? 'flex-start' : 'center',
                           }}
                           onMouseEnter={(e) => {
                             if (!isActive && expanded) {
-                              (e.currentTarget as HTMLElement).style.backgroundColor = COLORS.mainHover;
+                              (e.currentTarget as HTMLElement).style.background = COLORS.mainHover;
                             }
                           }}
                           onMouseLeave={(e) => {
                             if (!isActive && expanded) {
-                              (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                              (e.currentTarget as HTMLElement).style.background = 'transparent';
                             }
                           }}
                         >
@@ -479,32 +480,33 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                                 transition: 'color 200ms',
                               }}
                             >
-                              <Icon size={22} strokeWidth={isActive ? 2.3 : 1.7} />
+                              <Icon size={21} strokeWidth={isActive ? 2.3 : 1.8} />
                             </div>
                           ) : (
                             <div
                               className="shrink-0 flex items-center justify-center transition-all duration-200"
                               style={{
-                                width: 48,
-                                height: 48,
-                                borderRadius: 14,
-                                backgroundColor: isActive ? COLORS.mainActiveBg : 'transparent',
+                                width: 46,
+                                height: 46,
+                                borderRadius: 12,
+                                background: isActive ? COLORS.mainActiveBg : 'transparent',
                                 color: isActive ? COLORS.mainActive : COLORS.textSecondary,
+                                boxShadow: isActive ? '0 4px 12px rgba(29, 122, 252, 0.35)' : 'none',
                               }}
                               onMouseEnter={(e) => {
                                 if (!isActive) {
-                                  (e.currentTarget as HTMLElement).style.backgroundColor = COLORS.mainHover;
+                                  (e.currentTarget as HTMLElement).style.background = COLORS.mainHover;
                                   (e.currentTarget as HTMLElement).style.color = COLORS.textPrimary;
                                 }
                               }}
                               onMouseLeave={(e) => {
                                 if (!isActive) {
-                                  (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                                  (e.currentTarget as HTMLElement).style.background = 'transparent';
                                   (e.currentTarget as HTMLElement).style.color = COLORS.textSecondary;
                                 }
                               }}
                             >
-                              <Icon size={22} strokeWidth={isActive ? 2.3 : 1.7} />
+                              <Icon size={21} strokeWidth={isActive ? 2.3 : 1.8} />
                             </div>
                           )}
 
