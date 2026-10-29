@@ -763,6 +763,10 @@ function renderShiftIcon(value: string, textColor: string): React.ReactNode {
     return <Clock size={13} style={{ color: '#D97706' }} className="shrink-0" strokeWidth={2.5} />;
   }
 
+  if (trimmed === 'st khác') {
+    return <CalendarDays size={13} style={{ color: textColor }} className="shrink-0" strokeWidth={2.4} />;
+  }
+
   return <Clock size={13} style={{ color: textColor }} className="shrink-0" strokeWidth={2.5} />;
 }
 
@@ -3797,21 +3801,71 @@ const LichLamViecPG: React.FC = () => {
   }
 
   return (
-    <div className="p-3 md:p-5 max-w-[1380px] mx-auto">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg"><CalendarDays size={22} className="text-white" /></div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-bold text-slate-800">Lịch Làm Việc PG</h1>
+    <div
+      className="p-2.5 sm:p-4 md:p-5 max-w-[1380px] mx-auto w-full box-border"
+      style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif" }}
+    >
+      {/* ─── SaaS Control Header Card (Chuẩn ảnh mẫu 100% & Responsive Mobile) ─── */}
+      <div
+        className="relative rounded-[22px] sm:rounded-[26px] p-3.5 sm:p-5 md:p-6 mb-5 overflow-hidden"
+        style={{
+          background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FBFF 60%, #F1F7FF 100%)',
+          border: '1px solid #D9E6F5',
+          boxShadow: '0 10px 30px -6px rgba(16, 40, 76, 0.06), 0 2px 8px rgba(16, 40, 76, 0.03)',
+        }}
+      >
+        {/* Subtle decorative corner wave highlight */}
+        <svg
+          className="hidden sm:block absolute top-0 right-0 h-full w-[420px] pointer-events-none select-none"
+          viewBox="0 0 420 320"
+          preserveAspectRatio="none"
+          fill="none"
+        >
+          <path
+            d="M140 0 C 240 60, 310 180, 420 220 L 420 0 Z"
+            fill="rgba(219, 234, 254, 0.35)"
+          />
+        </svg>
+
+        {/* 1. Header Title & Store Pill Selector */}
+        <div className="relative z-10 flex items-start sm:items-center gap-3 sm:gap-4 mb-4 sm:mb-5 min-w-0">
+          <div
+            className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shrink-0"
+            style={{
+              background: 'linear-gradient(135deg, #00C875 0%, #00A88F 55%, #008294 100%)',
+              boxShadow: '0 6px 16px rgba(0, 168, 143, 0.28)',
+            }}
+          >
+            <CalendarDays size={26} className="text-white" strokeWidth={2.2} />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
+              <h1
+                className="text-[20px] sm:text-[26px] font-black tracking-tight leading-tight whitespace-nowrap"
+                style={{ color: '#10284C' }}
+              >
+                Lịch Làm Việc PG
+              </h1>
+
               {availableStores && availableStores.length > 1 ? (
-                <div className="relative inline-block">
+                <div
+                  className="relative inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-white font-extrabold text-[11.5px] sm:text-[13px] max-w-full min-w-0 cursor-pointer transition-transform active:scale-[0.99]"
+                  style={{
+                    background: 'linear-gradient(90deg, #00B96B 0%, #009E83 55%, #007F8B 100%)',
+                    boxShadow: '0 4px 12px rgba(0, 158, 131, 0.24)',
+                    border: '1px solid rgba(255, 255, 255, 0.28)',
+                  }}
+                  title={`Siêu thị: ${activeStoreName} (Nhấn để đổi siêu thị)`}
+                >
+                  <Store size={15} className="text-white shrink-0" strokeWidth={2.3} />
+                  <span className="uppercase tracking-wide truncate">{activeStoreName}</span>
+                  <ChevronDown size={15} className="text-white/90 shrink-0" strokeWidth={2.5} />
                   <select
                     value={activeStoreName}
                     onChange={e => setCurrentStoreId(e.target.value)}
-                    className="appearance-none bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white font-black text-xs px-3 py-1 pr-7 rounded-xl shadow-sm border border-emerald-400 cursor-pointer outline-none uppercase tracking-wide"
-                    title="Chọn siêu thị để xem và lưu lịch PG"
+                    aria-label="Chọn siêu thị"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   >
                     {availableStores.map(s => (
                       <option key={s.name} value={s.name} className="bg-white text-slate-800 font-bold normal-case">
@@ -3819,245 +3873,571 @@ const LichLamViecPG: React.FC = () => {
                       </option>
                     ))}
                   </select>
-                  <ChevronDown size={14} className="text-emerald-100 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white shadow-xs border border-emerald-400">
-                  <Store size={14} className="text-emerald-100" />
-                  <span className="uppercase tracking-wide">{activeStoreName}</span>
+                <span
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-white font-extrabold text-[11.5px] sm:text-[13px] max-w-full min-w-0"
+                  style={{
+                    background: 'linear-gradient(90deg, #00B96B 0%, #009E83 55%, #007F8B 100%)',
+                    boxShadow: '0 4px 12px rgba(0, 158, 131, 0.24)',
+                    border: '1px solid rgba(255, 255, 255, 0.28)',
+                  }}
+                  title={activeStoreName}
+                >
+                  <Store size={15} className="text-white shrink-0" strokeWidth={2.3} />
+                  <span className="uppercase tracking-wide truncate">{activeStoreName}</span>
+                  <ChevronDown size={14} className="text-white/80 shrink-0" strokeWidth={2.5} />
                 </span>
               )}
             </div>
-            <p className="text-[12px] text-slate-500">Quản lý lịch Promoter — Tên PG dùng chung cho tất cả tuần</p>
+            <p className="text-[12px] sm:text-[13.5px] font-medium text-[#64748B] mt-1 leading-snug">
+              Quản lý lịch Promoter — Tên PG dùng chung cho tất cả tuần
+            </p>
           </div>
         </div>
-      </div>
 
-      {/* Month navigation */}
-      <div className="flex flex-wrap items-center gap-3 mb-3">
-        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-1 py-1 shadow-sm">
-          <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"><ChevronLeft size={16} /></button>
-          <span className="px-3 py-1 text-sm font-bold text-slate-700 min-w-[130px] text-center">{MONTHS[selectedMonth]} {selectedYear}</span>
-          <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"><ChevronRight size={16} /></button>
-        </div>
-      </div>
-
-      {/* Shift legend with add/remove */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        {BASE_SHIFTS.map(o => {
-          const s = getShiftStyle(o, customShifts);
-          return (
-            <span
-              key={o}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11.5px] font-extrabold border shadow-2xs"
-              style={{
-                backgroundColor: s.bg,
-                color: s.text,
-                borderColor: s.border || s.bg,
-                fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
-                letterSpacing: '0.2px',
-              }}
-            >
-              {renderShiftIcon(o, s.text)}
-              <span>{o}</span>
-            </span>
-          );
-        })}
-        {customShifts.map(o => {
-          const s = getShiftStyle(o, customShifts);
-          return (
-            <span
-              key={o}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11.5px] font-extrabold border shadow-2xs"
-              style={{
-                backgroundColor: s.bg,
-                color: s.text,
-                borderColor: s.border || s.bg,
-                fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
-                letterSpacing: '0.2px',
-              }}
-            >
-              {renderShiftIcon(o, s.text)}
-              <span>{o}</span>
-              {editing && (
-                <button
-                  onClick={() => { setCustomShifts(prev => prev.filter(x => x !== o)); }}
-                  className="ml-0.5 hover:opacity-70 cursor-pointer"
-                >
-                  <X size={10} />
-                </button>
-              )}
-            </span>
-          );
-        })}
-        {editing && !showAddShift && (
-          <button onClick={() => setShowAddShift(true)} className="px-2 py-0.5 rounded text-[10px] font-bold border border-dashed border-slate-400 text-slate-500 hover:bg-slate-50 transition-colors">
-            <Plus size={10} className="inline" /> Thêm ca
-          </button>
-        )}
-        {editing && showAddShift && (
-          <span className="inline-flex items-center gap-1">
-            <input value={newShiftInput} onChange={e => setNewShiftInput(e.target.value)}
-              className="px-2 py-0.5 border border-slate-300 rounded text-[11px] w-28 outline-none focus:ring-1 focus:ring-green-400"
-              placeholder="VD: 9H-18H" autoFocus
-              onKeyDown={e => { if (e.key === 'Enter' && newShiftInput.trim()) { setCustomShifts(prev => [...prev, newShiftInput.trim()]); setNewShiftInput(''); setShowAddShift(false); } }} />
-            <button onClick={() => { if (newShiftInput.trim()) { setCustomShifts(prev => [...prev, newShiftInput.trim()]); setNewShiftInput(''); setShowAddShift(false); } }}
-              className="px-1.5 py-0.5 text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 rounded hover:bg-green-100">OK</button>
-            <button onClick={() => { setShowAddShift(false); setNewShiftInput(''); }}
-              className="px-1.5 py-0.5 text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded hover:bg-slate-100">Hủy</button>
-          </span>
-        )}
-      </div>
-
-      {/* Week tabs */}
-      <div className="flex gap-1.5 mb-4 bg-slate-100/90 rounded-2xl p-1.5 overflow-x-auto shadow-inner">
-        {weeks.map((w, i) => {
-          const isActive = activeWeek === i;
-          const today = new Date();
-          const isCurrent = today >= w.dates[0] && today <= w.dates[6];
-          return (
-            <button key={i} onClick={() => setActiveWeek(i)}
-              className={`flex-1 min-w-[125px] px-3.5 py-2.5 rounded-xl text-center transition-all ${isActive ? 'bg-white shadow-md text-green-700 font-black ring-1 ring-slate-200/60' : 'text-slate-600 hover:bg-white/60 font-bold'}`}>
-              <div className="text-[14px] font-black flex items-center justify-center gap-1.5">
-                Tuần {i + 1}
-                {isCurrent && <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />}
-              </div>
-              <div className={`text-[11.5px] mt-0.5 font-bold ${isActive ? 'text-green-600/80' : 'text-slate-400'}`}>{fmtDate(w.dates[0])} → {fmtDate(w.dates[6])}</div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Action buttons (Export & Edit & History) */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        {!editing ? (
-          <>
-            <button onClick={() => handleExport(ictRef, `Lich_PG_ICT_${safeStoreKey}_Tuan${activeWeek+1}_${monthKey}`)} disabled={capturing}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-blue-700 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition-all shadow-sm disabled:opacity-50 cursor-pointer">
-              <Camera size={15} /> Xuất ảnh ICT
-            </button>
-            <button onClick={() => handleExport(dtdlgdRef, `Lich_PG_DTDLGD_${safeStoreKey}_Tuan${activeWeek+1}_${monthKey}`)} disabled={capturing}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-orange-700 bg-orange-50 border border-orange-200 rounded-xl hover:bg-orange-100 transition-all shadow-sm disabled:opacity-50 cursor-pointer">
-              <Camera size={15} /> Xuất ảnh ĐT-ĐL-GD
-            </button>
-            <button onClick={() => handleExport(allRef, `Lich_PG_ALL_${safeStoreKey}_Tuan${activeWeek+1}_${monthKey}`)} disabled={capturing}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-white bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl hover:from-emerald-600 hover:to-teal-700 shadow-md transition-all disabled:opacity-50 cursor-pointer">
-              <Camera size={15} /> Xuất ảnh ALL
-            </button>
+        {/* 2. Month Navigation + Shift Badges Row */}
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center gap-2.5 sm:gap-3 mb-4">
+          {/* Month Selector Pill */}
+          <div
+            className="inline-flex items-center justify-between sm:justify-start gap-1 bg-white rounded-2xl px-1.5 py-1 shrink-0 self-start"
+            style={{
+              border: '1px solid #D9E6F5',
+              boxShadow: '0 2px 8px rgba(16, 40, 76, 0.05)',
+              height: '40px',
+            }}
+          >
             <button
-              onClick={handleShareLink}
-              className={`flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black rounded-xl border shadow-sm transition-all cursor-pointer ${
-                copiedLink
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-2 ring-emerald-200'
-                  : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-              }`}
-              title="Chia sẻ link Lịch PG cho khách xem trực tiếp"
+              type="button"
+              onClick={prevMonth}
+              aria-label="Tháng trước"
+              className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-slate-100 text-[#10284C] transition-colors cursor-pointer"
             >
-              {copiedLink ? (
-                <>
-                  <Check size={15} className="text-emerald-600" /> Đã chép link {activeStoreName ? `ST ${activeStoreName}` : `Kho ${userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || ''}`}!
-                </>
-              ) : (
-                <>
-                  <Share2 size={15} className="text-emerald-600" /> Chia sẻ link
-                </>
-              )}
+              <ChevronLeft size={16} strokeWidth={2.4} />
             </button>
-            {canEdit && (
-              <>
-                <button onClick={handleStartEdit}
-                  className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 rounded-xl hover:bg-emerald-200 shadow-sm transition-all cursor-pointer">
-                  <Edit3 size={15} /> Chỉnh sửa
-                </button>
-                <button onClick={() => {
-                  if (!editing) handleStartEdit();
-                  setShowImportExcelModal(true);
-                }}
-                  className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-teal-800 bg-teal-100 border border-teal-300 rounded-xl hover:bg-teal-200 shadow-sm transition-all cursor-pointer"
-                  title="Dán nhanh bảng phân ca từ Excel hoặc Office 365">
-                  <FileSpreadsheet size={15} /> Dán từ Excel
-                </button>
-                <button
-                  onClick={() => setShowCopyWeekModal(true)}
-                  className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-indigo-800 bg-indigo-50 border border-indigo-300 rounded-xl hover:bg-indigo-100 shadow-sm transition-all cursor-pointer"
-                  title="Sao chép ca làm việc của tuần (VD: từ Tuần 5 Tháng 9 qua Tuần 1 Tháng 10)"
+            <div className="inline-flex items-center justify-center gap-1.5 px-2.5 min-w-[138px] text-center">
+              <CalendarDays size={15} className="text-[#2563EB] shrink-0" strokeWidth={2.3} />
+              <span className="text-[13.5px] font-extrabold text-[#10284C] whitespace-nowrap">
+                {MONTHS[selectedMonth]} {selectedYear}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={nextMonth}
+              aria-label="Tháng tiếp theo"
+              className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-slate-100 text-[#10284C] transition-colors cursor-pointer"
+            >
+              <ChevronRight size={16} strokeWidth={2.4} />
+            </button>
+          </div>
+
+          {/* Shift Legend Badges */}
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+            {BASE_SHIFTS.slice(0, 4).map(o => {
+              const s = getShiftStyle(o, customShifts);
+              return (
+                <span
+                  key={o}
+                  className="inline-flex items-center gap-1.5 px-3 rounded-xl text-[12px] font-extrabold border whitespace-nowrap shrink-0"
+                  style={{
+                    height: '36px',
+                    backgroundColor: s.bg,
+                    color: s.text,
+                    borderColor: s.border || s.bg,
+                    boxShadow: '0 1px 3px rgba(16, 40, 76, 0.04)',
+                  }}
                 >
-                  <Copy size={15} /> Sao chép ca tuần
-                </button>
-              </>
-            )}
-            {is43751Admin && (
-              <>
-                <button
-                  onClick={handleToggleUserEdit}
-                  title={effectiveUserEditAllowed ? "Nhấn để Ẩn nút Chỉnh sửa của User khác" : "Nhấn để Mở quyền Chỉnh sửa cho User khác"}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black rounded-xl border shadow-sm transition-all cursor-pointer ${
-                    effectiveUserEditAllowed
-                      ? 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100'
-                      : 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
-                  }`}
+                  {renderShiftIcon(o, s.text)}
+                  <span>{o}</span>
+                </span>
+              );
+            })}
+
+            <span className="hidden sm:inline-block w-[1.5px] h-6 bg-[#D9E6F5] mx-0.5 shrink-0" />
+
+            {BASE_SHIFTS.slice(4).map(o => {
+              const s = getShiftStyle(o, customShifts);
+              return (
+                <span
+                  key={o}
+                  className="inline-flex items-center gap-1.5 px-3 rounded-xl text-[11.5px] font-extrabold border whitespace-nowrap shrink-0"
+                  style={{
+                    height: '36px',
+                    backgroundColor: '#EFF6FF',
+                    color: '#1E3A8A',
+                    borderColor: '#93C5FD',
+                    boxShadow: '0 1px 3px rgba(16, 40, 76, 0.04)',
+                  }}
                 >
-                  {effectiveUserEditAllowed ? (
-                    <>
-                      <Lock size={15} /> Khóa quyền sửa (User đang ĐƯỢC sửa)
-                    </>
-                  ) : (
-                    <>
-                      <Unlock size={15} /> Mở quyền sửa (User đang BỊ KHÓA)
-                    </>
+                  {renderShiftIcon(o, '#1D4ED8')}
+                  <span>{o}</span>
+                </span>
+              );
+            })}
+
+            {customShifts.map(o => {
+              const s = getShiftStyle(o, customShifts);
+              return (
+                <span
+                  key={o}
+                  className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 rounded-xl text-[11.5px] font-extrabold border whitespace-nowrap shrink-0"
+                  style={{
+                    height: '36px',
+                    backgroundColor: '#F0F7FF',
+                    color: '#1E3A8A',
+                    borderColor: '#93C5FD',
+                    boxShadow: '0 1px 3px rgba(16, 40, 76, 0.04)',
+                  }}
+                >
+                  {renderShiftIcon(o, s.text || '#0284C7')}
+                  <span>{o}</span>
+                  {editing && (
+                    <button
+                      type="button"
+                      onClick={() => { setCustomShifts(prev => prev.filter(x => x !== o)); }}
+                      className="ml-0.5 p-0.5 rounded hover:bg-blue-100 text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
+                      title={`Xóa ca ${o}`}
+                    >
+                      <X size={11} />
+                    </button>
                   )}
+                </span>
+              );
+            })}
+
+            {editing && !showAddShift && (
+              <button
+                type="button"
+                onClick={() => setShowAddShift(true)}
+                className="inline-flex items-center gap-1 px-3 rounded-xl text-[11.5px] font-extrabold border border-dashed border-[#93C5FD] text-[#1E40AF] bg-white/80 hover:bg-blue-50 transition-colors cursor-pointer"
+                style={{ height: '36px' }}
+              >
+                <Plus size={12} /> Thêm ca
+              </button>
+            )}
+            {editing && showAddShift && (
+              <span className="inline-flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-[#93C5FD] shadow-2xs">
+                <input
+                  value={newShiftInput}
+                  onChange={e => setNewShiftInput(e.target.value)}
+                  className="px-2 py-0.5 border border-slate-300 rounded-lg text-[11.5px] w-28 outline-none focus:ring-1 focus:ring-emerald-400 font-bold"
+                  placeholder="VD: 9H-18H"
+                  autoFocus
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && newShiftInput.trim()) {
+                      setCustomShifts(prev => [...prev, newShiftInput.trim()]);
+                      setNewShiftInput('');
+                      setShowAddShift(false);
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (newShiftInput.trim()) {
+                      setCustomShifts(prev => [...prev, newShiftInput.trim()]);
+                      setNewShiftInput('');
+                      setShowAddShift(false);
+                    }
+                  }}
+                  className="px-2 py-1 text-[11px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 cursor-pointer"
+                >
+                  OK
                 </button>
                 <button
-                  onClick={() => { setHistoryFilterPg('ALL'); setShowHistoryModal(true); }}
-                  title="Xem lịch sử chỉnh sửa theo từng PG"
-                  className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-all shadow-sm cursor-pointer"
+                  type="button"
+                  onClick={() => { setShowAddShift(false); setNewShiftInput(''); }}
+                  className="px-2 py-1 text-[11px] font-extrabold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 cursor-pointer"
                 >
-                  <History size={15} /> Lịch sử thay đổi
-                  {historyLogs.length > 0 && (
-                    <span className="ml-0.5 px-1.5 py-0.5 text-[10px] font-black bg-indigo-600 text-white rounded-full">
-                      {historyLogs.length}
+                  Hủy
+                </button>
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* 3. Week Selector Bar (5 Weeks) */}
+        <div
+          className="relative z-10 flex items-center gap-1.5 sm:gap-2 mb-4 rounded-[20px] p-1.5 overflow-x-auto no-scrollbar"
+          style={{
+            backgroundColor: '#F4F8FF',
+            border: '1px solid #DCE8F6',
+            boxShadow: 'inset 0 1px 3px rgba(16, 40, 76, 0.03)',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          {weeks.map((w, i) => {
+            const isActive = activeWeek === i;
+            const today = new Date();
+            const isCurrent = today >= w.dates[0] && today <= w.dates[6];
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setActiveWeek(i)}
+                className={`flex-1 min-w-[156px] sm:min-w-[175px] px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-[16px] flex items-center justify-between gap-2 transition-all cursor-pointer shrink-0 sm:shrink ${
+                  isActive
+                    ? 'text-white'
+                    : 'bg-white/85 hover:bg-white text-[#10284C]'
+                }`}
+                style={
+                  isActive
+                    ? {
+                        background: 'linear-gradient(135deg, #00C472 0%, #00A88F 55%, #008B99 100%)',
+                        boxShadow: '0 6px 16px rgba(0, 168, 143, 0.26)',
+                        border: '1px solid rgba(255, 255, 255, 0.25)',
+                      }
+                    : {
+                        border: '1px solid rgba(217, 230, 245, 0.7)',
+                      }
+                }
+              >
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                  <CalendarDays
+                    size={22}
+                    strokeWidth={2.2}
+                    className={`shrink-0 ${isActive ? 'text-white' : 'text-[#64748B]'}`}
+                  />
+                  <div className="text-left min-w-0">
+                    <div
+                      className={`text-[14px] sm:text-[15px] font-black flex items-center gap-1.5 leading-tight whitespace-nowrap ${
+                        isActive ? 'text-white' : 'text-[#10284C]'
+                      }`}
+                    >
+                      <span>Tuần {i + 1}</span>
+                      {(isActive || isCurrent) && (
+                        <span
+                          className={`inline-block w-2 h-2 rounded-full ${
+                            isActive ? 'bg-white' : 'bg-emerald-500 animate-pulse'
+                          }`}
+                        />
+                      )}
+                    </div>
+                    <div
+                      className={`text-[11.5px] sm:text-[12px] mt-0.5 font-bold whitespace-nowrap ${
+                        isActive ? 'text-white/95' : 'text-[#64748B]'
+                      }`}
+                    >
+                      {fmtDate(w.dates[0])} → {fmtDate(w.dates[6])}
+                    </div>
+                  </div>
+                </div>
+                {!isActive && (
+                  <ChevronRight size={16} className="text-[#94A3B8] shrink-0" strokeWidth={2.2} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 4 & 5. Action Buttons System */}
+        <div className="relative z-10">
+          {!editing ? (
+            <div className="space-y-2.5 sm:space-y-3">
+              {/* Row 4: Export + Share & Edit Buttons */}
+              <div
+                className={`grid grid-cols-2 sm:grid-cols-3 ${
+                  canEdit ? 'lg:grid-cols-4 xl:grid-cols-7' : 'lg:grid-cols-4'
+                } gap-2 sm:gap-2.5`}
+              >
+                {/* 1. Xuất ảnh ICT */}
+                <button
+                  type="button"
+                  onClick={() => handleExport(ictRef, `Lich_PG_ICT_${safeStoreKey}_Tuan${activeWeek + 1}_${monthKey}`)}
+                  disabled={capturing}
+                  className="min-h-[46px] sm:min-h-[48px] px-2.5 sm:px-3.5 py-2 rounded-[15px] flex items-center justify-between gap-1.5 text-white font-extrabold text-[12.5px] sm:text-[13.5px] transition-all hover:brightness-105 active:scale-[0.99] disabled:opacity-50 cursor-pointer min-w-0"
+                  style={{
+                    background: 'linear-gradient(135deg, #258EFF 0%, #0062FF 100%)',
+                    border: '1px solid #3B9EFF',
+                    boxShadow: '0 4px 12px rgba(0, 98, 255, 0.24)',
+                  }}
+                >
+                  <span className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                    <Camera size={16} className="text-white shrink-0" strokeWidth={2.3} />
+                    <span className="truncate">Xuất ảnh ICT</span>
+                  </span>
+                  <ChevronRight size={14} className="text-white/85 shrink-0" strokeWidth={2.5} />
+                </button>
+
+                {/* 2. Xuất ảnh ĐT-ĐL-GD */}
+                <button
+                  type="button"
+                  onClick={() => handleExport(dtdlgdRef, `Lich_PG_DTDLGD_${safeStoreKey}_Tuan${activeWeek + 1}_${monthKey}`)}
+                  disabled={capturing}
+                  className="min-h-[46px] sm:min-h-[48px] px-2.5 sm:px-3.5 py-2 rounded-[15px] flex items-center justify-between gap-1.5 text-white font-extrabold text-[12.5px] sm:text-[13.5px] transition-all hover:brightness-105 active:scale-[0.99] disabled:opacity-50 cursor-pointer min-w-0"
+                  style={{
+                    background: 'linear-gradient(135deg, #FF9F1C 0%, #F97316 100%)',
+                    border: '1px solid #FB923C',
+                    boxShadow: '0 4px 12px rgba(249, 115, 22, 0.24)',
+                  }}
+                >
+                  <span className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                    <Camera size={16} className="text-white shrink-0" strokeWidth={2.3} />
+                    <span className="truncate">Xuất ảnh ĐT-ĐL-GD</span>
+                  </span>
+                  <ChevronRight size={14} className="text-white/85 shrink-0" strokeWidth={2.5} />
+                </button>
+
+                {/* 3. Xuất ảnh ALL */}
+                <button
+                  type="button"
+                  onClick={() => handleExport(allRef, `Lich_PG_ALL_${safeStoreKey}_Tuan${activeWeek + 1}_${monthKey}`)}
+                  disabled={capturing}
+                  className="col-span-2 sm:col-span-1 min-h-[46px] sm:min-h-[48px] px-3 sm:px-3.5 py-2 rounded-[15px] flex items-center justify-between gap-1.5 text-white font-extrabold text-[13px] sm:text-[13.5px] transition-all hover:brightness-105 active:scale-[0.99] disabled:opacity-50 cursor-pointer min-w-0"
+                  style={{
+                    background: 'linear-gradient(135deg, #00B96B 0%, #049669 100%)',
+                    border: '1px solid #10B981',
+                    boxShadow: '0 4px 12px rgba(4, 150, 105, 0.25)',
+                  }}
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <Camera size={16} className="text-white shrink-0" strokeWidth={2.3} />
+                    <span className="truncate">Xuất ảnh ALL</span>
+                  </span>
+                  <ChevronRight size={14} className="text-white/85 shrink-0" strokeWidth={2.5} />
+                </button>
+
+                {/* 4. Chia sẻ link */}
+                <button
+                  type="button"
+                  onClick={handleShareLink}
+                  title="Chia sẻ link Lịch PG cho khách xem trực tiếp"
+                  className="min-h-[46px] sm:min-h-[48px] px-2.5 sm:px-3.5 py-2 rounded-[15px] flex items-center justify-between gap-1.5 font-extrabold text-[12.5px] sm:text-[13.5px] transition-all hover:bg-emerald-50/80 active:scale-[0.99] cursor-pointer min-w-0"
+                  style={{
+                    background: copiedLink
+                      ? 'linear-gradient(180deg, #ECFDF5 0%, #D1FAE5 100%)'
+                      : 'linear-gradient(180deg, #FFFFFF 0%, #F2FDF7 100%)',
+                    border: '1.5px solid #86EFAC',
+                    color: '#15803D',
+                    boxShadow: '0 3px 10px rgba(22, 163, 74, 0.08)',
+                  }}
+                >
+                  <span className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                    {copiedLink ? (
+                      <Check size={16} className="text-[#16A34A] shrink-0" strokeWidth={2.5} />
+                    ) : (
+                      <Share2 size={16} className="text-[#16A34A] shrink-0" strokeWidth={2.3} />
+                    )}
+                    <span className="truncate">
+                      {copiedLink ? 'Đã chép link!' : 'Chia sẻ link'}
                     </span>
-                  )}
+                  </span>
+                  <ChevronRight size={14} className="text-[#16A34A] shrink-0" strokeWidth={2.5} />
                 </button>
-              </>
-            )}
-          </>
-        ) : (
-          <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={handleCancelEdit} className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-slate-700 bg-slate-100 border border-slate-300 rounded-xl hover:bg-slate-200 transition-colors cursor-pointer">
-              <X size={15} /> Hủy
-            </button>
-            <button
-              onClick={() => setShowImportExcelModal(true)}
-              type="button"
-              className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-teal-800 bg-teal-50 border border-teal-300 rounded-xl hover:bg-teal-100 shadow-sm transition-all cursor-pointer"
-              title="Dán bảng phân ca từ Excel hoặc Office 365 vào tuần đang chọn"
-            >
-              <FileSpreadsheet size={15} /> Dán từ Excel
-            </button>
-            <button
-              onClick={() => setShowCopyWeekModal(true)}
-              type="button"
-              className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-indigo-800 bg-indigo-50 border border-indigo-300 rounded-xl hover:bg-indigo-100 shadow-sm transition-all cursor-pointer"
-              title="Sao chép ca làm việc giữa các tuần hoặc khác tháng"
-            >
-              <Copy size={15} /> Sao chép ca tuần
-            </button>
-            <button
-              onClick={handleCopyCurrentWeekToAll}
-              type="button"
-              title="Sao chép toàn bộ phân ca của tuần hiện tại sang tất cả các tuần khác trong tháng"
-              className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-teal-800 bg-teal-50 border border-teal-300 rounded-xl hover:bg-teal-100 shadow-sm transition-all cursor-pointer"
-            >
-              <Copy size={15} /> Sao chép Tuần {activeWeek + 1} sang tất cả các tuần
-            </button>
-            <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-5 py-2 text-[13px] font-black text-white bg-gradient-to-r from-green-600 to-emerald-700 rounded-xl hover:from-green-700 hover:to-emerald-800 shadow-md disabled:opacity-50 transition-all cursor-pointer">
-              {saving ? <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" /> : <Save size={15} />}
-              {saving ? 'Đang lưu...' : 'Lưu tất cả'}
-            </button>
-          </div>
-        )}
-        {capturing && <span className="flex items-center text-[12px] font-medium text-slate-500"><div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-emerald-500 mr-1.5" /> Đang chụp...</span>}
+
+                {canEdit && (
+                  <>
+                    {/* 5. Chỉnh sửa */}
+                    <button
+                      type="button"
+                      onClick={handleStartEdit}
+                      className="min-h-[46px] sm:min-h-[48px] px-2.5 sm:px-3.5 py-2 rounded-[15px] flex items-center justify-between gap-1.5 font-extrabold text-[12.5px] sm:text-[13.5px] transition-all hover:brightness-98 active:scale-[0.99] cursor-pointer min-w-0"
+                      style={{
+                        background: 'linear-gradient(180deg, #F0FDFA 0%, #E0F7FA 100%)',
+                        border: '1.5px solid #7DD3FC',
+                        color: '#0F5257',
+                        boxShadow: '0 3px 10px rgba(2, 132, 199, 0.08)',
+                      }}
+                    >
+                      <span className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                        <Edit3 size={16} className="text-[#0D9488] shrink-0" strokeWidth={2.3} />
+                        <span className="truncate">Chỉnh sửa</span>
+                      </span>
+                      <ChevronRight size={14} className="text-[#0D9488] shrink-0" strokeWidth={2.5} />
+                    </button>
+
+                    {/* 6. Dán từ Excel */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!editing) handleStartEdit();
+                        setShowImportExcelModal(true);
+                      }}
+                      title="Dán nhanh bảng phân ca từ Excel hoặc Office 365"
+                      className="min-h-[46px] sm:min-h-[48px] px-2.5 sm:px-3.5 py-2 rounded-[15px] flex items-center justify-between gap-1.5 text-white font-extrabold text-[12.5px] sm:text-[13.5px] transition-all hover:brightness-105 active:scale-[0.99] cursor-pointer min-w-0"
+                      style={{
+                        background: 'linear-gradient(135deg, #7C5CFC 0%, #5B3DF5 100%)',
+                        border: '1px solid #8B5CF6',
+                        boxShadow: '0 4px 12px rgba(91, 61, 245, 0.24)',
+                      }}
+                    >
+                      <span className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                        <FileSpreadsheet size={16} className="text-white shrink-0" strokeWidth={2.3} />
+                        <span className="truncate">Dán từ Excel</span>
+                      </span>
+                      <ChevronRight size={14} className="text-white/85 shrink-0" strokeWidth={2.5} />
+                    </button>
+
+                    {/* 7. Sao chép ca tuần */}
+                    <button
+                      type="button"
+                      onClick={() => setShowCopyWeekModal(true)}
+                      title="Sao chép ca làm việc của tuần (VD: từ Tuần 5 Tháng 9 qua Tuần 1 Tháng 10)"
+                      className="min-h-[46px] sm:min-h-[48px] px-2.5 sm:px-3.5 py-2 rounded-[15px] flex items-center justify-between gap-1.5 font-extrabold text-[12.5px] sm:text-[13.5px] transition-all hover:brightness-98 active:scale-[0.99] cursor-pointer min-w-0"
+                      style={{
+                        background: 'linear-gradient(180deg, #FAF5FF 0%, #F3E8FF 100%)',
+                        border: '1.5px solid #D8B4FE',
+                        color: '#4C1D95',
+                        boxShadow: '0 3px 10px rgba(126, 34, 206, 0.08)',
+                      }}
+                    >
+                      <span className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                        <Copy size={16} className="text-[#6D28D9] shrink-0" strokeWidth={2.3} />
+                        <span className="truncate">Sao chép ca tuần</span>
+                      </span>
+                      <ChevronRight size={14} className="text-[#6D28D9] shrink-0" strokeWidth={2.5} />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Row 5: Admin History & Lock Permission Row */}
+              {is43751Admin && (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pt-0.5">
+                  {/* 8. Lịch sử thay đổi (Left) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHistoryFilterPg('ALL');
+                      setShowHistoryModal(true);
+                    }}
+                    title="Xem lịch sử chỉnh sửa theo từng PG"
+                    className="w-full sm:w-auto min-h-[46px] sm:min-h-[48px] px-4 py-2 rounded-[15px] flex items-center justify-between sm:justify-start gap-2.5 font-extrabold text-[13px] sm:text-[13.5px] transition-all hover:brightness-98 active:scale-[0.99] cursor-pointer"
+                    style={{
+                      background: 'linear-gradient(180deg, #FFFFFF 0%, #F5F3FF 100%)',
+                      border: '1.5px solid #C4B5FD',
+                      color: '#2E1065',
+                      boxShadow: '0 3px 10px rgba(109, 40, 217, 0.08)',
+                    }}
+                  >
+                    <span className="flex items-center gap-2">
+                      <History size={17} className="text-[#5B21B6] shrink-0" strokeWidth={2.3} />
+                      <span>Lịch sử thay đổi</span>
+                      <span
+                        className="px-2.5 py-0.5 text-[11.5px] font-black text-white rounded-full"
+                        style={{ backgroundColor: '#5B21B6' }}
+                      >
+                        {historyLogs.length}
+                      </span>
+                    </span>
+                    <ChevronRight size={15} className="text-[#5B21B6] shrink-0" strokeWidth={2.5} />
+                  </button>
+
+                  {/* 9. Khóa quyền sửa (Right) */}
+                  <button
+                    type="button"
+                    onClick={handleToggleUserEdit}
+                    title={
+                      effectiveUserEditAllowed
+                        ? 'Nhấn để Ẩn nút Chỉnh sửa của User khác'
+                        : 'Nhấn để Mở quyền Chỉnh sửa cho User khác'
+                    }
+                    className="w-full sm:w-auto min-h-[48px] px-4 py-1.5 rounded-[15px] flex items-center justify-between sm:justify-start gap-3 transition-all hover:brightness-98 active:scale-[0.99] cursor-pointer"
+                    style={
+                      effectiveUserEditAllowed
+                        ? {
+                            background: 'linear-gradient(180deg, #FFF5F5 0%, #FFE4E6 100%)',
+                            border: '1.5px solid #FDA4AF',
+                            boxShadow: '0 3px 10px rgba(225, 29, 72, 0.08)',
+                          }
+                        : {
+                            background: 'linear-gradient(180deg, #F0FDF4 0%, #DCFCE7 100%)',
+                            border: '1.5px solid #86EFAC',
+                            boxShadow: '0 3px 10px rgba(22, 163, 74, 0.08)',
+                          }
+                    }
+                  >
+                    <span className="flex items-center gap-2.5">
+                      {effectiveUserEditAllowed ? (
+                        <Lock size={18} className="text-[#DC2626] shrink-0" strokeWidth={2.4} />
+                      ) : (
+                        <Unlock size={18} className="text-[#16A34A] shrink-0" strokeWidth={2.4} />
+                      )}
+                      <span className="text-left leading-tight">
+                        <span
+                          className="block text-[13px] font-black"
+                          style={{ color: effectiveUserEditAllowed ? '#B91C1C' : '#15803D' }}
+                        >
+                          {effectiveUserEditAllowed ? 'Khóa quyền sửa' : 'Mở quyền sửa'}
+                        </span>
+                        <span
+                          className="block text-[10.5px] font-bold mt-0.5"
+                          style={{ color: effectiveUserEditAllowed ? '#991B1B' : '#166534' }}
+                        >
+                          {effectiveUserEditAllowed ? '(User đang ĐƯỢC sửa)' : '(User đang BỊ KHÓA)'}
+                        </span>
+                      </span>
+                    </span>
+                    <ChevronRight
+                      size={15}
+                      className="shrink-0"
+                      style={{ color: effectiveUserEditAllowed ? '#E11D48' : '#16A34A' }}
+                      strokeWidth={2.5}
+                    />
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 sm:gap-2.5 flex-wrap">
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="min-h-[46px] px-4 py-2 text-[13px] font-black text-slate-700 bg-white border border-slate-300 rounded-[15px] hover:bg-slate-100 flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+              >
+                <X size={16} /> Hủy
+              </button>
+              <button
+                onClick={() => setShowImportExcelModal(true)}
+                type="button"
+                className="min-h-[46px] px-4 py-2 text-[13px] font-black text-white rounded-[15px] flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                style={{
+                  background: 'linear-gradient(135deg, #7C5CFC 0%, #5B3DF5 100%)',
+                  border: '1px solid #8B5CF6',
+                }}
+                title="Dán bảng phân ca từ Excel hoặc Office 365 vào tuần đang chọn"
+              >
+                <FileSpreadsheet size={16} /> Dán từ Excel
+              </button>
+              <button
+                onClick={() => setShowCopyWeekModal(true)}
+                type="button"
+                className="min-h-[46px] px-4 py-2 text-[13px] font-black text-[#4C1D95] bg-[#F3E8FF] border border-[#D8B4FE] rounded-[15px] hover:bg-purple-100 flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                title="Sao chép ca làm việc giữa các tuần hoặc khác tháng"
+              >
+                <Copy size={16} className="text-[#6D28D9]" /> Sao chép ca tuần
+              </button>
+              <button
+                onClick={handleCopyCurrentWeekToAll}
+                type="button"
+                title="Sao chép toàn bộ phân ca của tuần hiện tại sang tất cả các tuần khác trong tháng"
+                className="col-span-2 sm:col-span-1 min-h-[46px] px-4 py-2 text-[13px] font-black text-teal-800 bg-teal-50 border border-teal-300 rounded-[15px] hover:bg-teal-100 flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+              >
+                <Copy size={16} /> Sao chép Tuần {activeWeek + 1} sang tất cả các tuần
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="col-span-2 sm:col-span-1 min-h-[46px] px-5 py-2 text-[13.5px] font-black text-white bg-gradient-to-r from-emerald-500 to-teal-600 rounded-[15px] hover:from-emerald-600 hover:to-teal-700 flex items-center justify-center gap-2 shadow-md disabled:opacity-50 transition-all cursor-pointer"
+              >
+                {saving ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                ) : (
+                  <Save size={16} />
+                )}
+                {saving ? 'Đang lưu...' : 'Lưu tất cả'}
+              </button>
+            </div>
+          )}
+
+          {capturing && (
+            <div className="mt-2.5 inline-flex items-center text-[12.5px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+              <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-emerald-600 mr-2" />
+              Đang xuất ảnh chất lượng cao...
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tables */}
