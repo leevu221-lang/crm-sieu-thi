@@ -760,16 +760,29 @@ function renderShiftIcon(value: string, textColor: string): React.ReactNode {
   }
 
   if (trimmed === 'ca gãy' || trimmed.includes('gãy')) {
-    return (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
-        <circle cx="12" cy="12" r="9" fill="#FDE68A" stroke="#F59E0B" strokeWidth="1.8" />
-        <path d="M12 3a9 9 0 0 1 9 9h-9V3z" fill="#F59E0B" />
-        <circle cx="12" cy="12" r="2.2" fill="#B45309" />
-      </svg>
-    );
+    return <Clock size={13} style={{ color: '#D97706' }} className="shrink-0" strokeWidth={2.5} />;
   }
 
   return <Clock size={13} style={{ color: textColor }} className="shrink-0" strokeWidth={2.5} />;
+}
+
+function formatSdtSupDisplay(raw: string): React.ReactNode {
+  const trimmed = (raw || '').trim();
+  if (!trimmed || trimmed === '—' || trimmed === '-') return '—';
+  if (trimmed.includes('\n')) return trimmed;
+
+  // If name comes before phone number (e.g. "Lý Tấn Được 0946676440" or "Ngô Thị Thùy Dung 0939 301 337"),
+  // display Name on line 1 and Phone on line 2 to match reference layout without altering underlying data.
+  const nameThenPhone = trimmed.match(/^([^\d]+?)\s+(0\d[\d\s.\-]{7,13})$/);
+  if (nameThenPhone) {
+    return (
+      <>
+        <span className="block">{nameThenPhone[1].trim()}</span>
+        <span className="block">{nameThenPhone[2].trim()}</span>
+      </>
+    );
+  }
+  return trimmed;
 }
 
 function renderPgBrandBadge(tenPgHang: string): React.ReactNode {
@@ -1086,8 +1099,8 @@ const ShiftCell: React.FC<{
   if (!editable) {
     return (
       <td
-        className="px-1.5 py-2 text-center border whitespace-nowrap align-middle"
-        style={{ borderColor: '#D7E2EE', height: '56px', width: '110px', minWidth: '108px', whiteSpace: 'nowrap' }}
+        className="px-1 py-2 text-center border whitespace-nowrap align-middle"
+        style={{ borderColor: '#D7E2EE', height: '56px', width: '95px', minWidth: '92px', whiteSpace: 'nowrap' }}
       >
         {value ? (
           <span
@@ -1096,16 +1109,16 @@ const ShiftCell: React.FC<{
               color: s.text,
               border: `1px solid ${s.border || s.bg}`,
               borderRadius: '8px',
-              padding: '0 10px',
-              height: '32px',
-              minWidth: '88px',
-              fontSize: '12px',
+              padding: '0 8px',
+              height: '31px',
+              minWidth: '80px',
+              fontSize: '11.5px',
               fontWeight: 800,
               fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif",
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '5px',
+              gap: '4.5px',
               letterSpacing: '0.1px',
               lineHeight: '1',
               whiteSpace: 'nowrap',
@@ -1133,18 +1146,18 @@ const ShiftCell: React.FC<{
   return (
     <td
       className="p-1 border whitespace-nowrap align-middle"
-      style={{ borderColor: '#D7E2EE', height: '56px', width: '110px', minWidth: '108px', whiteSpace: 'nowrap' }}
+      style={{ borderColor: '#D7E2EE', height: '56px', width: '95px', minWidth: '92px', whiteSpace: 'nowrap' }}
     >
       <select
         value={value}
         onChange={e => onChange(e.target.value as ShiftType)}
         onDragStart={e => e.stopPropagation()}
-        className="w-full px-1.5 py-1.5 text-[12px] font-extrabold text-center rounded-lg outline-none cursor-pointer whitespace-nowrap"
+        className="w-full px-1 py-1 text-[11.5px] font-extrabold text-center rounded-lg outline-none cursor-pointer whitespace-nowrap"
         style={{
           backgroundColor: s.bg,
           color: s.text,
           border: `1px solid ${s.border || '#cbd5e1'}`,
-          height: '34px',
+          height: '32px',
           whiteSpace: 'nowrap',
           fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif",
         }}
@@ -1213,7 +1226,8 @@ const ScheduleTable: React.FC<{
 
   const dayNotes: Record<number, string> = { 3: '(ưu tiên ca chiều)', 6: '(ưu tiên ca chiều)' };
   const isICT = category === 'ICT';
-  const totalMinWidth = editing ? 1865 : 1680;
+  // Balanced total width: 48 (STT) + 178 (PG) + 7*95 (Days=665) + 274 (Note) + 175 (SDT) = 1340px
+  const totalMinWidth = editing ? 1515 : 1340;
 
   return (
     <div className="w-full overflow-x-auto no-scrollbar max-w-full" style={{ WebkitOverflowScrolling: 'touch' }}>
@@ -1221,6 +1235,7 @@ const ScheduleTable: React.FC<{
         style={{
           minWidth: totalMinWidth,
           width: '100%',
+          maxWidth: '100%',
           backgroundColor: '#FFFFFF',
           borderRadius: '16px',
           border: '1px solid #D7E2EE',
@@ -1231,9 +1246,10 @@ const ScheduleTable: React.FC<{
       >
         {/* ─── Top Banner (ICT vs DTDLGD) ─── */}
         <div
-          className="relative flex items-center justify-between px-6 overflow-hidden select-none"
+          className="relative flex items-center justify-between px-5 overflow-hidden select-none"
           style={{
-            minHeight: '104px',
+            height: '102px',
+            minHeight: '102px',
             background: isICT
               ? 'linear-gradient(95deg, #FDE282 0%, #FCEB9B 38%, #FCD66D 74%, #F8C246 100%)'
               : 'linear-gradient(95deg, #BDF6CE 0%, #A7F3D0 38%, #99F6E4 72%, #7DD3FC 100%)',
@@ -1243,30 +1259,30 @@ const ScheduleTable: React.FC<{
           {/* Subtle decorative wave background */}
           <svg
             className="absolute inset-0 w-full h-full pointer-events-none"
-            viewBox="0 0 1680 104"
+            viewBox="0 0 1340 102"
             preserveAspectRatio="none"
             fill="none"
           >
             <path
-              d="M0 78 C 360 110, 680 20, 1060 66 C 1320 98, 1520 30, 1680 54 L 1680 104 L 0 104 Z"
+              d="M0 76 C 300 108, 560 20, 860 64 C 1060 96, 1220 28, 1340 52 L 1340 102 L 0 102 Z"
               fill={isICT ? 'rgba(245, 158, 11, 0.16)' : 'rgba(20, 184, 166, 0.14)'}
             />
             <path
-              d="M620 0 C 860 45, 1120 95, 1420 20 L 1680 0 L 1680 104 L 620 104 Z"
+              d="M490 0 C 690 44, 900 92, 1140 20 L 1340 0 L 1340 102 L 490 102 Z"
               fill={isICT ? 'rgba(255, 255, 255, 0.22)' : 'rgba(255, 255, 255, 0.25)'}
             />
           </svg>
 
           {/* Left Section: Icon/Illustration + Title + Store Name */}
-          <div className="relative z-10 flex items-center gap-4">
+          <div className="relative z-10 flex items-center gap-3.5 min-w-0">
             {isICT ? (
               /* ICT Left 3-person group emblem */
-              <div className="relative flex items-center justify-center w-[76px] h-[72px] shrink-0">
+              <div className="relative flex items-center justify-center w-[72px] h-[68px] shrink-0">
                 <div
                   className="absolute inset-1 rounded-full"
                   style={{ background: 'radial-gradient(circle, rgba(245,158,11,0.32) 0%, rgba(245,158,11,0) 72%)' }}
                 />
-                <svg width="68" height="62" viewBox="0 0 68 62" fill="none" className="relative z-10">
+                <svg width="64" height="58" viewBox="0 0 68 62" fill="none" className="relative z-10 object-contain">
                   {/* Pedestal base */}
                   <ellipse cx="34" cy="54" rx="26" ry="5" fill="#D97706" fillOpacity="0.35" />
                   {/* Left person */}
@@ -1282,8 +1298,8 @@ const ScheduleTable: React.FC<{
               </div>
             ) : (
               /* DTDLGD Left TV + Washing Machine Illustration */
-              <div className="relative flex items-center justify-center w-[92px] h-[74px] shrink-0">
-                <svg width="92" height="72" viewBox="0 0 92 72" fill="none">
+              <div className="relative flex items-center justify-center w-[86px] h-[70px] shrink-0">
+                <svg width="86" height="68" viewBox="0 0 92 72" fill="none" className="object-contain">
                   {/* Flat-screen TV */}
                   <rect x="4" y="10" width="54" height="36" rx="3" fill="#0F2942" stroke="#38BDF8" strokeWidth="1.5" />
                   <rect x="7" y="13" width="48" height="30" rx="1.5" fill="url(#tvGradLeft)" />
@@ -1308,25 +1324,25 @@ const ScheduleTable: React.FC<{
               </div>
             )}
 
-            <div>
+            <div className="min-w-0">
               <div
-                className="font-black uppercase tracking-wide leading-tight"
+                className="font-black uppercase leading-tight whitespace-nowrap"
                 style={{
                   fontFamily: "'Plus Jakarta Sans', 'UTM Avo', sans-serif",
-                  fontSize: '27px',
+                  fontSize: isICT ? '26px' : '24.5px',
                   fontWeight: 900,
                   color: isICT ? '#2C1810' : '#0F2942',
-                  letterSpacing: '0.6px',
+                  letterSpacing: '0.3px',
                 }}
               >
                 {title.replace(/\s+\(/g, ' (')}
               </div>
               {storeName && (
                 <div
-                  className="mt-1 font-bold"
+                  className="mt-1 font-bold whitespace-nowrap"
                   style={{
                     fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif",
-                    fontSize: '14px',
+                    fontSize: '13.5px',
                     color: isICT ? '#3D2516' : '#1E3A5F',
                   }}
                 >
@@ -1337,44 +1353,44 @@ const ScheduleTable: React.FC<{
           </div>
 
           {/* Right Section: NOTE Box + Right Tech/Appliance Illustration */}
-          <div className="relative z-10 flex items-center gap-6">
+          <div className="relative z-10 flex items-center gap-4 shrink-0">
             {/* NOTE Shift Hours Box */}
             <div
-              className="flex items-center gap-3.5 px-4 py-2 rounded-xl"
+              className="flex items-center gap-3 px-3.5 py-2 rounded-xl shrink-0"
               style={{
                 backgroundColor: isICT ? 'rgba(255, 251, 235, 0.78)' : 'rgba(240, 253, 250, 0.78)',
                 border: isICT ? '1px solid rgba(217, 155, 38, 0.35)' : '1px solid rgba(20, 184, 166, 0.32)',
-                minWidth: '250px',
+                minWidth: '232px',
               }}
             >
               <div
-                className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0"
+                className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
                 style={{
                   backgroundColor: isICT ? '#F59E0B' : '#0D9488',
                   color: '#FFFFFF',
                 }}
               >
-                <CalendarDays size={20} strokeWidth={2.3} />
+                <CalendarDays size={18} strokeWidth={2.3} />
               </div>
               <div
-                className="text-[11.5px] leading-[1.38]"
+                className="text-[11px] leading-[1.35] whitespace-nowrap"
                 style={{
                   fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif",
                   color: isICT ? '#292524' : '#0F2942',
                 }}
               >
-                <div className="font-black text-[12px] tracking-wide uppercase">NOTE</div>
+                <div className="font-black text-[11.5px] tracking-wide uppercase">NOTE</div>
                 <div className="font-bold">Ca Sáng: <span className="font-extrabold">8h - 16h</span></div>
                 <div className="font-bold">Ca Chiều: <span className="font-extrabold">13h - 21h</span></div>
-                <div className="font-bold">Ca Gãy: <span className="font-extrabold">8h - 12h • 16h - 21h</span></div>
+                <div className="font-bold">Ca Gãy: <span className="font-extrabold">8h - 12h + 16h - 21h</span></div>
               </div>
             </div>
 
             {/* Far Right Illustration */}
             {isICT ? (
               /* ICT Right Golden Laptop Illustration */
-              <div className="w-[126px] h-[82px] flex items-center justify-end shrink-0">
-                <svg width="124" height="80" viewBox="0 0 124 80" fill="none">
+              <div className="w-[116px] h-[76px] flex items-center justify-end shrink-0">
+                <svg width="114" height="74" viewBox="0 0 124 80" fill="none" className="object-contain">
                   {/* Decorative floating cube */}
                   <polygon points="18,22 32,14 46,22 32,30" fill="#FDE68A" fillOpacity="0.7" />
                   <polygon points="18,22 32,30 32,46 18,38" fill="#F59E0B" fillOpacity="0.45" />
@@ -1396,8 +1412,8 @@ const ScheduleTable: React.FC<{
               </div>
             ) : (
               /* DTDLGD Right TV + Fridge + Washer Illustration */
-              <div className="w-[146px] h-[84px] flex items-center justify-end shrink-0">
-                <svg width="144" height="82" viewBox="0 0 144 82" fill="none">
+              <div className="w-[136px] h-[78px] flex items-center justify-end shrink-0">
+                <svg width="134" height="76" viewBox="0 0 144 82" fill="none" className="object-contain">
                   {/* Scenic TV on left */}
                   <rect x="4" y="22" width="56" height="36" rx="2.5" fill="#1E293B" stroke="#E2E8F0" strokeWidth="1.2" />
                   <rect x="6.5" y="24.5" width="51" height="31" rx="1" fill="url(#dtdlgdTvRight)" />
@@ -1435,7 +1451,7 @@ const ScheduleTable: React.FC<{
           </div>
         </div>
 
-        {/* ─── Schedule Data Table (11 Fixed Columns) ─── */}
+        {/* ─── Schedule Data Table (11 Fixed Columns, Balanced 1340px Proportion) ─── */}
         <div className="w-full">
           <table
             className="w-full border-collapse"
@@ -1447,18 +1463,18 @@ const ScheduleTable: React.FC<{
             }}
           >
             <colgroup>
-              {editing && <col style={{ width: '75px' }} />}
-              <col style={{ width: '55px' }} />
-              <col style={{ width: '215px' }} />
+              {editing && <col style={{ width: '70px' }} />}
+              <col style={{ width: '48px' }} />
+              <col style={{ width: '178px' }} />
               {weekDates.map((_, i) => (
-                <col key={i} style={{ width: '110px' }} />
+                <col key={i} style={{ width: '95px' }} />
               ))}
-              <col style={{ width: '420px' }} />
-              <col style={{ width: '220px' }} />
-              {editing && <col style={{ width: '110px' }} />}
+              <col style={{ width: '274px' }} />
+              <col style={{ width: '175px' }} />
+              {editing && <col style={{ width: '105px' }} />}
             </colgroup>
             <thead>
-              <tr style={{ height: '68px' }}>
+              <tr style={{ height: '66px' }}>
                 {editing && (
                   <th
                     className="px-1 py-2 border text-[11px] font-extrabold text-center uppercase tracking-wider whitespace-nowrap"
@@ -1468,13 +1484,13 @@ const ScheduleTable: React.FC<{
                   </th>
                 )}
                 <th
-                  className="px-2 py-2 border text-[12.5px] font-extrabold text-center uppercase tracking-wider whitespace-nowrap"
+                  className="px-1.5 py-2 border text-[12px] font-extrabold text-center uppercase tracking-wider whitespace-nowrap"
                   style={{ backgroundColor: '#DDF1FF', color: '#14284B', borderColor: '#D7E2EE' }}
                 >
                   STT
                 </th>
                 <th
-                  className="px-3.5 py-2 border text-[12.5px] font-extrabold text-left uppercase tracking-wider whitespace-nowrap"
+                  className="px-3 py-2 border text-[12px] font-extrabold text-left uppercase tracking-wider whitespace-nowrap"
                   style={{ backgroundColor: '#DDF1FF', color: '#14284B', borderColor: '#D7E2EE' }}
                 >
                   TÊN PG HÃNG
@@ -1492,20 +1508,20 @@ const ScheduleTable: React.FC<{
                       }}
                     >
                       <div
-                        className="text-[13px] font-extrabold leading-tight whitespace-nowrap"
+                        className="text-[12.5px] font-extrabold leading-tight whitespace-nowrap"
                         style={{ color: isSunday ? '#9F1239' : '#14284B' }}
                       >
                         {dayName(d)}
                       </div>
                       <div
-                        className="text-[12.5px] font-extrabold leading-tight mt-0.5 whitespace-nowrap"
+                        className="text-[12px] font-extrabold leading-tight mt-0.5 whitespace-nowrap"
                         style={{ color: isSunday ? '#9F1239' : '#14284B' }}
                       >
                         {fmtDate(d)}
                       </div>
                       {dayNotes[i] && (
                         <div
-                          className="text-[10.5px] font-semibold leading-tight mt-0.5 whitespace-nowrap"
+                          className="text-[10px] font-semibold leading-tight mt-0.5 whitespace-nowrap"
                           style={{ color: isSunday ? '#9F1239' : '#334E7B' }}
                         >
                           {dayNotes[i]}
@@ -1515,20 +1531,20 @@ const ScheduleTable: React.FC<{
                   );
                 })}
                 <th
-                  className="px-4 py-2 border text-[12.5px] font-extrabold text-left uppercase tracking-wider whitespace-nowrap"
+                  className="px-3 py-2 border text-[12px] font-extrabold text-left uppercase tracking-wider whitespace-nowrap"
                   style={{ backgroundColor: '#DDF1FF', color: '#14284B', borderColor: '#D7E2EE' }}
                 >
-                  <div className="inline-flex items-center gap-2">
-                    <FileText size={16} className="text-[#1D4ED8] shrink-0" strokeWidth={2.3} />
+                  <div className="inline-flex items-center gap-1.5">
+                    <FileText size={15} className="text-[#1D4ED8] shrink-0" strokeWidth={2.3} />
                     <span>GHI CHÚ / NOTE</span>
                   </div>
                 </th>
                 <th
-                  className="px-4 py-2 border text-[12.5px] font-extrabold text-left uppercase tracking-wider whitespace-nowrap"
+                  className="px-3 py-2 border text-[12px] font-extrabold text-left uppercase tracking-wider whitespace-nowrap"
                   style={{ backgroundColor: '#DDF1FF', color: '#14284B', borderColor: '#D7E2EE' }}
                 >
-                  <div className="inline-flex items-center gap-2">
-                    <PhoneCall size={15} className="text-[#1D4ED8] shrink-0" strokeWidth={2.3} />
+                  <div className="inline-flex items-center gap-1.5">
+                    <PhoneCall size={14} className="text-[#1D4ED8] shrink-0" strokeWidth={2.3} />
                     <span>SĐT SUP + TÊN</span>
                   </div>
                 </th>
@@ -1634,38 +1650,41 @@ const ScheduleTable: React.FC<{
                         </td>
                       )}
                       <td
-                        className="px-2 py-2 border text-center text-[13.5px] font-extrabold whitespace-nowrap align-middle"
+                        className="px-1.5 py-2 border text-center text-[13px] font-extrabold whitespace-nowrap align-middle"
                         style={{ borderColor: '#D7E2EE', color: '#14284B' }}
                       >
                         {idx + 1}
                       </td>
                       <td
-                        className="px-3 py-2 border text-[13.5px] font-extrabold whitespace-nowrap align-middle overflow-hidden"
+                        className="group relative px-2.5 py-1.5 border text-[13px] font-extrabold align-middle overflow-hidden"
                         style={{ borderColor: '#D7E2EE', color: '#14284B' }}
+                        title={pg.tenPgHang || ''}
                       >
                         {editing ? (
                           <input
                             value={pg.tenPgHang}
                             onChange={e => updateName(pg.id, e.target.value)}
                             onDragStart={e => e.stopPropagation()}
-                            className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-[13px] focus:ring-1 focus:ring-green-400 outline-none font-bold"
+                            className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-[12.5px] focus:ring-1 focus:ring-green-400 outline-none font-bold"
                             placeholder="VD: Ngọc Trâm - Realme"
                           />
                         ) : (
-                          <div className="flex items-center justify-between gap-2 whitespace-nowrap overflow-hidden">
-                            <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
-                              {brandBadge}
-                              <span className="font-extrabold truncate" style={{ color: '#14284B' }}>
-                                {pg.tenPgHang || '—'}
-                              </span>
-                            </div>
+                          <div className="flex items-center gap-2 min-w-0">
+                            {brandBadge}
+                            <span
+                              className="font-extrabold leading-[1.28] break-words"
+                              style={{ color: '#14284B', overflowWrap: 'break-word' }}
+                            >
+                              {pg.tenPgHang || '—'}
+                            </span>
                             {is43751Admin && pg.tenPgHang && (
                               <button
+                                data-export-hide="true"
                                 onClick={() => onViewPgHistory?.(pg.tenPgHang)}
                                 title={`Xem lịch sử thay đổi của ${pg.tenPgHang}`}
-                                className="p-1 rounded text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer shrink-0"
+                                className="opacity-0 group-hover:opacity-100 absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded bg-white/95 shadow-xs text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all cursor-pointer"
                               >
-                                <History size={13} />
+                                <History size={12} />
                               </button>
                             )}
                           </div>
@@ -1682,47 +1701,47 @@ const ScheduleTable: React.FC<{
                         />
                       ))}
                       <td
-                        className="px-3.5 py-2 border text-[12.5px] align-middle overflow-hidden"
-                        style={{ borderColor: '#D7E2EE', color: '#1E293B' }}
+                        className="px-3 py-1.5 border text-[12px] align-middle overflow-hidden"
+                        style={{ borderColor: '#D7E2EE', color: '#1E293B', overflowWrap: 'anywhere' }}
                       >
                         {editing ? (
                           <textarea
                             value={pg.note}
                             onChange={e => updateNote(pg.id, e.target.value)}
                             onDragStart={e => e.stopPropagation()}
-                            className="w-full px-2 py-1 border border-slate-300 rounded-lg text-[12.5px] focus:ring-1 focus:ring-green-400 outline-none resize-none"
+                            className="w-full px-2 py-1 border border-slate-300 rounded-lg text-[12px] focus:ring-1 focus:ring-green-400 outline-none resize-none"
                             rows={2}
                             placeholder="Ca sáng 9h-15h..."
                           />
                         ) : (
-                          <span className="whitespace-pre-line text-[12.5px] font-medium leading-[1.42] block">
+                          <span className="whitespace-pre-line text-[12px] font-medium leading-[1.38] block break-words">
                             {pg.note || '—'}
                           </span>
                         )}
                       </td>
                       <td
-                        className="px-3.5 py-2 border text-[12.5px] align-middle overflow-hidden"
-                        style={{ borderColor: '#D7E2EE', color: '#1E293B' }}
+                        className="px-3 py-1.5 border text-[12px] align-middle overflow-hidden"
+                        style={{ borderColor: '#D7E2EE', color: '#1E293B', overflowWrap: 'anywhere' }}
                       >
                         {editing ? (
                           <input
                             value={pg.sdtSup}
                             onChange={e => updateSdt(pg.id, e.target.value)}
                             onDragStart={e => e.stopPropagation()}
-                            className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-[12.5px] focus:ring-1 focus:ring-green-400 outline-none"
+                            className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-[12px] focus:ring-1 focus:ring-green-400 outline-none"
                             placeholder="0901234567 (Tên)"
                           />
                         ) : pg.sdtSup && pg.sdtSup.trim() !== '—' && pg.sdtSup.trim() !== '-' ? (
                           <div className="flex items-center gap-2 min-w-0">
                             {isICT && (
-                              <Clock size={14} className="text-[#64748B] shrink-0" strokeWidth={2} />
+                              <Clock size={13.5} className="text-[#64748B] shrink-0" strokeWidth={2} />
                             )}
-                            <span className="text-[12.5px] leading-[1.38] font-medium whitespace-pre-line break-words">
-                              {pg.sdtSup}
+                            <span className="text-[12px] leading-[1.36] font-medium whitespace-pre-line break-words">
+                              {formatSdtSupDisplay(pg.sdtSup)}
                             </span>
                           </div>
                         ) : (
-                          <span className="text-[13px] text-slate-500 font-medium">—</span>
+                          <span className="text-[12.5px] text-slate-500 font-medium">—</span>
                         )}
                       </td>
                       {editing && (
@@ -3012,8 +3031,8 @@ const LichLamViecPG: React.FC = () => {
       
       // The container itself
       savedStyles.push({ el, props: { width: el.style.width, minWidth: el.style.minWidth, overflow: el.style.overflow, maxHeight: el.style.maxHeight } });
-      el.style.width = '1680px';
-      el.style.minWidth = '1680px';
+      el.style.width = '1340px';
+      el.style.minWidth = '1340px';
       el.style.overflow = 'visible';
       el.style.maxHeight = 'none';
       
@@ -3032,9 +3051,16 @@ const LichLamViecPG: React.FC = () => {
       const tables = el.querySelectorAll<HTMLTableElement>('table');
       tables.forEach(tbl => {
         savedStyles.push({ el: tbl, props: { width: tbl.style.width, minWidth: tbl.style.minWidth, tableLayout: tbl.style.tableLayout } });
-        tbl.style.width = '1680px';
-        tbl.style.minWidth = '1680px';
+        tbl.style.width = '1340px';
+        tbl.style.minWidth = '1340px';
         tbl.style.tableLayout = 'fixed';
+      });
+
+      // Hide hover-only admin controls during image export
+      const hideEls = el.querySelectorAll<HTMLElement>('[data-export-hide="true"]');
+      hideEls.forEach(hEl => {
+        savedStyles.push({ el: hEl, props: { display: hEl.style.display } });
+        hEl.style.display = 'none';
       });
 
       // Zero-Shadow Export: Gỡ bỏ toàn bộ bóng mờ trong lúc export để ảnh phẳng, không loang lổ viền đen
@@ -3771,7 +3797,7 @@ const LichLamViecPG: React.FC = () => {
   }
 
   return (
-    <div className="p-3 md:p-5 max-w-[1720px] mx-auto">
+    <div className="p-3 md:p-5 max-w-[1380px] mx-auto">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
