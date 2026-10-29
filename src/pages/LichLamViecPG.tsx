@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, Plus, Trash2, Save, Edit3, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, ArrowLeftRight, Camera, Download, Copy, Check, Lock, Unlock, History, Search, Filter, ArrowRight, ArrowDown, Sparkles, Clock, User, Share2, Store, FileSpreadsheet, ClipboardPaste, AlertCircle } from 'lucide-react';
+import { CalendarDays, Plus, Trash2, Save, Edit3, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, ArrowLeftRight, Camera, Download, Copy, Check, Lock, Unlock, History, Search, Filter, ArrowRight, ArrowDown, Sparkles, Clock, User, Share2, Store, FileSpreadsheet, ClipboardPaste, AlertCircle, Sun, Moon, XCircle, PhoneCall, FileText, Users } from 'lucide-react';
 import { doc, onSnapshot, setDoc, runTransaction, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
@@ -57,32 +57,33 @@ interface MonthDoc {
   updatedBy?: string;
 }
 
-// ─── Shift color mapping (Chuẩn pastel dịu nhẹ + viền 1px sắc nét + chữ đậm tương phản cao theo Hình 1) ─
+// ─── Shift color mapping (Chuẩn theo mẫu tham chiếu 100%) ─────────────────────
 const PRESET_COLORS: { bg: string; text: string; border: string }[] = [
-  { bg: '#e0f2fe', text: '#0369a1', border: '#7dd3fc' },   // sky (sky-100 / sky-700 / sky-300)
-  { bg: '#ede9fe', text: '#6d28d9', border: '#c4b5fd' },   // violet (violet-100 / violet-700 / violet-300)
-  { bg: '#cffafe', text: '#0e7490', border: '#67e8f9' },   // cyan (cyan-100 / cyan-700 / cyan-300)
-  { bg: '#fef3c7', text: '#b45309', border: '#fcd34d' },   // amber (amber-100 / amber-700 / amber-300)
-  { bg: '#fce7f3', text: '#be185d', border: '#f9a8d4' },   // pink (pink-100 / pink-700 / pink-300)
-  { bg: '#ccfbf1', text: '#0f766e', border: '#5eead4' },   // teal (teal-100 / teal-700 / teal-300)
-  { bg: '#ffedd5', text: '#c2410c', border: '#fdba74' },   // orange (orange-100 / orange-700 / orange-300)
-  { bg: '#e0e7ff', text: '#4338ca', border: '#a5b4fc' },   // indigo (indigo-100 / indigo-700 / indigo-300)
-  { bg: '#ecfccb', text: '#4d7c0f', border: '#bef264' },   // lime (lime-100 / lime-700 / lime-300)
-  { bg: '#f3e8ff', text: '#7e22ce', border: '#d8b4fe' },   // purple (purple-100 / purple-700 / purple-300)
+  { bg: '#D9F7FF', text: '#0369A1', border: '#67E8F9' },   // cyan/sky (9H-20H)
+  { bg: '#EDE3FF', text: '#6D28D9', border: '#C4B5FD' },   // violet
+  { bg: '#D8FBE7', text: '#15803D', border: '#86EFAC' },   // emerald
+  { bg: '#FFF0B8', text: '#B45309', border: '#FCD34D' },   // amber
+  { bg: '#fce7f3', text: '#be185d', border: '#f9a8d4' },   // pink
+  { bg: '#ccfbf1', text: '#0f766e', border: '#5eead4' },   // teal
+  { bg: '#ffedd5', text: '#c2410c', border: '#fdba74' },   // orange
+  { bg: '#e0e7ff', text: '#4338ca', border: '#a5b4fc' },   // indigo
+  { bg: '#ecfccb', text: '#4d7c0f', border: '#bef264' },   // lime
+  { bg: '#f3e8ff', text: '#7e22ce', border: '#d8b4fe' },   // purple
 ];
 
 const baseShiftStyles: Record<string, { bg: string; text: string; border: string }> = {
-  'Ca sáng':   { bg: '#dcfce7', text: '#15803d', border: '#86efac' }, // emerald-100 / emerald-700 / emerald-300
-  'Ca Chiều':  { bg: '#ede9fe', text: '#6d28d9', border: '#c4b5fd' }, // violet-100 / violet-700 / violet-300 (Chuẩn Hình 1 - TN)
-  'Ca Gãy':    { bg: '#fef9c3', text: '#a16207', border: '#fde047' }, // yellow-100 / yellow-700 / yellow-300
-  'OFF':       { bg: '#fee2e2', text: '#dc2626', border: '#fca5a5' }, // red-100 / red-600 / red-300 (Chuẩn Hình 1 - Nghỉ Off)
-  'ST khác':   { bg: '#e0f2fe', text: '#0369a1', border: '#7dd3fc' }, // sky-100 / sky-700 / sky-300 (Chuẩn Hình 1 - HC)
-  'Ca Full':   { bg: '#ecfccb', text: '#4d7c0f', border: '#bef264' }, // lime-100 / lime-700 / lime-300
-  'KHO':       { bg: '#ffedd5', text: '#c2410c', border: '#fdba74' }, // orange-100 / orange-700 / orange-300 (Chuẩn Hình 1 - KHO)
+  'Ca sáng':   { bg: '#D8FBE7', text: '#15803D', border: '#86EFAC' },
+  'Ca Chiều':  { bg: '#EDE3FF', text: '#6D28D9', border: '#C4B5FD' },
+  'Ca Gãy':    { bg: '#FFF0B8', text: '#B45309', border: '#FCD34D' },
+  'OFF':       { bg: '#FFE1E1', text: '#DC2626', border: '#FCA5A5' },
+  'ST khác':   { bg: '#D9F7FF', text: '#0369A1', border: '#67E8F9' },
+  'Ca Full':   { bg: '#D9F7FF', text: '#0369A1', border: '#67E8F9' },
+  '9H-20H':    { bg: '#D9F7FF', text: '#0369A1', border: '#67E8F9' },
+  'KHO':       { bg: '#ffedd5', text: '#c2410c', border: '#fdba74' },
   'Kho':       { bg: '#ffedd5', text: '#c2410c', border: '#fdba74' },
-  'TN':        { bg: '#ede9fe', text: '#6d28d9', border: '#c4b5fd' },
-  'HC':        { bg: '#e0f2fe', text: '#0369a1', border: '#7dd3fc' },
-  '':          { bg: '#f8fafc', text: '#94a3b8', border: '#cbd5e1' },
+  'TN':        { bg: '#EDE3FF', text: '#6D28D9', border: '#C4B5FD' },
+  'HC':        { bg: '#D9F7FF', text: '#0369A1', border: '#67E8F9' },
+  '':          { bg: '#f8fafc', text: '#94a3b8', border: '#D7E2EE' },
 };
 
 const BASE_SHIFTS: string[] = ['Ca sáng', 'Ca Chiều', 'Ca Gãy', 'OFF', 'ST khác'];
@@ -93,6 +94,11 @@ function getShiftStyle(name: string, customShifts: string[]): { bg: string; text
 
   const baseKey = Object.keys(baseShiftStyles).find(k => k.toLowerCase() === trimmed.toLowerCase());
   if (baseKey) return baseShiftStyles[baseKey];
+
+  // Time range shifts like 9H-20H, 8H-18H, etc. default to the light cyan badge from reference
+  if (/\d+\s*[hH]/.test(trimmed)) {
+    return { bg: '#D9F7FF', text: '#0369A1', border: '#67E8F9' };
+  }
 
   const idx = customShifts.findIndex(s => s.trim().toLowerCase() === trimmed.toLowerCase());
   if (idx >= 0) return PRESET_COLORS[idx % PRESET_COLORS.length];
@@ -713,6 +719,364 @@ function applyDiffToServerData(serverData: any, diff: DiffResult) {
   };
 }
 
+// ─── Brand Badge & Shift Icon Helpers (Chuẩn mẫu tham chiếu 100%) ────────────
+function renderShiftIcon(value: string, textColor: string): React.ReactNode {
+  const trimmed = (value || '').trim().toLowerCase();
+  if (!trimmed) return null;
+
+  if (trimmed === 'ca sáng' || trimmed.includes('sáng')) {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
+        <circle cx="12" cy="12" r="5" fill="#16A34A" />
+        <g stroke="#16A34A" strokeWidth="2.2" strokeLinecap="round">
+          <line x1="12" y1="2" x2="12" y2="4.5" />
+          <line x1="12" y1="19.5" x2="12" y2="22" />
+          <line x1="4.22" y1="4.22" x2="5.98" y2="5.98" />
+          <line x1="18.02" y1="18.02" x2="19.78" y2="19.78" />
+          <line x1="2" y1="12" x2="4.5" y2="12" />
+          <line x1="19.5" y1="12" x2="22" y2="12" />
+          <line x1="4.22" y1="19.78" x2="5.98" y2="18.02" />
+          <line x1="18.02" y1="5.98" x2="19.78" y2="4.22" />
+        </g>
+      </svg>
+    );
+  }
+
+  if (trimmed === 'ca chiều' || trimmed.includes('chiều') || trimmed === 'tn') {
+    return (
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="#7C3AED" className="shrink-0">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </svg>
+    );
+  }
+
+  if (trimmed === 'off' || trimmed.includes('nghỉ')) {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
+        <circle cx="12" cy="12" r="9.5" fill="#EF4444" />
+        <path d="M15 9L9 15M9 9l6 6" stroke="#FFFFFF" strokeWidth="2.3" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (trimmed === 'ca gãy' || trimmed.includes('gãy')) {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
+        <circle cx="12" cy="12" r="9" fill="#FDE68A" stroke="#F59E0B" strokeWidth="1.8" />
+        <path d="M12 3a9 9 0 0 1 9 9h-9V3z" fill="#F59E0B" />
+        <circle cx="12" cy="12" r="2.2" fill="#B45309" />
+      </svg>
+    );
+  }
+
+  return <Clock size={13} style={{ color: textColor }} className="shrink-0" strokeWidth={2.5} />;
+}
+
+function renderPgBrandBadge(tenPgHang: string): React.ReactNode {
+  const raw = (tenPgHang || '').trim();
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+
+  if (lower.includes('realme')) {
+    return (
+      <span
+        className="inline-flex items-center justify-center shrink-0 select-none"
+        style={{
+          width: '28px',
+          height: '28px',
+          borderRadius: '7px',
+          backgroundColor: '#FFC915',
+          color: '#141414',
+          fontWeight: 900,
+          fontSize: '15px',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.06)',
+        }}
+      >
+        R
+      </span>
+    );
+  }
+
+  if (lower.includes('xiaomi') || lower.includes('redmi')) {
+    return (
+      <span
+        className="inline-flex items-center justify-center shrink-0 select-none"
+        style={{
+          width: '28px',
+          height: '28px',
+          borderRadius: '8px',
+          backgroundColor: '#FF6900',
+          color: '#FFFFFF',
+          fontWeight: 900,
+          fontSize: '12px',
+          letterSpacing: '-0.5px',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+        }}
+      >
+        mi
+      </span>
+    );
+  }
+
+  if (lower.includes('oppo')) {
+    return (
+      <span
+        className="inline-flex items-center justify-center shrink-0 select-none"
+        style={{
+          width: '28px',
+          height: '28px',
+          borderRadius: '9999px',
+          backgroundColor: '#046A38',
+          color: '#FFFFFF',
+          fontWeight: 800,
+          fontSize: '9.5px',
+          letterSpacing: '-0.3px',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+        }}
+      >
+        oppo
+      </span>
+    );
+  }
+
+  if (lower.includes('vivo')) {
+    return (
+      <span
+        className="inline-flex items-center justify-center shrink-0 select-none"
+        style={{
+          width: '28px',
+          height: '28px',
+          borderRadius: '9999px',
+          backgroundColor: '#415FFF',
+          color: '#FFFFFF',
+          fontWeight: 800,
+          fontSize: '10px',
+          letterSpacing: '-0.2px',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+        }}
+      >
+        vivo
+      </span>
+    );
+  }
+
+  if (lower.includes('tcl')) {
+    return (
+      <span
+        className="inline-flex items-center justify-center shrink-0 select-none"
+        style={{
+          width: '36px',
+          height: '24px',
+          borderRadius: '5px',
+          backgroundColor: '#E60012',
+          color: '#FFFFFF',
+          fontWeight: 900,
+          fontSize: '11px',
+          letterSpacing: '0.4px',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+        }}
+      >
+        TCL
+      </span>
+    );
+  }
+
+  if (/\blg\b/.test(lower) || lower.endsWith('- lg') || lower.endsWith('-lg')) {
+    return (
+      <span
+        className="inline-flex items-center justify-center shrink-0 select-none"
+        style={{
+          width: '28px',
+          height: '28px',
+          borderRadius: '9999px',
+          backgroundColor: '#A50034',
+          color: '#FFFFFF',
+          fontWeight: 800,
+          fontSize: '10.5px',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          border: '1.5px solid #A50034',
+          boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.65)',
+        }}
+      >
+        LG
+      </span>
+    );
+  }
+
+  if (lower.includes('toshiba')) {
+    return (
+      <span
+        className="inline-flex items-center justify-center shrink-0 select-none uppercase"
+        style={{
+          color: '#E60012',
+          fontWeight: 900,
+          fontSize: '11.5px',
+          letterSpacing: '-0.3px',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          minWidth: '54px',
+        }}
+      >
+        TOSHIBA
+      </span>
+    );
+  }
+
+  if (lower.includes('aqua')) {
+    return (
+      <span
+        className="inline-flex items-center justify-center shrink-0 select-none uppercase"
+        style={{
+          color: '#005197',
+          fontWeight: 900,
+          fontSize: '13px',
+          letterSpacing: '0.5px',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          minWidth: '46px',
+        }}
+      >
+        AQUA
+      </span>
+    );
+  }
+
+  if (lower.includes('karofi')) {
+    return (
+      <span
+        className="inline-flex items-center justify-center shrink-0 select-none uppercase"
+        style={{
+          color: '#0082C8',
+          fontWeight: 900,
+          fontSize: '12px',
+          letterSpacing: '-0.2px',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          minWidth: '50px',
+        }}
+      >
+        KAR<span style={{ color: '#00A859' }}>O</span>FI
+      </span>
+    );
+  }
+
+  if (lower.includes('samsung')) {
+    return (
+      <span
+        className="inline-flex items-center justify-center shrink-0 select-none uppercase"
+        style={{
+          padding: '2px 6px',
+          borderRadius: '9999px',
+          backgroundColor: '#1428A0',
+          color: '#FFFFFF',
+          fontWeight: 900,
+          fontSize: '9px',
+          letterSpacing: '0.4px',
+        }}
+      >
+        SAMSUNG
+      </span>
+    );
+  }
+
+  if (lower.includes('sony')) {
+    return (
+      <span
+        className="inline-flex items-center justify-center shrink-0 select-none uppercase"
+        style={{
+          color: '#0F172A',
+          fontWeight: 900,
+          fontSize: '12px',
+          letterSpacing: '0.8px',
+          minWidth: '42px',
+        }}
+      >
+        SONY
+      </span>
+    );
+  }
+
+  if (lower.includes('panasonic')) {
+    return (
+      <span
+        className="inline-flex items-center justify-center shrink-0 select-none uppercase"
+        style={{
+          color: '#0041C0',
+          fontWeight: 900,
+          fontSize: '10.5px',
+          letterSpacing: '-0.3px',
+        }}
+      >
+        PANASONIC
+      </span>
+    );
+  }
+
+  if (lower.includes('casper')) {
+    return (
+      <span
+        className="inline-flex items-center justify-center shrink-0 select-none uppercase"
+        style={{
+          color: '#0284C7',
+          fontWeight: 900,
+          fontSize: '11.5px',
+          letterSpacing: '0.2px',
+        }}
+      >
+        CASPER
+      </span>
+    );
+  }
+
+  if (lower.includes('sunhouse')) {
+    return (
+      <span
+        className="inline-flex items-center justify-center shrink-0 select-none uppercase"
+        style={{
+          color: '#DC2626',
+          fontWeight: 900,
+          fontSize: '10.5px',
+          letterSpacing: '-0.3px',
+        }}
+      >
+        SUNHOUSE
+      </span>
+    );
+  }
+
+  if (lower.includes('kangaroo')) {
+    return (
+      <span
+        className="inline-flex items-center justify-center shrink-0 select-none uppercase"
+        style={{
+          color: '#16A34A',
+          fontWeight: 900,
+          fontSize: '10.5px',
+          letterSpacing: '-0.3px',
+        }}
+      >
+        KANGAROO
+      </span>
+    );
+  }
+
+  if (lower.includes('sharp')) {
+    return (
+      <span
+        className="inline-flex items-center justify-center shrink-0 select-none uppercase"
+        style={{
+          color: '#E60012',
+          fontWeight: 900,
+          fontSize: '11.5px',
+          letterSpacing: '0.3px',
+        }}
+      >
+        SHARP
+      </span>
+    );
+  }
+
+  return null;
+}
+
 // ─── Shift cell ────────────────────────────────────────────────────────────────
 const ShiftCell: React.FC<{
   value: ShiftType; onChange: (v: ShiftType) => void; editable: boolean;
@@ -721,28 +1085,34 @@ const ShiftCell: React.FC<{
   const s = getShiftStyle(value, customShifts);
   if (!editable) {
     return (
-      <td className="px-1 py-2 text-center border whitespace-nowrap" style={{ borderColor: '#cbd5e1', height: '46px', minWidth: 95, whiteSpace: 'nowrap' }}>
+      <td
+        className="px-1.5 py-2 text-center border whitespace-nowrap align-middle"
+        style={{ borderColor: '#D7E2EE', height: '56px', width: '110px', minWidth: '108px', whiteSpace: 'nowrap' }}
+      >
         {value ? (
           <span
             style={{
               backgroundColor: s.bg,
               color: s.text,
               border: `1px solid ${s.border || s.bg}`,
-              borderRadius: '6px',
-              padding: '3px 8.5px',
-              fontSize: '11.5px',
+              borderRadius: '8px',
+              padding: '0 10px',
+              height: '32px',
+              minWidth: '88px',
+              fontSize: '12px',
               fontWeight: 800,
-              fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+              fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif",
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              letterSpacing: '0.2px',
-              lineHeight: '1.25',
+              gap: '5px',
+              letterSpacing: '0.1px',
+              lineHeight: '1',
               whiteSpace: 'nowrap',
-              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
             }}
           >
-            {value}
+            {renderShiftIcon(value, s.text)}
+            <span>{value}</span>
           </span>
         ) : (
           <span
@@ -750,30 +1120,33 @@ const ShiftCell: React.FC<{
               color: '#94a3b8',
               fontSize: '13px',
               fontWeight: 600,
-              fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+              fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif",
               whiteSpace: 'nowrap',
             }}
           >
-            -
+            —
           </span>
         )}
       </td>
     );
   }
   return (
-    <td className="p-0 border whitespace-nowrap" style={{ borderColor: '#cbd5e1', height: '46px', minWidth: 95, whiteSpace: 'nowrap' }}>
+    <td
+      className="p-1 border whitespace-nowrap align-middle"
+      style={{ borderColor: '#D7E2EE', height: '56px', width: '110px', minWidth: '108px', whiteSpace: 'nowrap' }}
+    >
       <select
         value={value}
         onChange={e => onChange(e.target.value as ShiftType)}
         onDragStart={e => e.stopPropagation()}
-        className="w-full h-full px-1 py-2 text-[11.5px] font-extrabold text-center border-0 outline-none cursor-pointer whitespace-nowrap"
+        className="w-full px-1.5 py-1.5 text-[12px] font-extrabold text-center rounded-lg outline-none cursor-pointer whitespace-nowrap"
         style={{
           backgroundColor: s.bg,
           color: s.text,
-          minWidth: 95,
-          minHeight: '46px',
+          border: `1px solid ${s.border || '#cbd5e1'}`,
+          height: '34px',
           whiteSpace: 'nowrap',
-          fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+          fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif",
         }}
       >
         {options.map(o => <option key={o} value={o}>{o || '(trống)'}</option>)}
@@ -799,7 +1172,7 @@ const ScheduleTable: React.FC<{
   is43751Admin?: boolean;
   onViewPgHistory?: (pgName: string) => void;
   onMoveToOtherCategory?: (pg: PGInfo) => void;
-}> = ({ title, storeName, roster, weekShifts, onRosterChange, onShiftsChange, editing, weekDates, currentMonth, category, shiftOpts, customShifts, is43751Admin, onViewPgHistory, onMoveToOtherCategory }) => {
+}> = ({ title, storeName, roster, weekShifts, onRosterChange, onShiftsChange, editing, weekDates, category, shiftOpts, customShifts, is43751Admin, onViewPgHistory, onMoveToOtherCategory }) => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
@@ -838,224 +1211,563 @@ const ScheduleTable: React.FC<{
     onRosterChange(roster.filter(r => r.id !== id));
   };
 
-  const dayNotes: Record<number, string> = { 3: '(ưu tiên\nca chiều)', 6: '(ưu tiên\nca chiều)' };
+  const dayNotes: Record<number, string> = { 3: '(ưu tiên ca chiều)', 6: '(ưu tiên ca chiều)' };
+  const isICT = category === 'ICT';
+  const totalMinWidth = editing ? 1865 : 1680;
 
   return (
-    <div className="mb-6 w-full overflow-x-auto no-scrollbar max-w-full" style={{ WebkitOverflowScrolling: 'touch' }}>
-      <div style={{ minWidth: 1450, width: 'max-content' }} className="pb-2">
-        <div className="text-center py-4 font-utm-avo font-black text-2xl sm:text-[25px] tracking-wider uppercase w-full"
+    <div className="w-full overflow-x-auto no-scrollbar max-w-full" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div
+        style={{
+          minWidth: totalMinWidth,
+          width: '100%',
+          backgroundColor: '#FFFFFF',
+          borderRadius: '16px',
+          border: '1px solid #D7E2EE',
+          boxShadow: '0 4px 16px rgba(20, 40, 75, 0.05)',
+          overflow: 'hidden',
+          boxSizing: 'border-box',
+        }}
+      >
+        {/* ─── Top Banner (ICT vs DTDLGD) ─── */}
+        <div
+          className="relative flex items-center justify-between px-6 overflow-hidden select-none"
           style={{
-            fontFamily: 'var(--font-utm-avo), "UTM Avo", sans-serif',
-            background: category === 'DTDLGD'
-              ? 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 50%, #86efac 100%)'
-              : 'linear-gradient(135deg, #fef08a 0%, #fde68a 50%, #fde047 100%)',
-            color: category === 'DTDLGD' ? '#14532d' : '#78350f',
-            border: '1.5px solid #cbd5e1',
-            borderBottom: '2.5px solid #cbd5e1',
-            borderRadius: '10px 10px 0 0',
-            letterSpacing: '2px',
-            boxSizing: 'border-box'
-          }}>
-          <div>{title}</div>
-          {storeName && (
-            <div className="text-sm font-bold tracking-normal normal-case mt-1 opacity-90"
-              style={{ color: category === 'DTDLGD' ? '#166534' : '#854d0e' }}>
-              Siêu thị: <span className="font-extrabold uppercase">{storeName}</span>
-            </div>
-          )}
-        </div>
-        <div className="border border-slate-300 w-full" style={{ borderRadius: '0 0 10px 10px', boxSizing: 'border-box', borderColor: '#cbd5e1' }}>
-          <table className="w-full border-collapse" style={{ width: '100%', minWidth: 1450, tableLayout: 'auto' }}>
-            <thead>
-            <tr>
-              {editing && (
-                <th className="px-1 py-2 border text-[11px] font-black text-center uppercase tracking-wider whitespace-nowrap" style={{ backgroundColor: '#e2e8f0', color: '#1e293b', borderColor: '#cbd5e1', minWidth: 75, whiteSpace: 'nowrap' }}>
-                  VỊ TRÍ
-                </th>
-              )}
-              <th className="px-2 py-2 border text-[12px] font-black text-center uppercase tracking-wider whitespace-nowrap" style={{ backgroundColor: '#e2e8f0', color: '#1e293b', borderColor: '#cbd5e1', minWidth: 45, whiteSpace: 'nowrap' }}>STT</th>
-              <th className="px-2 py-2 border text-[12px] font-black text-left uppercase tracking-wider whitespace-nowrap" style={{ backgroundColor: '#e2e8f0', color: '#1e293b', borderColor: '#cbd5e1', minWidth: 180, whiteSpace: 'nowrap' }}>TÊN PG HÃNG</th>
-              {weekDates.map((d, i) => {
-                const isSunday = d.getDay() === 0;
-                return (
-                  <th key={i} className="px-1 py-1.5 border text-center whitespace-nowrap"
-                    style={{
-                      borderColor: '#cbd5e1',
-                      minWidth: 95,
-                      whiteSpace: 'nowrap',
-                      backgroundColor: isSunday ? '#fecdd3' : '#bae6fd',
-                      color: isSunday ? '#9f1239' : '#0369a1',
-                    }}>
-                    <div className="text-[12px] font-black whitespace-nowrap" style={{ color: isSunday ? '#9f1239' : '#0369a1' }}>{dayName(d)}</div>
-                    <div className="text-[11px] font-bold whitespace-nowrap" style={{ color: isSunday ? '#be123c' : '#0284c7' }}>{fmtDate(d)}</div>
-                    {dayNotes[i] && <div className="text-[10px] font-semibold whitespace-pre-line leading-tight mt-0.5" style={{ color: isSunday ? '#9f1239' : '#0284c7' }}>{dayNotes[i]}</div>}
-                  </th>
-                );
-              })}
-              <th className="px-1 py-1.5 border text-[12px] font-black text-center uppercase tracking-wider whitespace-nowrap" style={{ backgroundColor: '#fef08a', color: '#713f12', borderColor: '#cbd5e1', minWidth: 320, whiteSpace: 'nowrap' }}>
-                <div className="font-black mb-0.5 text-[#713f12] whitespace-nowrap">NOTE</div>
-                <div className="text-[10px] font-bold text-[#14532d] normal-case whitespace-nowrap">Ca Sáng: 8h-16h</div>
-                <div className="text-[10px] font-bold text-[#581c87] normal-case whitespace-nowrap">Ca Chiều: 13h-21h</div>
-                <div className="text-[10px] font-bold text-[#b45309] normal-case whitespace-nowrap">Ca Gãy: 8h-12h - 16h-21h</div>
-              </th>
-              <th className="px-1 py-2 border text-[12px] font-black text-center uppercase tracking-wider whitespace-nowrap" style={{ backgroundColor: '#e9d5ff', color: '#581c87', borderColor: '#cbd5e1', minWidth: 230, whiteSpace: 'nowrap' }}>SDT SUP + Tên</th>
-              {editing && (
-                <th className="px-1 py-2 border text-[11px] font-black text-center uppercase tracking-wider whitespace-nowrap" style={{ backgroundColor: '#e2e8f0', color: '#1e293b', borderColor: '#cbd5e1', minWidth: 110, whiteSpace: 'nowrap' }}>
-                  THAO TÁC
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {roster.length === 0 && !editing ? (
-              <tr><td colSpan={12} className="text-center py-6 text-xs text-slate-400 italic">Chưa có dữ liệu. Nhấn "Chỉnh sửa" để thêm PG.</td></tr>
-            ) : roster.map((pg, idx) => {
-              const ws = weekShifts[pg.id] || emptyShifts();
-              const isDragging = draggedIndex === idx;
-              const isDragOver = dragOverIndex === idx && draggedIndex !== null && draggedIndex !== idx;
-              return (
-                <tr
-                  key={pg.id}
-                  draggable={editing}
-                  onDragStart={(e) => {
-                    if (!editing) return;
-                    setDraggedIndex(idx);
-                    e.dataTransfer.setData('text/plain', String(idx));
-                    e.dataTransfer.effectAllowed = 'move';
-                  }}
-                  onDragOver={(e) => {
-                    if (!editing) return;
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    if (dragOverIndex !== idx) setDragOverIndex(idx);
-                  }}
-                  onDragLeave={() => {
-                    if (dragOverIndex === idx) setDragOverIndex(null);
-                  }}
-                  onDrop={(e) => {
-                    if (!editing) return;
-                    e.preventDefault();
-                    const fromIdx = draggedIndex !== null ? draggedIndex : Number(e.dataTransfer.getData('text/plain'));
-                    if (!isNaN(fromIdx) && fromIdx !== idx) {
-                      movePG(fromIdx, idx);
-                    }
-                    setDraggedIndex(null);
-                    setDragOverIndex(null);
-                  }}
-                  onDragEnd={() => {
-                    setDraggedIndex(null);
-                    setDragOverIndex(null);
-                  }}
+            minHeight: '104px',
+            background: isICT
+              ? 'linear-gradient(95deg, #FDE282 0%, #FCEB9B 38%, #FCD66D 74%, #F8C246 100%)'
+              : 'linear-gradient(95deg, #BDF6CE 0%, #A7F3D0 38%, #99F6E4 72%, #7DD3FC 100%)',
+            borderBottom: '1px solid #D7E2EE',
+          }}
+        >
+          {/* Subtle decorative wave background */}
+          <svg
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            viewBox="0 0 1680 104"
+            preserveAspectRatio="none"
+            fill="none"
+          >
+            <path
+              d="M0 78 C 360 110, 680 20, 1060 66 C 1320 98, 1520 30, 1680 54 L 1680 104 L 0 104 Z"
+              fill={isICT ? 'rgba(245, 158, 11, 0.16)' : 'rgba(20, 184, 166, 0.14)'}
+            />
+            <path
+              d="M620 0 C 860 45, 1120 95, 1420 20 L 1680 0 L 1680 104 L 620 104 Z"
+              fill={isICT ? 'rgba(255, 255, 255, 0.22)' : 'rgba(255, 255, 255, 0.25)'}
+            />
+          </svg>
+
+          {/* Left Section: Icon/Illustration + Title + Store Name */}
+          <div className="relative z-10 flex items-center gap-4">
+            {isICT ? (
+              /* ICT Left 3-person group emblem */
+              <div className="relative flex items-center justify-center w-[76px] h-[72px] shrink-0">
+                <div
+                  className="absolute inset-1 rounded-full"
+                  style={{ background: 'radial-gradient(circle, rgba(245,158,11,0.32) 0%, rgba(245,158,11,0) 72%)' }}
+                />
+                <svg width="68" height="62" viewBox="0 0 68 62" fill="none" className="relative z-10">
+                  {/* Pedestal base */}
+                  <ellipse cx="34" cy="54" rx="26" ry="5" fill="#D97706" fillOpacity="0.35" />
+                  {/* Left person */}
+                  <circle cx="17" cy="22" r="6.5" fill="#78350F" />
+                  <path d="M6 43c0-6.2 4.9-11 11-11s11 4.8 11 11v3H6v-3z" fill="#92400E" />
+                  {/* Right person */}
+                  <circle cx="51" cy="22" r="6.5" fill="#78350F" />
+                  <path d="M40 43c0-6.2 4.9-11 11-11s11 4.8 11 11v3H40v-3z" fill="#92400E" />
+                  {/* Center person (prominent) */}
+                  <circle cx="34" cy="17" r="8" fill="#5C280B" />
+                  <path d="M19 47c0-8 6.7-14.5 15-14.5S49 39 49 47v3H19v-3z" fill="#6B2F0E" />
+                </svg>
+              </div>
+            ) : (
+              /* DTDLGD Left TV + Washing Machine Illustration */
+              <div className="relative flex items-center justify-center w-[92px] h-[74px] shrink-0">
+                <svg width="92" height="72" viewBox="0 0 92 72" fill="none">
+                  {/* Flat-screen TV */}
+                  <rect x="4" y="10" width="54" height="36" rx="3" fill="#0F2942" stroke="#38BDF8" strokeWidth="1.5" />
+                  <rect x="7" y="13" width="48" height="30" rx="1.5" fill="url(#tvGradLeft)" />
+                  <path d="M24 46h14l3 6H21l3-6z" fill="#334155" />
+                  <rect x="17" y="52" width="28" height="2.5" rx="1" fill="#1E293B" />
+                  {/* Front-load Washing Machine */}
+                  <rect x="54" y="20" width="32" height="42" rx="4" fill="#0F766E" stroke="#CCFBF1" strokeWidth="1.5" />
+                  <rect x="57" y="23" width="26" height="6" rx="1.5" fill="#115E59" />
+                  <circle cx="62" cy="26" r="1.5" fill="#5EEAD4" />
+                  <circle cx="67" cy="26" r="1.5" fill="#5EEAD4" />
+                  <circle cx="70" cy="44" r="10.5" fill="#E2E8F0" stroke="#0D9488" strokeWidth="2" />
+                  <circle cx="70" cy="44" r="7" fill="#0F2942" />
+                  <path d="M64 44c2-2 5-2 7 0s5 2 6 0" stroke="#38BDF8" strokeWidth="1.5" strokeLinecap="round" />
+                  <defs>
+                    <linearGradient id="tvGradLeft" x1="7" y1="13" x2="55" y2="43" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#0284C7" />
+                      <stop offset="0.5" stopColor="#0D9488" />
+                      <stop offset="1" stopColor="#0F2942" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
+            )}
+
+            <div>
+              <div
+                className="font-black uppercase tracking-wide leading-tight"
+                style={{
+                  fontFamily: "'Plus Jakarta Sans', 'UTM Avo', sans-serif",
+                  fontSize: '27px',
+                  fontWeight: 900,
+                  color: isICT ? '#2C1810' : '#0F2942',
+                  letterSpacing: '0.6px',
+                }}
+              >
+                {title.replace(/\s+\(/g, ' (')}
+              </div>
+              {storeName && (
+                <div
+                  className="mt-1 font-bold"
                   style={{
-                    backgroundColor: isDragging ? '#fef3c7' : (isDragOver ? '#ecfdf5' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc')),
-                    borderBottom: isDragOver ? '2px solid #10b981' : '1px solid #cbd5e1',
-                    opacity: isDragging ? 0.4 : 1,
-                    minHeight: '46px',
-                    transition: 'background-color 0.15s ease, border-color 0.15s ease'
+                    fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif",
+                    fontSize: '14px',
+                    color: isICT ? '#3D2516' : '#1E3A5F',
                   }}
                 >
-                  {editing && (
-                    <td className="px-1 py-2.5 border text-center" style={{ borderColor: '#cbd5e1', height: '46px' }}>
-                      <div className="flex items-center justify-center gap-0.5">
-                        <button
-                          type="button"
-                          onClick={() => movePG(idx, idx - 1)}
-                          disabled={idx === 0}
-                          title="Di chuyển lên trên"
-                          className="p-1 rounded bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-700 disabled:opacity-20 disabled:hover:bg-slate-100 disabled:cursor-not-allowed transition-all cursor-pointer"
-                        >
-                          <ChevronUp size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => movePG(idx, idx + 1)}
-                          disabled={idx === roster.length - 1}
-                          title="Di chuyển xuống dưới"
-                          className="p-1 rounded bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-700 disabled:opacity-20 disabled:hover:bg-slate-100 disabled:cursor-not-allowed transition-all cursor-pointer"
-                        >
-                          <ChevronDown size={13} />
-                        </button>
+                  Siêu thị: <span className="font-extrabold uppercase">{storeName}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Section: NOTE Box + Right Tech/Appliance Illustration */}
+          <div className="relative z-10 flex items-center gap-6">
+            {/* NOTE Shift Hours Box */}
+            <div
+              className="flex items-center gap-3.5 px-4 py-2 rounded-xl"
+              style={{
+                backgroundColor: isICT ? 'rgba(255, 251, 235, 0.78)' : 'rgba(240, 253, 250, 0.78)',
+                border: isICT ? '1px solid rgba(217, 155, 38, 0.35)' : '1px solid rgba(20, 184, 166, 0.32)',
+                minWidth: '250px',
+              }}
+            >
+              <div
+                className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0"
+                style={{
+                  backgroundColor: isICT ? '#F59E0B' : '#0D9488',
+                  color: '#FFFFFF',
+                }}
+              >
+                <CalendarDays size={20} strokeWidth={2.3} />
+              </div>
+              <div
+                className="text-[11.5px] leading-[1.38]"
+                style={{
+                  fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif",
+                  color: isICT ? '#292524' : '#0F2942',
+                }}
+              >
+                <div className="font-black text-[12px] tracking-wide uppercase">NOTE</div>
+                <div className="font-bold">Ca Sáng: <span className="font-extrabold">8h - 16h</span></div>
+                <div className="font-bold">Ca Chiều: <span className="font-extrabold">13h - 21h</span></div>
+                <div className="font-bold">Ca Gãy: <span className="font-extrabold">8h - 12h • 16h - 21h</span></div>
+              </div>
+            </div>
+
+            {/* Far Right Illustration */}
+            {isICT ? (
+              /* ICT Right Golden Laptop Illustration */
+              <div className="w-[126px] h-[82px] flex items-center justify-end shrink-0">
+                <svg width="124" height="80" viewBox="0 0 124 80" fill="none">
+                  {/* Decorative floating cube */}
+                  <polygon points="18,22 32,14 46,22 32,30" fill="#FDE68A" fillOpacity="0.7" />
+                  <polygon points="18,22 32,30 32,46 18,38" fill="#F59E0B" fillOpacity="0.45" />
+                  <polygon points="46,22 32,30 32,46 46,38" fill="#D97706" fillOpacity="0.35" />
+                  {/* Laptop screen */}
+                  <path d="M52 14h54a4 4 0 0 1 4 4v34H48V18a4 4 0 0 1 4-4z" fill="#D97706" stroke="#FEF3C7" strokeWidth="1.5" />
+                  <rect x="52" y="18" width="54" height="29" rx="1.5" fill="url(#ictLaptopScreen)" />
+                  {/* Laptop keyboard deck */}
+                  <path d="M36 52h74l8 9a2 2 0 0 1-1.6 3.2H30.6A2 2 0 0 1 29 61l7-9z" fill="#F59E0B" stroke="#FEF3C7" strokeWidth="1.2" />
+                  <path d="M45 55h54l4 4H41l4-4z" fill="#B45309" fillOpacity="0.55" />
+                  <defs>
+                    <linearGradient id="ictLaptopScreen" x1="52" y1="18" x2="106" y2="47" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#FEF08A" />
+                      <stop offset="0.5" stopColor="#FBBF24" />
+                      <stop offset="1" stopColor="#D97706" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
+            ) : (
+              /* DTDLGD Right TV + Fridge + Washer Illustration */
+              <div className="w-[146px] h-[84px] flex items-center justify-end shrink-0">
+                <svg width="144" height="82" viewBox="0 0 144 82" fill="none">
+                  {/* Scenic TV on left */}
+                  <rect x="4" y="22" width="56" height="36" rx="2.5" fill="#1E293B" stroke="#E2E8F0" strokeWidth="1.2" />
+                  <rect x="6.5" y="24.5" width="51" height="31" rx="1" fill="url(#dtdlgdTvRight)" />
+                  <path d="M26 58h12l3 5H23l3-5z" fill="#475569" />
+                  <rect x="20" y="63" width="24" height="2" rx="1" fill="#334155" />
+                  {/* Tall Silver Side-by-Side Refrigerator in center */}
+                  <rect x="66" y="8" width="36" height="64" rx="3" fill="url(#fridgeSilver)" stroke="#94A3B8" strokeWidth="1.2" />
+                  <line x1="84" y1="9" x2="84" y2="71" stroke="#64748B" strokeWidth="1.2" />
+                  <rect x="70" y="22" width="4" height="8" rx="1" fill="#334155" />
+                  <rect x="81" y="20" width="1.5" height="22" rx="0.75" fill="#475569" />
+                  <rect x="86" y="20" width="1.5" height="22" rx="0.75" fill="#475569" />
+                  {/* White Front-Load Washing Machine on right */}
+                  <rect x="104" y="26" width="34" height="46" rx="3.5" fill="#F8FAFC" stroke="#94A3B8" strokeWidth="1.2" />
+                  <rect x="106" y="29" width="30" height="7" rx="1" fill="#E2E8F0" />
+                  <circle cx="121" cy="32.5" r="2" fill="#475569" />
+                  <circle cx="131" cy="32.5" r="1.2" fill="#0EA5E9" />
+                  <circle cx="121" cy="52" r="11" fill="#334155" stroke="#CBD5E1" strokeWidth="2.2" />
+                  <circle cx="121" cy="52" r="7.5" fill="#0F172A" />
+                  <path d="M116 52c2-2 4-2 6 0s4 2 5 0" stroke="#38BDF8" strokeWidth="1.4" strokeLinecap="round" />
+                  <defs>
+                    <linearGradient id="dtdlgdTvRight" x1="6" y1="24" x2="57" y2="55" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#0284C7" />
+                      <stop offset="0.55" stopColor="#38BDF8" />
+                      <stop offset="1" stopColor="#1E3A8A" />
+                    </linearGradient>
+                    <linearGradient id="fridgeSilver" x1="66" y1="8" x2="102" y2="72" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#F1F5F9" />
+                      <stop offset="0.5" stopColor="#CBD5E1" />
+                      <stop offset="1" stopColor="#94A3B8" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ─── Schedule Data Table (11 Fixed Columns) ─── */}
+        <div className="w-full">
+          <table
+            className="w-full border-collapse"
+            style={{
+              width: '100%',
+              minWidth: totalMinWidth,
+              tableLayout: 'fixed',
+              fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif",
+            }}
+          >
+            <colgroup>
+              {editing && <col style={{ width: '75px' }} />}
+              <col style={{ width: '55px' }} />
+              <col style={{ width: '215px' }} />
+              {weekDates.map((_, i) => (
+                <col key={i} style={{ width: '110px' }} />
+              ))}
+              <col style={{ width: '420px' }} />
+              <col style={{ width: '220px' }} />
+              {editing && <col style={{ width: '110px' }} />}
+            </colgroup>
+            <thead>
+              <tr style={{ height: '68px' }}>
+                {editing && (
+                  <th
+                    className="px-1 py-2 border text-[11px] font-extrabold text-center uppercase tracking-wider whitespace-nowrap"
+                    style={{ backgroundColor: '#DDF1FF', color: '#14284B', borderColor: '#D7E2EE' }}
+                  >
+                    VỊ TRÍ
+                  </th>
+                )}
+                <th
+                  className="px-2 py-2 border text-[12.5px] font-extrabold text-center uppercase tracking-wider whitespace-nowrap"
+                  style={{ backgroundColor: '#DDF1FF', color: '#14284B', borderColor: '#D7E2EE' }}
+                >
+                  STT
+                </th>
+                <th
+                  className="px-3.5 py-2 border text-[12.5px] font-extrabold text-left uppercase tracking-wider whitespace-nowrap"
+                  style={{ backgroundColor: '#DDF1FF', color: '#14284B', borderColor: '#D7E2EE' }}
+                >
+                  TÊN PG HÃNG
+                </th>
+                {weekDates.map((d, i) => {
+                  const isSunday = d.getDay() === 0;
+                  return (
+                    <th
+                      key={i}
+                      className="px-1 py-1.5 border text-center whitespace-nowrap align-middle"
+                      style={{
+                        borderColor: isSunday ? '#F3B8C2' : '#D7E2EE',
+                        backgroundColor: isSunday ? '#FFD9DF' : '#DDF1FF',
+                        color: isSunday ? '#9F1239' : '#14284B',
+                      }}
+                    >
+                      <div
+                        className="text-[13px] font-extrabold leading-tight whitespace-nowrap"
+                        style={{ color: isSunday ? '#9F1239' : '#14284B' }}
+                      >
+                        {dayName(d)}
+                      </div>
+                      <div
+                        className="text-[12.5px] font-extrabold leading-tight mt-0.5 whitespace-nowrap"
+                        style={{ color: isSunday ? '#9F1239' : '#14284B' }}
+                      >
+                        {fmtDate(d)}
+                      </div>
+                      {dayNotes[i] && (
                         <div
-                          className="p-1 text-slate-400 hover:text-slate-700 cursor-grab active:cursor-grabbing"
-                          title="Kéo thả hàng này để đổi thứ tự PG"
+                          className="text-[10.5px] font-semibold leading-tight mt-0.5 whitespace-nowrap"
+                          style={{ color: isSunday ? '#9F1239' : '#334E7B' }}
                         >
-                          <GripVertical size={13} />
+                          {dayNotes[i]}
                         </div>
-                      </div>
-                    </td>
-                  )}
-                  <td className="px-2 py-2.5 border text-center text-[13px] font-bold text-black whitespace-nowrap" style={{ borderColor: '#cbd5e1', minWidth: 45, height: '46px', whiteSpace: 'nowrap' }}>{idx + 1}</td>
-                  <td className="px-2 py-2.5 border text-[13px] font-bold text-slate-800 whitespace-nowrap" style={{ borderColor: '#cbd5e1', minWidth: 180, height: '46px', whiteSpace: 'nowrap' }}>
-                    {editing ? (
-                      <input value={pg.tenPgHang} onChange={e => updateName(pg.id, e.target.value)}
-                        onDragStart={e => e.stopPropagation()}
-                        className="w-full px-1.5 py-1.5 border border-slate-300 rounded text-[13px] focus:ring-1 focus:ring-green-400 outline-none font-bold"
-                        placeholder="VD: Ngọc Trâm - Realme" />
-                    ) : (
-                      <div className="flex items-center justify-between gap-1 whitespace-nowrap">
-                        <span className="font-bold whitespace-nowrap">{pg.tenPgHang || '—'}</span>
-                        {is43751Admin && pg.tenPgHang && (
-                          <button
-                            onClick={() => onViewPgHistory?.(pg.tenPgHang)}
-                            title={`Xem lịch sử thay đổi của ${pg.tenPgHang}`}
-                            className="p-1 rounded text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
-                          >
-                            <History size={13} />
-                          </button>
-                        )}
-                      </div>
-                    )}
+                      )}
+                    </th>
+                  );
+                })}
+                <th
+                  className="px-4 py-2 border text-[12.5px] font-extrabold text-left uppercase tracking-wider whitespace-nowrap"
+                  style={{ backgroundColor: '#DDF1FF', color: '#14284B', borderColor: '#D7E2EE' }}
+                >
+                  <div className="inline-flex items-center gap-2">
+                    <FileText size={16} className="text-[#1D4ED8] shrink-0" strokeWidth={2.3} />
+                    <span>GHI CHÚ / NOTE</span>
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-2 border text-[12.5px] font-extrabold text-left uppercase tracking-wider whitespace-nowrap"
+                  style={{ backgroundColor: '#DDF1FF', color: '#14284B', borderColor: '#D7E2EE' }}
+                >
+                  <div className="inline-flex items-center gap-2">
+                    <PhoneCall size={15} className="text-[#1D4ED8] shrink-0" strokeWidth={2.3} />
+                    <span>SĐT SUP + TÊN</span>
+                  </div>
+                </th>
+                {editing && (
+                  <th
+                    className="px-1 py-2 border text-[11px] font-extrabold text-center uppercase tracking-wider whitespace-nowrap"
+                    style={{ backgroundColor: '#DDF1FF', color: '#14284B', borderColor: '#D7E2EE' }}
+                  >
+                    THAO TÁC
+                  </th>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {roster.length === 0 && !editing ? (
+                <tr>
+                  <td colSpan={12} className="text-center py-6 text-xs text-slate-400 italic">
+                    Chưa có dữ liệu. Nhấn "Chỉnh sửa" để thêm PG.
                   </td>
-                  {ws.shifts.map((shift, di) => (
-                    <ShiftCell key={di} value={shift} onChange={v => updateShift(pg.id, di, v)} editable={editing} options={shiftOpts} customShifts={customShifts} />
-                  ))}
-                  <td className="px-2 py-2.5 border text-[13px] text-slate-700" style={{ borderColor: '#cbd5e1', minWidth: 320, height: '46px' }}>
-                    {editing ? (
-                      <textarea value={pg.note} onChange={e => updateNote(pg.id, e.target.value)}
-                        onDragStart={e => e.stopPropagation()}
-                        className="w-full px-1.5 py-1 border border-slate-300 rounded text-[13px] focus:ring-1 focus:ring-green-400 outline-none resize-none" rows={2} placeholder="Ca sáng 9h-15h..." />
-                    ) : <span className="whitespace-pre-line text-[12.5px] leading-snug">{pg.note || '—'}</span>}
-                  </td>
-                  <td className="px-2 py-2.5 border text-[13px] text-slate-700 whitespace-nowrap" style={{ borderColor: '#cbd5e1', minWidth: 230, height: '46px', whiteSpace: 'nowrap' }}>
-                    {editing ? (
-                      <input value={pg.sdtSup} onChange={e => updateSdt(pg.id, e.target.value)}
-                        onDragStart={e => e.stopPropagation()}
-                        className="w-full px-1.5 py-1 border border-slate-300 rounded text-[13px] focus:ring-1 focus:ring-green-400 outline-none" placeholder="0901234567 (Tên)" />
-                    ) : <span className="text-[13px] leading-relaxed whitespace-nowrap font-medium">{pg.sdtSup || '—'}</span>}
-                  </td>
-                  {editing && (
-                    <td className="px-1 py-2.5 border text-center" style={{ borderColor: '#cbd5e1', minWidth: 110, height: '46px' }}>
-                      <div className="flex items-center justify-center gap-1">
-                        {onMoveToOtherCategory && (
-                          <button
-                            type="button"
-                            onClick={() => onMoveToOtherCategory(pg)}
-                            title={category === 'ICT' ? 'Chuyển sang nhóm ĐIỆN TỬ - ĐIỆN LẠNH - GIA DỤNG' : 'Chuyển sang nhóm ICT'}
-                            className="px-1.5 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-[10.5px] font-black flex items-center gap-0.5 transition-colors cursor-pointer"
-                          >
-                            <ArrowLeftRight size={11} /> {category === 'ICT' ? 'ĐỔI ĐTĐLGD' : 'ĐỔI ICT'}
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => removePG(pg.id)}
-                          title="Xóa PG này"
-                          className="p-1 rounded hover:bg-rose-50 text-rose-500 hover:text-rose-700 transition-colors cursor-pointer"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </td>
-                  )}
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              ) : (
+                roster.map((pg, idx) => {
+                  const ws = weekShifts[pg.id] || emptyShifts();
+                  const isDragging = draggedIndex === idx;
+                  const isDragOver = dragOverIndex === idx && draggedIndex !== null && draggedIndex !== idx;
+                  const brandBadge = renderPgBrandBadge(pg.tenPgHang);
+
+                  return (
+                    <tr
+                      key={pg.id}
+                      draggable={editing}
+                      onDragStart={(e) => {
+                        if (!editing) return;
+                        setDraggedIndex(idx);
+                        e.dataTransfer.setData('text/plain', String(idx));
+                        e.dataTransfer.effectAllowed = 'move';
+                      }}
+                      onDragOver={(e) => {
+                        if (!editing) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        if (dragOverIndex !== idx) setDragOverIndex(idx);
+                      }}
+                      onDragLeave={() => {
+                        if (dragOverIndex === idx) setDragOverIndex(null);
+                      }}
+                      onDrop={(e) => {
+                        if (!editing) return;
+                        e.preventDefault();
+                        const fromIdx = draggedIndex !== null ? draggedIndex : Number(e.dataTransfer.getData('text/plain'));
+                        if (!isNaN(fromIdx) && fromIdx !== idx) {
+                          movePG(fromIdx, idx);
+                        }
+                        setDraggedIndex(null);
+                        setDragOverIndex(null);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedIndex(null);
+                        setDragOverIndex(null);
+                      }}
+                      style={{
+                        backgroundColor: isDragging
+                          ? '#fef3c7'
+                          : isDragOver
+                          ? '#ecfdf5'
+                          : idx % 2 === 0
+                          ? '#FFFFFF'
+                          : '#F8FAFD',
+                        borderBottom: isDragOver ? '2px solid #10b981' : '1px solid #D7E2EE',
+                        opacity: isDragging ? 0.4 : 1,
+                        height: '56px',
+                        transition: 'background-color 0.15s ease, border-color 0.15s ease',
+                      }}
+                    >
+                      {editing && (
+                        <td className="px-1 py-2 border text-center align-middle" style={{ borderColor: '#D7E2EE' }}>
+                          <div className="flex items-center justify-center gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => movePG(idx, idx - 1)}
+                              disabled={idx === 0}
+                              title="Di chuyển lên trên"
+                              className="p-1 rounded bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-700 disabled:opacity-20 disabled:hover:bg-slate-100 disabled:cursor-not-allowed transition-all cursor-pointer"
+                            >
+                              <ChevronUp size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => movePG(idx, idx + 1)}
+                              disabled={idx === roster.length - 1}
+                              title="Di chuyển xuống dưới"
+                              className="p-1 rounded bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-700 disabled:opacity-20 disabled:hover:bg-slate-100 disabled:cursor-not-allowed transition-all cursor-pointer"
+                            >
+                              <ChevronDown size={13} />
+                            </button>
+                            <div
+                              className="p-1 text-slate-400 hover:text-slate-700 cursor-grab active:cursor-grabbing"
+                              title="Kéo thả hàng này để đổi thứ tự PG"
+                            >
+                              <GripVertical size={13} />
+                            </div>
+                          </div>
+                        </td>
+                      )}
+                      <td
+                        className="px-2 py-2 border text-center text-[13.5px] font-extrabold whitespace-nowrap align-middle"
+                        style={{ borderColor: '#D7E2EE', color: '#14284B' }}
+                      >
+                        {idx + 1}
+                      </td>
+                      <td
+                        className="px-3 py-2 border text-[13.5px] font-extrabold whitespace-nowrap align-middle overflow-hidden"
+                        style={{ borderColor: '#D7E2EE', color: '#14284B' }}
+                      >
+                        {editing ? (
+                          <input
+                            value={pg.tenPgHang}
+                            onChange={e => updateName(pg.id, e.target.value)}
+                            onDragStart={e => e.stopPropagation()}
+                            className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-[13px] focus:ring-1 focus:ring-green-400 outline-none font-bold"
+                            placeholder="VD: Ngọc Trâm - Realme"
+                          />
+                        ) : (
+                          <div className="flex items-center justify-between gap-2 whitespace-nowrap overflow-hidden">
+                            <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
+                              {brandBadge}
+                              <span className="font-extrabold truncate" style={{ color: '#14284B' }}>
+                                {pg.tenPgHang || '—'}
+                              </span>
+                            </div>
+                            {is43751Admin && pg.tenPgHang && (
+                              <button
+                                onClick={() => onViewPgHistory?.(pg.tenPgHang)}
+                                title={`Xem lịch sử thay đổi của ${pg.tenPgHang}`}
+                                className="p-1 rounded text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer shrink-0"
+                              >
+                                <History size={13} />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      {ws.shifts.map((shift, di) => (
+                        <ShiftCell
+                          key={di}
+                          value={shift}
+                          onChange={v => updateShift(pg.id, di, v)}
+                          editable={editing}
+                          options={shiftOpts}
+                          customShifts={customShifts}
+                        />
+                      ))}
+                      <td
+                        className="px-3.5 py-2 border text-[12.5px] align-middle overflow-hidden"
+                        style={{ borderColor: '#D7E2EE', color: '#1E293B' }}
+                      >
+                        {editing ? (
+                          <textarea
+                            value={pg.note}
+                            onChange={e => updateNote(pg.id, e.target.value)}
+                            onDragStart={e => e.stopPropagation()}
+                            className="w-full px-2 py-1 border border-slate-300 rounded-lg text-[12.5px] focus:ring-1 focus:ring-green-400 outline-none resize-none"
+                            rows={2}
+                            placeholder="Ca sáng 9h-15h..."
+                          />
+                        ) : (
+                          <span className="whitespace-pre-line text-[12.5px] font-medium leading-[1.42] block">
+                            {pg.note || '—'}
+                          </span>
+                        )}
+                      </td>
+                      <td
+                        className="px-3.5 py-2 border text-[12.5px] align-middle overflow-hidden"
+                        style={{ borderColor: '#D7E2EE', color: '#1E293B' }}
+                      >
+                        {editing ? (
+                          <input
+                            value={pg.sdtSup}
+                            onChange={e => updateSdt(pg.id, e.target.value)}
+                            onDragStart={e => e.stopPropagation()}
+                            className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-[12.5px] focus:ring-1 focus:ring-green-400 outline-none"
+                            placeholder="0901234567 (Tên)"
+                          />
+                        ) : pg.sdtSup && pg.sdtSup.trim() !== '—' && pg.sdtSup.trim() !== '-' ? (
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isICT && (
+                              <Clock size={14} className="text-[#64748B] shrink-0" strokeWidth={2} />
+                            )}
+                            <span className="text-[12.5px] leading-[1.38] font-medium whitespace-pre-line break-words">
+                              {pg.sdtSup}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[13px] text-slate-500 font-medium">—</span>
+                        )}
+                      </td>
+                      {editing && (
+                        <td className="px-1 py-2 border text-center align-middle" style={{ borderColor: '#D7E2EE' }}>
+                          <div className="flex items-center justify-center gap-1">
+                            {onMoveToOtherCategory && (
+                              <button
+                                type="button"
+                                onClick={() => onMoveToOtherCategory(pg)}
+                                title={
+                                  category === 'ICT'
+                                    ? 'Chuyển sang nhóm ĐIỆN TỬ - ĐIỆN LẠNH - GIA DỤNG'
+                                    : 'Chuyển sang nhóm ICT'
+                                }
+                                className="px-1.5 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-[10.5px] font-black flex items-center gap-0.5 transition-colors cursor-pointer"
+                              >
+                                <ArrowLeftRight size={11} /> {category === 'ICT' ? 'ĐỔI ĐTĐLGD' : 'ĐỔI ICT'}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => removePG(pg.id)}
+                              title="Xóa PG này"
+                              className="p-1 rounded hover:bg-rose-50 text-rose-500 hover:text-rose-700 transition-colors cursor-pointer"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
+
       {editing && (
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <button onClick={addPG} className="flex items-center gap-1 px-3 py-1.5 text-[13px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-xl hover:bg-green-100 shadow-sm transition-colors cursor-pointer">
+        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
+          <button
+            onClick={addPG}
+            className="flex items-center gap-1 px-3 py-1.5 text-[13px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-xl hover:bg-green-100 shadow-sm transition-colors cursor-pointer"
+          >
             <Plus size={13} /> Thêm PG ({category})
           </button>
           <span className="text-[11.5px] font-medium text-slate-400 italic">
@@ -1063,7 +1775,6 @@ const ScheduleTable: React.FC<{
           </span>
         </div>
       )}
-      </div>
     </div>
   );
 };
@@ -2301,8 +3012,8 @@ const LichLamViecPG: React.FC = () => {
       
       // The container itself
       savedStyles.push({ el, props: { width: el.style.width, minWidth: el.style.minWidth, overflow: el.style.overflow, maxHeight: el.style.maxHeight } });
-      el.style.width = 'max-content';
-      el.style.minWidth = '1450px';
+      el.style.width = '1680px';
+      el.style.minWidth = '1680px';
       el.style.overflow = 'visible';
       el.style.maxHeight = 'none';
       
@@ -2311,19 +3022,19 @@ const LichLamViecPG: React.FC = () => {
       overflowEls.forEach(child => {
         savedStyles.push({ el: child, props: { overflow: child.style.overflow, width: child.style.width, minWidth: child.style.minWidth, maxWidth: child.style.maxWidth, maxHeight: child.style.maxHeight } });
         child.style.overflow = 'visible';
-        child.style.width = 'max-content';
-        child.style.minWidth = '1450px';
+        child.style.width = '100%';
+        child.style.minWidth = '0px';
         child.style.maxWidth = 'none';
         child.style.maxHeight = 'none';
       });
       
-      // Ensure tables expand fully without wrapping
+      // Ensure tables expand fully with fixed layout
       const tables = el.querySelectorAll<HTMLTableElement>('table');
       tables.forEach(tbl => {
         savedStyles.push({ el: tbl, props: { width: tbl.style.width, minWidth: tbl.style.minWidth, tableLayout: tbl.style.tableLayout } });
-        tbl.style.width = '100%';
-        tbl.style.minWidth = '1450px';
-        tbl.style.tableLayout = 'auto';
+        tbl.style.width = '1680px';
+        tbl.style.minWidth = '1680px';
+        tbl.style.tableLayout = 'fixed';
       });
 
       // Zero-Shadow Export: Gỡ bỏ toàn bộ bóng mờ trong lúc export để ảnh phẳng, không loang lổ viền đen
@@ -3060,7 +3771,7 @@ const LichLamViecPG: React.FC = () => {
   }
 
   return (
-    <div className="p-3 md:p-5 max-w-[1500px] mx-auto">
+    <div className="p-3 md:p-5 max-w-[1720px] mx-auto">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
@@ -3112,7 +3823,7 @@ const LichLamViecPG: React.FC = () => {
           return (
             <span
               key={o}
-              className="px-2.5 py-1 rounded-md text-[11.5px] font-extrabold border shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11.5px] font-extrabold border shadow-2xs"
               style={{
                 backgroundColor: s.bg,
                 color: s.text,
@@ -3121,7 +3832,8 @@ const LichLamViecPG: React.FC = () => {
                 letterSpacing: '0.2px',
               }}
             >
-              {o}
+              {renderShiftIcon(o, s.text)}
+              <span>{o}</span>
             </span>
           );
         })}
@@ -3130,7 +3842,7 @@ const LichLamViecPG: React.FC = () => {
           return (
             <span
               key={o}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11.5px] font-extrabold border shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11.5px] font-extrabold border shadow-2xs"
               style={{
                 backgroundColor: s.bg,
                 color: s.text,
@@ -3139,7 +3851,8 @@ const LichLamViecPG: React.FC = () => {
                 letterSpacing: '0.2px',
               }}
             >
-              {o}
+              {renderShiftIcon(o, s.text)}
+              <span>{o}</span>
               {editing && (
                 <button
                   onClick={() => { setCustomShifts(prev => prev.filter(x => x !== o)); }}
@@ -3323,10 +4036,10 @@ const LichLamViecPG: React.FC = () => {
 
       {/* Tables */}
       {weeks[activeWeek] && (
-        <div ref={allRef} className="bg-white" style={{ padding: '8px 0' }}>
-          <div ref={ictRef} style={{ marginBottom: '24px' }}>
+        <div ref={allRef} className="bg-transparent" style={{ padding: '4px 0' }}>
+          <div ref={ictRef} style={{ marginBottom: '20px' }}>
             <ScheduleTable
-              title="LỊCH LÀM VIỆC  ( ICT )"
+              title="LỊCH LÀM VIỆC ( ICT )"
               storeName={activeStoreName}
               roster={ictRoster}
               weekShifts={curWeek.ict}
@@ -3345,7 +4058,7 @@ const LichLamViecPG: React.FC = () => {
           </div>
           <div ref={dtdlgdRef}>
             <ScheduleTable
-              title="LỊCH LÀM VIỆC  ( ĐIỆN TỬ - ĐIỆN LẠNH - GIA DỤNG )"
+              title="LỊCH LÀM VIỆC ( ĐIỆN TỬ - ĐIỆN LẠNH - GIA DỤNG )"
               storeName={activeStoreName}
               roster={dtdlgdRoster}
               weekShifts={curWeek.dtdlgd}
