@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Wrench, Printer, Trash2, Info, Archive, ShieldAlert, FilePlus, X,
@@ -8,7 +9,7 @@ import {
   RefreshCw, AlertCircle, Banknote, RotateCcw,
   ShoppingCart, Plus, ShoppingBag, Minus, Search, ExternalLink, FileSpreadsheet,
   QrCode, Camera, History, Undo2, Clock, Zap, ZapOff, Sparkles, Layers,
-  BarChart3
+  BarChart3, Store, Mail, Eye, Check, ZoomIn, ZoomOut
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
@@ -100,16 +101,48 @@ export const DEFAULT_ADDRESS_DATA: AddressFlyerData = {
   discountPercentage: "50%",
   duration: "1 NGÀY DUY NHẤT 28/03",
   categoriesLine1: "ĐIỆN THOẠI & LAPTOP",
-  categoriesLine2: "TIVI - TỦ LẠNH - MÁY GIẶT- MÁY LỌC NƯỚC",
-  categoriesLine3: "MÁY LẠNH – QUẠT ĐIỀU HÒA",
+  categoriesLine2: "TIVI - TỦ LẠNH - MÁY GIẶT - MÁY LỌC NƯỚC",
+  categoriesLine3: "MÁY LẠNH - QUẠT ĐIỀU HÒA",
   specialOffer: "➔ RẺ HƠN CÁC ĐIỆN MÁY XANH KHÁC -10%",
   paymentTerm: "MUA TRẢ CHẬM - 0% LÃI SUẤT - TRẢ TRƯỚC 0đ",
-  footerTitle: "ĐIỆN MÁY XANH PHƯỜNG 8 CÀ MAU",
-  footerLine1: "CAM KẾT GIÁ RẺ NHẤT THỊ TRƯỜNG CÀ MAU",
-  footerLine2: "BAO GIÁ HOÀN TIỀN NẾU ĐÂU RẺ HƠN",
+  footerTitle: "ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU",
+  footerLine1: "CAM KẾT GIÁ RẺ - HÀNG CHÍNH HÃNG",
+  footerLine2: "GIAO HÀNG NHANH - HỖ TRỢ TẬN NHÀ",
   footerLine3: "NHIỀU SẢN PHẨM GIÁ SỐC BÊN DƯỚI ⬇",
   footerLine4: "Được giảm thêm 10%"
 };
+
+export const ADDRESS_CATEGORY_OPTIONS = [
+  { id: 'cat_phone_laptop', label: 'ĐIỆN THOẠI & LAPTOP', value: 'ĐIỆN THOẠI & LAPTOP' },
+  { id: 'cat_tv_fridge', label: 'TIVI - TỦ LẠNH', value: 'TIVI - TỦ LẠNH' },
+  { id: 'cat_washer_water', label: 'MÁY GIẶT - MÁY LỌC NƯỚC', value: 'MÁY GIẶT - MÁY LỌC NƯỚC' },
+  { id: 'cat_ac_fan', label: 'MÁY LẠNH - QUẠT ĐIỀU HÒA', value: 'MÁY LẠNH - QUẠT ĐIỀU HÒA' },
+  { id: 'cat_appliances', label: 'GIA DỤNG - NHÀ BẾP', value: 'GIA DỤNG - NHÀ BẾP' },
+];
+
+export function normalizeAddressFlyerData(raw?: Partial<AddressFlyerData> | null): AddressFlyerData {
+  if (!raw || typeof raw !== 'object') return { ...DEFAULT_ADDRESS_DATA };
+  const merged: AddressFlyerData = {
+    ...DEFAULT_ADDRESS_DATA,
+    ...raw,
+  };
+  if (merged.categoriesLine2 === 'TIVI - TỦ LẠNH - MÁY GIẶT- MÁY LỌC NƯỚC') {
+    merged.categoriesLine2 = 'TIVI - TỦ LẠNH - MÁY GIẶT - MÁY LỌC NƯỚC';
+  }
+  if (merged.categoriesLine3 === 'MÁY LẠNH – QUẠT ĐIỀU HÒA') {
+    merged.categoriesLine3 = 'MÁY LẠNH - QUẠT ĐIỀU HÒA';
+  }
+  if (merged.footerTitle === 'ĐIỆN MÁY XANH PHƯỜNG 8 CÀ MAU') {
+    merged.footerTitle = 'ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU';
+  }
+  if (merged.footerLine1 === 'CAM KẾT GIÁ RẺ NHẤT THỊ TRƯỜNG CÀ MAU') {
+    merged.footerLine1 = 'CAM KẾT GIÁ RẺ - HÀNG CHÍNH HÃNG';
+  }
+  if (merged.footerLine2 === 'BAO GIÁ HOÀN TIỀN NẾU ĐÂU RẺ HƠN') {
+    merged.footerLine2 = 'GIAO HÀNG NHANH - HỖ TRỢ TẬN NHÀ';
+  }
+  return merged;
+}
 
 export function renderLineWithBold(text: string) {
   if (!text) return "";
@@ -121,119 +154,277 @@ export function renderLineWithBold(text: string) {
   });
 }
 
-export function AddressFlyerPreview({ item }: { item: AddressFlyerData }) {
-  const formatTimeText = (text: string) => {
-    const regex = /(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/g;
-    return text.split(regex).map((part, idx) => 
-      regex.test(part) 
-        ? <span key={idx} className="text-[17px] font-black text-black mx-0.5 inline-block">{part}</span>
-        : <span key={idx}>{part}</span>
-    );
-  };
+export function AddressFlyerPreview({ item, variant = 'preview' }: { item: AddressFlyerData; variant?: 'preview' | 'print' }) {
+  const isPrint = variant === 'print';
+  const rawHeader = (item.headerTitle || "ĐIỆN MÁY XANH PHƯỜNG 8").trim();
+  const dmxPrefixMatch = rawHeader.match(/^(ĐIỆN\s+MÁY\s+XANH)\s+(.+)$/i);
 
-  const formatDurationText = (text: string) => {
-    const match = text.match(/^(.*?)\s+((?:\d{1,2}[-–—/])*\d{1,2}(?:\/\d{2,4})?)$/i);
-    if (match) {
-      return (
-        <div className="flex flex-col items-center leading-none my-0.5">
-          <span className="text-[11.5px] font-black tracking-wider uppercase leading-none">{match[1]}</span>
-          <span className="text-[19px] font-black text-black tracking-tight leading-none mt-0.5">{match[2]}</span>
-        </div>
-      );
+  const rawEventDesc = (item.eventDescription || "tham gia sự kiện KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN").trim();
+  const isDefaultEventDesc = rawEventDesc.toUpperCase() === "THAM GIA SỰ KIỆN KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN";
+
+  const footerDisplayTitle = useMemo(() => {
+    if (item.footerTitle && item.footerTitle !== "ĐIỆN MÁY XANH PHƯỜNG 8 CÀ MAU" && item.footerTitle !== "ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU") {
+      return item.footerTitle;
     }
-    return (
-      <span className="text-[12px] font-black tracking-wider uppercase">{text}</span>
-    );
-  };
+    const baseHeader = (item.headerTitle || "ĐIỆN MÁY XANH PHƯỜNG 8").trim();
+    if (baseHeader.toUpperCase().includes("CÀ MAU")) {
+      return baseHeader;
+    }
+    return `${baseHeader} - CÀ MAU`;
+  }, [item.footerTitle, item.headerTitle]);
 
   return (
-    <div className="w-[66mm] h-[142mm] bg-white flex flex-col justify-between p-2.5 box-border text-black select-none overflow-hidden" style={{ border: '1.5px solid black', fontFamily: '"Oswald", sans-serif' }}>
-      {/* Header */}
+    <div
+      className="bg-white flex flex-col justify-between box-border select-none overflow-hidden"
+      style={{
+        width: isPrint ? '66mm' : '236px',
+        height: isPrint ? '142mm' : '334px',
+        padding: isPrint ? '10px 9px' : '7px 8px',
+        border: '1.5px solid #000000',
+        borderRadius: '3px',
+        backgroundColor: '#ffffff',
+        color: '#000000',
+        fontFamily: "'Inter', 'UTM Avo', Arial, sans-serif",
+        boxShadow: 'none',
+      }}
+    >
+      {/* 1 & 2. Tên siêu thị & Địa chỉ / Ghi chú */}
       <div className="text-center shrink-0">
-        <div className="font-black tracking-wide leading-tight uppercase text-[18px]">
-          {item.headerTitle || "ĐIỆN MÁY XANH PHƯỜNG 8"}
+        <div
+          style={{
+            fontWeight: 900,
+            fontSize: isPrint ? '19.5px' : '16px',
+            lineHeight: 1.08,
+            letterSpacing: '-0.02em',
+            textTransform: 'uppercase',
+            color: '#000000',
+          }}
+        >
+          {dmxPrefixMatch ? (
+            <>
+              <div>{dmxPrefixMatch[1].toUpperCase()}</div>
+              <div>{dmxPrefixMatch[2].toUpperCase()}</div>
+            </>
+          ) : (
+            rawHeader
+          )}
         </div>
-        <div className="font-medium tracking-tight leading-tight text-slate-800 text-[11.5px]">
+        <div
+          style={{
+            fontWeight: 600,
+            fontSize: isPrint ? '10px' : '8.4px',
+            lineHeight: 1.18,
+            marginTop: isPrint ? '3px' : '2px',
+            color: '#000000',
+          }}
+        >
           {item.headerSubtitle || "(Ngã tư đèn xanh đèn đỏ đường Nguyễn Tất Thành)"}
         </div>
       </div>
 
-      {/* Divider */}
-      <div className="bg-black w-full my-0.5 shrink-0 h-[1.5px]"></div>
+      {/* Đường phân cách */}
+      <div
+        className="w-full shrink-0"
+        style={{
+          height: '1px',
+          backgroundColor: '#000000',
+          margin: isPrint ? '4px 0' : '2.5px 0',
+        }}
+      />
 
-      {/* Middle Content */}
-      <div className="flex-1 flex flex-col justify-between py-0.5 min-h-0 text-center">
-        {/* Invitation */}
-        <div className="flex flex-col items-center justify-center shrink-0">
-          <div className="font-black tracking-tight uppercase leading-tight text-[17px]">
-            {item.invitationTitle || "THƯ MỜI, THỨ 7 TUẦN NÀY"}
-          </div>
-          <div className="leading-none text-slate-700 my-0.5 text-[7px]">⚭ ⚭ ⚭</div>
-          <div className="font-bold text-slate-800 leading-none text-[11.5px]">
-            {item.invitationTarget || "Kính mời: Quý Khách Hàng thân yêu"}
-          </div>
+      {/* 3 & 4. Tiêu đề thư mời & Đối tượng khách mời */}
+      <div className="text-center shrink-0">
+        <div
+          style={{
+            fontWeight: 900,
+            fontSize: isPrint ? '15.5px' : '13px',
+            lineHeight: 1.12,
+            letterSpacing: '-0.02em',
+            textTransform: 'uppercase',
+            color: '#000000',
+          }}
+        >
+          {item.invitationTitle || "THƯ MỜI, THỨ 7 TUẦN NÀY"}
         </div>
-
-        {/* Time & Location */}
-        <div className="font-bold tracking-tight uppercase leading-tight shrink-0 text-[11.5px]">
-          <div>{formatTimeText(item.eventTimeLocation || "Ngày 28/03 đến ĐMX PHƯỜNG 8")}</div>
-          <div className="text-black font-black my-0.5 text-[13.5px] uppercase tracking-wide">
-            {item.eventDescription || "tham gia sự kiện KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN"}
-          </div>
-        </div>
-
-        {/* Discount Percentage */}
-        <div className="font-black text-black leading-none tracking-tighter shrink-0 text-[54px] my-0.5">
-          {item.discountPercentage || "50%"}
-        </div>
-
-        {/* Duration */}
-        <div className="shrink-0 leading-none">
-          {formatDurationText(item.duration || "1 NGÀY DUY NHẤT 28/03")}
-        </div>
-
-        {/* Categories (Dòng 1, 2, 3) */}
-        <div className="font-bold tracking-wide uppercase leading-tight text-slate-900 shrink-0 text-[9.5px] my-0.5">
-          {item.categoriesLine1 && <div>{item.categoriesLine1}</div>}
-          {item.categoriesLine2 && <div>{item.categoriesLine2}</div>}
-          {item.categoriesLine3 && <div>{item.categoriesLine3}</div>}
-        </div>
-
-        {/* Special Offer & Payment Term (Ưu đãi đặc biệt & Trả góp) */}
-        <div className="flex flex-col items-center justify-center shrink-0 mt-0.5 pt-0.5">
-          {item.specialOffer && (
-            <div className="font-black text-black leading-tight uppercase tracking-tight text-[11.5px]">
-              {item.specialOffer}
-            </div>
-          )}
-          {item.paymentTerm && (
-            <div className="font-black text-slate-800 leading-none uppercase mt-0.5 text-[9.5px]">
-              {item.paymentTerm}
-            </div>
-          )}
+        <div
+          style={{
+            fontWeight: 700,
+            fontSize: isPrint ? '11px' : '9.4px',
+            lineHeight: 1.18,
+            marginTop: isPrint ? '3px' : '1.5px',
+            color: '#000000',
+          }}
+        >
+          {item.invitationTarget || "Kính mời: Quý Khách Hàng thân yêu"}
         </div>
       </div>
 
-      {/* Divider */}
-      <div className="bg-black w-full my-0.5 shrink-0 h-[1.5px]"></div>
+      {/* 5. Thời gian & địa điểm sự kiện (Thanh nền đen chữ trắng) */}
+      <div className="w-full flex justify-center shrink-0">
+        <div
+          style={{
+            backgroundColor: '#000000',
+            color: '#ffffff',
+            borderRadius: '4px',
+            padding: isPrint ? '4px 8px' : '2.5px 6px',
+            width: '98%',
+            textAlign: 'center',
+            fontWeight: 800,
+            fontSize: isPrint ? '11px' : '9.3px',
+            lineHeight: 1.15,
+            letterSpacing: '-0.01em',
+            textTransform: 'uppercase',
+          }}
+        >
+          {item.eventTimeLocation || "Ngày 28/03 đến ĐMX PHƯỜNG 8"}
+        </div>
+      </div>
 
-      {/* Footer */}
-      <div className="text-center shrink-0">
-        <div className="font-black tracking-wide leading-tight uppercase text-[11.5px]">
-          {item.footerTitle || "ĐIỆN MÁY XANH PHƯỜNG 8 CÀ MAU"}
+      {/* 6. Nội dung sự kiện */}
+      <div
+        className="text-center shrink-0"
+        style={{
+          fontWeight: 900,
+          fontSize: isPrint ? '13px' : '10.8px',
+          lineHeight: 1.15,
+          letterSpacing: '-0.01em',
+          textTransform: 'uppercase',
+          color: '#000000',
+        }}
+      >
+        {isDefaultEventDesc ? (
+          <>
+            <div>THAM GIA SỰ KIỆN KHAI</div>
+            <div>TRƯƠNG SIÊU GIẢM GIÁ ĐẾN</div>
+          </>
+        ) : (
+          rawEventDesc
+        )}
+      </div>
+
+      {/* 7. Mức giảm giá nổi bật + tia nhấn đen */}
+      <div className="flex items-center justify-center shrink-0" style={{ gap: isPrint ? '6px' : '4px' }}>
+        <svg
+          width={isPrint ? '18' : '14'}
+          height={isPrint ? '42' : '32'}
+          viewBox="0 0 14 32"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="shrink-0"
+        >
+          <line x1="12" y1="7" x2="3" y2="2.5" stroke="#000000" strokeWidth="2.5" strokeLinecap="round" />
+          <line x1="11" y1="16" x2="1.5" y2="16" stroke="#000000" strokeWidth="2.5" strokeLinecap="round" />
+          <line x1="12" y1="25" x2="3" y2="29.5" stroke="#000000" strokeWidth="2.5" strokeLinecap="round" />
+        </svg>
+        <div
+          style={{
+            fontWeight: 900,
+            fontSize: isPrint ? '58px' : '45px',
+            lineHeight: 0.9,
+            letterSpacing: '-0.03em',
+            color: '#000000',
+            textAlign: 'center',
+          }}
+        >
+          {item.discountPercentage || "50%"}
         </div>
-        <div className="font-bold tracking-tight leading-tight uppercase mt-0.5 text-[9px]">
-          {item.footerLine1 || "CAM KẾT GIÁ RẺ NHẤT THỊ TRƯỜNG CÀ MAU"}
+        <svg
+          width={isPrint ? '18' : '14'}
+          height={isPrint ? '42' : '32'}
+          viewBox="0 0 14 32"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="shrink-0"
+        >
+          <line x1="2" y1="7" x2="11" y2="2.5" stroke="#000000" strokeWidth="2.5" strokeLinecap="round" />
+          <line x1="3" y1="16" x2="12.5" y2="16" stroke="#000000" strokeWidth="2.5" strokeLinecap="round" />
+          <line x1="2" y1="25" x2="11" y2="29.5" stroke="#000000" strokeWidth="2.5" strokeLinecap="round" />
+        </svg>
+      </div>
+
+      {/* 8. Thời gian áp dụng (Thanh nền đen chữ trắng) */}
+      <div className="w-full flex justify-center shrink-0">
+        <div
+          style={{
+            backgroundColor: '#000000',
+            color: '#ffffff',
+            borderRadius: '4px',
+            padding: isPrint ? '4px 10px' : '2.5px 10px',
+            minWidth: '86%',
+            textAlign: 'center',
+            fontWeight: 800,
+            fontSize: isPrint ? '11.2px' : '9.4px',
+            lineHeight: 1.15,
+            letterSpacing: '0.01em',
+            textTransform: 'uppercase',
+          }}
+        >
+          {item.duration || "1 NGÀY DUY NHẤT 28/03"}
         </div>
-        <div className="font-bold tracking-tight leading-tight uppercase text-[9px]">
-          {item.footerLine2 || "BAO GIÁ HOÀN TIỀN NẾU ĐÂU RẺ HƠN"}
+      </div>
+
+      {/* 9. Danh mục sản phẩm */}
+      <div
+        className="text-center shrink-0"
+        style={{
+          fontWeight: 800,
+          fontSize: isPrint ? '9.6px' : '8px',
+          lineHeight: 1.28,
+          letterSpacing: '-0.01em',
+          textTransform: 'uppercase',
+          color: '#000000',
+        }}
+      >
+        {item.categoriesLine1 && <div>{item.categoriesLine1}</div>}
+        {item.categoriesLine2 && <div>{item.categoriesLine2}</div>}
+        {item.categoriesLine3 && <div>{item.categoriesLine3}</div>}
+      </div>
+
+      {/* 10. Thông tin cuối tờ rơi (Khung viền đen bo góc) */}
+      <div
+        className="w-full text-center shrink-0 box-border"
+        style={{
+          border: '1.5px solid #000000',
+          borderRadius: '5px',
+          padding: isPrint ? '5px 4px' : '3px 4px',
+          backgroundColor: '#ffffff',
+          color: '#000000',
+        }}
+      >
+        <div
+          style={{
+            fontWeight: 900,
+            fontSize: isPrint ? '10.4px' : '8.8px',
+            lineHeight: 1.18,
+            letterSpacing: '-0.01em',
+            textTransform: 'uppercase',
+            color: '#000000',
+          }}
+        >
+          {footerDisplayTitle}
         </div>
-        <div className="font-bold tracking-tight leading-tight uppercase flex items-center justify-center gap-0.5 text-[9px]">
-          <span>{item.footerLine3 || "NHIỀU SẢN PHẨM GIÁ SỐC BÊN DƯỚI"}</span>
-          <span>⬇</span>
+        <div
+          style={{
+            fontWeight: 700,
+            fontSize: isPrint ? '8.8px' : '7.4px',
+            lineHeight: 1.22,
+            marginTop: '1px',
+            textTransform: 'uppercase',
+            color: '#000000',
+          }}
+        >
+          {item.footerLine1 || "CAM KẾT GIÁ RẺ - HÀNG CHÍNH HÃNG"}
         </div>
-        <div className="font-medium tracking-tight leading-tight text-slate-800 italic mt-0.5 text-[8.5px]">
-          {item.footerLine4 || "Được giảm thêm 10%"}
+        <div
+          style={{
+            fontWeight: 700,
+            fontSize: isPrint ? '8.8px' : '7.4px',
+            lineHeight: 1.22,
+            textTransform: 'uppercase',
+            color: '#000000',
+          }}
+        >
+          {item.footerLine2 || "GIAO HÀNG NHANH - HỖ TRỢ TẬN NHÀ"}
         </div>
       </div>
     </div>
@@ -426,6 +617,93 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   const { showNotification } = useNotification();
   
   const [addressFlyerData, setAddressFlyerData] = useState<AddressFlyerData>(DEFAULT_ADDRESS_DATA);
+  const [addressPreviewMode, setAddressPreviewMode] = useState<'6' | '1'>('6');
+  const [addressSingleZoom, setAddressSingleZoom] = useState<number>(1.25);
+  const [isAddressGuideOpen, setIsAddressGuideOpen] = useState<boolean>(false);
+  const [isCustomCategoryChecked, setIsCustomCategoryChecked] = useState<boolean>(false);
+  const [customCategoryText, setCustomCategoryText] = useState<string>('');
+  const addressPreviewBoxRef = useRef<HTMLDivElement>(null);
+  const [addressGridScale, setAddressGridScale] = useState<number>(0.78);
+
+  useEffect(() => {
+    if (activeTab !== 'in-dia-chi') return;
+    const el = addressPreviewBoxRef.current;
+    if (!el) return;
+    const updateGridScale = () => {
+      if (!addressPreviewBoxRef.current) return;
+      const w = addressPreviewBoxRef.current.clientWidth;
+      if (w > 0) {
+        const usableW = Math.max(200, w - 16);
+        const nextScale = Math.min(1.05, Math.max(0.28, usableW / 738));
+        setAddressGridScale(nextScale);
+      }
+    };
+    updateGridScale();
+    const timer = setTimeout(updateGridScale, 60);
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(updateGridScale);
+      ro.observe(el);
+    }
+    window.addEventListener('resize', updateGridScale);
+    return () => {
+      clearTimeout(timer);
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', updateGridScale);
+    };
+  }, [activeTab, addressPreviewMode]);
+
+  const normalizeCatText = (s: string) =>
+    (s || '')
+      .toUpperCase()
+      .replace(/[–—]/g, '-')
+      .replace(/\s*-\s*/g, ' - ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const selectedAddressCategories = useMemo(() => {
+    const combined = normalizeCatText(
+      [addressFlyerData.categoriesLine1, addressFlyerData.categoriesLine2, addressFlyerData.categoriesLine3].join(' | ')
+    );
+    return ADDRESS_CATEGORY_OPTIONS.filter(opt => combined.includes(normalizeCatText(opt.value))).map(opt => opt.value);
+  }, [addressFlyerData.categoriesLine1, addressFlyerData.categoriesLine2, addressFlyerData.categoriesLine3]);
+
+  const applyCategoriesToAddressData = (selectedValues: string[], extraText: string) => {
+    const line1 = selectedValues.includes('ĐIỆN THOẠI & LAPTOP') ? 'ĐIỆN THOẠI & LAPTOP' : '';
+    const line2 = ['TIVI - TỦ LẠNH', 'MÁY GIẶT - MÁY LỌC NƯỚC']
+      .filter(v => selectedValues.includes(v))
+      .join(' - ');
+    const line3Parts = ['MÁY LẠNH - QUẠT ĐIỀU HÒA', 'GIA DỤNG - NHÀ BẾP'].filter(v => selectedValues.includes(v));
+    if (extraText.trim()) {
+      line3Parts.push(extraText.trim().toUpperCase());
+    }
+    const line3 = line3Parts.join(' - ');
+    setAddressFlyerData(prev => ({
+      ...prev,
+      categoriesLine1: line1,
+      categoriesLine2: line2,
+      categoriesLine3: line3,
+    }));
+  };
+
+  const handleToggleAddressCategory = (catValue: string) => {
+    const exists = selectedAddressCategories.includes(catValue);
+    const nextSelected = exists
+      ? selectedAddressCategories.filter(v => v !== catValue)
+      : [...selectedAddressCategories, catValue];
+    applyCategoriesToAddressData(nextSelected, isCustomCategoryChecked ? customCategoryText : '');
+  };
+
+  const handleResetAddressContent = () => {
+    setAddressFlyerData({ ...DEFAULT_ADDRESS_DATA });
+    setIsCustomCategoryChecked(false);
+    setCustomCategoryText('');
+    showNotification('Đã đặt lại nội dung tờ rơi về mặc định!', 'success');
+  };
+
+  const handleDirectPrintAddressFlyer = () => {
+    window.print();
+  };
   const [phieuBhData, setPhieuBhData] = useState<PhieuBHData>(DEFAULT_PHIEU_BH);
   const [phieuBhPrintLayout, setPhieuBhPrintLayout] = useState<string>('2');
   const [lkPrintLayout, setLkPrintLayout] = useState<string>('1');
@@ -1571,12 +1849,12 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setAddressFlyerData(parsed || DEFAULT_ADDRESS_DATA);
+        setAddressFlyerData(normalizeAddressFlyerData(parsed));
       } catch (e) {
-        setAddressFlyerData(DEFAULT_ADDRESS_DATA);
+        setAddressFlyerData({ ...DEFAULT_ADDRESS_DATA });
       }
     } else {
-      setAddressFlyerData(DEFAULT_ADDRESS_DATA);
+      setAddressFlyerData({ ...DEFAULT_ADDRESS_DATA });
     }
   };
 
@@ -1678,8 +1956,9 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 const parsed = typeof data.in_dia_chi_data === 'string'
                   ? JSON.parse(data.in_dia_chi_data)
                   : data.in_dia_chi_data;
-                setAddressFlyerData(parsed || DEFAULT_ADDRESS_DATA);
-                safeLocalStorageSet(STORAGE_KEYS.STICKER_ADDRESS_DATA, JSON.stringify(parsed));
+                const normalized = normalizeAddressFlyerData(parsed);
+                setAddressFlyerData(normalized);
+                safeLocalStorageSet(STORAGE_KEYS.STICKER_ADDRESS_DATA, JSON.stringify(normalized));
               } catch (e) {
                 console.error('Error parsing DB address data:', e);
               }
@@ -7171,242 +7450,663 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           {activeTab === 'in-dia-chi' && (
             <motion.div
               key="in-dia-chi"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.2 }}
-              className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 min-h-[500px]"
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.18 }}
+              className="bg-white rounded-[20px] shadow-sm border border-[#e2e8f0] overflow-hidden"
+              style={{ fontFamily: "'Inter', 'UTM Avo', Arial, sans-serif" }}
             >
-              <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
-                  <MapPin size={24} />
-                </div>
-                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Cấu hình In Địa Chỉ (Tờ Rơi A4)</h2>
-              </div>
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-                <div className="xl:col-span-7 space-y-6 max-h-[750px] overflow-y-auto pr-2">
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <h3 className="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-emerald-700">1. Phần Đầu (Header)</h3>
-                    <div className="grid grid-cols-1 gap-3">
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Tên siêu thị</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.headerTitle}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, headerTitle: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Địa chỉ / Ghi chú</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.headerSubtitle}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, headerSubtitle: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                        />
-                      </div>
-                    </div>
+              {/* III. HEADER — GIỐNG HÌNH MẪU */}
+              <div className="bg-white px-4 sm:px-6 py-3.5 sm:py-4 border-b border-[#e2e8f0] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-11 h-11 rounded-[12px] bg-[#10b981] text-white flex items-center justify-center shrink-0">
+                    <MapPin size={24} strokeWidth={2.3} />
                   </div>
-
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <h3 className="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-emerald-700">2. Thư Mời (Invitation)</h3>
-                    <div className="grid grid-cols-1 gap-3">
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Tiêu đề thư mời</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.invitationTitle}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, invitationTitle: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Đối tượng kính mời</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.invitationTarget}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, invitationTarget: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <h3 className="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-emerald-700">3. Nội dung sự kiện</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="md:col-span-2">
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Thời gian & Địa điểm (Ví dụ: Ngày 28/03 đến ĐMX PHƯỜNG 8)</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.eventTimeLocation}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, eventTimeLocation: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Mô tả sự kiện</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.eventDescription}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, eventDescription: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Mức giảm giá % (Ví dụ: 50%)</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.discountPercentage}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, discountPercentage: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-red-600 text-lg"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Thời gian áp dụng (Ví dụ: 1 NGÀY DUY NHẤT 28/03)</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.duration}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, duration: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <h3 className="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-emerald-700">4. Danh mục & Ưu đãi</h3>
-                    <div className="grid grid-cols-1 gap-3">
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Danh mục dòng 1</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.categoriesLine1}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, categoriesLine1: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Danh mục dòng 2</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.categoriesLine2}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, categoriesLine2: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Danh mục dòng 3</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.categoriesLine3}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, categoriesLine3: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Ưu đãi đặc biệt</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.specialOffer}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, specialOffer: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-blue-600"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Chính sách trả góp</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.paymentTerm}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, paymentTerm: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <h3 className="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-emerald-700">5. Phần Chân (Footer)</h3>
-                    <div className="grid grid-cols-1 gap-3">
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Tiêu đề chân trang (Tên siêu thị đầy đủ)</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.footerTitle}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, footerTitle: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Cam kết 1</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.footerLine1}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, footerLine1: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Cam kết 2</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.footerLine2}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, footerLine2: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Dòng chú ý 3</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.footerLine3}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, footerLine3: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Khuyến mãi thêm dòng 4</label>
-                        <input
-                          type="text"
-                          value={addressFlyerData.footerLine4}
-                          onChange={e => setAddressFlyerData({ ...addressFlyerData, footerLine4: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                        />
-                      </div>
-                    </div>
+                  <div className="min-w-0">
+                    <h2 className="text-[19px] sm:text-[22px] font-black text-[#0f172a] uppercase tracking-tight leading-tight">
+                      IN ĐỊA CHỈ (TỜ RƠI A4)
+                    </h2>
+                    <p className="text-[12.5px] sm:text-[13.5px] text-[#64748b] font-medium leading-snug mt-0.5">
+                      Tạo mẫu in địa chỉ tờ rơi (6 ô / A4) nhanh chóng và chuyên nghiệp
+                    </p>
                   </div>
                 </div>
 
-                <div className="xl:col-span-5 flex flex-col items-center gap-6">
-                  <div className="w-full bg-slate-50 rounded-3xl p-5 border border-slate-100 flex flex-col items-center">
-                    <h3 className="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider text-emerald-700 self-start">Xem trước thiết kế</h3>
-                    <div className="border border-slate-300 shadow-md bg-white rounded-md overflow-hidden relative" style={{ transform: 'scale(0.7)', transformOrigin: 'top center', marginBottom: '-140px' }}>
-                      <div className="w-[66mm] h-[142mm] flex items-center justify-center bg-white">
-                        <AddressFlyerPreview item={addressFlyerData} />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="w-full flex gap-3 mt-4">
-                    <button
-                      onClick={saveAddressConfig}
-                      disabled={isSaving}
-                      className="flex-1 bg-white border border-slate-200 hover:border-slate-300 text-slate-800 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-md transition-all disabled:opacity-50 cursor-pointer text-xs uppercase"
-                    >
-                      {isSaving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-                      Lưu Cấu Hình
-                    </button>
-                    <button
-                      onClick={() => setIsPrintModalOpen(true)}
-                      className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 hover:shadow-xl transition-all cursor-pointer text-xs uppercase"
-                    >
-                      <Printer size={20} />
-                      In Địa Chỉ (6 ô / A4)
-                    </button>
-                  </div>
+                <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-center">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddressGuideOpen(true)}
+                    className="h-[38px] px-3.5 sm:px-4 bg-white hover:bg-[#f8fafc] text-[#0f172a] border border-[#cbd5e1] rounded-[10px] text-[12px] font-extrabold uppercase tracking-wide inline-flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <FileText size={16} className="text-[#0f172a]" strokeWidth={2.2} />
+                    <span>HƯỚNG DẪN</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsPrintModalOpen(true)}
+                    className="h-[38px] px-3.5 sm:px-4 bg-white hover:bg-[#f8fafc] text-[#0f172a] border border-[#cbd5e1] rounded-[10px] text-[12px] font-extrabold uppercase tracking-wide inline-flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Eye size={16} className="text-[#0f172a]" strokeWidth={2.2} />
+                    <span>XEM MẪU IN</span>
+                  </button>
                 </div>
               </div>
+
+              {/* IV. BỐ CỤC CHÍNH HAI CỘT (46% Trái / 54% Phải) */}
+              <div className="p-3 sm:p-5 bg-[#f4f7fb]/65">
+                <div className="grid grid-cols-1 lg:grid-cols-[46fr_54fr] gap-4 xl:gap-5 items-stretch">
+                  {/* V. CỘT TRÁI — 4 NHÓM NHẬP LIỆU MÀU PASTEL */}
+                  <div className="bg-white rounded-[16px] border border-[#e2e8f0] p-3.5 sm:p-4 flex flex-col justify-between gap-3.5 min-w-0">
+                    {/* NHÓM 1: THÔNG TIN SIÊU THỊ (Xanh dương pastel) */}
+                    <div className="rounded-[14px] border border-[#dbeafe] bg-[#f8fbff] overflow-hidden">
+                      <div className="bg-[#eaf3ff] px-3.5 py-2.5 flex items-center gap-2.5 border-b border-[#dbeafe]/80">
+                        <span className="w-7 h-7 rounded-full bg-[#0b63f3] text-white font-extrabold text-[13px] flex items-center justify-center shrink-0">
+                          1
+                        </span>
+                        <Store size={20} className="text-[#0b63f3] shrink-0" strokeWidth={2.2} />
+                        <div className="min-w-0">
+                          <h3 className="text-[13.5px] font-extrabold text-[#0f172a] uppercase leading-tight">
+                            THÔNG TIN SIÊU THỊ
+                          </h3>
+                          <p className="text-[11.5px] text-[#64748b] font-medium leading-tight mt-0.5">
+                            Thông tin hiển thị ở phần đầu của tờ rơi
+                          </p>
+                        </div>
+                      </div>
+                      <div className="p-3.5 space-y-2.5">
+                        <div>
+                          <label className="block text-[12px] font-semibold text-[#334155] mb-1">
+                            Tên siêu thị
+                          </label>
+                          <input
+                            type="text"
+                            value={addressFlyerData.headerTitle}
+                            onChange={e => {
+                              const newHeaderTitle = e.target.value;
+                              setAddressFlyerData(prev => {
+                                const oldAutoFooter = prev.headerTitle
+                                  ? (prev.headerTitle.toUpperCase().includes('CÀ MAU')
+                                      ? prev.headerTitle
+                                      : `${prev.headerTitle} - CÀ MAU`)
+                                  : DEFAULT_ADDRESS_DATA.footerTitle;
+                                const shouldSyncFooter =
+                                  !prev.footerTitle ||
+                                  prev.footerTitle === DEFAULT_ADDRESS_DATA.footerTitle ||
+                                  prev.footerTitle === 'ĐIỆN MÁY XANH PHƯỜNG 8 CÀ MAU' ||
+                                  prev.footerTitle.toUpperCase() === oldAutoFooter.toUpperCase();
+                                return {
+                                  ...prev,
+                                  headerTitle: newHeaderTitle,
+                                  footerTitle: shouldSyncFooter
+                                    ? (newHeaderTitle.trim()
+                                        ? (newHeaderTitle.toUpperCase().includes('CÀ MAU')
+                                            ? newHeaderTitle
+                                            : `${newHeaderTitle} - CÀ MAU`)
+                                        : DEFAULT_ADDRESS_DATA.footerTitle)
+                                    : prev.footerTitle,
+                                };
+                              });
+                            }}
+                            placeholder="ĐIỆN MÁY XANH PHƯỜNG 8"
+                            className="w-full h-[40px] bg-white border border-[#cbd5e1] rounded-[9px] px-3.5 text-[13.5px] font-medium text-[#0f172a] focus:outline-none focus:border-[#0b63f3] focus:ring-2 focus:ring-[#0b63f3]/15 transition-all"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[12px] font-semibold text-[#334155] mb-1">
+                            Địa chỉ / Ghi chú
+                          </label>
+                          <input
+                            type="text"
+                            value={addressFlyerData.headerSubtitle}
+                            onChange={e => setAddressFlyerData({ ...addressFlyerData, headerSubtitle: e.target.value })}
+                            placeholder="(Ngã tư đèn xanh đèn đỏ đường Nguyễn Tất Thành)"
+                            className="w-full h-[40px] bg-white border border-[#cbd5e1] rounded-[9px] px-3.5 text-[13.5px] font-medium text-[#0f172a] focus:outline-none focus:border-[#0b63f3] focus:ring-2 focus:ring-[#0b63f3]/15 transition-all"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* NHÓM 2: THƯ MỜI (Hồng pastel) */}
+                    <div className="rounded-[14px] border border-[#fbcfe8] bg-[#fff9fc] overflow-hidden">
+                      <div className="bg-[#fdebf3] px-3.5 py-2.5 flex items-center gap-2.5 border-b border-[#fbcfe8]/80">
+                        <span className="w-7 h-7 rounded-full bg-[#e61e6e] text-white font-extrabold text-[13px] flex items-center justify-center shrink-0">
+                          2
+                        </span>
+                        <Mail size={20} className="text-[#e61e6e] shrink-0" strokeWidth={2.2} />
+                        <div className="min-w-0">
+                          <h3 className="text-[13.5px] font-extrabold text-[#0f172a] uppercase leading-tight">
+                            THƯ MỜI
+                          </h3>
+                          <p className="text-[11.5px] text-[#64748b] font-medium leading-tight mt-0.5">
+                            Tiêu đề và đối tượng khách mời
+                          </p>
+                        </div>
+                      </div>
+                      <div className="p-3.5 space-y-2.5">
+                        <div>
+                          <label className="block text-[12px] font-semibold text-[#334155] mb-1">
+                            Tiêu đề thư mời
+                          </label>
+                          <input
+                            type="text"
+                            value={addressFlyerData.invitationTitle}
+                            onChange={e => setAddressFlyerData({ ...addressFlyerData, invitationTitle: e.target.value })}
+                            placeholder="THƯ MỜI, THỨ 7 TUẦN NÀY"
+                            className="w-full h-[40px] bg-white border border-[#cbd5e1] rounded-[9px] px-3.5 text-[13.5px] font-medium text-[#0f172a] focus:outline-none focus:border-[#e61e6e] focus:ring-2 focus:ring-[#e61e6e]/15 transition-all"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[12px] font-semibold text-[#334155] mb-1">
+                            Đối tượng kính mời
+                          </label>
+                          <input
+                            type="text"
+                            value={addressFlyerData.invitationTarget}
+                            onChange={e => setAddressFlyerData({ ...addressFlyerData, invitationTarget: e.target.value })}
+                            placeholder="Kính mời: Quý Khách Hàng thân yêu"
+                            className="w-full h-[40px] bg-white border border-[#cbd5e1] rounded-[9px] px-3.5 text-[13.5px] font-medium text-[#0f172a] focus:outline-none focus:border-[#e61e6e] focus:ring-2 focus:ring-[#e61e6e]/15 transition-all"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* NHÓM 3: NỘI DUNG SỰ KIỆN (Xanh lá pastel) */}
+                    <div className="rounded-[14px] border border-[#bbf7d0] bg-[#f7fef9] overflow-hidden">
+                      <div className="bg-[#e6f9ed] px-3.5 py-2.5 flex items-center gap-2.5 border-b border-[#bbf7d0]/80">
+                        <span className="w-7 h-7 rounded-full bg-[#16a34a] text-white font-extrabold text-[13px] flex items-center justify-center shrink-0">
+                          3
+                        </span>
+                        <Calendar size={20} className="text-[#16a34a] shrink-0" strokeWidth={2.2} />
+                        <div className="min-w-0">
+                          <h3 className="text-[13.5px] font-extrabold text-[#0f172a] uppercase leading-tight">
+                            NỘI DUNG SỰ KIỆN
+                          </h3>
+                          <p className="text-[11.5px] text-[#64748b] font-medium leading-tight mt-0.5">
+                            Thời gian, địa điểm và nội dung chương trình
+                          </p>
+                        </div>
+                      </div>
+                      <div className="p-3.5 space-y-2.5">
+                        <div>
+                          <label className="block text-[12px] font-semibold text-[#334155] mb-1">
+                            Thời gian & địa điểm
+                          </label>
+                          <div className="relative flex items-center">
+                            <Calendar size={16} className="absolute left-3 text-[#0b63f3] pointer-events-none" strokeWidth={2.2} />
+                            <input
+                              type="text"
+                              value={addressFlyerData.eventTimeLocation}
+                              onChange={e => setAddressFlyerData({ ...addressFlyerData, eventTimeLocation: e.target.value })}
+                              placeholder="Ngày 28/03 đến ĐMX PHƯỜNG 8"
+                              className="w-full h-[40px] bg-white border border-[#cbd5e1] rounded-[9px] pl-9 pr-3.5 text-[13.5px] font-medium text-[#0f172a] focus:outline-none focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/15 transition-all"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[12px] font-semibold text-[#334155] mb-1">
+                            Mô tả sự kiện
+                          </label>
+                          <input
+                            type="text"
+                            value={addressFlyerData.eventDescription}
+                            onChange={e => setAddressFlyerData({ ...addressFlyerData, eventDescription: e.target.value })}
+                            placeholder="tham gia sự kiện KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN"
+                            className="w-full h-[40px] bg-white border border-[#cbd5e1] rounded-[9px] px-3.5 text-[13.5px] font-medium text-[#0f172a] focus:outline-none focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/15 transition-all"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-0.5">
+                          {/* Mức giảm giá % */}
+                          <div className="bg-[#eef5ff] border border-[#dbeafe] rounded-[11px] p-2 flex items-center gap-2">
+                            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[#0b63f3] font-black text-[22px] shrink-0 select-none">
+                              %
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <label className="block text-[11px] font-semibold text-[#475569] mb-1 leading-none">
+                                Mức giảm giá %
+                              </label>
+                              <input
+                                type="text"
+                                value={addressFlyerData.discountPercentage}
+                                onChange={e => setAddressFlyerData({ ...addressFlyerData, discountPercentage: e.target.value })}
+                                placeholder="50%"
+                                className="w-full h-[36px] bg-white border border-[#cbd5e1] rounded-[8px] px-2.5 text-[15px] font-black text-[#0f172a] focus:outline-none focus:border-[#0b63f3]"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Thời gian áp dụng */}
+                          <div className="bg-[#eef5ff] border border-[#dbeafe] rounded-[11px] p-2 flex items-center gap-2">
+                            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[#0b63f3] shrink-0">
+                              <Clock size={22} strokeWidth={2.2} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <label className="block text-[11px] font-semibold text-[#475569] mb-1 leading-none">
+                                Thời gian áp dụng
+                              </label>
+                              <input
+                                type="text"
+                                value={addressFlyerData.duration}
+                                onChange={e => setAddressFlyerData({ ...addressFlyerData, duration: e.target.value })}
+                                placeholder="1 NGÀY DUY NHẤT 28/03"
+                                className="w-full h-[36px] bg-white border border-[#cbd5e1] rounded-[8px] px-2.5 text-[12.5px] font-bold text-[#0f172a] focus:outline-none focus:border-[#0b63f3]"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* NHÓM 4: DANH MỤC & ƯU ĐÃI (Cam pastel) */}
+                    <div className="rounded-[14px] border border-[#fed7aa] bg-[#fffcf7] overflow-hidden">
+                      <div className="bg-[#fff3e0] px-3.5 py-2.5 flex items-center gap-2.5 border-b border-[#fed7aa]/80">
+                        <span className="w-7 h-7 rounded-full bg-[#f59e0b] text-white font-extrabold text-[13px] flex items-center justify-center shrink-0">
+                          4
+                        </span>
+                        <Tag size={20} className="text-[#f59e0b] shrink-0" strokeWidth={2.2} />
+                        <div className="min-w-0">
+                          <h3 className="text-[13.5px] font-extrabold text-[#0f172a] uppercase leading-tight">
+                            DANH MỤC & ƯU ĐÃI
+                          </h3>
+                          <p className="text-[11.5px] text-[#64748b] font-medium leading-tight mt-0.5">
+                            Chọn các ngành hàng nổi bật để hiển thị
+                          </p>
+                        </div>
+                      </div>
+                      <div className="p-3.5 space-y-2.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+                          {ADDRESS_CATEGORY_OPTIONS.map(cat => {
+                            const isChecked = selectedAddressCategories.includes(cat.value);
+                            return (
+                              <button
+                                key={cat.id}
+                                type="button"
+                                onClick={() => handleToggleAddressCategory(cat.value)}
+                                className={`h-[38px] px-2.5 rounded-[9px] border flex items-center gap-2 text-left transition-all cursor-pointer min-w-0 ${
+                                  isChecked
+                                    ? 'bg-[#f0f6ff] border-[#93c5fd] text-[#0b63f3]'
+                                    : 'bg-white border-[#e2e8f0] text-[#475569] hover:border-[#cbd5e1]'
+                                }`}
+                              >
+                                <span
+                                  className={`w-4 h-4 rounded-[4px] flex items-center justify-center shrink-0 transition-colors ${
+                                    isChecked
+                                      ? 'bg-[#0b63f3] text-white border border-[#0b63f3]'
+                                      : 'bg-white border border-[#cbd5e1]'
+                                  }`}
+                                >
+                                  {isChecked && <Check size={11} strokeWidth={3} />}
+                                </span>
+                                <span className="text-[10.5px] font-extrabold tracking-tight truncate">
+                                  {cat.label}
+                                </span>
+                              </button>
+                            );
+                          })}
+
+                          {/* Checkbox thứ 6: Khác (nhập thêm...) */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextChecked = !isCustomCategoryChecked;
+                              setIsCustomCategoryChecked(nextChecked);
+                              applyCategoriesToAddressData(
+                                selectedAddressCategories,
+                                nextChecked ? customCategoryText : ''
+                              );
+                            }}
+                            className={`h-[38px] px-2.5 rounded-[9px] border flex items-center gap-2 text-left transition-all cursor-pointer min-w-0 ${
+                              isCustomCategoryChecked
+                                ? 'bg-[#f0f6ff] border-[#93c5fd] text-[#0b63f3]'
+                                : 'bg-white border-[#e2e8f0] text-[#475569] hover:border-[#cbd5e1]'
+                            }`}
+                          >
+                            <span
+                              className={`w-4 h-4 rounded-[4px] flex items-center justify-center shrink-0 transition-colors ${
+                                isCustomCategoryChecked
+                                  ? 'bg-[#0b63f3] text-white border border-[#0b63f3]'
+                                  : 'bg-white border border-[#cbd5e1]'
+                              }`}
+                            >
+                              {isCustomCategoryChecked && <Check size={11} strokeWidth={3} />}
+                            </span>
+                            <span className="text-[11px] font-semibold tracking-tight truncate">
+                              Khác (nhập thêm...)
+                            </span>
+                          </button>
+                        </div>
+
+                        {isCustomCategoryChecked && (
+                          <div className="pt-1">
+                            <input
+                              type="text"
+                              value={customCategoryText}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setCustomCategoryText(val);
+                                applyCategoriesToAddressData(selectedAddressCategories, val);
+                              }}
+                              placeholder="Nhập thêm ngành hàng (VD: LOA KÉO - PHỤ KIỆN)..."
+                              className="w-full h-[38px] bg-white border border-[#93c5fd] rounded-[9px] px-3 text-[12.5px] font-medium text-[#0f172a] focus:outline-none focus:border-[#0b63f3]"
+                            />
+                          </div>
+                        )}
+
+                        <div className="pt-0.5">
+                          <button
+                            type="button"
+                            onClick={handleResetAddressContent}
+                            className="h-[36px] px-3.5 bg-white hover:bg-[#f8fafc] text-[#0f172a] border border-[#cbd5e1] rounded-[9px] text-[11.5px] font-extrabold uppercase tracking-wide inline-flex items-center gap-2 transition-colors cursor-pointer"
+                          >
+                            <RefreshCw size={14} className="text-[#0f172a]" strokeWidth={2.3} />
+                            <span>ĐẶT LẠI NỘI DUNG</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* VI. CỘT PHẢI — XEM TRƯỚC BẢN IN TRẮNG ĐEN & NÚT THAO TÁC */}
+                  <div className="bg-white rounded-[16px] border border-[#e2e8f0] p-3.5 sm:p-4 flex flex-col justify-between gap-3.5 min-w-0">
+                    {/* 1. Header khu vực xem trước */}
+                    <div className="bg-[#f8fafc] border border-[#e2e8f0] rounded-[12px] px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-[10px] bg-[#10b981] text-white flex items-center justify-center shrink-0">
+                          <Eye size={20} strokeWidth={2.2} />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-[13.5px] sm:text-[14.5px] font-extrabold text-[#0f172a] uppercase leading-tight">
+                            XEM TRƯỚC MẪU IN (6 Ô / A4)
+                          </h3>
+                          <p className="text-[11.5px] text-[#64748b] font-medium leading-tight mt-0.5">
+                            Đây là bản xem trước 6 ô tờ rơi. Khi in sẽ chia thành 6 ô / A4.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setAddressPreviewMode('1')}
+                          className={`h-[34px] px-3 rounded-[8px] border text-[12px] font-bold inline-flex items-center gap-1.5 transition-all cursor-pointer ${
+                            addressPreviewMode === '1'
+                              ? 'bg-[#1e232a] text-white border-[#1e232a]'
+                              : 'bg-white text-[#334155] border-[#cbd5e1] hover:bg-slate-50'
+                          }`}
+                        >
+                          <span
+                            className={`w-3.5 h-3.5 rounded-[3px] border ${
+                              addressPreviewMode === '1' ? 'border-white' : 'border-[#94a3b8]'
+                            }`}
+                          />
+                          <span>Xem 1 ô</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setAddressPreviewMode('6')}
+                          className={`h-[34px] px-3 rounded-[8px] border text-[12px] font-bold inline-flex items-center gap-1.5 transition-all cursor-pointer ${
+                            addressPreviewMode === '6'
+                              ? 'bg-[#1e232a] text-white border-[#1e232a]'
+                              : 'bg-white text-[#334155] border-[#cbd5e1] hover:bg-slate-50'
+                          }`}
+                        >
+                          <LayoutGrid size={14} />
+                          <span>Xem 6 ô (A4)</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 2. Khung xem trước tờ rơi trắng đen */}
+                    <div
+                      ref={addressPreviewBoxRef}
+                      className="bg-white border border-[#e2e8f0] rounded-[12px] p-2 sm:p-2.5 flex-1 flex flex-col items-center justify-center overflow-hidden min-h-[360px]"
+                    >
+                      {addressPreviewMode === '6' ? (
+                        <div
+                          className="relative overflow-hidden flex items-start justify-center"
+                          style={{
+                            width: `${Math.round(738 * addressGridScale)}px`,
+                            height: `${Math.round(692 * addressGridScale)}px`,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: '738px',
+                              height: '692px',
+                              transform: `scale(${addressGridScale})`,
+                              transformOrigin: 'top left',
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(3, 246px)',
+                              gridTemplateRows: 'repeat(2, 346px)',
+                              backgroundColor: '#ffffff',
+                            }}
+                          >
+                            {Array.from({ length: 6 }).map((_, idx) => {
+                              const colIdx = idx % 3;
+                              const rowIdx = Math.floor(idx / 3);
+                              return (
+                                <div
+                                  key={idx}
+                                  className="relative flex items-center justify-center"
+                                  style={{
+                                    padding: '5px',
+                                    borderRight: colIdx < 2 ? '1px dashed #cbd5e1' : 'none',
+                                    borderBottom: rowIdx === 0 ? '1px dashed #cbd5e1' : 'none',
+                                    boxSizing: 'border-box',
+                                  }}
+                                >
+                                  <AddressFlyerPreview item={addressFlyerData} variant="preview" />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-full flex flex-col items-center justify-center gap-3 py-2">
+                          <div className="flex items-center gap-2 bg-[#f8fafc] border border-[#e2e8f0] rounded-lg px-2.5 py-1 text-xs font-semibold text-[#475569]">
+                            <button
+                              type="button"
+                              onClick={() => setAddressSingleZoom(z => Math.max(0.85, Number((z - 0.15).toFixed(2))))}
+                              className="p-1 hover:bg-white rounded cursor-pointer text-[#0f172a]"
+                              title="Thu nhỏ"
+                            >
+                              <ZoomOut size={15} />
+                            </button>
+                            <span className="min-w-[44px] text-center font-bold text-[#0f172a]">
+                              {Math.round(addressSingleZoom * 100)}%
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setAddressSingleZoom(z => Math.min(1.6, Number((z + 0.15).toFixed(2))))}
+                              className="p-1 hover:bg-white rounded cursor-pointer text-[#0f172a]"
+                              title="Phóng to"
+                            >
+                              <ZoomIn size={15} />
+                            </button>
+                          </div>
+
+                          <div
+                            className="relative overflow-hidden flex items-start justify-center"
+                            style={{
+                              width: `${Math.round(236 * addressSingleZoom)}px`,
+                              height: `${Math.round(334 * addressSingleZoom)}px`,
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: '236px',
+                                height: '334px',
+                                transform: `scale(${addressSingleZoom})`,
+                                transformOrigin: 'top left',
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                              }}
+                            >
+                              <AddressFlyerPreview item={addressFlyerData} variant="preview" />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* IX. HAI NÚT THAO TÁC PHÍA DƯỚI */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <button
+                        type="button"
+                        onClick={saveAddressConfig}
+                        disabled={isSaving}
+                        className="h-[54px] bg-white hover:bg-[#f0f6ff] text-[#1e3a8a] border-[1.5px] border-[#93c5fd] hover:border-[#3b82f6] rounded-[10px] font-extrabold text-[13.5px] uppercase tracking-wide flex items-center justify-center gap-2.5 transition-all disabled:opacity-50 cursor-pointer"
+                      >
+                        {isSaving ? (
+                          <Loader2 className="animate-spin text-[#0b63f3]" size={20} />
+                        ) : (
+                          <Save size={20} className="text-[#0b63f3]" strokeWidth={2.2} />
+                        )}
+                        <span>LƯU CẤU HÌNH</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleDirectPrintAddressFlyer}
+                        className="h-[54px] bg-[#1e232a] hover:bg-[#0f172a] text-white border border-[#1e232a] rounded-[10px] font-extrabold text-[13.5px] uppercase tracking-wide flex items-center justify-center gap-2.5 transition-all cursor-pointer"
+                      >
+                        <Printer size={20} className="text-white" strokeWidth={2.2} />
+                        <span>IN ĐỊA CHỈ (6 Ô / A4)</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Hướng dẫn sử dụng In Địa Chỉ */}
+              {isAddressGuideOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 print:hidden">
+                  <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-xl overflow-hidden">
+                    <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-[#f8fafc]">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-[#10b981] text-white flex items-center justify-center">
+                          <FileText size={18} />
+                        </div>
+                        <h3 className="font-extrabold text-[#0f172a] text-sm uppercase">
+                          Hướng dẫn tạo & in tờ rơi địa chỉ (6 ô / A4)
+                        </h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddressGuideOpen(false)}
+                        className="w-8 h-8 rounded-lg hover:bg-slate-200/60 flex items-center justify-center text-slate-600 cursor-pointer"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                    <div className="p-5 space-y-3 text-[13px] text-slate-700 leading-relaxed">
+                      <p>
+                        <strong>1. Nhập thông tin tờ rơi:</strong> Điền tên siêu thị, địa chỉ, tiêu đề thư mời, thời gian sự kiện, mức giảm giá % và chọn các ngành hàng hiển thị ở cột bên trái.
+                      </p>
+                      <p>
+                        <strong>2. Kiểm tra bản xem trước:</strong> Cột bên phải hiển thị trực tiếp bản in trắng đen (chế độ <strong>Xem 6 ô (A4)</strong> hoặc <strong>Xem 1 ô</strong>).
+                      </p>
+                      <p>
+                        <strong>3. Lưu cấu hình:</strong> Nhấn <strong>LƯU CẤU HÌNH</strong> để lưu lại nội dung cho siêu thị hiện tại và tự động khôi phục khi tải lại trang.
+                      </p>
+                      <p>
+                        <strong>4. In tờ rơi chuẩn A4:</strong> Nhấn <strong>IN ĐỊA CHỈ (6 Ô / A4)</strong> để mở hộp thoại in chuẩn 1 trang A4 dọc (3 cột × 2 hàng = 6 ô trắng đen sắc nét), hoặc nhấn <strong>XEM MẪU IN</strong> để xuất PDF/Ảnh.
+                      </p>
+                    </div>
+                    <div className="px-5 py-3 bg-[#f8fafc] border-t border-slate-200 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setIsAddressGuideOpen(false)}
+                        className="px-4 py-2 bg-[#1e232a] text-white text-xs font-bold uppercase rounded-lg cursor-pointer"
+                      >
+                        Đã hiểu
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* X & XI. BẢN IN TRẮNG ĐEN ĐỘC LẬP KHI NHẤN IN TRỰC TIẾP (6 Ô / 1 TRANG A4 DỌC) */}
+              {!isPrintModalOpen &&
+                typeof document !== 'undefined' &&
+                createPortal(
+                  <div className="address-flyer-print-portal hidden print:block">
+                    <style type="text/css" media="print">{`
+                      @page {
+                        size: A4 portrait;
+                        margin: 0;
+                      }
+                      html, body {
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        width: 210mm !important;
+                        height: 296mm !important;
+                        max-height: 296mm !important;
+                        overflow: hidden !important;
+                        background: #ffffff !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                      }
+                      body > *:not(.address-flyer-print-portal) {
+                        display: none !important;
+                      }
+                      #root {
+                        display: none !important;
+                      }
+                      .address-flyer-print-portal {
+                        display: block !important;
+                        position: static !important;
+                        width: 210mm !important;
+                        height: 296mm !important;
+                        max-height: 296mm !important;
+                        margin: 0 auto !important;
+                        padding: 5mm 4.5mm !important;
+                        box-sizing: border-box !important;
+                        background: #ffffff !important;
+                        overflow: hidden !important;
+                        page-break-after: avoid !important;
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
+                      }
+                      .address-flyer-print-grid {
+                        width: 100% !important;
+                        height: 100% !important;
+                        display: grid !important;
+                        grid-template-columns: repeat(3, 1fr) !important;
+                        grid-template-rows: repeat(2, 1fr) !important;
+                        column-gap: 1.5mm !important;
+                        row-gap: 2mm !important;
+                        align-items: center !important;
+                        justify-items: center !important;
+                        background: #ffffff !important;
+                      }
+                    `}</style>
+                    <div className="address-flyer-print-grid">
+                      {Array.from({ length: 6 }).map((_, index) => (
+                        <div
+                          key={index}
+                          style={{
+                            width: '66mm',
+                            height: '142mm',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            overflow: 'hidden',
+                            backgroundColor: '#ffffff',
+                          }}
+                        >
+                          <AddressFlyerPreview item={addressFlyerData} variant="print" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>,
+                  document.body
+                )}
             </motion.div>
           )}
 

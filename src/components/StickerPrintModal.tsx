@@ -967,12 +967,12 @@ export default function StickerPrintModal({
                         position: 'absolute',
                         top: 0,
                         left: 0,
-                        padding: (config.style === 'address_flyer' || config.style === 'dcnb') ? '5mm' : ((isA5 || isA4Giasoc || isDisplayA4 || config.style === 'popup_all_sp' || config.style === 'sticker_ce' || config.style === 'sticker_lk' || isA4Ngang) ? '0' : '2mm'),
+                        padding: config.style === 'address_flyer' ? '5mm 4.5mm' : (config.style === 'dcnb' ? '5mm' : ((isA5 || isA4Giasoc || isDisplayA4 || config.style === 'popup_all_sp' || config.style === 'sticker_ce' || config.style === 'sticker_lk' || isA4Ngang) ? '0' : '2mm')),
                         gridTemplateColumns: `repeat(${layoutStyles.cols}, 1fr)`,
                         gridTemplateRows: `repeat(${layoutStyles.rows}, 1fr)`,
                         margin: 0,
                         boxSizing: 'border-box',
-                        gap: config.style === 'dcnb' ? '1mm' : '0'
+                        gap: config.style === 'address_flyer' ? '2mm 1.5mm' : (config.style === 'dcnb' ? '1mm' : '0')
                       }}
                     >
                       {page.map((item, index) => (
@@ -1249,129 +1249,274 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
   }
 
   if (style === 'address_flyer') {
-    const renderTimeLocation = (text: string) => {
-      if (!text) return '';
-      const dateRegex = /(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/g;
-      const parts = text.split(dateRegex);
-      return parts.map((part, idx) => {
-        if (dateRegex.test(part)) {
-          return <span key={idx} className="font-black" style={{ fontSize: '17px', color: 'black', margin: '0 2px', display: 'inline-block' }}>{part}</span>;
-        }
-        return <span key={idx}>{part}</span>;
-      });
-    };
+    const rawHeader = (item.headerTitle || 'ĐIỆN MÁY XANH PHƯỜNG 8').trim();
+    const dmxPrefixMatch = rawHeader.match(/^(ĐIỆN\s+MÁY\s+XANH)\s+(.+)$/i);
 
-    const renderDuration = (text: string) => {
-      if (!text) return '';
-      const match = text.match(/^(.*?)\s+((?:\d{1,2}[-–—/])*\d{1,2}(?:\/\d{2,4})?)$/i);
-      if (match) {
-        return (
-          <div className="flex flex-col items-center leading-none my-0.5">
-            <span className="font-black tracking-wide uppercase leading-none" style={{ fontSize: '11.5px' }}>{match[1]}</span>
-            <span className="font-black tracking-tight leading-none mt-0.5" style={{ fontSize: '19px', color: 'black' }}>{match[2]}</span>
-          </div>
-        );
-      }
-      return <span className="font-black tracking-wide uppercase" style={{ fontSize: '12px' }}>{text}</span>;
-    };
+    const rawEventDesc = (item.eventDescription || 'tham gia sự kiện KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN').trim();
+    const isDefaultEventDesc = rawEventDesc.toUpperCase() === 'THAM GIA SỰ KIỆN KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN';
+
+    const baseHeader = (item.headerTitle || 'ĐIỆN MÁY XANH PHƯỜNG 8').trim();
+    const footerDisplayTitle =
+      item.footerTitle &&
+      item.footerTitle !== 'ĐIỆN MÁY XANH PHƯỜNG 8 CÀ MAU' &&
+      item.footerTitle !== 'ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU'
+        ? item.footerTitle
+        : baseHeader.toUpperCase().includes('CÀ MAU')
+          ? baseHeader
+          : `${baseHeader} - CÀ MAU`;
 
     return (
-      <div 
-        className="w-[66mm] h-[142mm] bg-white flex flex-col justify-between p-2.5 box-border text-black select-none overflow-hidden"
+      <div
+        className="w-[66mm] h-[142mm] bg-white flex flex-col justify-between box-border text-black select-none overflow-hidden"
         style={{
           width: '66mm',
           height: '142mm',
-          border: '1.5px solid black',
-          fontFamily: '"Oswald", sans-serif'
+          padding: '10px 9px',
+          border: '1.5px solid #000000',
+          borderRadius: '3px',
+          backgroundColor: '#ffffff',
+          color: '#000000',
+          fontFamily: "'Inter', 'UTM Avo', Arial, sans-serif",
+          boxShadow: 'none',
         }}
       >
-        {/* Header */}
+        {/* 1 & 2. Tên siêu thị & Địa chỉ / Ghi chú */}
         <div className="text-center shrink-0">
-          <div className="font-black tracking-wide leading-tight uppercase" style={{ fontSize: '18px' }}>
-            {item.headerTitle || 'ĐIỆN MÁY XANH PHƯỜNG 8'}
+          <div
+            style={{
+              fontWeight: 900,
+              fontSize: '19.5px',
+              lineHeight: 1.08,
+              letterSpacing: '-0.02em',
+              textTransform: 'uppercase',
+              color: '#000000',
+            }}
+          >
+            {dmxPrefixMatch ? (
+              <>
+                <div>{dmxPrefixMatch[1].toUpperCase()}</div>
+                <div>{dmxPrefixMatch[2].toUpperCase()}</div>
+              </>
+            ) : (
+              rawHeader
+            )}
           </div>
-          <div className="font-medium tracking-tight leading-tight text-slate-800" style={{ fontSize: '11.5px' }}>
+          <div
+            style={{
+              fontWeight: 600,
+              fontSize: '10px',
+              lineHeight: 1.18,
+              marginTop: '3px',
+              color: '#000000',
+            }}
+          >
             {item.headerSubtitle || '(Ngã tư đèn xanh đèn đỏ đường Nguyễn Tất Thành)'}
           </div>
         </div>
 
-        {/* Divider */}
-        <div className="bg-black w-full my-0.5 shrink-0" style={{ height: '1.5px' }}></div>
+        {/* Đường phân cách */}
+        <div
+          className="w-full shrink-0"
+          style={{
+            height: '1px',
+            backgroundColor: '#000000',
+            margin: '4px 0',
+          }}
+        />
 
-        {/* Middle Content */}
-        <div className="flex-1 flex flex-col justify-between py-0.5 min-h-0 text-center">
-          {/* Invitation Title */}
-          <div className="flex flex-col items-center justify-center shrink-0">
-            <div className="font-black tracking-tight uppercase leading-tight" style={{ fontSize: '17px' }}>
-              {item.invitationTitle || 'THƯ MỜI, THỨ 7 TUẦN NÀY'}
-            </div>
-            {/* Ornament */}
-            <div className="leading-none text-slate-700 my-0.5" style={{ fontSize: '7px' }}>⚭ ⚭ ⚭</div>
-            <div className="font-bold text-slate-800 leading-none" style={{ fontSize: '11.5px' }}>
-              {item.invitationTarget || 'Kính mời: Quý Khách Hàng thân yêu'}
-            </div>
+        {/* 3 & 4. Tiêu đề thư mời & Đối tượng khách mời */}
+        <div className="text-center shrink-0">
+          <div
+            style={{
+              fontWeight: 900,
+              fontSize: '15.5px',
+              lineHeight: 1.12,
+              letterSpacing: '-0.02em',
+              textTransform: 'uppercase',
+              color: '#000000',
+            }}
+          >
+            {item.invitationTitle || 'THƯ MỜI, THỨ 7 TUẦN NÀY'}
           </div>
-
-          {/* Time & Location */}
-          <div className="font-bold tracking-tight uppercase leading-tight shrink-0" style={{ fontSize: '11.5px' }}>
-            <div>{renderTimeLocation(item.eventTimeLocation || 'Ngày 28/03 đến ĐMX PHƯỜNG 8')}</div>
-            <div className="text-black font-black my-0.5 uppercase tracking-wide" style={{ fontSize: '13.5px' }}>
-              {item.eventDescription || 'tham gia sự kiện KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN'}
-            </div>
-          </div>
-
-          {/* Huge Discount */}
-          <div className="font-black text-black leading-none tracking-tighter shrink-0 my-0.5" style={{ fontSize: '54px' }}>
-            {item.discountPercentage || '50%'}
-          </div>
-
-          {/* Duration */}
-          <div className="shrink-0 leading-none">
-            {renderDuration(item.duration || '1 NGÀY DUY NHẤT 28/03')}
-          </div>
-
-          {/* Categories */}
-          <div className="font-bold tracking-wide uppercase leading-tight text-slate-900 shrink-0 my-0.5" style={{ fontSize: '9.5px' }}>
-            {item.categoriesLine1 && <div>{item.categoriesLine1}</div>}
-            {item.categoriesLine2 && <div>{item.categoriesLine2}</div>}
-            {item.categoriesLine3 && <div>{item.categoriesLine3}</div>}
-          </div>
-
-          {/* Special Offer & Payment Term */}
-          <div className="flex flex-col items-center justify-center shrink-0 mt-0.5 pt-0.5">
-            {item.specialOffer && (
-              <div className="font-black text-black leading-tight uppercase tracking-tight" style={{ fontSize: '11.5px' }}>
-                {item.specialOffer}
-              </div>
-            )}
-            {item.paymentTerm && (
-              <div className="font-black text-slate-800 leading-none uppercase mt-0.5" style={{ fontSize: '9.5px' }}>
-                {item.paymentTerm}
-              </div>
-            )}
+          <div
+            style={{
+              fontWeight: 700,
+              fontSize: '11px',
+              lineHeight: 1.18,
+              marginTop: '3px',
+              color: '#000000',
+            }}
+          >
+            {item.invitationTarget || 'Kính mời: Quý Khách Hàng thân yêu'}
           </div>
         </div>
 
-        {/* Divider */}
-        <div className="bg-black w-full my-0.5 shrink-0" style={{ height: '1.5px' }}></div>
+        {/* 5. Thời gian & địa điểm sự kiện (Thanh nền đen chữ trắng) */}
+        <div className="w-full flex justify-center shrink-0">
+          <div
+            style={{
+              backgroundColor: '#000000',
+              color: '#ffffff',
+              borderRadius: '4px',
+              padding: '4px 8px',
+              width: '98%',
+              textAlign: 'center',
+              fontWeight: 800,
+              fontSize: '11px',
+              lineHeight: 1.15,
+              letterSpacing: '-0.01em',
+              textTransform: 'uppercase',
+            }}
+          >
+            {item.eventTimeLocation || 'Ngày 28/03 đến ĐMX PHƯỜNG 8'}
+          </div>
+        </div>
 
-        {/* Footer */}
-        <div className="text-center shrink-0">
-          <div className="font-black tracking-wide leading-tight uppercase" style={{ fontSize: '11.5px' }}>
-            {item.footerTitle || 'ĐIỆN MÁY XANH PHƯỜNG 8 CÀ MAU'}
+        {/* 6. Nội dung sự kiện */}
+        <div
+          className="text-center shrink-0"
+          style={{
+            fontWeight: 900,
+            fontSize: '13px',
+            lineHeight: 1.15,
+            letterSpacing: '-0.01em',
+            textTransform: 'uppercase',
+            color: '#000000',
+          }}
+        >
+          {isDefaultEventDesc ? (
+            <>
+              <div>THAM GIA SỰ KIỆN KHAI</div>
+              <div>TRƯƠNG SIÊU GIẢM GIÁ ĐẾN</div>
+            </>
+          ) : (
+            rawEventDesc
+          )}
+        </div>
+
+        {/* 7. Mức giảm giá nổi bật + tia nhấn đen */}
+        <div className="flex items-center justify-center shrink-0" style={{ gap: '6px' }}>
+          <svg
+            width="18"
+            height="42"
+            viewBox="0 0 14 32"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="shrink-0"
+          >
+            <line x1="12" y1="7" x2="3" y2="2.5" stroke="#000000" strokeWidth="2.5" strokeLinecap="round" />
+            <line x1="11" y1="16" x2="1.5" y2="16" stroke="#000000" strokeWidth="2.5" strokeLinecap="round" />
+            <line x1="12" y1="25" x2="3" y2="29.5" stroke="#000000" strokeWidth="2.5" strokeLinecap="round" />
+          </svg>
+          <div
+            style={{
+              fontWeight: 900,
+              fontSize: '58px',
+              lineHeight: 0.9,
+              letterSpacing: '-0.03em',
+              color: '#000000',
+              textAlign: 'center',
+            }}
+          >
+            {item.discountPercentage || '50%'}
           </div>
-          <div className="font-bold tracking-tight leading-tight uppercase mt-0.5" style={{ fontSize: '9px' }}>
-            {item.footerLine1 || 'CAM KẾT GIÁ RẺ NHẤT THỊ TRƯỜNG CÀ MAU'}
+          <svg
+            width="18"
+            height="42"
+            viewBox="0 0 14 32"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="shrink-0"
+          >
+            <line x1="2" y1="7" x2="11" y2="2.5" stroke="#000000" strokeWidth="2.5" strokeLinecap="round" />
+            <line x1="3" y1="16" x2="12.5" y2="16" stroke="#000000" strokeWidth="2.5" strokeLinecap="round" />
+            <line x1="2" y1="25" x2="11" y2="29.5" stroke="#000000" strokeWidth="2.5" strokeLinecap="round" />
+          </svg>
+        </div>
+
+        {/* 8. Thời gian áp dụng (Thanh nền đen chữ trắng) */}
+        <div className="w-full flex justify-center shrink-0">
+          <div
+            style={{
+              backgroundColor: '#000000',
+              color: '#ffffff',
+              borderRadius: '4px',
+              padding: '4px 10px',
+              minWidth: '86%',
+              textAlign: 'center',
+              fontWeight: 800,
+              fontSize: '11.2px',
+              lineHeight: 1.15,
+              letterSpacing: '0.01em',
+              textTransform: 'uppercase',
+            }}
+          >
+            {item.duration || '1 NGÀY DUY NHẤT 28/03'}
           </div>
-          <div className="font-bold tracking-tight leading-tight uppercase" style={{ fontSize: '9px' }}>
-            {item.footerLine2 || 'BAO GIÁ HOÀN TIỀN NẾU ĐÂU RẺ HƠN'}
+        </div>
+
+        {/* 9. Danh mục sản phẩm */}
+        <div
+          className="text-center shrink-0"
+          style={{
+            fontWeight: 800,
+            fontSize: '9.6px',
+            lineHeight: 1.28,
+            letterSpacing: '-0.01em',
+            textTransform: 'uppercase',
+            color: '#000000',
+          }}
+        >
+          {item.categoriesLine1 && <div>{item.categoriesLine1}</div>}
+          {item.categoriesLine2 && <div>{item.categoriesLine2}</div>}
+          {item.categoriesLine3 && <div>{item.categoriesLine3}</div>}
+        </div>
+
+        {/* 10. Thông tin cuối tờ rơi (Khung viền đen bo góc) */}
+        <div
+          className="w-full text-center shrink-0 box-border"
+          style={{
+            border: '1.5px solid #000000',
+            borderRadius: '5px',
+            padding: '5px 4px',
+            backgroundColor: '#ffffff',
+            color: '#000000',
+          }}
+        >
+          <div
+            style={{
+              fontWeight: 900,
+              fontSize: '10.4px',
+              lineHeight: 1.18,
+              letterSpacing: '-0.01em',
+              textTransform: 'uppercase',
+              color: '#000000',
+            }}
+          >
+            {footerDisplayTitle}
           </div>
-          <div className="font-bold tracking-tight leading-tight uppercase flex items-center justify-center gap-0.5" style={{ fontSize: '9px' }}>
-            <span>{item.footerLine3 || 'NHIỀU SẢN PHẨM GIÁ SỐC BÊN DƯỚI'}</span>
-            <span>⬇</span>
+          <div
+            style={{
+              fontWeight: 700,
+              fontSize: '8.8px',
+              lineHeight: 1.22,
+              marginTop: '1px',
+              textTransform: 'uppercase',
+              color: '#000000',
+            }}
+          >
+            {item.footerLine1 || 'CAM KẾT GIÁ RẺ - HÀNG CHÍNH HÃNG'}
           </div>
-          <div className="font-medium tracking-tight leading-tight text-slate-800 italic mt-0.5" style={{ fontSize: '8.5px' }}>
-            {item.footerLine4 || 'Được giảm thêm 10%'}
+          <div
+            style={{
+              fontWeight: 700,
+              fontSize: '8.8px',
+              lineHeight: 1.22,
+              textTransform: 'uppercase',
+              color: '#000000',
+            }}
+          >
+            {item.footerLine2 || 'GIAO HÀNG NHANH - HỖ TRỢ TẬN NHÀ'}
           </div>
         </div>
       </div>
