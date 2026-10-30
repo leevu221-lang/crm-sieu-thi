@@ -5,6 +5,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { SUPER_ADMIN_ALL_PAGES, isSuperAdmin43751 } from '../firebaseAdapter';
 import { useAuth } from '../contexts/AuthContext';
 import { UserProfile } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -94,24 +95,45 @@ export default function UserManagement({ onBack }: UserManagementProps) {
         }
         seenUsernames.add(key);
 
+        const isSuper43751 = isSuperAdmin43751(cleanUsername);
+
+        // Self-heal in DB if SuperAdmin 43751 ever has non-active status
+        if (isSuper43751 && u.status !== 'active') {
+          supabase
+            .from('ql_nguoi_dung')
+            .update({
+              status: 'active',
+              paymentConfirmed: true,
+              isDemo: true,
+              packageDays: 9999,
+              expiredAt: '2099-12-31T23:59:59.000Z',
+              requestedRenewPackage: null,
+              requestedAt: null,
+              role: 'admin'
+            })
+            .eq('username', '43751')
+            .then(() => {})
+            .catch(() => {});
+        }
+
         mappedUsers.push({
           username: cleanUsername,
           ma_kho: u.storeCode,
           password: u.password,
-          role: (cleanUsername === '43751' || cleanUsername === 'ADMIN') ? 'admin' : ('user' as any),
+          role: (isSuper43751 || cleanUsername === 'ADMIN') ? 'admin' : ('user' as any),
           userPermissions: {
-            canEditUser: cleanUsername === '43751',
-            allowedPages: permMap.get(cleanUsername) || []
+            canEditUser: isSuper43751,
+            allowedPages: isSuper43751 ? SUPER_ADMIN_ALL_PAGES : (permMap.get(cleanUsername) || [])
           },
           permissions: ['lkst', 'rtst', 'sknv', 'updata'] as any,
-          expiredAt: u.expiredAt,
-          status: u.status,
-          packageDays: u.packageDays,
-          paymentConfirmed: u.paymentConfirmed,
-          requestedRenewPackage: u.requestedRenewPackage,
-          requestedAt: u.requestedAt,
+          expiredAt: isSuper43751 ? '2099-12-31T23:59:59.000Z' : u.expiredAt,
+          status: isSuper43751 ? 'active' : u.status,
+          packageDays: isSuper43751 ? 9999 : u.packageDays,
+          paymentConfirmed: isSuper43751 ? true : u.paymentConfirmed,
+          requestedRenewPackage: isSuper43751 ? null : u.requestedRenewPackage,
+          requestedAt: isSuper43751 ? null : u.requestedAt,
           phone: u.phone,
-          isDemo: u.isDemo
+          isDemo: isSuper43751 ? true : u.isDemo
         });
       });
 
@@ -158,15 +180,16 @@ export default function UserManagement({ onBack }: UserManagementProps) {
 
     try {
       if (!isNewUser) {
+        const isEditingSuper43751 = isSuperAdmin43751(isEditing.username);
         // Update existing user
         const updateData: any = {
           storeCode: isEditing.ma_kho,
-          status: isEditing.status || 'inactive',
-          paymentConfirmed: isEditing.paymentConfirmed ?? false,
-          expiredAt: isEditing.expiredAt || null,
-          packageDays: isEditing.packageDays || null,
+          status: isEditingSuper43751 ? 'active' : (isEditing.status || 'active'),
+          paymentConfirmed: isEditingSuper43751 ? true : (isEditing.paymentConfirmed ?? true),
+          expiredAt: isEditingSuper43751 ? '2099-12-31T23:59:59.000Z' : (isEditing.expiredAt || '2099-12-31T23:59:59.000Z'),
+          packageDays: isEditingSuper43751 ? 9999 : (isEditing.packageDays || 9999),
           phone: isEditing.phone || null,
-          isDemo: isEditing.isDemo ?? false
+          isDemo: isEditingSuper43751 ? true : (isEditing.isDemo ?? true)
         };
         
         if (isEditing.password && isEditing.password.trim() !== '') {
@@ -179,6 +202,10 @@ export default function UserManagement({ onBack }: UserManagementProps) {
           updateData.requestedAt = null;
         }
 
+        const effectiveAllowedPages = isEditingSuper43751
+          ? SUPER_ADMIN_ALL_PAGES
+          : (isEditing.userPermissions?.allowedPages || []);
+
         const [updateRes, permRes] = await Promise.all([
           supabase
             .from('ql_nguoi_dung')
@@ -188,7 +215,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
             .from('user_permissions')
             .upsert({ 
               user_id: isEditing.username, 
-              allowed_pages: isEditing.userPermissions?.allowedPages || [] 
+              allowed_pages: effectiveAllowedPages 
             }, { onConflict: 'user_id' })
         ]);
 
@@ -202,13 +229,20 @@ export default function UserManagement({ onBack }: UserManagementProps) {
             storeCode: isEditing.ma_kho,
             action: 'EDIT_PACKAGE',
             packageDays: isEditing.packageDays,
-            status: isEditing.status,
+            status: updateData.status,
             created_at: new Date().toISOString()
           });
         }
         
         const updatedUser = {
           ...isEditing,
+          status: updateData.status,
+          paymentConfirmed: updateData.paymentConfirmed,
+          isDemo: updateData.isDemo,
+          userPermissions: {
+            canEditUser: isEditingSuper43751 ? true : (isEditing.userPermissions?.canEditUser ?? false),
+            allowedPages: effectiveAllowedPages
+          },
           password: (isEditing.password && isEditing.password.trim() !== '')
             ? isEditing.password
             : (users.find(u => u.username === isEditing.username)?.password || '')
@@ -286,6 +320,11 @@ export default function UserManagement({ onBack }: UserManagementProps) {
   };
 
   const handleDelete = async (username: string) => {
+    if (isSuperAdmin43751(username)) {
+      setError('Tài khoản SuperAdmin 43751 được bảo vệ và không thể xoá.');
+      setDeleteConfirm(null);
+      return;
+    }
     try {
       await supabase
         .from('user_permissions')
@@ -349,11 +388,13 @@ export default function UserManagement({ onBack }: UserManagementProps) {
         return;
       }
 
-      const updates = dbUsers.map(u => ({
-        username: u.username,
-        storeCode: u.storeCode,
-        password: u.username
-      }));
+      const updates = dbUsers
+        .filter(u => !isSuperAdmin43751(u.username))
+        .map(u => ({
+          username: u.username,
+          storeCode: u.storeCode,
+          password: u.username
+        }));
 
       const { error: updateErr } = await supabase
         .from('ql_nguoi_dung')
@@ -585,27 +626,36 @@ export default function UserManagement({ onBack }: UserManagementProps) {
         const username = String(item.username || '').trim();
         if (!username) continue;
 
+        const isSuper43751 = isSuperAdmin43751(username);
         const parsedSub = parseCuocPhi(item.cuocPhi);
 
-        const allowedPages = String(item.allowedPages || '')
-          .split(',')
-          .map(s => s.trim())
-          .filter(Boolean);
+        const allowedPages = isSuper43751
+          ? SUPER_ADMIN_ALL_PAGES
+          : String(item.allowedPages || '')
+              .split(',')
+              .map(s => s.trim())
+              .filter(Boolean);
+
+        const userPayload: any = {
+          username: username,
+          storeCode: String(item.storeCode || '').trim(),
+          status: isSuper43751 ? 'active' : parsedSub.status,
+          paymentConfirmed: isSuper43751 ? true : parsedSub.paymentConfirmed,
+          expiredAt: isSuper43751 ? '2099-12-31T23:59:59.000Z' : parsedSub.expiredAt,
+          packageDays: isSuper43751 ? 9999 : parsedSub.packageDays,
+          isDemo: isSuper43751 ? true : parsedSub.isDemo,
+          updated_at: new Date().toISOString()
+        };
+
+        const rawPwd = String(item.password || '').trim();
+        if (!isSuper43751 || (rawPwd && rawPwd !== '---')) {
+          userPayload.password = rawPwd || '---';
+        }
 
         // Update ql_nguoi_dung
         const { error: userError } = await supabase
           .from('ql_nguoi_dung')
-          .upsert({
-            username: username,
-            storeCode: String(item.storeCode || '').trim(),
-            password: String(item.password || '---').trim(),
-            status: parsedSub.status,
-            paymentConfirmed: parsedSub.paymentConfirmed,
-            expiredAt: parsedSub.expiredAt,
-            packageDays: parsedSub.packageDays,
-            isDemo: parsedSub.isDemo,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'username' });
+          .upsert(userPayload, { onConflict: 'username' });
 
         if (userError) {
           console.error(`Lỗi cập nhật người dùng ${username}:`, userError);

@@ -1789,9 +1789,10 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
         .eq('status', 'pending');
       
       if (!usersError && usersData) {
+        const filteredPending = (usersData || []).filter((u: any) => String(u.username || '').trim() !== '43751');
         // Batch-fetch all warehouse names in one query instead of one query per pending
         // user (N+1) — cheap when there are 0-2 pending users, wasteful once there are many.
-        const storeCodes = Array.from(new Set(usersData.map((u: any) => u.storeCode).filter(Boolean)));
+        const storeCodes = Array.from(new Set(filteredPending.map((u: any) => u.storeCode).filter(Boolean)));
         const whMap = new Map<string, string>();
         if (storeCodes.length > 0) {
           const { data: whList } = await supabase
@@ -1800,7 +1801,7 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
             .in('ma_kho', storeCodes);
           (whList || []).forEach((wh: any) => whMap.set(wh.ma_kho, wh.ten_kho));
         }
-        const usersWithWarehouse = usersData.map((u: any) => ({
+        const usersWithWarehouse = filteredPending.map((u: any) => ({
           username: u.username,
           storeCode: u.storeCode,
           password: u.password,
@@ -1912,6 +1913,10 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
   };
 
   const handleRejectUser = async (username: string) => {
+    if (String(username || '').trim() === '43751') {
+      showNotification('Không thể khóa hoặc từ chối tài khoản SuperAdmin 43751!', 'error');
+      return;
+    }
     try {
       const { error } = await supabase
         .from('ql_nguoi_dung')

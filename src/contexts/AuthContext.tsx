@@ -3,11 +3,32 @@ import { supabase } from '../supabaseClient';
 import { UserProfile } from '../types';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { SUPER_ADMIN_ALL_PAGES, isSuperAdmin43751 } from '../firebaseAdapter';
 import { trackUserPing } from '../services/accessTracker';
 import { localYcxDb, isValidStoreName, normalizeStoreId } from '../pages/RTST/utils';
 import { syncConfiguredStoreDocument, getConfiguredStoresFromBoss, cleanStoreInput } from '../services/storeSync';
 import { URL_PAGE_MAP, isGuestShareLink } from '../constants/routes';
 import { clearAllGlobalCaches } from '../services/globalCacheRegistry';
+
+function enforceSuperAdminProfile(profile: UserProfile | null): UserProfile | null {
+  if (!profile) return null;
+  if (!isSuperAdmin43751(profile.username)) return profile;
+  return {
+    ...profile,
+    role: 'admin',
+    status: 'active',
+    paymentConfirmed: true,
+    isDemo: true,
+    packageDays: 9999,
+    expiredAt: '2099-12-31T23:59:59.000Z',
+    requestedRenewPackage: undefined,
+    requestedAt: undefined,
+    userPermissions: {
+      canEditUser: true,
+      allowedPages: SUPER_ADMIN_ALL_PAGES
+    }
+  };
+}
 
 interface AuthContextType {
   userProfile: UserProfile | null;
@@ -36,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (isShare) return null;
       const stored = localStorage.getItem('userProfile');
       if (stored) {
-        const parsed = JSON.parse(stored);
+        const parsed = enforceSuperAdminProfile(JSON.parse(stored));
         if (parsed && parsed.role !== 'guest' && parsed.ma_kho) {
           return parsed;
         }
@@ -63,6 +84,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ]);
 
       if (!userData) {
+        if (isSuperAdmin43751(userProfile.username)) {
+          console.warn('SuperAdmin 43751 session preserved.');
+          return;
+        }
         console.warn(`User ${userProfile.username} has been deleted or not found. Logging out.`);
         logout();
         return;
@@ -71,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (permData || userData) {
         setUserProfile(prev => {
           if (!prev) return null;
-          const updated = {
+          const updated = enforceSuperAdminProfile({
             ...prev,
             ma_kho: userData.storeCode || prev.ma_kho,
             ten_sieu_thi: userData.ten_sieu_thi || prev.ten_sieu_thi,
@@ -87,8 +112,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               ...prev.userPermissions,
               allowedPages: permData?.allowed_pages || prev.userPermissions?.allowedPages || []
             }
-          };
-          localStorage.setItem('userProfile', JSON.stringify(updated));
+          });
+          if (updated) {
+            localStorage.setItem('userProfile', JSON.stringify(updated));
+          }
           return updated;
         });
       }
@@ -157,15 +184,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 2. Với phiên làm việc đã đăng nhập:
     if (storedUser) {
       try {
-        const parsed = JSON.parse(storedUser);
+        const parsed = enforceSuperAdminProfile(JSON.parse(storedUser));
         // Nếu storedUser trước đó bị dính role guest mà hiện tại không có link share thì xóa đi để bắt đăng nhập
-        if (parsed.role === 'guest' && !isShare) {
+        if (parsed && parsed.role === 'guest' && !isShare) {
           localStorage.removeItem('userProfile');
           setUserProfile(null);
-        } else {
+        } else if (parsed) {
           if (parsed.ma_kho && parsed.role !== 'guest') {
             localStorage.setItem('rtst_ma_kho', parsed.ma_kho);
           }
+          localStorage.setItem('userProfile', JSON.stringify(parsed));
           setUserProfile(parsed);
         }
       } catch (e) {
@@ -192,6 +220,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribeUser = onSnapshot(qUser, (snapshot) => {
       if (!snapshot.empty) {
         const userData = snapshot.docs[0].data();
+
+        // Self-heal in Firestore if SuperAdmin 43751 ever gets a non-active status in DB
+        if (isSuperAdmin43751(userData.username) && userData.status !== 'active') {
+          supabase
+            .from('ql_nguoi_dung')
+            .update({
+              status: 'active',
+              paymentConfirmed: true,
+              isDemo: true,
+              packageDays: 9999,
+              expiredAt: '2099-12-31T23:59:59.000Z',
+              requestedRenewPackage: null,
+              requestedAt: null,
+              role: 'admin'
+            })
+            .eq('username', '43751')
+            .then(() => {})
+            .catch(() => {});
+        }
         
         setUserProfile(prev => {
           if (!prev) return null;
@@ -211,7 +258,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           const isDeclDone = userData.declarationCompleted === true || (bossStores.length > 0 && !!rawSt);
 
-          const updated = {
+          const updated = enforceSuperAdminProfile({
             ...prev,
             ma_kho: targetKho,
             ten_sieu_thi: rawSt,
@@ -225,8 +272,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             phone: userData.phone,
             isDemo: userData.isDemo,
             declarationCompleted: isDeclDone
-          };
-          localStorage.setItem('userProfile', JSON.stringify(updated));
+          });
+          if (updated) {
+            localStorage.setItem('userProfile', JSON.stringify(updated));
+          }
           return updated;
         });
       }
@@ -243,6 +292,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribePerms = onSnapshot(qPerms, (snapshot) => {
       setUserProfile(prev => {
         if (!prev) return null;
+        if (isSuperAdmin43751(prev.username)) {
+          const enforced = enforceSuperAdminProfile(prev);
+          if (JSON.stringify(prev.userPermissions) === JSON.stringify(enforced?.userPermissions)) {
+            return prev;
+          }
+          if (enforced) {
+            localStorage.setItem('userProfile', JSON.stringify(enforced));
+          }
+          return enforced;
+        }
         
         const newAllowedPages = snapshot.empty ? [] : (snapshot.docs[0].data().allowed_pages || []);
         
@@ -405,17 +464,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('user_id', username)
         .maybeSingle();
 
-      const isSuperAdmin = username === '43751';
-      const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tienich', 'users', 'tnb_data', 'tnbleader', 'birthday'];
+      const isSuperAdmin = isSuperAdmin43751(data.username || username);
+      const ALL_PAGES = SUPER_ADMIN_ALL_PAGES;
+
+      // Ensure SuperAdmin 43751 is always active in database upon login
+      if (isSuperAdmin && (data.status !== 'active' || !data.paymentConfirmed || !data.isDemo)) {
+        supabase
+          .from('ql_nguoi_dung')
+          .update({
+            status: 'active',
+            paymentConfirmed: true,
+            isDemo: true,
+            packageDays: 9999,
+            expiredAt: '2099-12-31T23:59:59.000Z',
+            requestedRenewPackage: null,
+            requestedAt: null,
+            role: 'admin'
+          })
+          .eq('username', '43751')
+          .then(() => {})
+          .catch(() => {});
+      }
 
       const resolvedStoreName = storeName || (isValidStoreName(storeData?.ten_kho) ? storeData.ten_kho : `Siêu thị ${data.storeCode}`);
 
-      const profile: UserProfile = {
+      const rawProfile: UserProfile = {
         username: data.username,
         ma_kho: data.storeCode,
         password: data.password,
-        role: 'user', // Default role for ql_nguoi_dung
-        permissions: ['lkst', 'rtst', 'sknv', 'updata'] as any, // Default permissions
+        role: isSuperAdmin ? 'admin' : 'user',
+        permissions: ['lkst', 'rtst', 'sknv', 'updata'] as any,
         userPermissions: {
           canEditUser: isSuperAdmin,
           allowedPages: isSuperAdmin ? ALL_PAGES : (permData?.allowed_pages || [])
@@ -427,13 +505,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           ? data.selected_store 
           : ((resolvedStoreName && isValidStoreName(resolvedStoreName)) ? resolvedStoreName : (getConfiguredStoresFromBoss(data.storeCode || maKho)[0] || resolvedStoreName)),
         expiredAt: data.expiredAt,
-        status: data.status,
+        status: isSuperAdmin ? 'active' : data.status,
         packageDays: data.packageDays,
-        paymentConfirmed: data.paymentConfirmed,
-        requestedRenewPackage: data.requestedRenewPackage,
-        requestedAt: data.requestedAt,
+        paymentConfirmed: isSuperAdmin ? true : data.paymentConfirmed,
+        requestedRenewPackage: isSuperAdmin ? undefined : data.requestedRenewPackage,
+        requestedAt: isSuperAdmin ? undefined : data.requestedAt,
+        isDemo: isSuperAdmin ? true : data.isDemo,
         declarationCompleted: data.declarationCompleted === true || (getConfiguredStoresFromBoss(data.storeCode || maKho).length > 0)
       };
+
+      const profile = enforceSuperAdminProfile(rawProfile)!;
 
       const cleanStorageForNewUser = () => {
         const theme = localStorage.getItem('theme');

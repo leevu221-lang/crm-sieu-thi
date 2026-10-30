@@ -29,6 +29,79 @@ const safeDocId = (id: any): string => {
 };
 
 // ============================================================================
+// SUPER ADMIN 43751 PROTECTION INVARIANTS (BACKEND ADAPTER GUARD)
+// ============================================================================
+export const SUPER_ADMIN_USERNAME = '43751';
+export const SUPER_ADMIN_ALL_PAGES = [
+  'realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'bbkq',
+  'tienich', 'users', 'tnb_data', 'tnbleader', 'birthday',
+  'feedback', 'excelviewer', 'lichpg'
+];
+
+export function isSuperAdmin43751(val: any): boolean {
+  return String(val ?? '').trim() === SUPER_ADMIN_USERNAME;
+}
+
+/**
+ * Enforces mandatory SuperAdmin invariants on any write/update payload targeting
+ * user 43751 in `ql_nguoi_dung` or `user_permissions`.
+ * - Never allows 43751 to be locked (`rejected`, `inactive`, `pending`, `expired`)
+ * - Never allows policy/subscription syncs to downgrade 43751's active FREE state
+ * - Never allows normal data syncs to overwrite 43751's full SuperAdmin permissions
+ */
+function enforceSuperAdminWriteGuard(
+  tableName: string,
+  payload: Record<string, any>,
+  existingData?: Record<string, any>
+): Record<string, any> {
+  if (!payload || typeof payload !== 'object') return payload;
+
+  if (tableName === 'ql_nguoi_dung') {
+    const targetUsername = payload.username ?? existingData?.username;
+    if (isSuperAdmin43751(targetUsername)) {
+      const guarded: Record<string, any> = {
+        ...payload,
+        status: 'active',
+        paymentConfirmed: true,
+        isDemo: true,
+        role: 'admin',
+        requestedRenewPackage: null,
+        requestedAt: null,
+      };
+      if ('expiredAt' in payload || !existingData?.expiredAt) {
+        guarded.expiredAt = '2099-12-31T23:59:59.000Z';
+      }
+      if ('packageDays' in payload || !existingData?.packageDays) {
+        guarded.packageDays = 9999;
+      }
+      if (
+        'password' in guarded &&
+        (!String(guarded.password || '').trim() || String(guarded.password).trim() === '---')
+      ) {
+        if (existingData?.password && String(existingData.password).trim() !== '---') {
+          guarded.password = existingData.password;
+        } else {
+          delete guarded.password;
+        }
+      }
+      return guarded;
+    }
+  }
+
+  if (tableName === 'user_permissions') {
+    const targetUserId = payload.user_id ?? existingData?.user_id;
+    if (isSuperAdmin43751(targetUserId)) {
+      return {
+        ...payload,
+        allowed_pages: SUPER_ADMIN_ALL_PAGES,
+      };
+    }
+  }
+
+  return payload;
+}
+
+// ============================================================================
 // FIRESTORE QUOTA PROTECTION, TELEMETRY & IN-MEMORY DEDUPLICATION LAYER
 // ============================================================================
 
@@ -464,7 +537,8 @@ class FirebaseQueryBuilder {
       const items = Array.isArray(data) ? data : [data];
       const results = [];
       
-      for (const item of items) {
+      for (const rawItem of items) {
+        const item = enforceSuperAdminWriteGuard(this.tableName, { ...rawItem });
         let docId = item.id;
         if (this.tableName === 'ql_nguoi_dung' && item.username) {
           docId = String(item.username).trim();
@@ -539,7 +613,9 @@ class FirebaseQueryBuilder {
       const items = Array.isArray(data) ? data : [data];
       const results = [];
 
-      for (const item of items) {
+      for (const rawItem of items) {
+        let existingDocData: Record<string, any> | undefined;
+        let item = enforceSuperAdminWriteGuard(this.tableName, { ...rawItem });
         let id = item.id;
 
         // Fast-path for warehouses upserted by ma_kho
@@ -597,7 +673,9 @@ class FirebaseQueryBuilder {
             
             if (!snap.empty) {
               id = snap.docs[0].id;
-              seedDocCache(this.tableName, id, snap.docs[0].data());
+              existingDocData = snap.docs[0].data();
+              seedDocCache(this.tableName, id, existingDocData);
+              item = enforceSuperAdminWriteGuard(this.tableName, item, existingDocData);
             } else if (this.tableName === 'warehouses' && item.ma_kho !== undefined) {
               // Deterministic ID for new warehouse docs so future lookups don't create duplicates
               id = safeDocId(String(item.ma_kho).trim());
@@ -677,19 +755,21 @@ class FirebaseQueryBuilder {
     try {
       if (this.idValue) {
         const sId = safeDocId(this.idValue);
-        if (isDocPayloadUnchanged(this.tableName, sId, this.pendingUpdate)) {
+        const cachedDoc = docFieldCache.get(`${this.tableName}/${sId}`);
+        const guardedUpdate = enforceSuperAdminWriteGuard(this.tableName, { ...this.pendingUpdate }, cachedDoc);
+        if (isDocPayloadUnchanged(this.tableName, sId, guardedUpdate)) {
           firestoreStats.skippedDuplicateWrites++;
-          return { data: [{ id: sId, ...this.pendingUpdate }], error: null };
+          return { data: [{ id: sId, ...guardedUpdate }], error: null };
         }
         const docRef = doc(db, this.tableName, sId);
         firestoreStats.writes++;
         await updateDoc(docRef, {
-          ...this.pendingUpdate,
+          ...guardedUpdate,
           updated_at: serverTimestamp()
         });
-        seedDocCache(this.tableName, sId, this.pendingUpdate);
+        seedDocCache(this.tableName, sId, guardedUpdate);
         invalidateTableQueryCache(this.tableName);
-        return { data: [{ id: this.idValue, ...this.pendingUpdate }], error: null };
+        return { data: [{ id: this.idValue, ...guardedUpdate }], error: null };
       }
       const q = this.buildQuery();
       const querySnapshot = await getDocs(q);
@@ -699,18 +779,19 @@ class FirebaseQueryBuilder {
       for (const d of querySnapshot.docs) {
         const existingData = d.data();
         seedDocCache(this.tableName, d.id, existingData);
-        if (isDocPayloadUnchanged(this.tableName, d.id, this.pendingUpdate)) {
+        const guardedUpdate = enforceSuperAdminWriteGuard(this.tableName, { ...this.pendingUpdate }, existingData);
+        if (isDocPayloadUnchanged(this.tableName, d.id, guardedUpdate)) {
           firestoreStats.skippedDuplicateWrites++;
-          results.push({ id: d.id, ...existingData, ...this.pendingUpdate });
+          results.push({ id: d.id, ...existingData, ...guardedUpdate });
           continue;
         }
         firestoreStats.writes++;
         await updateDoc(doc(db, this.tableName, d.id), {
-          ...this.pendingUpdate,
+          ...guardedUpdate,
           updated_at: serverTimestamp()
         });
-        seedDocCache(this.tableName, d.id, this.pendingUpdate);
-        results.push({ id: d.id, ...existingData, ...this.pendingUpdate });
+        seedDocCache(this.tableName, d.id, guardedUpdate);
+        results.push({ id: d.id, ...existingData, ...guardedUpdate });
       }
       
       invalidateTableQueryCache(this.tableName);
@@ -725,6 +806,13 @@ class FirebaseQueryBuilder {
     try {
       if (this.idValue) {
         const sId = safeDocId(this.idValue);
+        const cachedDoc = docFieldCache.get(`${this.tableName}/${sId}`);
+        if (
+          this.tableName === 'ql_nguoi_dung' &&
+          (isSuperAdmin43751(sId) || sId === '0Rmgk6N0qcWWW43a6bGN' || isSuperAdmin43751(cachedDoc?.username))
+        ) {
+          return { error: new Error('Protected SuperAdmin 43751 account cannot be deleted') };
+        }
         firestoreStats.deletes++;
         await deleteDoc(doc(db, this.tableName, sId));
         docFieldCache.delete(`${this.tableName}/${sId}`);
@@ -736,6 +824,14 @@ class FirebaseQueryBuilder {
       firestoreStats.reads += Math.max(1, querySnapshot.docs.length);
       
       for (const d of querySnapshot.docs) {
+        const docData = d.data();
+        if (
+          (this.tableName === 'ql_nguoi_dung' && isSuperAdmin43751(docData?.username)) ||
+          (this.tableName === 'user_permissions' && isSuperAdmin43751(docData?.user_id))
+        ) {
+          console.warn(`[FirebaseAdapter] Blocked deletion of protected SuperAdmin 43751 record in ${this.tableName}`);
+          continue;
+        }
         firestoreStats.deletes++;
         await deleteDoc(doc(db, this.tableName, d.id));
         docFieldCache.delete(`${this.tableName}/${d.id}`);
