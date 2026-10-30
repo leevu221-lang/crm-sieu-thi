@@ -39,7 +39,6 @@ interface GradientV2HeaderProps {
   setShowSettings: (show: boolean) => void;
   setShowDeclarationForce: (show: boolean) => void;
   logout: () => void;
-  setShowSubscriptionForce?: (show: boolean) => void;
   /* New: sidebar toggle */
   onToggleSidebar?: () => void;
   sidebarExpanded?: boolean;
@@ -64,7 +63,6 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
   setShowSettings,
   setShowDeclarationForce,
   logout,
-  setShowSubscriptionForce,
   onToggleSidebar,
   sidebarExpanded,
   pageHiddenState = {},
@@ -321,22 +319,7 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
               );
             })()}
 
-            {/* 2. Nút GÓI CƯỚC (Chỉ hiển thị với user 43751) */}
-            {isUser43751 && setShowSubscriptionForce && (
-              <button
-                type="button"
-                onClick={() => setShowSubscriptionForce(true)}
-                className="flex items-center justify-center gap-[7px] w-[34px] h-[34px] sm:w-auto sm:h-[40px] sm:px-[14px] rounded-[10px] sm:rounded-[12px] text-[11.5px] font-black transition-all active:scale-95 cursor-pointer border bg-[#FFF9EB] hover:bg-[#FFF1D0] text-[#C2410C] border-[#FDE0A6] shadow-[0_2px_6px_rgba(217,119,6,0.05)]"
-                title="Đăng ký & gia hạn gói cước sử dụng"
-              >
-                <Crown size={15} strokeWidth={2.3} className="text-[#EA580C] shrink-0" />
-                <span className="hidden sm:inline text-[11.5px] font-black uppercase tracking-[0.02em]">
-                  GÓI CƯỚC
-                </span>
-              </button>
-            )}
-
-            {/* 3. Nút XEM MOBILE */}
+            {/* 2. Nút XEM MOBILE */}
             {!isInsideIframe && onToggleMobileSimulator && (
               <button
                 type="button"
@@ -429,17 +412,6 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                     </div>
 
                     {/* Action buttons */}
-                    {isUser43751 && setShowSubscriptionForce && (
-                      <button
-                        type="button"
-                        onClick={() => { setShowSubscriptionForce(true); setUserDropdownOpen(false); }}
-                        className="w-full flex items-center gap-[10px] px-[14px] py-[9px] text-[12px] font-bold text-amber-700 hover:bg-amber-50 transition-all cursor-pointer"
-                      >
-                        <Crown size={16} className="text-amber-500 shrink-0" />
-                        <span>Đăng ký gói cước</span>
-                      </button>
-                    )}
-
                     {!isInsideIframe && onToggleMobileSimulator && (
                       <button
                         type="button"

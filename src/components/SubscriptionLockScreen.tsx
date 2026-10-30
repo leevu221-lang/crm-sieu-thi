@@ -130,14 +130,6 @@ export default function SubscriptionLockScreen({ userProfile, onLogout, onRefres
                 {isPending ? 'Chờ kích hoạt' : isRejected ? 'Từ chối duyệt' : 'Đã khóa truy cập'}
               </span>
             </div>
-            {userProfile.expiredAt && (
-              <div className="flex justify-between pt-1 text-[11px]">
-                <span className="text-slate-400 font-bold">Ngày hết hạn:</span>
-                <span className="font-extrabold text-rose-500">
-                  {new Date(userProfile.expiredAt).toLocaleDateString('vi-VN')}
-                </span>
-              </div>
-            )}
           </div>
 
           {/* Action Buttons */}

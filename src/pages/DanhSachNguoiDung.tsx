@@ -235,12 +235,12 @@ export default function UserManagement({ onBack }: UserManagementProps) {
           username: cleanNewUsername,
           storeCode: isEditing.ma_kho,
           password: isEditing.password,
-          status: isEditing.status || 'inactive',
-          paymentConfirmed: isEditing.paymentConfirmed ?? false,
-          expiredAt: isEditing.expiredAt || null,
-          packageDays: isEditing.packageDays || null,
+          status: 'active',
+          paymentConfirmed: true,
+          expiredAt: '2099-12-31T23:59:59.000Z',
+          packageDays: 9999,
           phone: isEditing.phone || null,
-          isDemo: isEditing.isDemo ?? false,
+          isDemo: true,
           declarationCompleted: false,
           created_at: new Date().toISOString()
         };
@@ -675,25 +675,11 @@ export default function UserManagement({ onBack }: UserManagementProps) {
   };
 
   const stats = React.useMemo(() => {
-    const activeUsers = users.filter(u => 
-      u.username !== '43751' && 
-      u.username !== 'ADMIN' && 
-      u.status === 'active' && 
-      u.expiredAt && 
-      new Date(u.expiredAt) > new Date()
-    );
-    
-    let totalMonthly = 0;
-    activeUsers.forEach(u => {
-      totalMonthly += getMonthlyEquivalent(u.packageDays);
-    });
+    const activeUsers = users.filter(u => u.status !== 'rejected');
 
     return {
       totalCount: users.length,
       activeCount: activeUsers.length,
-      monthly: totalMonthly,
-      quarterly: totalMonthly * 3,
-      yearly: totalMonthly * 12
     };
   }, [users]);
 
@@ -724,7 +710,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
             Quản lý Người dùng & Phân quyền
           </h1>
           <p className="text-slate-500 font-medium">
-            Quản lý danh sách tài khoản, phân quyền truy cập và gói cước sử dụng hệ thống
+            Quản lý danh sách tài khoản và phân quyền truy cập hệ thống (Miễn phí - FREE)
           </p>
         </div>
         <button
@@ -752,9 +738,9 @@ export default function UserManagement({ onBack }: UserManagementProps) {
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col justify-between">
-          <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest block">Doanh thu tháng (Ước tính)</span>
-          <span className="text-2xl font-black text-amber-600 mt-2">
-            {stats.monthly.toLocaleString()} <span className="text-xs font-bold text-slate-400">đ</span>
+          <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest block">Chính sách sử dụng</span>
+          <span className="text-2xl font-black text-emerald-600 mt-2">
+            FREE <span className="text-xs font-bold text-slate-400">100% Tài khoản</span>
           </span>
         </div>
       </div>
@@ -803,7 +789,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
               <button
                 onClick={() => {
                   setIsNewUser(true);
-                  setIsEditing({ username: '', ma_kho: '', role: 'user', status: 'inactive', paymentConfirmed: false });
+                  setIsEditing({ username: '', ma_kho: '', role: 'user', status: 'active', paymentConfirmed: true, isDemo: true, expiredAt: '2099-12-31T23:59:59.000Z' });
                 }}
                 className="flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 cursor-pointer whitespace-nowrap text-xs"
               >
@@ -850,7 +836,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                     <th className="px-4 py-4 border-b border-slate-200">Trạng thái TK</th>
                     <th className="px-4 py-4 border-b border-slate-200">Mã Kho</th>
                     <th className="px-4 py-4 border-b border-slate-200">Mật khẩu</th>
-                    <th className="px-4 py-4 border-b border-slate-200">Cước phí</th>
+                    <th className="px-4 py-4 border-b border-slate-200">Chính sách</th>
                     <th className="px-4 py-4 border-b border-slate-200">Quyền truy cập</th>
                     <th className="px-6 py-4 border-b border-slate-200 text-right">Thao tác</th>
                   </tr>
@@ -865,19 +851,10 @@ export default function UserManagement({ onBack }: UserManagementProps) {
 
                         {/* ACCOUNT STATUS (ACTIVE / LOCKED) */}
                         <td className="px-4 py-4">
-                          {(() => {
-                            const isDemo = user.username === '43751' || user.username === 'ADMIN' || user.isDemo;
-                            if (isDemo) {
-                              return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-indigo-50 text-indigo-600 border border-indigo-200">Demo</span>;
-                            }
-                            const today = new Date(); today.setHours(0, 0, 0, 0);
-                            const expDate = user.expiredAt ? new Date(user.expiredAt) : null;
-                            if (expDate) expDate.setHours(0, 0, 0, 0);
-                            const isAccountActive = expDate ? expDate >= today : false;
-                            return isAccountActive
-                              ? <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">🟢 Hoạt động</span>
-                              : <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-rose-50 text-rose-700 border border-rose-200">🔒 Khoá</span>;
-                          })()}
+                          {user.status === 'rejected'
+                            ? <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-rose-50 text-rose-700 border border-rose-200">🔒 Khoá</span>
+                            : <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">🟢 Hoạt động</span>
+                          }
                         </td>
 
                         <td className="px-4 py-4 font-bold text-slate-700">
@@ -889,61 +866,9 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                         </td>
 
                         <td className="px-4 py-4">
-                          {user.username === '43751' || user.username === 'ADMIN' || user.isDemo ? (
-                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-lg">Miễn phí / Demo</span>
-                          ) : (
-                            <div className="space-y-1.5">
-                              <div className="flex items-center gap-1.5">
-                                {user.status === 'active' && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200/50">
-                                    Đã gia hạn
-                                  </span>
-                                )}
-                                {user.status === 'pending' && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200/50 animate-pulse">
-                                    Chờ duyệt
-                                  </span>
-                                )}
-                                {(user.status === 'expired' || (user.expiredAt && new Date() > new Date(user.expiredAt))) && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-200/50">
-                                    Hết hạn
-                                  </span>
-                                )}
-                                {(user.status === 'inactive' || !user.status) && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200/50">
-                                    Chưa đăng ký
-                                  </span>
-                                )}
-                              </div>
-                              
-                              {user.expiredAt && (
-                                <div className="text-[11px] text-slate-500 font-bold leading-normal">
-                                  <div>Gói: <span className="text-slate-800 font-black">{user.packageDays} ngày</span></div>
-                                  <div className="text-[10px] text-slate-400">Hạn: {new Date(user.expiredAt).toLocaleDateString('vi-VN')}</div>
-                                  {user.status === 'active' && (() => {
-                                    const days = getRemainingDays(user.expiredAt);
-                                    if (days !== null) {
-                                      return days > 0 
-                                        ? <span className="text-emerald-600 text-[10px] block font-black">Còn {days} ngày</span>
-                                        : <span className="text-rose-600 text-[10px] block font-black">Đã hết hạn</span>;
-                                    }
-                                    return null;
-                                  })()}
-                                </div>
-                              )}
-
-                              {user.status === 'pending' && user.requestedRenewPackage && (
-                                <div className="pt-1 select-none">
-                                  <button
-                                    onClick={() => handleApproveQuick(user.username, user.requestedRenewPackage!)}
-                                    className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white font-black text-[9px] rounded-lg uppercase tracking-wider transition-colors shadow-sm cursor-pointer"
-                                  >
-                                    Duyệt gói {user.requestedRenewPackage} ngày
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Miễn phí (FREE)
+                          </span>
                         </td>
 
                         <td className="px-4 py-4">
@@ -1149,134 +1074,6 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                     </div>
                   </div>
                 </div>
-
-                {/* THẺ GÓI CƯỚC & GIA HẠN */}
-                {isEditing.username !== '43751' && isEditing.username !== 'ADMIN' && (
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
-                    <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block">💰 Thẻ Gói cước & Gia hạn</span>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Trạng thái cước</label>
-                        <select
-                          value={isEditing.status || 'inactive'}
-                          onChange={(e) => setIsEditing({ ...isEditing, status: e.target.value as any })}
-                          className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none"
-                        >
-                          <option value="inactive">Chưa đăng ký (inactive)</option>
-                          <option value="pending">Chờ phê duyệt (pending)</option>
-                          <option value="active">Đã gia hạn / Hoạt động (active)</option>
-                          <option value="expired">Đã hết hạn (expired)</option>
-                        </select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Chọn gói gia hạn</label>
-                        <select
-                          value={isEditing.packageDays || ''}
-                          onChange={(e) => {
-                            const val = e.target.value ? Number(e.target.value) : undefined;
-                            let newExp = isEditing.expiredAt;
-                            if (val) {
-                              const expDate = new Date();
-                              expDate.setDate(expDate.getDate() + val);
-                              newExp = expDate.toISOString();
-                            }
-                            setIsEditing({ 
-                              ...isEditing, 
-                              packageDays: val,
-                              expiredAt: newExp
-                            });
-                          }}
-                          className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none"
-                        >
-                          <option value="">-- Chưa chọn gói --</option>
-                          <option value="7">Dùng thử 7 ngày (áp dụng tài khoản mới) (0đ)</option>
-                          <option value="30">Gói 30 ngày (49,000đ)</option>
-                          <option value="60">Gói 60 ngày (98,000đ)</option>
-                          <option value="90">Gói 90 ngày (147,000đ)</option>
-                          <option value="180">Gói 6 tháng (294,000đ)</option>
-                          <option value="270">Gói 9 tháng (441,000đ)</option>
-                          <option value="360">Gói 12 tháng (588,000đ)</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Ngày hết hạn cước</label>
-                        <input
-                          type="date"
-                          value={isEditing.expiredAt ? new Date(isEditing.expiredAt).toISOString().split('T')[0] : ''}
-                          onChange={(e) => {
-                            const isoStr = e.target.value ? new Date(e.target.value).toISOString() : undefined;
-                            setIsEditing({ ...isEditing, expiredAt: isoStr });
-                          }}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none"
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-3 pt-4 sm:pt-6">
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="checkbox"
-                            id="paymentConfirmed"
-                            checked={isEditing.paymentConfirmed || false}
-                            onChange={(e) => setIsEditing({ ...isEditing, paymentConfirmed: e.target.checked })}
-                            className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-600 cursor-pointer"
-                          />
-                          <label htmlFor="paymentConfirmed" className="text-sm font-bold text-slate-700 cursor-pointer select-none">
-                            Đã xác nhận thanh toán
-                          </label>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="checkbox"
-                            id="isDemo"
-                            checked={isEditing.isDemo || false}
-                            onChange={(e) => setIsEditing({ ...isEditing, isDemo: e.target.checked })}
-                            className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-600 cursor-pointer"
-                          />
-                          <label htmlFor="isDemo" className="text-sm font-bold text-indigo-600 cursor-pointer select-none uppercase tracking-wider">
-                            Tài khoản Demo / Free
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-
-                    {isEditing.status === 'pending' && isEditing.requestedRenewPackage && (
-                      <div className="bg-amber-100/50 border border-amber-200 p-4 rounded-xl text-xs font-bold text-amber-800 leading-normal flex flex-col gap-1 mt-2">
-                        <div>⚠️ Đang yêu cầu gia hạn gói: <span className="text-slate-900 font-black">{isEditing.requestedRenewPackage} ngày</span></div>
-                        {isEditing.requestedAt && (
-                          <div className="text-[10px] text-slate-500">Yêu cầu lúc: {new Date(isEditing.requestedAt).toLocaleString('vi-VN')}</div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const days = isEditing.requestedRenewPackage!;
-                            const now = new Date();
-                            const baseDate = isEditing.expiredAt ? new Date(isEditing.expiredAt) : new Date();
-                            const activeBaseDate = baseDate > now ? baseDate : now;
-                            activeBaseDate.setDate(activeBaseDate.getDate() + days);
-                            
-                            setIsEditing({
-                              ...isEditing,
-                              status: 'active',
-                              paymentConfirmed: true,
-                              packageDays: days,
-                              expiredAt: activeBaseDate.toISOString(),
-                              requestedRenewPackage: undefined,
-                              requestedAt: undefined
-                            });
-                          }}
-                          className="mt-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] rounded-lg font-black uppercase tracking-wider self-start transition-colors cursor-pointer"
-                        >
-                          Duyệt yêu cầu ngay lập tức
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {/* THẺ PHÂN QUYỀN TRUY CẬP */}
                 <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">

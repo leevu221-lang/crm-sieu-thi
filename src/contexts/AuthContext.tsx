@@ -551,21 +551,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await supabase.from('warehouses').insert({ ma_kho: cleanMaKho, ten_kho: defaultWarehouseName });
       }
 
-      // Default subscription: 7-day trial
-      const trialDays = 7;
-      const trialExpiredAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
+      // Default policy: FREE for all new registered accounts
+      const freeExpiredAt = '2099-12-31T23:59:59.000Z';
 
-      // All new users start with active status to let them declare their store name first.
-      // After they complete declaration, status is set to pending for approval.
+      // All new users start with active FREE status
       const newUser = {
         username: cleanUsername,
         storeCode: cleanMaKho,
         password,
         status: 'active',
         paymentConfirmed: true,
-        packageDays: trialDays,
-        expiredAt: trialExpiredAt,
-        isDemo: false,
+        packageDays: 9999,
+        expiredAt: freeExpiredAt,
+        isDemo: true,
         declarationCompleted: false,
         created_at: new Date().toISOString()
       };

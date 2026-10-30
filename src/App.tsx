@@ -198,7 +198,6 @@ function MainApp() {
   const { marketFilter, setMarketFilter, availableMarkets, activeRealtimeTab, activeToolHoTroTab, activeTienIchTab, activeLuyKeTab, activeHealthTab, currentStoreId } = useStore();
   const [showSettings, setShowSettings] = useState(false);
   const [isDesktopView, setIsDesktopView] = useState(true);
-  const [showSubscriptionForce, setShowSubscriptionForce] = useState(false);
   
   // Page Maintenance Mode State
   const [pageMaintenanceState, setPageMaintenanceState] = useState<Record<string, boolean>>({});
@@ -431,18 +430,12 @@ function MainApp() {
   
   const [supabaseError, setSupabaseError] = useState<string | null>(null);
   
-  // Subscription Gatekeeper: Lock if expiredAt <= now, unlock if expiredAt > now
+  // Free policy for all users: never lock due to subscription/expiration; only lock if explicitly rejected by Admin
   const isLocked = useMemo(() => {
     if (isSuperAdminHardcoded) return false;
     if (!userProfile) return false;
-    if (userProfile.status === 'pending' || userProfile.status === 'rejected') return true; // Lock if pending or rejected admin approval
-    if (userProfile.isDemo) return false;
-
-    // Simple rule: expiredAt date >= today → unlocked, expiredAt date < today → locked
-    if (!userProfile.expiredAt) return true;
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const expDate = new Date(userProfile.expiredAt); expDate.setHours(0, 0, 0, 0);
-    return expDate < today;
+    if (userProfile.status === 'rejected') return true;
+    return false;
   }, [userProfile, isSuperAdminHardcoded]);
 
   useEffect(() => {
@@ -717,7 +710,6 @@ function MainApp() {
         setShowMaintenanceConfirm={setShowMaintenanceConfirm}
         setShowSettings={setShowSettings}
         setShowDeclarationForce={setShowDeclarationForce}
-        setShowSubscriptionForce={(userProfile?.isDemo || !isUser43751Local) ? undefined : setShowSubscriptionForce}
         logout={logout}
         supabaseError={supabaseError}
         isDirectRealtimeMode={isGuestOrDirectMode}
@@ -843,15 +835,6 @@ function MainApp() {
                 Hoàn tất
               </button>
             </motion.div>
-          </div>
-        )}
-        {showSubscriptionForce && (
-          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[1000] flex items-center justify-center overflow-y-auto">
-            <SubscriptionLockScreen 
-              userProfile={userProfile} 
-              onRefresh={refreshProfile} 
-              onClose={() => setShowSubscriptionForce(false)} 
-            />
           </div>
         )}
       </AnimatePresence>

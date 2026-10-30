@@ -37,7 +37,6 @@ interface GradientV2LayoutProps {
   setShowSettings: (show: boolean) => void;
   setShowDeclarationForce: (show: boolean) => void;
   logout: () => void;
-  setShowSubscriptionForce?: (show: boolean) => void;
   supabaseError?: string | null;
   isDirectRealtimeMode?: boolean;
   pageHiddenState?: Record<string, boolean>;
@@ -60,7 +59,6 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
   setShowSettings,
   setShowDeclarationForce,
   logout,
-  setShowSubscriptionForce,
   supabaseError,
   isDirectRealtimeMode = false,
   pageHiddenState = {},
@@ -274,7 +272,6 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
               setShowSettings={setShowSettings}
               setShowDeclarationForce={setShowDeclarationForce}
               logout={logout}
-              setShowSubscriptionForce={setShowSubscriptionForce}
               onToggleSidebar={toggleMobileDrawer}
               sidebarExpanded={sidebarExpanded}
               pageHiddenState={pageHiddenState}

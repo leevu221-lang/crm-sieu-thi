@@ -791,8 +791,9 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
       };
 
       if (isNewUser) {
-        updatePayload.status = 'pending';
-        updatePayload.paymentConfirmed = false;
+        updatePayload.status = 'active';
+        updatePayload.paymentConfirmed = true;
+        updatePayload.isDemo = true;
       }
 
       if (userProfile?.username) {
@@ -808,7 +809,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
 
       // Update client states immediately
       if (updateStoreName) {
-        updateStoreName(s1, isNewUser ? 'pending' : userProfile?.status);
+        updateStoreName(s1, 'active');
       }
       if (setCurrentStoreId) {
         setCurrentStoreId(s1);
