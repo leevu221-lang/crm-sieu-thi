@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Copy,
-  CheckCircle2,
   Save,
   History,
   Trash2,
@@ -13,10 +12,6 @@ import {
   ArrowLeft,
   Scale,
   Download,
-  ChevronUp,
-  ChevronDown,
-  Coins,
-  Database,
   FileText,
 } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
@@ -947,118 +942,6 @@ export default function BbkqTab() {
             })}
           </div>
         </div>
-
-        {/* ── SECTION 5: KHỐI TỔNG HỢP KẾT QUẢ (LIVE UI ONLY - EXCLUDED FROM IMAGE EXPORT) ── */}
-        <div
-          data-export-exclude="true"
-          className="bg-white rounded-[20px] p-3 sm:p-4 border border-[#E2ECF8] shadow-[0_4px_18px_rgba(15,23,42,0.03)]"
-        >
-          <button
-            type="button"
-            onClick={() => setIsSummaryExpanded(prev => !prev)}
-            className="w-full flex items-center justify-between gap-2 text-left cursor-pointer"
-          >
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-[9px] bg-[#1D4ED8] text-white font-black text-sm flex items-center justify-center">
-                Σ
-              </div>
-              <span className="text-[13px] min-[375px]:text-[13.5px] sm:text-[14.5px] font-black text-slate-900 uppercase tracking-tight">
-                TỔNG HỢP KẾT QUẢ
-              </span>
-            </div>
-            <div className="text-[#1D4ED8] p-1">
-              {isSummaryExpanded ? <ChevronUp size={18} strokeWidth={2.6} /> : <ChevronDown size={18} strokeWidth={2.6} />}
-            </div>
-          </button>
-
-          {isSummaryExpanded && (
-            <div className="grid grid-cols-3 gap-2 mt-3 items-stretch">
-              {/* 1. TỔNG THỰC ĐẾM */}
-              <div className="min-w-0 rounded-[16px] p-2.5 sm:p-3 bg-gradient-to-br from-[#F0FDF4] to-[#DCFCE7]/85 border border-[#BBF7D0] flex flex-col justify-between">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-6 h-6 rounded-lg bg-[#16A34A] text-white flex items-center justify-center shrink-0">
-                    <Coins size={13} strokeWidth={2.4} />
-                  </div>
-                  <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase leading-tight">
-                    TỔNG THỰC ĐẾM
-                  </span>
-                </div>
-                <div className={`${getLiveCardMoneyClass(formattedActual)} font-black text-[#15803D] my-1.5 break-words`}>
-                  {formattedActual}
-                </div>
-                <div className="mt-auto flex items-center gap-1.5">
-                  <span className="text-[10px] font-extrabold text-[#166534] whitespace-nowrap">
-                    {totalBills} tờ
-                  </span>
-                  <div className="h-1.5 flex-1 rounded-full bg-emerald-200/70 overflow-hidden">
-                    <div
-                      className="h-full bg-[#16A34A] rounded-full transition-all"
-                      style={{ width: totalBills > 0 ? '100%' : '20%' }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 2. TIỀN THEO ERP */}
-              <div className="min-w-0 rounded-[16px] p-2.5 sm:p-3 bg-gradient-to-br from-[#F0F7FF] to-[#DBEAFE]/85 border border-[#BFDBFE] flex flex-col justify-between">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-6 h-6 rounded-lg bg-[#DBEAFE] text-[#1D4ED8] flex items-center justify-center shrink-0">
-                    <Database size={13} strokeWidth={2.4} />
-                  </div>
-                  <span className="text-[9px] sm:text-[10px] font-black text-slate-800 uppercase leading-tight">
-                    TIỀN THEO ERP
-                  </span>
-                </div>
-                <div className={`${getLiveCardMoneyClass(formattedErp)} font-black text-[#1D4ED8] my-1.5 break-words`}>
-                  {formattedErp}
-                </div>
-                <div className="text-[9px] font-semibold text-slate-500 mt-auto">
-                  Phần mềm POS
-                </div>
-              </div>
-
-              {/* 3. CHÊNH LỆCH QUỸ */}
-              <div className="min-w-0 rounded-[16px] p-2.5 sm:p-3 bg-gradient-to-br from-[#FFFBEB] to-[#FFEDD5]/85 border border-[#FED7AA] flex flex-col justify-between">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-6 h-6 rounded-lg bg-[#EA580C] text-white flex items-center justify-center shrink-0">
-                    <Scale size={13} strokeWidth={2.4} />
-                  </div>
-                  <span className="text-[9px] sm:text-[10px] font-black text-[#9A3412] uppercase leading-tight">
-                    CHÊNH LỆCH QUỸ
-                  </span>
-                </div>
-                <div className={`${getLiveCardMoneyClass(formattedDiscrepancy)} font-black text-[#C2410C] my-1.5 break-words`}>
-                  {formattedDiscrepancy}
-                </div>
-                <div className="text-[9px] font-bold text-slate-500 uppercase mt-auto">
-                  {erpTotal === 0
-                    ? '(CHƯA NHẬP ERP)'
-                    : isBalanced
-                      ? '(KHỚP QUỸ 100%)'
-                      : isSurplus
-                        ? '(DƯ TIỀN)'
-                        : '(THIẾU TIỀN)'}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── SECTION 6: NÚT LƯU KẾT QUẢ KIỂM KÊ (LIVE UI ONLY) ── */}
-        <button
-          type="button"
-          data-export-exclude="true"
-          onClick={handleSaveHistory}
-          className="w-full h-[54px] rounded-[18px] text-white font-black text-[14px] min-[375px]:text-[15px] uppercase tracking-wider flex items-center justify-center gap-2.5 shadow-[0_8px_22px_rgba(59,75,248,0.28)] active:scale-[0.99] transition-all cursor-pointer"
-          style={{
-            background: 'linear-gradient(90deg, #0A64F5 0%, #3F4DF8 52%, #6E27E5 100%)',
-          }}
-        >
-          <span className="w-6 h-6 rounded-full bg-white text-[#2563EB] flex items-center justify-center shrink-0">
-            <CheckCircle2 size={16} strokeWidth={3} />
-          </span>
-          <span>{justSavedFeedback ? 'ĐÃ LƯU KẾT QUẢ KIỂM KÊ!' : 'LƯU KẾT QUẢ KIỂM KÊ'}</span>
-        </button>
       </div>
 
       {/* =====================================================================
