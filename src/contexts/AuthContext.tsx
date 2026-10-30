@@ -138,7 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('rtst_ma_kho', khoParam);
     }
 
-    const ALL_SHARED_PAGES = ['realtime', 'luyke', 'health', 'lichpg', 'diemdanhhop', 'toolhotro', 'tienich', 'birthday', 'khaibao', 'feedback', 'excelviewer'];
+    const ALL_SHARED_PAGES = ['realtime', 'luyke', 'health', 'lichpg', 'diemdanhhop', 'toolhotro', 'bbkq', 'tienich', 'birthday', 'khaibao', 'feedback', 'excelviewer'];
 
     // 1. Mở từ link chia sẻ khách (?kho=... hoặc ?view=guest hoặc /posm):
     // Khởi tạo tài khoản Khách xem trang độc lập không cần đăng nhập dưới mã kho được chia sẻ

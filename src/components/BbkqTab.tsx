@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Copy,
@@ -13,6 +13,10 @@ import {
   Scale,
   Download,
   FileText,
+  AlertTriangle,
+  RefreshCw,
+  ShieldAlert,
+  User,
 } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
 import { useAuth } from '../contexts/AuthContext';
@@ -20,6 +24,20 @@ import { useStore } from '../contexts/StoreContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
 import { ImagePreviewModal } from './ImagePreviewModal';
+import { getConfiguredStoresFromBoss } from '../services/storeSync';
+import {
+  BbkqHistoryItem,
+  BbkqConflictError,
+  BbkqPermissionError,
+  resolveAndVerifyWarehouseAccess,
+  subscribeBbkqWarehouseDoc,
+  saveBbkqRecordTransaction,
+  deleteBbkqRecordTransaction,
+  fetchBbkqWarehouseRecords,
+  computeCountsSignature,
+} from '../services/bbkqService';
+
+export type { BbkqHistoryItem };
 
 // Denominations list (VND) with vibrant badge colors matching the reference UI 100%
 export const DENOMINATIONS = [
@@ -197,37 +215,93 @@ const BanknoteBadgeIcon: React.FC<{ size?: number; color?: string }> = ({
   </svg>
 );
 
-const STORAGE_KEY_BBKQ_DRAFT = 'crm_bbkq_cash_draft_v2';
-const STORAGE_KEY_BBKQ_HISTORY = 'crm_bbkq_history_v2';
+const STORAGE_KEY_BBKQ_DRAFT_PREFIX = 'crm_bbkq_cash_draft_v2';
+const STORAGE_KEY_BBKQ_HISTORY_PREFIX = 'crm_bbkq_history_v2';
 
-export interface BbkqHistoryItem {
-  id: string;
-  createdAt: string; // ISO string
-  timeStr: string; // "20:08"
-  dateStr: string; // "23/08/2026"
-  storeName: string;
-  storeCode: string;
-  counts: Record<number, number>;
-  totalActual: number;
-  totalBills: number;
-  erpTotal: number;
-  discrepancy: number;
-}
+const getEmptyCounts = (): Record<number, number> => ({
+  500000: 0,
+  200000: 0,
+  100000: 0,
+  50000: 0,
+  20000: 0,
+  10000: 0,
+  5000: 0,
+  2000: 0,
+  1000: 0,
+  500: 0,
+});
 
 export default function BbkqTab() {
   const { userProfile } = useAuth();
   const { currentStoreId } = useStore();
   const { showNotification } = useNotification();
 
-  // Store information
-  const storeName =
-    currentStoreId !== 'ALL' && currentStoreId
-      ? currentStoreId
-      : userProfile?.ten_sieu_thi || userProfile?.ma_kho || '';
-  const storeCode = userProfile?.ma_kho || '';
+  // Track URL query string changes so changing ?kho= is immediately detected
+  const [urlSearch, setUrlSearch] = useState<string>(() =>
+    typeof window !== 'undefined' ? window.location.search : ''
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const syncUrlSearch = () => setUrlSearch(window.location.search);
+    window.addEventListener('popstate', syncUrlSearch);
+    return () => window.removeEventListener('popstate', syncUrlSearch);
+  }, []);
+
+  // Verify warehouse isolation & user authorization against URL ?kho=
+  const warehouseAccess = useMemo(
+    () => resolveAndVerifyWarehouseAccess(userProfile, urlSearch),
+    [userProfile, urlSearch]
+  );
+
+  const storeCode = warehouseAccess.effectiveKho;
+  const staffId = warehouseAccess.staffId;
+
+  // Resolve store name isolated to the authorized warehouse
+  const storeName = useMemo(() => {
+    if (
+      currentStoreId &&
+      currentStoreId !== 'ALL' &&
+      warehouseAccess.authorized &&
+      (!warehouseAccess.requestedUrlKho ||
+        warehouseAccess.requestedUrlKho === warehouseAccess.userKho)
+    ) {
+      return currentStoreId;
+    }
+    if (
+      userProfile?.ten_sieu_thi &&
+      (!warehouseAccess.requestedUrlKho ||
+        warehouseAccess.requestedUrlKho === warehouseAccess.userKho)
+    ) {
+      return userProfile.ten_sieu_thi;
+    }
+    if (storeCode) {
+      const bossStores = getConfiguredStoresFromBoss(storeCode);
+      if (bossStores && bossStores.length > 0) {
+        return bossStores[0];
+      }
+    }
+    return userProfile?.ten_sieu_thi || storeCode || '';
+  }, [currentStoreId, userProfile, storeCode, warehouseAccess]);
+
+  // Warehouse-isolated LocalStorage keys
+  const draftStorageKey = useMemo(
+    () =>
+      storeCode
+        ? `${STORAGE_KEY_BBKQ_DRAFT_PREFIX}::KHO_${storeCode}`
+        : STORAGE_KEY_BBKQ_DRAFT_PREFIX,
+    [storeCode]
+  );
+  const historyStorageKey = useMemo(
+    () =>
+      storeCode
+        ? `${STORAGE_KEY_BBKQ_HISTORY_PREFIX}::KHO_${storeCode}`
+        : STORAGE_KEY_BBKQ_HISTORY_PREFIX,
+    [storeCode]
+  );
 
   // Current date string (DD/MM/YYYY) constructed safely
-  const todayDateStr = React.useMemo(() => {
+  const todayDateStr = useMemo(() => {
     const now = new Date();
     const d = String(now.getDate()).padStart(2, '0');
     const m = String(now.getMonth() + 1).padStart(2, '0');
@@ -236,78 +310,165 @@ export default function BbkqTab() {
   }, []);
 
   // Denominations counts
-  const [counts, setCounts] = useState<Record<number, number>>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_BBKQ_DRAFT);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.counts) return parsed.counts;
-      }
-    } catch (e) {
-      // ignore
-    }
-    return {
-      500000: 0,
-      200000: 0,
-      100000: 0,
-      50000: 0,
-      20000: 0,
-      10000: 0,
-      5000: 0,
-      2000: 0,
-      1000: 0,
-      500: 0,
-    };
-  });
+  const [counts, setCounts] = useState<Record<number, number>>(() => getEmptyCounts());
+  const [erpTotal, setErpTotal] = useState<number>(0);
+
+  // Optimistic Concurrency Tracking for the currently active/loaded record
+  const [activeRecordKey, setActiveRecordKey] = useState<string | null>(null);
+  const [activeRecordVersion, setActiveRecordVersion] = useState<number | null>(null);
+  const [conflictRecord, setConflictRecord] = useState<BbkqHistoryItem | null>(null);
+
+  const activeRecordKeyRef = useRef<string | null>(null);
+  activeRecordKeyRef.current = activeRecordKey;
+  const activeRecordVersionRef = useRef<number | null>(null);
+  activeRecordVersionRef.current = activeRecordVersion;
+  const baseSavedSigRef = useRef<string>('');
+  const lastSavedSignatureRef = useRef<string>('');
+  const isSavingRef = useRef<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
   // Input editing state so clearing an input does not force '0' back while typing
   const [focusedDenom, setFocusedDenom] = useState<number | null>(null);
   const [editingCountStr, setEditingCountStr] = useState<string>('');
   const [isErpFocused, setIsErpFocused] = useState(false);
   const [editingErpStr, setEditingErpStr] = useState<string>('');
-  const [isSummaryExpanded, setIsSummaryExpanded] = useState(true);
-  const [justSavedFeedback, setJustSavedFeedback] = useState(false);
 
-  // ERP System Total Input
-  const [erpTotal, setErpTotal] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_BBKQ_DRAFT);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (typeof parsed.erpTotal === 'number') return parsed.erpTotal;
-      }
-    } catch (e) {
-      // ignore
-    }
-    return 0;
-  });
-
-  // History state
-  const [historyList, setHistoryList] = useState<BbkqHistoryItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_BBKQ_HISTORY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      // ignore
-    }
-    return [];
-  });
+  // History state (synced with Firestore per warehouse)
+  const [historyList, setHistoryList] = useState<BbkqHistoryItem[]>([]);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
   // Preview & Export
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  // Dedicated Export DOM ref (completely excludes TỔNG HỢP KẾT QUẢ & bottom CTA)
   const exportDomRef = useRef<HTMLDivElement>(null);
 
-  // Auto save draft to localStorage
+  // Load warehouse-isolated draft & cached history when storeCode changes
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_BBKQ_DRAFT, JSON.stringify({ counts, erpTotal }));
-    } catch (e) {
-      // ignore
+    if (!warehouseAccess.authorized || !storeCode) {
+      setCounts(getEmptyCounts());
+      setErpTotal(0);
+      setHistoryList([]);
+      setActiveRecordKey(null);
+      setActiveRecordVersion(null);
+      setConflictRecord(null);
+      return;
     }
-  }, [counts, erpTotal]);
+
+    try {
+      const savedDraft = localStorage.getItem(draftStorageKey);
+      if (savedDraft) {
+        const parsed = JSON.parse(savedDraft);
+        setCounts(parsed.counts || getEmptyCounts());
+        setErpTotal(typeof parsed.erpTotal === 'number' ? parsed.erpTotal : 0);
+        setActiveRecordKey(parsed.activeRecordKey || null);
+        setActiveRecordVersion(
+          typeof parsed.activeRecordVersion === 'number' ? parsed.activeRecordVersion : null
+        );
+        baseSavedSigRef.current = parsed.baseSavedSig || '';
+      } else {
+        setCounts(getEmptyCounts());
+        setErpTotal(0);
+        setActiveRecordKey(null);
+        setActiveRecordVersion(null);
+        baseSavedSigRef.current = '';
+      }
+    } catch {
+      setCounts(getEmptyCounts());
+      setErpTotal(0);
+    }
+
+    try {
+      const savedHist = localStorage.getItem(historyStorageKey);
+      if (savedHist) {
+        const parsedHist = JSON.parse(savedHist);
+        if (Array.isArray(parsedHist)) {
+          setHistoryList(parsedHist.filter(item => item && item.storeCode === storeCode));
+        }
+      } else {
+        setHistoryList([]);
+      }
+    } catch {
+      setHistoryList([]);
+    }
+  }, [warehouseAccess.authorized, storeCode, draftStorageKey, historyStorageKey]);
+
+  // Save draft to warehouse-isolated localStorage
+  useEffect(() => {
+    if (!warehouseAccess.authorized || !storeCode) return;
+    try {
+      localStorage.setItem(
+        draftStorageKey,
+        JSON.stringify({
+          counts,
+          erpTotal,
+          activeRecordKey,
+          activeRecordVersion,
+          baseSavedSig: baseSavedSigRef.current,
+        })
+      );
+    } catch {
+      // ignore quota error
+    }
+  }, [counts, erpTotal, activeRecordKey, activeRecordVersion, warehouseAccess.authorized, storeCode, draftStorageKey]);
+
+  // Keep latest counts & erpTotal in a ref for snapshot conflict checks without re-subscribing
+  const currentDataSigRef = useRef<string>('');
+  currentDataSigRef.current = computeCountsSignature(counts, erpTotal);
+
+  // Single Real-Time Firestore Subscription per authorized warehouse
+  useEffect(() => {
+    if (!warehouseAccess.authorized || !storeCode) return;
+
+    const unsubscribe = subscribeBbkqWarehouseDoc(
+      storeCode,
+      serverRecords => {
+        setHistoryList(serverRecords);
+        try {
+          localStorage.setItem(historyStorageKey, JSON.stringify(serverRecords));
+        } catch {
+          // ignore
+        }
+
+        // Check if the currently active record was modified by another user
+        const curKey = activeRecordKeyRef.current;
+        const curVer = activeRecordVersionRef.current;
+        if (curKey && curVer !== null) {
+          const matchingServerRec = serverRecords.find(
+            r => (r.recordKey || r.id) === curKey
+          );
+          if (matchingServerRec && matchingServerRec.version > curVer) {
+            const serverSig = computeCountsSignature(
+              matchingServerRec.counts,
+              matchingServerRec.erpTotal
+            );
+            const localSig = currentDataSigRef.current;
+            const hasLocalUnsavedEdits =
+              baseSavedSigRef.current !== '' && localSig !== baseSavedSigRef.current;
+
+            if (!hasLocalUnsavedEdits || serverSig === localSig) {
+              // No conflicting local edits: seamlessly adopt the newer server state & version
+              setCounts(matchingServerRec.counts || getEmptyCounts());
+              setErpTotal(matchingServerRec.erpTotal || 0);
+              setActiveRecordVersion(matchingServerRec.version);
+              baseSavedSigRef.current = serverSig;
+              lastSavedSignatureRef.current = serverSig;
+              setConflictRecord(null);
+            } else {
+              // User has unsaved local edits while another user updated the same record -> flag conflict!
+              setConflictRecord(matchingServerRec);
+            }
+          }
+        }
+      },
+      err => {
+        console.warn('[BbkqTab] Realtime subscription error:', err);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [warehouseAccess.authorized, storeCode, historyStorageKey]);
 
   // Calculations
   const totalActual = DENOMINATIONS.reduce((sum, d) => sum + (counts[d.value] || 0) * d.value, 0);
@@ -347,87 +508,223 @@ export default function BbkqTab() {
     }));
   };
 
-  // 1. Chức năng XÓA SỐ TỜ ALL
+  // 1. Chức năng XÓA SỐ TỜ ALL (Bắt đầu phiên đếm mới sạch sẽ)
   const handleClearAllCounts = () => {
-    const resetCounts: Record<number, number> = {};
-    DENOMINATIONS.forEach(d => {
-      resetCounts[d.value] = 0;
-    });
-    setCounts(resetCounts);
+    setCounts(getEmptyCounts());
     setFocusedDenom(null);
     setEditingCountStr('');
-    showNotification('Đã xóa tất cả số tờ về 0!', 'success');
+    setActiveRecordKey(null);
+    setActiveRecordVersion(null);
+    setConflictRecord(null);
+    baseSavedSigRef.current = '';
+    lastSavedSignatureRef.current = '';
+    showNotification('Đã xóa tất cả số tờ về 0 (Bắt đầu lượt kiểm mới)!', 'success');
   };
 
-  // 2. Chức năng LƯU LỊCH SỬ KIỂM TRONG NGÀY
-  const handleSaveHistory = () => {
+  // Tải dữ liệu mới nhất từ server khi có xung đột phiên bản
+  const handleReloadConflictRecord = useCallback(async () => {
+    if (conflictRecord) {
+      const sig = computeCountsSignature(conflictRecord.counts, conflictRecord.erpTotal);
+      setCounts(conflictRecord.counts || getEmptyCounts());
+      setErpTotal(conflictRecord.erpTotal || 0);
+      setActiveRecordKey(conflictRecord.recordKey || conflictRecord.id);
+      setActiveRecordVersion(conflictRecord.version || 1);
+      baseSavedSigRef.current = sig;
+      lastSavedSignatureRef.current = sig;
+      setConflictRecord(null);
+      showNotification(
+        `Đã tải dữ liệu mới nhất (v${conflictRecord.version}) từ ${conflictRecord.staffId || 'hệ thống'}!`,
+        'success'
+      );
+      return;
+    }
+
+    if (!storeCode) return;
+    try {
+      const latestList = await fetchBbkqWarehouseRecords(storeCode);
+      setHistoryList(latestList);
+      if (activeRecordKey) {
+        const found = latestList.find(r => (r.recordKey || r.id) === activeRecordKey);
+        if (found) {
+          const sig = computeCountsSignature(found.counts, found.erpTotal);
+          setCounts(found.counts || getEmptyCounts());
+          setErpTotal(found.erpTotal || 0);
+          setActiveRecordVersion(found.version || 1);
+          baseSavedSigRef.current = sig;
+          lastSavedSignatureRef.current = sig;
+        }
+      }
+      setConflictRecord(null);
+      showNotification('Đã đồng bộ dữ liệu mới nhất từ máy chủ!', 'success');
+    } catch {
+      showNotification('Không thể tải dữ liệu mới, vui lòng kiểm tra kết nối mạng!', 'error');
+    }
+  }, [conflictRecord, storeCode, activeRecordKey, showNotification]);
+
+  // 2. Chức năng LƯU LỊCH SỬ KIỂM TRONG NGÀY (Atomic Firestore Transaction + Anti-Duplicate + Concurrency Check)
+  const handleSaveHistory = async () => {
+    if (!warehouseAccess.authorized || !storeCode) {
+      showNotification(
+        warehouseAccess.reason || 'Bạn không có quyền lưu dữ liệu vào mã kho này!',
+        'error'
+      );
+      return;
+    }
+
     if (totalActual === 0 && erpTotal === 0) {
       showNotification('Vui lòng nhập số tờ hoặc tiền ERP trước khi lưu lịch sử!', 'warning');
       return;
     }
 
+    // In-flight lock to block rapid double/triple clicks
+    if (isSavingRef.current) {
+      return;
+    }
+
+    // If a remote conflict was already detected on the active record, block silent overwrite
+    if (conflictRecord) {
+      showNotification(
+        'Phát hiện xung đột dữ liệu: Bản ghi này vừa được người khác cập nhật. Vui lòng tải dữ liệu mới nhất trước khi tiếp tục!',
+        'warning'
+      );
+      return;
+    }
+
+    const currentSig = computeCountsSignature(counts, erpTotal);
+
+    // Prevent redundant network write if user clicks Save repeatedly without changing any data
+    if (activeRecordKey && lastSavedSignatureRef.current === currentSig) {
+      showNotification(
+        'Dữ liệu kiểm tiền hiện tại đã được lưu đồng bộ, không có thay đổi mới!',
+        'success'
+      );
+      return;
+    }
+
+    isSavingRef.current = true;
+    setIsSaving(true);
+
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const dateStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
 
-    const newRecord: BbkqHistoryItem = {
-      id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-      createdAt: now.toISOString(),
-      timeStr,
-      dateStr,
-      storeName,
-      storeCode,
-      counts: { ...counts },
-      totalActual,
-      totalBills,
-      erpTotal,
-      discrepancy,
-    };
-
-    const updated = [newRecord, ...historyList].slice(0, 50); // Keep max 50 recent records
-    setHistoryList(updated);
     try {
-      localStorage.setItem(STORAGE_KEY_BBKQ_HISTORY, JSON.stringify(updated));
-    } catch (e) {
-      console.error(e);
-    }
+      const result = await saveBbkqRecordTransaction({
+        storeCode,
+        storeName,
+        staffId,
+        dateStr,
+        timeStr,
+        counts: { ...counts },
+        totalActual,
+        totalBills,
+        erpTotal,
+        discrepancy,
+        existingRecordKey: activeRecordKey,
+        expectedVersion: activeRecordVersion,
+      });
 
-    setJustSavedFeedback(true);
-    setTimeout(() => setJustSavedFeedback(false), 1800);
-    showNotification(`Đã lưu lịch sử kiểm tiền lúc ${timeStr}! (${formatMoney(totalActual)})`, 'success');
-  };
+      const saved = result.savedRecord;
+      setActiveRecordKey(saved.recordKey || saved.id);
+      setActiveRecordVersion(saved.version);
+      baseSavedSigRef.current = currentSig;
+      lastSavedSignatureRef.current = currentSig;
+      setConflictRecord(null);
+      setHistoryList(result.allRecords);
 
-  // 3. Tải lại bản ghi từ lịch sử vào bảng
-  const handleLoadHistoryRecord = (item: BbkqHistoryItem) => {
-    setCounts(item.counts || {});
-    setErpTotal(item.erpTotal || 0);
-    setIsHistoryModalOpen(false);
-    showNotification(`Đã nạp lại bản ghi kiểm tiền lúc ${item.timeStr} (${item.dateStr})!`, 'success');
-  };
-
-  // Xóa 1 bản ghi lịch sử
-  const handleDeleteHistoryItem = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const updated = historyList.filter(item => item.id !== id);
-    setHistoryList(updated);
-    try {
-      localStorage.setItem(STORAGE_KEY_BBKQ_HISTORY, JSON.stringify(updated));
-    } catch (e) {
-      console.error(e);
-    }
-    showNotification('Đã xóa bản ghi khỏi lịch sử!', 'success');
-  };
-
-  // Xóa tất cả lịch sử
-  const handleClearAllHistory = () => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử kiểm tiền đã lưu?')) {
-      setHistoryList([]);
       try {
-        localStorage.removeItem(STORAGE_KEY_BBKQ_HISTORY);
-      } catch (e) {
-        console.error(e);
+        localStorage.setItem(historyStorageKey, JSON.stringify(result.allRecords));
+      } catch {
+        // ignore
       }
-      showNotification('Đã xóa toàn bộ lịch sử kiểm tiền!', 'success');
+
+      if (result.wasDeduplicated) {
+        showNotification(
+          `Bản ghi kiểm tiền (${formatMoney(totalActual)}) đã tồn tại và được đồng bộ (chống tạo trùng)!`,
+          'success'
+        );
+      } else if (result.wasUpdated) {
+        showNotification(
+          `Đã cập nhật bản ghi kiểm tiền lúc ${saved.timeStr} (v${saved.version} · ${formatMoney(totalActual)})!`,
+          'success'
+        );
+      } else {
+        showNotification(
+          `Đã lưu lịch sử kiểm tiền lúc ${saved.timeStr}! (${formatMoney(totalActual)})`,
+          'success'
+        );
+      }
+    } catch (err: any) {
+      if (err instanceof BbkqConflictError) {
+        setConflictRecord(err.serverRecord);
+        showNotification(err.message, 'warning');
+      } else if (err instanceof BbkqPermissionError) {
+        showNotification(err.message, 'error');
+      } else {
+        console.error('[BbkqTab] Save error:', err);
+        showNotification(
+          err?.message?.includes('NETWORK_')
+            ? err.message.replace(/^NETWORK_[A-Z]+:\s*/, '')
+            : 'Lỗi kết nối khi lưu lên máy chủ! Dữ liệu trên màn hình vẫn được giữ nguyên, vui lòng thử lưu lại.',
+          'error'
+        );
+      }
+    } finally {
+      isSavingRef.current = false;
+      setIsSaving(false);
+    }
+  };
+
+  // 3. Tải lại bản ghi từ lịch sử vào bảng (kèm khóa recordKey & version để cập nhật đúng bản ghi đó)
+  const handleLoadHistoryRecord = (item: BbkqHistoryItem) => {
+    const loadedCounts = item.counts || getEmptyCounts();
+    const loadedErp = item.erpTotal || 0;
+    const sig = computeCountsSignature(loadedCounts, loadedErp);
+
+    setCounts(loadedCounts);
+    setErpTotal(loadedErp);
+    setActiveRecordKey(item.recordKey || item.id);
+    setActiveRecordVersion(item.version || 1);
+    setConflictRecord(null);
+    baseSavedSigRef.current = sig;
+    lastSavedSignatureRef.current = sig;
+    setIsHistoryModalOpen(false);
+    showNotification(
+      `Đã nạp bản ghi lúc ${item.timeStr} (${item.dateStr} · v${item.version || 1}). Khi bấm Lưu sẽ cập nhật trực tiếp bản ghi này!`,
+      'success'
+    );
+  };
+
+  // Xóa 1 bản ghi lịch sử (Atomic Transaction per recordKey)
+  const handleDeleteHistoryItem = async (idOrKey: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!warehouseAccess.authorized || !storeCode) return;
+
+    try {
+      const updated = await deleteBbkqRecordTransaction({
+        storeCode,
+        recordKey: idOrKey,
+        staffId,
+      });
+      setHistoryList(updated);
+      if (activeRecordKey === idOrKey) {
+        setActiveRecordKey(null);
+        setActiveRecordVersion(null);
+        baseSavedSigRef.current = '';
+        lastSavedSignatureRef.current = '';
+      }
+      try {
+        localStorage.setItem(historyStorageKey, JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      showNotification('Đã xóa bản ghi khỏi lịch sử kho!', 'success');
+    } catch (err: any) {
+      console.error('[BbkqTab] Delete record error:', err);
+      showNotification(
+        'Không thể xóa bản ghi do lỗi kết nối mạng. Vui lòng thử lại!',
+        'error'
+      );
     }
   };
 
@@ -566,6 +863,38 @@ export default function BbkqTab() {
     }
   };
 
+  // Block unauthorized cross-warehouse URL access (?kho=...)
+  if (!warehouseAccess.authorized) {
+    return (
+      <div className="w-full max-w-lg mx-auto p-6 mt-8 font-sans">
+        <div className="bg-white rounded-3xl p-8 border-2 border-rose-200 shadow-lg text-center space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+            <ShieldAlert size={36} />
+          </div>
+          <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight">
+            TỪ CHỐI TRUY CẬP KHO {warehouseAccess.requestedUrlKho || ''}
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed">
+            {warehouseAccess.reason}
+          </p>
+          {warehouseAccess.userKho && (
+            <button
+              type="button"
+              onClick={() => {
+                const targetUrl = `/bbkq?kho=${encodeURIComponent(warehouseAccess.userKho)}`;
+                window.history.replaceState({}, '', targetUrl);
+                setUrlSearch(`?kho=${encodeURIComponent(warehouseAccess.userKho)}`);
+              }}
+              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
+            >
+              Chuyển về Kho {warehouseAccess.userKho} của bạn
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full font-sans">
       {/* =====================================================================
@@ -578,6 +907,50 @@ export default function BbkqTab() {
           paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
         }}
       >
+        {/* ── CONFLICT ALERT BANNER (When another user modified the active record) ── */}
+        {conflictRecord && (
+          <div className="bg-amber-50 border-2 border-amber-300 rounded-[18px] p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 animate-in fade-in duration-200">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-amber-950 leading-snug">
+                <div className="font-black uppercase">
+                  Phát hiện thay đổi mới từ người dùng khác (v{conflictRecord.version})
+                </div>
+                <div className="text-[11px] font-medium text-amber-800 mt-0.5">
+                  Bản ghi đang mở vừa được cập nhật ({formatMoney(conflictRecord.totalActual)} · ERP:{' '}
+                  {formatMoney(conflictRecord.erpTotal)}). Vui lòng tải bản mới nhất trước khi lưu tiếp!
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 justify-end">
+              <button
+                type="button"
+                onClick={handleReloadConflictRecord}
+                className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-black uppercase flex items-center gap-1 cursor-pointer transition-all"
+              >
+                <RefreshCw size={12} />
+                Tải bản mới nhất
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  // Detach from old record so user can save their work as a separate new record
+                  setActiveRecordKey(null);
+                  setActiveRecordVersion(null);
+                  setConflictRecord(null);
+                  showNotification(
+                    'Đã tách thành lượt kiểm mới độc lập để không ghi đè bản ghi của người trước!',
+                    'success'
+                  );
+                }}
+                className="px-2.5 py-1.5 rounded-xl bg-white border border-amber-300 text-amber-900 text-[11px] font-bold hover:bg-amber-100 cursor-pointer transition-all"
+              >
+                Tạo bản ghi riêng
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ── SECTION 1: HERO HEADER CARD ── */}
         <div
           className="relative overflow-hidden rounded-[20px] px-3.5 sm:px-5 py-4 text-white"
@@ -686,12 +1059,13 @@ export default function BbkqTab() {
             <button
               type="button"
               onClick={handleSaveHistory}
-              className="min-w-0 min-h-[42px] py-2 px-1.5 rounded-[12px] text-white flex items-center justify-center gap-1.5 active:scale-95 transition-transform cursor-pointer"
+              disabled={isSaving}
+              className="min-w-0 min-h-[42px] py-2 px-1.5 rounded-[12px] text-white flex items-center justify-center gap-1.5 active:scale-95 transition-transform cursor-pointer disabled:opacity-60"
               style={{ background: 'linear-gradient(180deg, #7C3AED 0%, #5B21B6 100%)' }}
             >
               <Save size={13} strokeWidth={2.5} className="shrink-0" />
               <span className="text-[9.5px] min-[375px]:text-[10.5px] sm:text-[11.5px] font-black uppercase tracking-tight whitespace-nowrap truncate">
-                LƯU LỊCH SỬ
+                {isSaving ? 'ĐANG LƯU...' : 'LƯU LỊCH SỬ'}
               </span>
             </button>
 
@@ -833,18 +1207,26 @@ export default function BbkqTab() {
         {/* ── SECTION 4: BẢNG KÊ TIỀN MẶT THEO MỆNH GIÁ CARD ── */}
         <div className="bg-white rounded-[20px] p-3 sm:p-4 border border-[#E2ECF8] shadow-[0_4px_18px_rgba(15,23,42,0.03)]">
           {/* Card Header */}
-          <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-100">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#E6F8EE] text-[#0F8A5F] flex items-center justify-center shrink-0">
-              <BanknoteBadgeIcon size={18} color="#0F8A5F" />
+          <div className="flex items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#E6F8EE] text-[#0F8A5F] flex items-center justify-center shrink-0">
+                <BanknoteBadgeIcon size={18} color="#0F8A5F" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-[13px] min-[375px]:text-[14px] sm:text-[16px] font-black text-slate-900 uppercase tracking-tight truncate">
+                  BẢNG KÊ TIỀN MẶT THEO MỆNH GIÁ
+                </h2>
+                <p className="text-[11px] sm:text-[12px] font-medium text-slate-500 truncate">
+                  {storeName} • Mã Kho: {storeCode}
+                </p>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-[13px] min-[375px]:text-[14px] sm:text-[16px] font-black text-slate-900 uppercase tracking-tight truncate">
-                BẢNG KÊ TIỀN MẶT THEO MỆNH GIÁ
-              </h2>
-              <p className="text-[11px] sm:text-[12px] font-medium text-slate-500 truncate">
-                {storeName} • Mã Kho: {storeCode}
-              </p>
-            </div>
+
+            {activeRecordKey && (
+              <span className="shrink-0 px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-extrabold">
+                Đang sửa bản ghi (v{activeRecordVersion || 1})
+              </span>
+            )}
           </div>
 
           {/* Table Column Header Row */}
@@ -1623,23 +2005,15 @@ export default function BbkqTab() {
                   </div>
                   <div>
                     <h3 className="text-lg font-black text-slate-900 uppercase">
-                      LỊCH SỬ KIỂM TIỀN TRONG NGÀY
+                      LỊCH SỬ KIỂM TIỀN (KHO {storeCode})
                     </h3>
                     <p className="text-xs text-slate-400 font-bold">
-                      Tổng cộng: {historyList.length} lần kiểm đã lưu
+                      Tổng cộng: {historyList.length} bản ghi đồng bộ thời gian thực
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {historyList.length > 0 && (
-                    <button
-                      onClick={handleClearAllHistory}
-                      className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
-                    >
-                      Xóa tất cả
-                    </button>
-                  )}
                   <button
                     onClick={() => setIsHistoryModalOpen(false)}
                     className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
@@ -1655,10 +2029,10 @@ export default function BbkqTab() {
                   <div className="text-center py-12">
                     <History size={48} className="mx-auto text-slate-300 mb-3" />
                     <p className="text-sm font-bold text-slate-600">
-                      Chưa có lịch sử kiểm tiền nào được lưu trong ngày.
+                      Chưa có lịch sử kiểm tiền nào được lưu tại Kho {storeCode}.
                     </p>
                     <p className="text-xs text-slate-400 mt-1">
-                      Hãy bấm nút "LƯU LỊCH SỬ" hoặc "LƯU KẾT QUẢ KIỂM KÊ" sau mỗi lần đếm tiền xong!
+                      Hãy bấm nút "LƯU LỊCH SỬ" sau mỗi lần đếm tiền xong!
                     </p>
                   </div>
                 ) : (
@@ -1666,11 +2040,17 @@ export default function BbkqTab() {
                     const itemDiscrepancy = item.discrepancy ?? item.totalActual - item.erpTotal;
                     const isItemBalanced = item.erpTotal > 0 && Math.abs(itemDiscrepancy) === 0;
                     const isItemSurplus = item.erpTotal > 0 && itemDiscrepancy > 0;
+                    const itemKey = item.recordKey || item.id;
+                    const isCurrentlyLoaded = activeRecordKey === itemKey;
 
                     return (
                       <div
-                        key={item.id}
-                        className="pt-3.5 first:pt-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50/70 hover:bg-slate-100/80 border border-slate-200/80 transition-all"
+                        key={itemKey}
+                        className={`pt-3.5 first:pt-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl border transition-all ${
+                          isCurrentlyLoaded
+                            ? 'bg-indigo-50/70 border-indigo-300'
+                            : 'bg-slate-50/70 hover:bg-slate-100/80 border-slate-200/80'
+                        }`}
                       >
                         <div className="space-y-1.5 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -1679,6 +2059,14 @@ export default function BbkqTab() {
                             </span>
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-200 text-slate-700 text-[11px] font-bold">
                               <Calendar size={12} /> {item.dateStr}
+                            </span>
+                            {item.staffId && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-[10.5px] font-extrabold">
+                                <User size={11} /> {item.staffId}
+                              </span>
+                            )}
+                            <span className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-bold">
+                              v{item.version || 1}
                             </span>
 
                             {item.erpTotal > 0 ? (
@@ -1735,7 +2123,7 @@ export default function BbkqTab() {
                             <ArrowDownCircle size={14} /> NẠP LẠI
                           </button>
                           <button
-                            onClick={e => handleDeleteHistoryItem(item.id, e)}
+                            onClick={e => handleDeleteHistoryItem(itemKey, e)}
                             className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
                             title="Xóa bản ghi này"
                           >

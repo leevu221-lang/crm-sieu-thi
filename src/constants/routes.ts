@@ -152,6 +152,17 @@ export const isGuestShareLink = (search: string = ''): boolean => {
           const parsed = JSON.parse(storedUser);
           // Phiên hiện tại là role guest -> là khách
           if (parsed.role === 'guest' || parsed.isGuest) return true;
+          // Trên trang BBKQ (/bbkq), tài khoản đã đăng nhập KHÔNG được tự động chuyển sang guest khi đổi ?kho= trên URL,
+          // để hệ thống kiểm tra nghiêm ngặt quyền truy cập kho của tài khoản đang đăng nhập.
+          const currentPath = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+          const isBbkqRoute =
+            currentPath === '/bbkq' ||
+            currentPath === '/kiem-quy' ||
+            currentPath === '/bbkq-kiem-quy' ||
+            params.get('page') === 'bbkq';
+          if (isBbkqRoute) {
+            return false;
+          }
           // Nếu user đang đăng nhập nhưng mở link có mã kho khác với tài khoản đang đăng nhập -> xem khách của kho đó
           if (parsed.ma_kho && String(parsed.ma_kho).trim() !== String(khoParam).trim()) {
             return true;

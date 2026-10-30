@@ -276,7 +276,13 @@ function MainApp() {
             queryParams.set('share', 'true');
           }
         } else {
-          // Phiên đã đăng nhập: URL giữ sạch và tinh gọn, không nhồi tham số kho
+          // Phiên đã đăng nhập: với trang BBKQ giữ nguyên tham số kho trên URL (nếu có hoặc từ tài khoản) để kiểm tra & cách ly theo kho
+          if (currentPage === 'bbkq') {
+            const urlKhoParam = params.get('kho') || params.get('k') || params.get('makho') || kho;
+            if (urlKhoParam) {
+              queryParams.set('kho', urlKhoParam);
+            }
+          }
           if (!isDefaultTab && currentTab) queryParams.set('tab', currentTab);
           if (!isDefaultStore && currentStoreId && currentStoreId !== 'ALL') {
             queryParams.set('st', currentStoreId);
