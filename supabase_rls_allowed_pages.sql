@@ -252,3 +252,4 @@ CREATE POLICY "rls_store_access"
   WITH CHECK (
     public.has_any_page_permission(ARRAY['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tienich', 'birthday', 'lichpg'])
   );
+
