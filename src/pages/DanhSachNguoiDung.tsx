@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { SUPER_ADMIN_ALL_PAGES, isSuperAdmin43751 } from '../firebaseAdapter';
+import { APP_PAGES_REGISTRY, getDefaultAllowedPagesForNewUser } from '../constants/routes';
 import { useAuth } from '../contexts/AuthContext';
 import { UserProfile } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -839,7 +840,19 @@ export default function UserManagement({ onBack }: UserManagementProps) {
               <button
                 onClick={() => {
                   setIsNewUser(true);
-                  setIsEditing({ username: '', ma_kho: '', role: 'user', status: 'active', paymentConfirmed: true, isDemo: true, expiredAt: '2099-12-31T23:59:59.000Z' });
+                  setIsEditing({
+                    username: '',
+                    ma_kho: '',
+                    role: 'user',
+                    status: 'active',
+                    paymentConfirmed: true,
+                    isDemo: true,
+                    expiredAt: '2099-12-31T23:59:59.000Z',
+                    userPermissions: {
+                      canEditUser: false,
+                      allowedPages: getDefaultAllowedPagesForNewUser(),
+                    },
+                  });
                 }}
                 className="flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 cursor-pointer whitespace-nowrap text-xs"
               >
@@ -926,22 +939,13 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                             <span className="text-xs font-bold text-amber-600 italic">Toàn quyền SuperAdmin</span>
                           ) : (
                             <div className="flex flex-wrap gap-1 max-w-xs">
-                              {[
-                                { id: 'realtime', label: 'BC NGÀY', color: 'bg-indigo-100 text-indigo-700' },
-                                { id: 'luyke', label: 'BC Tháng', color: 'bg-blue-100 text-blue-700' },
-                                { id: 'khaibao', label: 'Khai Báo', color: 'bg-violet-100 text-violet-700' },
-                                { id: 'health', label: 'Sức Khoẻ', color: 'bg-rose-100 text-rose-700' },
-                                { id: 'toolhotro', label: 'Tool HT', color: 'bg-amber-100 text-amber-700' },
-                                { id: 'tienich', label: 'Tiện Ích', color: 'bg-purple-100 text-purple-700' },
-                                { id: 'tnb_data', label: 'TNB DATA', color: 'bg-emerald-100 text-emerald-700' },
-                                { id: 'tnbleader', label: 'TNB LEADER', color: 'bg-amber-100 text-amber-700' },
-                                { id: 'birthday', label: 'Sinh Nhật', color: 'bg-pink-100 text-pink-700' },
-                                { id: 'feedback', label: 'HƯỚNG DẪN & GÓP Ý', color: 'bg-indigo-100 text-indigo-700' },
-                                { id: 'excelviewer', label: 'XEM FILE EXCEL', color: 'bg-emerald-100 text-emerald-700' },
-                                { id: 'lichpg', label: 'Lịch PG', color: 'bg-teal-100 text-teal-700' },
-                              ].filter(p => user.userPermissions?.allowedPages?.includes(p.id)).map(p => (
-                                <span key={p.id} className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${p.color}`}>{p.label}</span>
-                              ))}
+                              {APP_PAGES_REGISTRY
+                                .filter((p) => user.userPermissions?.allowedPages?.includes(p.id))
+                                .map((p) => (
+                                  <span key={p.id} className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${p.badgeColor}`}>
+                                    {p.badgeLabel}
+                                  </span>
+                                ))}
                               {(!user.userPermissions?.allowedPages || user.userPermissions.allowedPages.length === 0) && (
                                 <span className="text-xs text-slate-400 italic">Chưa phân quyền</span>
                               )}
@@ -1125,26 +1129,51 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                   </div>
                 </div>
 
-                {/* THẺ PHÂN QUYỀN TRUY CẬP */}
+                {/* THẺ PHÂN QUYỀN TRUY CẬP (Tự động đồng bộ từ APP_PAGES_REGISTRY, trang mới mặc định chưa cấp quyền) */}
                 <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
-                  <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest block">🔑 Thẻ Phân quyền truy cập các Trang</span>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest block">
+                      🔑 Thẻ Phân quyền truy cập các Trang ({String(isEditing.username).trim() === '43751' ? APP_PAGES_REGISTRY.length : (isEditing.userPermissions?.allowedPages?.filter(id => APP_PAGES_REGISTRY.some(p => p.id === id)).length || 0)}/{APP_PAGES_REGISTRY.length})
+                    </span>
+                    {String(isEditing.username).trim() !== '43751' && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setIsEditing({
+                              ...isEditing,
+                              userPermissions: {
+                                ...(isEditing.userPermissions || { canEditUser: false }),
+                                allowedPages: APP_PAGES_REGISTRY.map((p) => p.id),
+                              },
+                            })
+                          }
+                          className="px-2.5 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors cursor-pointer"
+                        >
+                          Chọn tất cả
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setIsEditing({
+                              ...isEditing,
+                              userPermissions: {
+                                ...(isEditing.userPermissions || { canEditUser: false }),
+                                allowedPages: [],
+                              },
+                            })
+                          }
+                          className="px-2.5 py-1 text-[10px] font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                        >
+                          Bỏ chọn tất cả
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {[
-                      { id: 'realtime', label: 'Báo cáo Ngày (BC NGÀY)', color: 'bg-indigo-500' },
-                      { id: 'luyke', label: 'Báo cáo Tháng (BC THÁNG)', color: 'bg-blue-500' },
-                      { id: 'khaibao', label: 'Khai Báo', color: 'bg-indigo-500' },
-                      { id: 'health', label: 'Sức khoẻ nhân viên', color: 'bg-rose-500' },
-                      { id: 'toolhotro', label: 'Tool Hỗ Trợ', color: 'bg-amber-500' },
-                      { id: 'tienich', label: 'Tiện Ích', color: 'bg-purple-500' },
-                      { id: 'tnb_data', label: 'TNB DATA', color: 'bg-emerald-500' },
-                      { id: 'tnbleader', label: 'TNB LEADER', color: 'bg-amber-500' },
-                      { id: 'birthday', label: 'Sinh nhật NV', color: 'bg-pink-500' },
-                      { id: 'feedback', label: 'HƯỚNG DẪN & GÓP Ý', color: 'bg-indigo-500' },
-                      { id: 'excelviewer', label: 'XEM FILE EXCEL', color: 'bg-emerald-500' },
-                      { id: 'lichpg', label: 'Lịch Làm Việc PG', color: 'bg-teal-500' },
-                    ].map((page) => {
+                    {APP_PAGES_REGISTRY.map((page) => {
                       const is43751Admin = String(isEditing.username).trim() === '43751';
-                      const hasAccess = is43751Admin || (isEditing.userPermissions?.allowedPages?.includes(page.id) || false);
+                      const hasAccess = is43751Admin || (isEditing.userPermissions?.allowedPages?.includes(page.id) ?? page.defaultGranted);
                       return (
                         <label key={page.id} className={`flex items-center gap-3 p-4 border border-slate-200 rounded-xl ${is43751Admin ? 'bg-slate-50 cursor-not-allowed opacity-80' : 'cursor-pointer hover:bg-slate-50'} transition-colors`}>
                           <input
@@ -1155,7 +1184,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                               if (is43751Admin) return;
                               const currentPages = isEditing.userPermissions?.allowedPages || [];
                               const newPages = e.target.checked 
-                                ? [...currentPages, page.id]
+                                ? Array.from(new Set([...currentPages, page.id]))
                                 : currentPages.filter((p) => p !== page.id);
                               setIsEditing({ 
                                 ...isEditing, 
@@ -1168,7 +1197,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                             className={`w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-600 ${is43751Admin ? 'cursor-not-allowed' : ''}`}
                           />
                           <div className="flex items-center gap-2">
-                            <span className={`w-2.5 h-2.5 rounded-full ${page.color}`} />
+                            <span className={`w-2.5 h-2.5 rounded-full ${page.dotColor}`} />
                             <span className="text-sm font-bold text-slate-700">{page.label}</span>
                           </div>
                         </label>

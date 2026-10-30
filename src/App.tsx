@@ -67,7 +67,7 @@ const LoadingSpinner = () => (
   </div>
 );
 
-import { PAGE_URL_MAP, URL_PAGE_MAP, isGuestShareLink, PAGE_DEFAULT_TAB_MAP, isShareLinkForLichPg } from './constants/routes';
+import { APP_PAGES_REGISTRY, PAGE_URL_MAP, URL_PAGE_MAP, isGuestShareLink, PAGE_DEFAULT_TAB_MAP, isShareLinkForLichPg } from './constants/routes';
 
 function MainApp() {
   // Nhận diện CHẾ ĐỘ KHÁCH: Chỉ kích hoạt khi mở từ link chia sẻ (?view=guest hoặc ?share=true)
@@ -123,7 +123,20 @@ function MainApp() {
     });
   }, [currentPage]);
 
+  // Theo dõi xem người dùng có truy cập trực tiếp bằng URL cụ thể (/ten-trang hoặc ?page=...) hay không
+  const [hasExplicitUrlTarget, setHasExplicitUrlTarget] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+      if (path && path !== '' && URL_PAGE_MAP[path]) return true;
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('page')) return true;
+    } catch {}
+    return false;
+  });
+
   const handleSetCurrentPage = useCallback((page: any) => {
+    setHasExplicitUrlTarget(false);
     setVisitedPages(prev => {
       if (prev.has(page)) return prev;
       const next = new Set(prev);
@@ -220,15 +233,11 @@ function MainApp() {
                            currentPage === 'health' ? `health_${activeHealthTab}` :
                            currentPage;
 
-  // Đồng bộ URL trình duyệt (https://crm-sieu-thi.pages.dev/tentrang?kho=...&tab=...) và lưu localStorage
+  // Đồng bộ URL trình duyệt (https://crm-sieu-thi.pages.dev/tentrang?kho=...&tab=...)
   useEffect(() => {
     if (loading) return; // Wait until authentication state is fully settled to avoid race conditions or jumping kho
     if (currentPage) {
       try {
-        if (!isDirectDedicatedMode && userProfile?.role !== 'guest') {
-          localStorage.setItem('crm_active_page', currentPage);
-        }
-        
         const isPosmRoute = (currentPage === 'toolhotro' && activeToolHoTroTab === 'popup-all-sp');
         const basePath = isPosmRoute ? '/posm' : (PAGE_URL_MAP[currentPage] || `/${currentPage}`);
         const params = new URLSearchParams(window.location.search);
@@ -318,6 +327,7 @@ function MainApp() {
       try {
         const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
         if (path && URL_PAGE_MAP[path]) {
+          setHasExplicitUrlTarget(true);
           setCurrentPage(URL_PAGE_MAP[path] as any);
         }
       } catch {}
@@ -329,14 +339,17 @@ function MainApp() {
   useEffect(() => {
     const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
     if (path && URL_PAGE_MAP[path]) {
+      setHasExplicitUrlTarget(true);
       setCurrentPage(URL_PAGE_MAP[path] as any);
     } else {
       const params = new URLSearchParams(window.location.search);
       const pageParam = params.get('page');
       const hash = window.location.hash;
       if (pageParam) {
+        setHasExplicitUrlTarget(true);
         setCurrentPage(pageParam as any);
       } else if (hash.startsWith('#sync_thuong=')) {
+        setHasExplicitUrlTarget(true);
         setCurrentPage('health');
       }
     }
@@ -402,34 +415,44 @@ function MainApp() {
     }
   }, [loading, currentPage, isUser43751Local, isLichPgHidden]);
 
-  // Hard Rule implementation for fallback if userProfile has missing userPermissions (legacy session)
+  // Strict Role-Based Access Control (RBAC):
+  // - SuperAdmin (43751 / ADMIN) has full access to all pages in APP_PAGES_REGISTRY + 'users'.
+  // - Regular logged-in users ONLY have access to pages explicitly listed in `userProfile.userPermissions.allowedPages`.
+  // - Never auto-grant ungranted pages (no fallback pages, no forced auto-injection).
   const isSuperAdminHardcoded = userProfile?.username === '43751' || userProfile?.username === 'ADMIN';
-  const ALL_PAGES = useMemo(() => ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'bbkq', 'tienich', 'users', 'tnb_data', 'tnbleader', 'birthday', 'feedback', 'excelviewer'], []);
-  const DEFAULT_FALLBACK_PAGES = useMemo(() => ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'bbkq', 'tienich', 'birthday'], []);
+  const ALL_PAGES = useMemo(() => ['users', ...APP_PAGES_REGISTRY.map((p) => p.id)], []);
 
-  // Compute allowed pages
+  // Compute allowed pages strictly from database permissions
   const canEditUser = userProfile?.userPermissions?.canEditUser ?? isSuperAdminHardcoded;
   const userAllowedPages = userProfile?.userPermissions?.allowedPages;
-  const allowedPages = isSuperAdminHardcoded ? ALL_PAGES : (userAllowedPages || DEFAULT_FALLBACK_PAGES);
+  const allowedPages = useMemo(() => {
+    if (isSuperAdminHardcoded) return ALL_PAGES;
+    if (isGuestOrDirectMode) return Array.isArray(userAllowedPages) && userAllowedPages.length > 0 ? userAllowedPages : ALL_PAGES;
+    return Array.isArray(userAllowedPages) ? userAllowedPages : [];
+  }, [isSuperAdminHardcoded, isGuestOrDirectMode, userAllowedPages, ALL_PAGES]);
 
   const is7611 = userProfile?.username === '7611' || userProfile?.ma_nhan_vien === '7611';
 
   const effectiveAllowedPages = useMemo(() => {
-    let pages = is7611 ? ['tnbleader'] : (canEditUser && !allowedPages.includes('users') ? [...allowedPages, 'users'] : allowedPages);
-    // Lịch PG: mở cho tất cả user (PG001 vẫn xem được nhưng không có quyền chỉnh sửa — xem LichLamViecPG.tsx)
-    if (!pages.includes('lichpg')) {
+    if (is7611) return ['tnbleader'];
+    let pages = canEditUser && !allowedPages.includes('users') ? [...allowedPages, 'users'] : [...allowedPages];
+    // Chỉ cho phép truy cập Lịch PG ngoài danh sách phân quyền khi mở từ link chia sẻ hợp lệ (?share=true / ?view=guest)
+    if (isShareLinkForLichPg() && !pages.includes('lichpg')) {
       pages = [...pages, 'lichpg'];
-    }
-    // BBKQ (Kiểm Quỹ): mở cho tất cả user
-    if (!pages.includes('bbkq')) {
-      pages = [...pages, 'bbkq'];
-    }
-    // Tiện Ích: mở cho tất cả người dùng truy cập
-    if (!pages.includes('tienich')) {
-      pages = [...pages, 'tienich'];
     }
     return pages;
   }, [canEditUser, allowedPages, is7611]);
+
+  // Đồng bộ lưu crm_active_page chỉ khi trang hiện tại nằm trong danh sách được cấp quyền
+  useEffect(() => {
+    if (!loading && currentPage && effectiveAllowedPages.includes(currentPage)) {
+      if (!isDirectDedicatedMode && userProfile?.role !== 'guest') {
+        try {
+          localStorage.setItem('crm_active_page', currentPage);
+        } catch {}
+      }
+    }
+  }, [loading, currentPage, effectiveAllowedPages, isDirectDedicatedMode, userProfile?.role]);
   // Thêm dòng này sau dòng 46
   // console.log('--- PERMISSION DEBUG ---');
   // console.log('Effective Allowed Pages:', effectiveAllowedPages);
@@ -449,18 +472,20 @@ function MainApp() {
   }, [isDesktopView]);
 
   useEffect(() => {
-    // Redirect if we are on a page that is not allowed
-    if (userProfile && !loading) {
-      if (currentPage !== 'users' && !effectiveAllowedPages.includes(currentPage)) {
+    // Chỉ tự động chuyển về trang được cấp quyền đầu tiên khi người dùng mở trang gốc "/"
+    // (không gõ trực tiếp URL của một trang không có quyền). Nếu gõ trực tiếp URL không có quyền,
+    // giữ nguyên để hiển thị màn hình Chặn truy cập (403 Access Denied).
+    if (userProfile && !loading && !hasExplicitUrlTarget) {
+      if (!effectiveAllowedPages.includes(currentPage)) {
         if (effectiveAllowedPages.length > 0) {
-          const firstAllowedNavPage = effectiveAllowedPages.find(p => p !== 'users');
+          const firstAllowedNavPage = effectiveAllowedPages.find(p => p !== 'users') || effectiveAllowedPages[0];
           if (firstAllowedNavPage && firstAllowedNavPage !== currentPage) {
             setCurrentPage(firstAllowedNavPage as any);
           }
         }
       }
     }
-  }, [loading, currentPage, effectiveAllowedPages]);
+  }, [userProfile, loading, currentPage, effectiveAllowedPages, hasExplicitUrlTarget]);
 
   // Listen for custom navigation events from child components
   useEffect(() => {
@@ -536,6 +561,7 @@ function MainApp() {
     { id: 'toolhotro', label: 'Tool Hỗ Trợ', icon: Wrench, color: 'amber' },
     { id: 'bbkq', label: 'BBKQ (Kiểm Quỹ)', icon: Banknote, color: 'teal' },
     { id: 'tienich', label: 'Tiện Ích', icon: LayoutGrid, color: 'purple' },
+    { id: 'tnb_data', label: 'TNB DATA', icon: Database, color: 'emerald' },
     { id: 'tnbleader', label: 'TNB LEADER', icon: Trophy, color: 'amber' },
     { id: 'birthday', label: 'Sinh nhật NV', icon: Gift, color: 'pink' },
     { id: 'feedback', label: 'HƯỚNG DẪN & GÓP Ý', icon: MessageSquare, color: 'indigo' },
@@ -551,15 +577,71 @@ function MainApp() {
 
   const renderMainContent = () => {
     const isLichPgSharedAccess = currentPage === 'lichpg' && isShareLinkForLichPg();
-    const isHiddenBlocked = !isUser43751Local && pageHiddenState[currentPage] && !isLichPgSharedAccess;
-    const isMaintenanceBlockedByApp = !['realtime', 'toolhotro', 'tienich', 'luyke', 'health'].includes(currentPage) && pageMaintenanceState[currentPage] && !isUser43751Local;
-    const isPageBlocked = isHiddenBlocked || isMaintenanceBlockedByApp;
+    const isPermissionBlocked = !effectiveAllowedPages.includes(currentPage) && !isLichPgSharedAccess;
+    const isHiddenBlocked = !isPermissionBlocked && !isUser43751Local && pageHiddenState[currentPage] && !isLichPgSharedAccess;
+    const isMaintenanceBlockedByApp = !isPermissionBlocked && !['realtime', 'toolhotro', 'tienich', 'luyke', 'health'].includes(currentPage) && pageMaintenanceState[currentPage] && !isUser43751Local;
+    const isPageBlocked = isPermissionBlocked || isHiddenBlocked || isMaintenanceBlockedByApp;
     const hasVisited = (pageId: string) => currentPage === pageId || visitedPages.has(pageId);
+    const firstAllowedNavPage = effectiveAllowedPages.find(p => p !== 'users') || effectiveAllowedPages[0];
+    const blockedPageMeta = APP_PAGES_REGISTRY.find(p => p.id === currentPage);
+    const blockedPageLabel = currentPage === 'users'
+      ? 'Quản lý Người dùng & Phân quyền'
+      : (blockedPageMeta?.label || currentPage.toUpperCase());
+    const firstAllowedLabel = APP_PAGES_REGISTRY.find(p => p.id === firstAllowedNavPage)?.navLabel || 'Trang được cấp quyền';
 
     return (
       <LuykeDataProvider>
         <div className="w-full min-w-0 flex-1">
           <Suspense fallback={<LoadingSpinner />}>
+            {isPermissionBlocked && (
+              <div className="flex items-center justify-center h-full p-4 sm:p-6 mt-8 sm:mt-12">
+                <div className="bg-white rounded-3xl p-8 sm:p-12 max-w-lg text-center border border-rose-200 shadow-xl w-full">
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-rose-600 shadow-inner">
+                    <ShieldAlert size={44} />
+                  </div>
+                  <h1 className="text-xl sm:text-2xl font-black text-slate-800 uppercase tracking-wider mb-3">
+                    TRUY CẬP BỊ CHẶN
+                  </h1>
+                  {effectiveAllowedPages.length > 0 ? (
+                    <p className="text-slate-600 font-medium text-sm sm:text-base leading-relaxed mb-8">
+                      Tài khoản <span className="font-black text-slate-800">{userProfile?.username}</span> không có quyền truy cập trang{' '}
+                      <span className="font-black text-rose-600">"{blockedPageLabel}"</span>. Vui lòng liên hệ Quản trị viên để được cấp quyền trong danh sách phân quyền.
+                    </p>
+                  ) : (
+                    <p className="text-slate-600 font-medium text-sm sm:text-base leading-relaxed mb-8">
+                      Tài khoản <span className="font-black text-slate-800">{userProfile?.username}</span> hiện chưa được cấp quyền truy cập bất kỳ trang nào trên hệ thống. Vui lòng liên hệ Quản trị viên để được phân quyền.
+                    </p>
+                  )}
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                    {firstAllowedNavPage ? (
+                      <button
+                        onClick={() => handleSetCurrentPage(firstAllowedNavPage as any)}
+                        className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-[#2563EB] to-[#7C3AED] hover:from-[#1D4ED8] hover:to-[#6D28D9] text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2 cursor-pointer text-xs sm:text-sm"
+                      >
+                        <RefreshCw size={17} />
+                        VỀ TRANG {firstAllowedLabel}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => refreshProfile()}
+                        className="w-full sm:w-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2 cursor-pointer text-xs sm:text-sm"
+                      >
+                        <RefreshCw size={17} />
+                        KIỂM TRA LẠI QUYỀN
+                      </button>
+                    )}
+                    <button
+                      onClick={() => logout()}
+                      className="w-full sm:w-auto px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs sm:text-sm"
+                    >
+                      <LogOut size={17} />
+                      ĐĂNG XUẤT
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {isHiddenBlocked && (
               <div className="flex items-center justify-center h-full p-6 mt-12">
                 <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-purple-200 shadow-xl w-full">
@@ -662,7 +744,7 @@ function MainApp() {
                 );
               }
               if (currentPage === 'birthday' && effectiveAllowedPages.includes('birthday')) return <SinhNhatNv />;
-              if (currentPage === 'feedback') return <FeedbackPage />;
+              if (currentPage === 'feedback' && effectiveAllowedPages.includes('feedback')) return <FeedbackPage />;
               if (currentPage === 'excelviewer' && effectiveAllowedPages.includes('excelviewer')) return <ExcelViewer />;
               if (currentPage === 'lichpg' && effectiveAllowedPages.includes('lichpg')) return <LichLamViecPG />;
               return null;

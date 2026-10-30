@@ -3,11 +3,11 @@ import { supabase } from '../supabaseClient';
 import { UserProfile } from '../types';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { SUPER_ADMIN_ALL_PAGES, isSuperAdmin43751 } from '../firebaseAdapter';
+import { SUPER_ADMIN_ALL_PAGES, isSuperAdmin43751, syncVerifiedSessionPermissions } from '../firebaseAdapter';
 import { trackUserPing } from '../services/accessTracker';
 import { localYcxDb, isValidStoreName, normalizeStoreId } from '../pages/RTST/utils';
 import { syncConfiguredStoreDocument, getConfiguredStoresFromBoss, cleanStoreInput } from '../services/storeSync';
-import { URL_PAGE_MAP, isGuestShareLink } from '../constants/routes';
+import { URL_PAGE_MAP, isGuestShareLink, getDefaultAllowedPagesForNewUser } from '../constants/routes';
 import { clearAllGlobalCaches } from '../services/globalCacheRegistry';
 
 function enforceSuperAdminProfile(profile: UserProfile | null): UserProfile | null {
@@ -94,6 +94,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (permData || userData) {
+        const verifiedAllowed = Array.isArray(permData?.allowed_pages) ? permData.allowed_pages : [];
+        syncVerifiedSessionPermissions(userProfile.username, verifiedAllowed);
         setUserProfile(prev => {
           if (!prev) return null;
           const updated = enforceSuperAdminProfile({
@@ -110,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isDemo: userData.isDemo,
             userPermissions: {
               ...prev.userPermissions,
-              allowedPages: permData?.allowed_pages || prev.userPermissions?.allowedPages || []
+              allowedPages: verifiedAllowed
             }
           });
           if (updated) {
@@ -304,6 +306,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         const newAllowedPages = snapshot.empty ? [] : (snapshot.docs[0].data().allowed_pages || []);
+        syncVerifiedSessionPermissions(prev.username, newAllowedPages);
         
         // Prevent unnecessary state updates if permissions are the same
         if (JSON.stringify(prev.userPermissions?.allowedPages) === JSON.stringify(newAllowedPages)) {
@@ -515,6 +518,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       const profile = enforceSuperAdminProfile(rawProfile)!;
+      syncVerifiedSessionPermissions(profile.username, profile.userPermissions?.allowedPages || []);
 
       const cleanStorageForNewUser = () => {
         const theme = localStorage.getItem('theme');
@@ -658,8 +662,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, message: `Đăng ký thất bại: ${error.message}` };
       }
 
-      // Create default user permissions
-      const defaultPages = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tienich', 'birthday', 'tnb_data'];
+      // Create default user permissions (mặc định chưa cấp quyền trang nào cho đến khi Admin duyệt cấp quyền)
+      const defaultPages = getDefaultAllowedPagesForNewUser();
       const { error: permError } = await supabase
         .from('user_permissions')
         .insert({
@@ -668,6 +672,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
+      syncVerifiedSessionPermissions(cleanUsername, defaultPages);
 
       if (permError) {
         console.error('Supabase permissions insert error:', permError);

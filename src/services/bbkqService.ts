@@ -164,6 +164,21 @@ export function resolveAndVerifyWarehouseAccess(
       };
     }
 
+    // Strict check: user must have 'bbkq' in allowed_pages
+    const allowedPages = Array.isArray(userProfile.userPermissions?.allowedPages)
+      ? userProfile.userPermissions.allowedPages
+      : [];
+    if (!allowedPages.includes('bbkq')) {
+      return {
+        authorized: false,
+        effectiveKho: userKho,
+        requestedUrlKho,
+        userKho,
+        staffId: rawUsername || `NV_${userKho}`,
+        reason: `Tài khoản "${rawUsername}" chưa được cấp quyền truy cập trang BBKQ (Kiểm Quỹ).`,
+      };
+    }
+
     // Strict check: if URL specifies ?kho=... that does not match the user's assigned warehouse, block access!
     if (requestedUrlKho && requestedUrlKho !== userKho) {
       return {

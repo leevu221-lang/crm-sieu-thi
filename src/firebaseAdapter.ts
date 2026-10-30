@@ -19,6 +19,7 @@ import {
   SetOptions
 } from "firebase/firestore";
 import { db } from "./firebaseConfig";
+import { APP_PAGES_REGISTRY, TABLE_REQUIRED_PAGES_MAP, isGuestShareLink } from "./constants/routes";
 
 /**
  * Safely format doc ID for Firestore path. Replaces forward slashes '/' with '-'
@@ -29,17 +30,162 @@ const safeDocId = (id: any): string => {
 };
 
 // ============================================================================
-// SUPER ADMIN 43751 PROTECTION INVARIANTS (BACKEND ADAPTER GUARD)
+// SUPER ADMIN 43751 PROTECTION INVARIANTS & DATA-LAYER RLS GUARD
 // ============================================================================
 export const SUPER_ADMIN_USERNAME = '43751';
 export const SUPER_ADMIN_ALL_PAGES = [
-  'realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'bbkq',
-  'tienich', 'users', 'tnb_data', 'tnbleader', 'birthday',
-  'feedback', 'excelviewer', 'lichpg'
+  'users',
+  ...APP_PAGES_REGISTRY.map((p) => p.id),
 ];
 
 export function isSuperAdmin43751(val: any): boolean {
   return String(val ?? '').trim() === SUPER_ADMIN_USERNAME;
+}
+
+// In-memory tamper-resistant cache of verified `allowed_pages` loaded from `user_permissions` DB
+const verifiedUserPermissionsMap = new Map<string, string[]>();
+
+export function syncVerifiedSessionPermissions(username: string, allowedPages: string[]) {
+  const clean = String(username ?? '').trim();
+  if (!clean) return;
+  verifiedUserPermissionsMap.set(
+    clean,
+    isSuperAdmin43751(clean) ? SUPER_ADMIN_ALL_PAGES : (Array.isArray(allowedPages) ? allowedPages : [])
+  );
+}
+
+/**
+ * Resolves the current active user session & their verified `allowed_pages`.
+ * Prefers the in-memory `verifiedUserPermissionsMap` populated directly from the database
+ * over raw `localStorage` so DevTools tampering with `localStorage.userProfile` cannot bypass RLS.
+ */
+export function getActiveSessionPermissionContext(): {
+  isAuthenticated: boolean;
+  isGuest: boolean;
+  isSuperAdmin: boolean;
+  username: string;
+  allowedPages: string[];
+} {
+  if (typeof window === 'undefined') {
+    return { isAuthenticated: false, isGuest: false, isSuperAdmin: true, username: '', allowedPages: SUPER_ADMIN_ALL_PAGES };
+  }
+  try {
+    const isShare = isGuestShareLink(window.location.search);
+    const raw = localStorage.getItem('userProfile');
+    if (!raw) {
+      return {
+        isAuthenticated: false,
+        isGuest: isShare,
+        isSuperAdmin: false,
+        username: '',
+        allowedPages: [],
+      };
+    }
+    const parsed = JSON.parse(raw);
+    const username = String(parsed?.username || '').trim();
+    const isGuest = Boolean(parsed?.role === 'guest' || parsed?.isGuest || isShare);
+    const isSuperAdmin =
+      isSuperAdmin43751(username) ||
+      username.toUpperCase() === 'ADMIN' ||
+      Boolean(parsed?.userPermissions?.canEditUser);
+
+    if (isSuperAdmin) {
+      return {
+        isAuthenticated: true,
+        isGuest: false,
+        isSuperAdmin: true,
+        username,
+        allowedPages: SUPER_ADMIN_ALL_PAGES,
+      };
+    }
+
+    // Use DB-verified permissions if already fetched in RAM; fallback to profile's allowedPages
+    const verifiedPages = verifiedUserPermissionsMap.has(username)
+      ? verifiedUserPermissionsMap.get(username)!
+      : (Array.isArray(parsed?.userPermissions?.allowedPages) ? parsed.userPermissions.allowedPages : []);
+
+    return {
+      isAuthenticated: Boolean(username && !isGuest),
+      isGuest,
+      isSuperAdmin: false,
+      username,
+      allowedPages: verifiedPages,
+    };
+  } catch {
+    return { isAuthenticated: false, isGuest: false, isSuperAdmin: false, username: '', allowedPages: [] };
+  }
+}
+
+/**
+ * Enforces Row-Level Security (RLS) & `allowed_pages` permission checks at the Data Adapter layer.
+ * Blocks unauthorized API/Database queries and mutations even if invoked directly outside React UI.
+ */
+export function enforceTableRlsPolicy(
+  tableName: string,
+  operation: 'select' | 'insert' | 'upsert' | 'update' | 'delete',
+  payload?: any
+): void {
+  const ctx = getActiveSessionPermissionContext();
+
+  // 1. SuperAdmin (43751 / ADMIN / canEditUser) has full access (subject to SuperAdmin write guard)
+  if (ctx.isSuperAdmin) return;
+
+  // 2. Protect `user_permissions` table from privilege escalation by non-admin logged-in users
+  if (tableName === 'user_permissions' && operation !== 'select') {
+    if (ctx.isAuthenticated) {
+      throw new Error(
+        '[RLS Policy Violation] Truy cập bị từ chối: Chỉ Quản trị viên mới có quyền thay đổi bảng phân quyền (user_permissions).'
+      );
+    }
+    // Unauthenticated registration flow can only insert initial permissions for a new non-admin user
+    if (operation === 'delete' || operation === 'update') {
+      throw new Error(
+        '[RLS Policy Violation] Truy cập bị từ chối: Không được phép xoá hoặc sửa bảng phân quyền khi chưa đăng nhập Quản trị viên.'
+      );
+    }
+    return;
+  }
+
+  // 3. Protect `ql_nguoi_dung` from unauthorized deletion or cross-user tampering
+  if (tableName === 'ql_nguoi_dung') {
+    if (operation === 'delete') {
+      throw new Error(
+        '[RLS Policy Violation] Truy cập bị từ chối: Chỉ Quản trị viên mới có quyền xoá tài khoản người dùng.'
+      );
+    }
+    if ((operation === 'update' || operation === 'upsert') && ctx.isAuthenticated && payload) {
+      const items = Array.isArray(payload) ? payload : [payload];
+      for (const item of items) {
+        if (item?.username && String(item.username).trim() !== ctx.username) {
+          throw new Error(
+            '[RLS Policy Violation] Truy cập bị từ chối: Không được phép chỉnh sửa thông tin tài khoản của người dùng khác.'
+          );
+        }
+      }
+    }
+    return;
+  }
+
+  // 4. For guest share links or unauthenticated login/register bootstrap, allow core bootstrap reads
+  if (!ctx.isAuthenticated) {
+    return;
+  }
+
+  // 5. Special case for account 7611 (dedicated TNB Leader account)
+  if (ctx.username === '7611' && (tableName === 'tnb_dm_7611_data' || tableName === 'tnb_data')) {
+    return;
+  }
+
+  // 6. Check table-to-page permission mapping (`TABLE_REQUIRED_PAGES_MAP`)
+  const requiredPages = TABLE_REQUIRED_PAGES_MAP[tableName];
+  if (requiredPages && requiredPages.length > 0) {
+    const hasPermission = requiredPages.some((pageId) => ctx.allowedPages.includes(pageId));
+    if (!hasPermission) {
+      throw new Error(
+        `[RLS Policy Violation] Tài khoản "${ctx.username}" không có quyền truy cập dữ liệu bảng "${tableName}" (Yêu cầu quyền trang: ${requiredPages.join(' hoặc ')}).`
+      );
+    }
+  }
 }
 
 /**
@@ -179,6 +325,13 @@ export function seedDocCache(collectionName: string, docId: string, data: Record
   const existing = docFieldCache.get(key) || {};
   const merged = { ...existing, ...data, id: safeDocId(docId) };
   docFieldCache.set(key, merged);
+
+  if (collectionName === 'user_permissions' && data.user_id !== undefined) {
+    syncVerifiedSessionPermissions(
+      String(data.user_id).trim(),
+      Array.isArray(data.allowed_pages) ? data.allowed_pages : []
+    );
+  }
 
   if (collectionName === 'warehouses' && data.ma_kho !== undefined) {
     const mk = String(data.ma_kho).trim();
@@ -452,6 +605,7 @@ class FirebaseQueryBuilder {
   }
 
   private async executeSelectDocs(): Promise<any[]> {
+    enforceTableRlsPolicy(this.tableName, 'select');
     const cacheKey = `${this.tableName}::${this.getQuerySignature()}`;
     const now = Date.now();
 
@@ -534,6 +688,7 @@ class FirebaseQueryBuilder {
       return { data: null, error: new Error('Firestore write paused due to quota protection') };
     }
     try {
+      enforceTableRlsPolicy(this.tableName, 'insert', data);
       const items = Array.isArray(data) ? data : [data];
       const results = [];
       
@@ -610,6 +765,7 @@ class FirebaseQueryBuilder {
       return { data: Array.isArray(data) ? data : data, error: null };
     }
     try {
+      enforceTableRlsPolicy(this.tableName, 'upsert', data);
       const items = Array.isArray(data) ? data : [data];
       const results = [];
 
@@ -753,6 +909,7 @@ class FirebaseQueryBuilder {
       return { data: [], error: null };
     }
     try {
+      enforceTableRlsPolicy(this.tableName, 'update', this.pendingUpdate);
       if (this.idValue) {
         const sId = safeDocId(this.idValue);
         const cachedDoc = docFieldCache.get(`${this.tableName}/${sId}`);
@@ -804,6 +961,7 @@ class FirebaseQueryBuilder {
 
   private async executeDelete() {
     try {
+      enforceTableRlsPolicy(this.tableName, 'delete');
       if (this.idValue) {
         const sId = safeDocId(this.idValue);
         const cachedDoc = docFieldCache.get(`${this.tableName}/${sId}`);

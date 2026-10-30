@@ -78,6 +78,7 @@ const ITEM_META: Record<string, { subtitle: string; badge?: string; badgeType?: 
   toolhotro:   { subtitle: 'Công cụ in ấn & sticker' },
   bbkq:        { subtitle: 'Biên bản kiểm quỹ tiền mặt', badge: 'MỚI', badgeType: 'moi' },
   tienich:     { subtitle: 'Tương tác LINE, In QR & Kiểm kê' },
+  tnb_data:    { subtitle: 'Quản lý dữ liệu thi đua TNB' },
   tnbleader:   { subtitle: 'Thi đua & Bảng xếp hạng',     badge: 'HOT',  badgeType: 'hot' },
   birthday:    { subtitle: 'Danh sách sinh nhật NV' },
   feedback:    { subtitle: 'Góp ý & Hướng dẫn sử dụng' },
@@ -87,7 +88,7 @@ const ITEM_META: Record<string, { subtitle: string; badge?: string; badgeType?: 
 
 /* ── Section grouping ── */
 const SECTION_MAP: { title: string; ids: string[] }[] = [
-  { title: 'MENU QUẢN LÝ', ids: ['realtime', 'luyke', 'khaibao', 'health', 'tnbleader'] },
+  { title: 'MENU QUẢN LÝ', ids: ['realtime', 'luyke', 'khaibao', 'health', 'tnb_data', 'tnbleader'] },
   { title: 'DỮ LIỆU & TIỆN ÍCH', ids: ['toolhotro', 'bbkq', 'tienich', 'birthday', 'excelviewer', 'feedback', 'lichpg'] },
 ];
 

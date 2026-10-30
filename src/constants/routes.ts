@@ -1,52 +1,278 @@
-// Bảng ánh xạ từ page ID sang URL pathname thân thiện
-export const PAGE_URL_MAP: Record<string, string> = {
-  posm: '/posm',
-  realtime: '/realtime',
-  health: '/suc-khoe',
-  luyke: '/luy-ke',
-  khaibao: '/khai-bao',
-  lichpg: '/lich-pg',
-  toolhotro: '/tool-ho-tro',
-  bbkq: '/bbkq',
-  tienich: '/tien-ich',
-  users: '/users',
-  tnb_data: '/tnb-data',
-  tnbleader: '/tnb-leader',
-  birthday: '/sinh-nhat',
-  feedback: '/feedback',
-  excelviewer: '/excel-viewer',
+// ============================================================================
+// SINGLE SOURCE OF TRUTH: APP PAGES & PERMISSION REGISTRY
+// Quy tắc:
+// 1. Hiển thị giao diện: Chỉ hiện trang đã được cấp quyền trong `allowed_pages`.
+// 2. Truy cập bằng URL: Không có quyền thì bị chặn (403 Access Denied).
+// 3. Thêm trang mới: Khi thêm trang vào `APP_PAGES_REGISTRY`, tự động sinh
+//    checkbox trong modal phân quyền người dùng, mặc định chưa cấp quyền (`defaultGranted: false`).
+// 4. Bảo vệ dữ liệu (Adapter & RLS): Đồng bộ ánh xạ bảng dữ liệu (`protectedTables`)
+//    với `allowed_pages` để chặn truy vấn trái phép từ phía client/API và RLS.
+// ============================================================================
+
+export interface AppPageRegistryItem {
+  id: string;
+  /** Tên hiển thị đầy đủ trong Modal Phân quyền (DanhSachNguoiDung) */
+  label: string;
+  /** Tên hiển thị trên thanh điều hướng Sidebar / Mobile Nav */
+  navLabel: string;
+  /** Tên rút gọn hiển thị dạng badge trong bảng Danh sách người dùng */
+  badgeLabel: string;
+  /** Màu chấm tròn trong checkbox phân quyền */
+  dotColor: string;
+  /** Màu badge trong bảng người dùng */
+  badgeColor: string;
+  /** Đường dẫn URL chính của trang */
+  path: string;
+  /** Các đường dẫn URL phụ (alias) trỏ về cùng trang */
+  aliases?: string[];
+  /** Nhóm menu trên Sidebar */
+  section: 'management' | 'utility';
+  /** Mặc định cấp quyền khi tạo trang mới hoặc tạo user mới (Bắt buộc = false theo quy tắc bảo mật) */
+  defaultGranted: boolean;
+  /** Danh sách các bảng dữ liệu (Supabase/Firestore) thuộc phạm vi bảo vệ của trang này */
+  protectedTables: string[];
+}
+
+export const APP_PAGES_REGISTRY: AppPageRegistryItem[] = [
+  {
+    id: 'realtime',
+    label: 'Báo cáo Ngày (BC NGÀY)',
+    navLabel: 'BC NGÀY',
+    badgeLabel: 'BC NGÀY',
+    dotColor: 'bg-indigo-500',
+    badgeColor: 'bg-indigo-100 text-indigo-700',
+    path: '/realtime',
+    section: 'management',
+    defaultGranted: false,
+    protectedTables: ['store', 'warehouse_time'],
+  },
+  {
+    id: 'luyke',
+    label: 'Báo cáo Tháng (BC THÁNG)',
+    navLabel: 'BC THÁNG',
+    badgeLabel: 'BC Tháng',
+    dotColor: 'bg-blue-500',
+    badgeColor: 'bg-blue-100 text-blue-700',
+    path: '/luy-ke',
+    aliases: ['/luyke'],
+    section: 'management',
+    defaultGranted: false,
+    protectedTables: ['store', 'warehouse_time'],
+  },
+  {
+    id: 'khaibao',
+    label: 'Khai Báo',
+    navLabel: 'Cập nhật',
+    badgeLabel: 'Khai Báo',
+    dotColor: 'bg-indigo-500',
+    badgeColor: 'bg-violet-100 text-violet-700',
+    path: '/khai-bao',
+    aliases: ['/khaibao'],
+    section: 'management',
+    defaultGranted: false,
+    protectedTables: ['store', 'warehouse_time', 'employee_health'],
+  },
+  {
+    id: 'health',
+    label: 'Sức khoẻ nhân viên',
+    navLabel: 'Sức khỏe NV',
+    badgeLabel: 'Sức Khoẻ',
+    dotColor: 'bg-rose-500',
+    badgeColor: 'bg-rose-100 text-rose-700',
+    path: '/suc-khoe',
+    aliases: ['/health'],
+    section: 'management',
+    defaultGranted: false,
+    protectedTables: ['employee_health', 'store'],
+  },
+  {
+    id: 'toolhotro',
+    label: 'Tool Hỗ Trợ',
+    navLabel: 'Tool Hỗ Trợ',
+    badgeLabel: 'Tool HT',
+    dotColor: 'bg-amber-500',
+    badgeColor: 'bg-amber-100 text-amber-700',
+    path: '/tool-ho-tro',
+    aliases: ['/toolhotro', '/posm'],
+    section: 'utility',
+    defaultGranted: false,
+    protectedTables: ['scanner_sessions', 'store'],
+  },
+  {
+    id: 'bbkq',
+    label: 'BBKQ (Kiểm Quỹ)',
+    navLabel: 'BBKQ (Kiểm Quỹ)',
+    badgeLabel: 'BBKQ',
+    dotColor: 'bg-teal-500',
+    badgeColor: 'bg-teal-100 text-teal-700',
+    path: '/bbkq',
+    aliases: ['/kiem-quy', '/bbkq-kiem-quy'],
+    section: 'utility',
+    defaultGranted: false,
+    protectedTables: ['bbkq_store_data'],
+  },
+  {
+    id: 'tienich',
+    label: 'Tiện Ích',
+    navLabel: 'Tiện Ích',
+    badgeLabel: 'Tiện Ích',
+    dotColor: 'bg-purple-500',
+    badgeColor: 'bg-purple-100 text-purple-700',
+    path: '/tien-ich',
+    aliases: ['/tienich'],
+    section: 'utility',
+    defaultGranted: false,
+    protectedTables: ['inventory_schedules', 'inventory_assignments', 'store'],
+  },
+  {
+    id: 'tnb_data',
+    label: 'TNB DATA',
+    navLabel: 'TNB DATA',
+    badgeLabel: 'TNB DATA',
+    dotColor: 'bg-emerald-500',
+    badgeColor: 'bg-emerald-100 text-emerald-700',
+    path: '/tnb-data',
+    aliases: ['/tnb_data'],
+    section: 'management',
+    defaultGranted: false,
+    protectedTables: ['tnb_data', 'tnb_dm_7611_data'],
+  },
+  {
+    id: 'tnbleader',
+    label: 'TNB LEADER',
+    navLabel: 'TNB LEADER',
+    badgeLabel: 'TNB LEADER',
+    dotColor: 'bg-amber-500',
+    badgeColor: 'bg-amber-100 text-amber-700',
+    path: '/tnb-leader',
+    aliases: ['/tnbleader'],
+    section: 'management',
+    defaultGranted: false,
+    protectedTables: ['tnb_data', 'tnb_dm_7611_data'],
+  },
+  {
+    id: 'birthday',
+    label: 'Sinh nhật NV',
+    navLabel: 'Sinh nhật NV',
+    badgeLabel: 'Sinh Nhật',
+    dotColor: 'bg-pink-500',
+    badgeColor: 'bg-pink-100 text-pink-700',
+    path: '/sinh-nhat',
+    aliases: ['/birthday'],
+    section: 'utility',
+    defaultGranted: false,
+    protectedTables: ['store'],
+  },
+  {
+    id: 'feedback',
+    label: 'HƯỚNG DẪN & GÓP Ý',
+    navLabel: 'HƯỚNG DẪN & GÓP Ý',
+    badgeLabel: 'HƯỚNG DẪN & GÓP Ý',
+    dotColor: 'bg-indigo-500',
+    badgeColor: 'bg-indigo-100 text-indigo-700',
+    path: '/feedback',
+    section: 'utility',
+    defaultGranted: false,
+    protectedTables: ['website_feedbacks', 'website_feedback_replies'],
+  },
+  {
+    id: 'excelviewer',
+    label: 'XEM FILE EXCEL',
+    navLabel: 'XEM FILE EXCEL',
+    badgeLabel: 'XEM FILE EXCEL',
+    dotColor: 'bg-emerald-500',
+    badgeColor: 'bg-emerald-100 text-emerald-700',
+    path: '/excel-viewer',
+    aliases: ['/excelviewer'],
+    section: 'utility',
+    defaultGranted: false,
+    protectedTables: [],
+  },
+  {
+    id: 'lichpg',
+    label: 'Lịch Làm Việc PG',
+    navLabel: 'Lịch PG',
+    badgeLabel: 'Lịch PG',
+    dotColor: 'bg-teal-500',
+    badgeColor: 'bg-teal-100 text-teal-700',
+    path: '/lich-pg',
+    aliases: ['/lichpg'],
+    section: 'utility',
+    defaultGranted: false,
+    protectedTables: ['store'],
+  },
+];
+
+/**
+ * Cho phép đăng ký động trang mới vào hệ thống tại runtime (nếu có module mở rộng).
+ * Mọi trang mới đều mặc định `defaultGranted: false` (chưa cấp quyền).
+ */
+export function registerAppPage(page: Omit<AppPageRegistryItem, 'defaultGranted'> & { defaultGranted?: boolean }): void {
+  const exists = APP_PAGES_REGISTRY.some((p) => p.id === page.id);
+  if (!exists) {
+    const normalized: AppPageRegistryItem = {
+      ...page,
+      defaultGranted: page.defaultGranted ?? false,
+    };
+    APP_PAGES_REGISTRY.push(normalized);
+    PAGE_URL_MAP[normalized.id] = normalized.path;
+    URL_PAGE_MAP[normalized.path.toLowerCase()] = normalized.id;
+    (normalized.aliases || []).forEach((alias) => {
+      URL_PAGE_MAP[alias.toLowerCase()] = normalized.id;
+    });
+  }
+}
+
+/**
+ * Trả về danh sách trang mặc định khi tạo mới tài khoản (Mặc định: [] - chưa cấp quyền trang nào
+ * đối với các trang có `defaultGranted: false`).
+ */
+export function getDefaultAllowedPagesForNewUser(): string[] {
+  return APP_PAGES_REGISTRY.filter((p) => p.defaultGranted === true).map((p) => p.id);
+}
+
+/**
+ * Bảng ánh xạ từ tên bảng dữ liệu (Supabase / Firestore) sang danh sách các `pageId` được phép truy cập.
+ * Dùng cho tầng Adapter Guard & đồng bộ với chính sách RLS.
+ */
+export const TABLE_REQUIRED_PAGES_MAP: Record<string, string[]> = {
+  employee_health: ['health', 'khaibao'],
+  inventory_schedules: ['tienich'],
+  inventory_assignments: ['tienich'],
+  scanner_sessions: ['toolhotro'],
+  bbkq_store_data: ['bbkq'],
+  tnb_data: ['tnb_data', 'tnbleader'],
+  tnb_dm_7611_data: ['tnbleader', 'tnb_data'],
+  website_feedbacks: ['feedback'],
+  website_feedback_replies: ['feedback'],
+  phan_ca_hc: ['tienich', 'lichpg'],
+  weekly_shifts: ['tienich', 'lichpg'],
 };
 
-// Bảng ánh xạ từ URL pathname sang page ID
-export const URL_PAGE_MAP: Record<string, string> = {
-  '/posm': 'toolhotro',
-  '/realtime': 'realtime',
-  '/health': 'health',
-  '/suc-khoe': 'health',
-  '/luyke': 'luyke',
-  '/luy-ke': 'luyke',
-  '/khaibao': 'khaibao',
-  '/khai-bao': 'khaibao',
-  '/lichpg': 'lichpg',
-  '/lich-pg': 'lichpg',
-  '/toolhotro': 'toolhotro',
-  '/tool-ho-tro': 'toolhotro',
-  '/bbkq': 'bbkq',
-  '/kiem-quy': 'bbkq',
-  '/bbkq-kiem-quy': 'bbkq',
-  '/tienich': 'tienich',
-  '/tien-ich': 'tienich',
-  '/users': 'users',
-  '/tnb-data': 'tnb_data',
-  '/tnb_data': 'tnb_data',
-  '/tnb-leader': 'tnbleader',
-  '/tnbleader': 'tnbleader',
-  '/sinh-nhat': 'birthday',
-  '/birthday': 'birthday',
-  '/feedback': 'feedback',
-  '/excel-viewer': 'excelviewer',
-  '/excelviewer': 'excelviewer',
+// Bảng ánh xạ từ page ID sang URL pathname thân thiện (tự động đồng bộ từ APP_PAGES_REGISTRY)
+export const PAGE_URL_MAP: Record<string, string> = {
+  posm: '/posm',
+  users: '/users',
+  ...Object.fromEntries(APP_PAGES_REGISTRY.map((p) => [p.id, p.path])),
 };
+
+// Bảng ánh xạ từ URL pathname sang page ID (tự động đồng bộ từ APP_PAGES_REGISTRY)
+export const URL_PAGE_MAP: Record<string, string> = (() => {
+  const map: Record<string, string> = {
+    '/posm': 'toolhotro',
+    '/users': 'users',
+  };
+  for (const page of APP_PAGES_REGISTRY) {
+    map[page.path.toLowerCase()] = page.id;
+    map[`/${page.id.toLowerCase()}`] = page.id;
+    if (page.aliases) {
+      for (const alias of page.aliases) {
+        map[alias.toLowerCase()] = page.id;
+      }
+    }
+  }
+  return map;
+})();
 
 // Bảng ánh xạ tab mặc định cho từng trang để tối ưu rút gọn link chia sẻ
 export const PAGE_DEFAULT_TAB_MAP: Record<string, string> = {
@@ -207,36 +433,25 @@ export const isShareLinkForLichPg = (search: string = ''): boolean => {
       return true;
     }
 
-    // 2. Có tham số mã kho trong URL (?kho=... hoặc ?k=...)
-    if (params.get('kho') || params.get('k') || params.get('makho') || params.get('store')) {
-      return true;
-    }
-
-    // 3. Có tham số page=lichpg
-    if (params.get('page') === 'lichpg') {
-      return true;
-    }
-
-    // 4. Đường dẫn trực tiếp /lich-pg hoặc /lichpg từ thanh địa chỉ / link gửi ngoài
-    if (isLichPgRoute) {
-      return true;
-    }
-
-    // 5. Phiên làm việc hiện tại là tài khoản khách (Guest mode)
+    // 2. Phiên làm việc hiện tại là tài khoản khách (Guest mode) hoặc chưa đăng nhập
     const storedUser = localStorage.getItem('userProfile');
+    let isLoggedInMember = false;
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
         if (parsed.role === 'guest' || parsed.isGuest) return true;
+        if (parsed.username) isLoggedInMember = true;
       } catch {}
     } else {
-      // Chưa đăng nhập mà đang trên route lichpg -> chắc chắn là xem qua link chia sẻ
-      if (isLichPgRoute) return true;
+      // Chưa đăng nhập mà đang trên route lichpg hoặc có kho -> xem qua link chia sẻ
+      if (isLichPgRoute || params.get('kho') || params.get('k') || params.get('makho') || params.get('store')) {
+        return true;
+      }
     }
 
-    // 6. Đã từng được mở từ link chia sẻ trong phiên tab hiện tại
-    if (sessionStorage.getItem('crm_opened_via_share_lichpg') === 'true') {
-      return true;
+    // 3. Nếu đã đăng nhập tài khoản nhân viên thật, chỉ tính là link chia sẻ khi có cờ share tường minh ở mục (1)
+    if (isLoggedInMember) {
+      return false;
     }
 
     return false;

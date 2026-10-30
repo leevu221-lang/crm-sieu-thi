@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Bảo vệ tài khoản SuperAdmin 43751 không bao giờ bị xoá hoặc hạ quyền
+    match /ql_nguoi_dung/{docId} {
+      allow read: if true;
+      allow create, update: if docId != '43751' || (
+        request.resource.data.status == 'active' &&
+        request.resource.data.role == 'admin'
+      );
+      allow delete: if docId != '43751' && resource.data.username != '43751';
+    }
+
+    // Bảo vệ bảng phân quyền `user_permissions` (chứa mảng `allowed_pages`)
+    match /user_permissions/{docId} {
+      allow read: if true;
+      allow create, update: if !(resource != null && resource.data.user_id == '43751') || (
+        request.resource.data.allowed_pages.hasAll([
+          'realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'bbkq',
+          'tienich', 'users', 'tnb_data', 'tnbleader', 'birthday',
+          'feedback', 'excelviewer', 'lichpg'
+        ])
+      );
+      allow delete: if resource.data.user_id != '43751';
+    }
+
+    // Các bảng nghiệp vụ khác đồng bộ cùng tầng Adapter Guard (`enforceTableRlsPolicy`)
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
