@@ -36,39 +36,56 @@ const cleanCategoryLabel = (rawName: string): string => {
 };
 
 /**
- * Tách tên ngành hàng dài thành tối đa 2 dòng cân đối theo khoảng trắng từ ngữ
- * để ưu tiên hiển thị đầy đủ trên 2 dòng thay vì cắt dấu "..."
+ * Tách tên ngành hàng theo đúng ranh giới từ (không cắt giữa chữ),
+ * giới hạn độ dài mỗi dòng (<= 10 ký tự) và tối đa 3 dòng để:
+ * 1. Không bao giờ tạo dòng quá dài tràn sang nhóm cột kế bên.
+ * 2. Hiển thị đầy đủ các tên ngành hàng 2–4 từ (VD: "TRẢ CHẬM ĐIỆN MÁY", "TRẢ CHẬM HOMECREDIT",
+ *    "T10 IPHONE 16 series", "GIA DỤNG SUNHOUSE") mà không cần dùng dấu "..." mặc định.
  */
-const formatCategoryTwoLines = (name: string): [string, string | null] => {
-  const clean = (name || '').trim().replace(/\s+/g, ' ');
-  if (!clean) return ['', null];
+const wrapCategoryIntoLines = (name: string, maxCharsPerLine = 10, maxLines = 3): string[] => {
+  const clean = (name || '')
+    .replace(/[,;/]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+  if (!clean) return [''];
+
   const words = clean.split(' ');
-  // Từ đơn (VD: PANASONIC, LAPTOP) hoặc cụm rất ngắn (<= 7 ký tự, VD: TỦ LẠNH) giữ 1 dòng nếu đủ chỗ
-  if (words.length === 1) {
-    return [clean, null];
-  }
-  if (words.length === 2) {
-    // Tách 2 từ thành 2 dòng cân đối (VD: "TRẢ CHẬM", "T10 IPHONE", "BẢO HIỂM", "TỦ LẠNH", "MÁY GIẶT", "ĐIỆN THOẠI")
-    // để hiển thị cỡ chữ 12–13px rõ nét mà không bao giờ bị cắt thành "..."
-    if (clean.length <= 5) return [clean, null];
-    return [words[0], words[1]];
-  }
-  // Với tên có từ 3 từ trở lên (VD: "TRẢ CHẬM KHÁC", "MÁY LỌC NƯỚC"):
-  // Tìm vị trí ngắt giữa các từ sao cho độ dài 2 dòng cân bằng nhất
-  let bestSplit = 1;
-  let minDiff = Infinity;
-  for (let i = 1; i < words.length; i++) {
-    const line1 = words.slice(0, i).join(' ');
-    const line2 = words.slice(i).join(' ');
-    const diff = Math.abs(line1.length - line2.length);
-    if (diff <= minDiff) {
-      minDiff = diff;
-      bestSplit = i;
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    if (!currentLine) {
+      currentLine = word;
+    } else if ((currentLine + ' ' + word).length <= maxCharsPerLine) {
+      currentLine += ' ' + word;
+    } else {
+      lines.push(currentLine);
+      if (lines.length === maxLines - 1) {
+        // Dòng cuối cùng (dòng thứ 3): gộp các từ còn lại trong giới hạn hiển thị
+        const restWords = words.slice(i);
+        let lastLine = '';
+        for (const rw of restWords) {
+          if (!lastLine) {
+            lastLine = rw;
+          } else if ((lastLine + ' ' + rw).length <= maxCharsPerLine + 1) {
+            lastLine += ' ' + rw;
+          } else {
+            break;
+          }
+        }
+        currentLine = lastLine;
+        break;
+      }
+      currentLine = word;
     }
   }
-  const firstLine = words.slice(0, bestSplit).join(' ');
-  const secondLine = words.slice(bestSplit).join(' ');
-  return [firstLine, secondLine];
+
+  if (currentLine && lines.length < maxLines) {
+    lines.push(currentLine);
+  }
+
+  return lines.slice(0, maxLines);
 };
 
 const formatTrValue = (val: number): string => {
@@ -283,10 +300,10 @@ export const EnterpriseCategoryAnalytics: React.FC<EnterpriseCategoryAnalyticsPr
         </div>
 
         {/* Bar Chart Area */}
-        <div className="relative flex-1 min-h-[240px] sm:min-h-[258px] flex flex-col justify-end pt-[8px]">
+        <div className="relative flex-1 min-h-[256px] sm:min-h-[272px] flex flex-col justify-end pt-[8px]">
           <div className="relative flex-1 flex items-stretch min-w-0">
-            {/* Y-Axis Labels — pb-[52px] khớp chính xác với chiều cao vùng nhãn trục X bên dưới đường trục 0 */}
-            <div className="flex flex-col justify-between pr-[8px] text-right text-[10.5px] font-semibold text-slate-400 select-none pb-[52px] shrink-0 w-[46px]">
+            {/* Y-Axis Labels — Cố định bên trái, pb-[64px] khớp chính xác với vùng nhãn trục X (3 dòng) bên dưới đường trục 0 */}
+            <div className="flex flex-col justify-between pr-[8px] text-right text-[10.5px] font-semibold text-slate-400 select-none pb-[64px] shrink-0 w-[46px] bg-white z-20">
               {yAxisTicks.map((tick, idx) => (
                 <span key={idx} className="leading-none whitespace-nowrap">
                   {tick === 0 ? '0' : `${Math.round(tick)} tr`}
@@ -294,18 +311,16 @@ export const EnterpriseCategoryAnalytics: React.FC<EnterpriseCategoryAnalyticsPr
               ))}
             </div>
 
-            {/* Plot Area with Scrollable Wrapper on Mobile / Many Categories */}
-            <div className="relative flex-1 min-w-0 overflow-x-auto no-scrollbar">
+            {/* Plot Area with Scrollable Wrapper — Đảm bảo mỗi nhóm cột có độ rộng tối thiểu >= 74px để nhãn không bao giờ giao nhau */}
+            <div className="relative flex-1 min-w-0 overflow-x-auto pb-[2px]">
               <div
                 className="relative h-full w-full flex flex-col justify-end"
                 style={{
-                  minWidth: barChartItems.length > 8
-                    ? `${barChartItems.length * 64}px`
-                    : undefined,
+                  minWidth: `${Math.max(barChartItems.length * 76, 320)}px`,
                 }}
               >
-                {/* Horizontal Grid Lines — dừng ở bottom-[52px] ngay tại đường trục ngang 0 */}
-                <div className="absolute inset-x-0 top-0 bottom-[52px] flex flex-col justify-between pointer-events-none">
+                {/* Horizontal Grid Lines — dừng ở bottom-[64px] ngay tại đường trục ngang 0 */}
+                <div className="absolute inset-x-0 top-0 bottom-[64px] flex flex-col justify-between pointer-events-none">
                   {yAxisTicks.map((_, idx) => (
                     <div
                       key={idx}
@@ -314,13 +329,13 @@ export const EnterpriseCategoryAnalytics: React.FC<EnterpriseCategoryAnalyticsPr
                   ))}
                 </div>
 
-                {/* Bars + X-Axis Labels Row */}
-                <div className="relative z-10 flex-1 flex items-end justify-between gap-[4px] sm:gap-[6px] pt-[6px] px-[2px] sm:px-[4px] min-w-[440px] sm:min-w-0">
+                {/* Bars + Custom X-Axis Tick Labels Row */}
+                <div className="relative z-10 flex-1 flex items-end justify-between gap-[6px] sm:gap-[8px] pt-[6px] px-[4px]">
                   {barChartItems.map((item, idx) => {
                     const revPct = maxBarValue > 0 ? Math.min(100, (item.revenue / maxBarValue) * 100) : 0;
                     const tgtPct = maxBarValue > 0 ? Math.min(100, (item.target / maxBarValue) * 100) : 0;
                     const isHovered = hoveredIdx === idx;
-                    const [line1, line2] = formatCategoryTwoLines(item.name);
+                    const labelLines = wrapCategoryIntoLines(item.name, 10, 3);
 
                     // Căn vị trí tooltip tránh tràn mép trái/phải
                     const tooltipPosClass =
@@ -333,7 +348,7 @@ export const EnterpriseCategoryAnalytics: React.FC<EnterpriseCategoryAnalyticsPr
                     return (
                       <div
                         key={item.rawName + idx}
-                        className="relative flex-1 min-w-[50px] sm:min-w-0 flex flex-col items-center h-full justify-end group select-none cursor-pointer"
+                        className="relative flex-1 min-w-[70px] flex flex-col items-center h-full justify-end group select-none cursor-pointer"
                         onMouseEnter={() => setHoveredIdx(idx)}
                         onMouseLeave={() => setHoveredIdx(null)}
                         onClick={() => setHoveredIdx(hoveredIdx === idx ? null : idx)}
@@ -351,7 +366,7 @@ export const EnterpriseCategoryAnalytics: React.FC<EnterpriseCategoryAnalyticsPr
                         )}
 
                         {/* Paired Bars (nằm hoàn toàn phía trên đường trục ngang 0) */}
-                        <div className="w-full max-w-[34px] flex items-end justify-center gap-[3px] sm:gap-[4px] h-[148px] sm:h-[164px]">
+                        <div className="w-full max-w-[36px] flex items-end justify-center gap-[3px] sm:gap-[4px] h-[148px] sm:h-[164px]">
                           {/* Actual Revenue Bar (#2677FF) */}
                           <div
                             className="flex-1 max-w-[14px] rounded-t-[4px] transition-all duration-300"
@@ -372,28 +387,26 @@ export const EnterpriseCategoryAnalytics: React.FC<EnterpriseCategoryAnalyticsPr
                           />
                         </div>
 
-                        {/* Vùng chứa nhãn trục X tách biệt hoàn toàn bên dưới chân cột (chiều cao 52px, cách chân cột 10px) */}
+                        {/* Vùng chứa nhãn trục X tùy chỉnh:
+                            - Tách biệt hoàn toàn bên dưới chân cột (chiều cao 64px, cách chân cột 10px)
+                            - Giới hạn cứng trong phạm vi cột (w-full max-w-full overflow-hidden px-[2px]) để tuyệt đối không tràn sang nhóm kế bên
+                            - Căn giữa theo đúng tâm của cặp cột Doanh thu thực & Target
+                            - Tự động xuống tối đa 3 dòng theo từ, font-weight 600, màu #475569, cỡ chữ 12px */}
                         <div
-                          className="w-full h-[52px] pt-[10px] flex flex-col items-center justify-start text-center"
+                          className="w-full max-w-full h-[64px] pt-[10px] px-[2px] overflow-hidden flex flex-col items-center justify-start text-center"
                           title={item.name}
                           style={{
                             fontFamily: "'Inter', 'UTM Avo', sans-serif",
                           }}
                         >
-                          {line2 ? (
-                            <div
-                              className="w-full text-[11.5px] sm:text-[12px] md:text-[12.5px] font-semibold text-[#475569] leading-[1.28] tracking-[-0.02em] text-center"
-                            >
-                              <span className="block whitespace-nowrap">{line1}</span>
-                              <span className="block truncate max-w-full">{line2}</span>
-                            </div>
-                          ) : (
+                          {labelLines.map((lineText, lineIdx) => (
                             <span
-                              className="block w-full text-[11.5px] sm:text-[12px] md:text-[12.5px] font-semibold text-[#475569] leading-[1.28] tracking-[-0.025em] text-center whitespace-nowrap"
+                              key={lineIdx}
+                              className="block w-full max-w-full overflow-hidden text-[11.5px] sm:text-[12px] font-semibold text-[#475569] leading-[1.3] tracking-[-0.015em] text-center whitespace-nowrap"
                             >
-                              {line1}
+                              {lineText}
                             </span>
-                          )}
+                          ))}
                         </div>
                       </div>
                     );
