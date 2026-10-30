@@ -54,7 +54,7 @@ export const PAGE_DEFAULT_TAB_MAP: Record<string, string> = {
   luyke: 'summary',
   health: 'DOANH_THU',
   toolhotro: 'all-sticker',
-  tienich: 'phan-ca-hc',
+  tienich: 'tuong-tac-line',
 };
 
 // Helper tạo URL chia sẻ chế độ khách (view-only) cho một trang + mã kho cụ thể

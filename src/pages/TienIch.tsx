@@ -1,28 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Users,
-  UploadCloud,
-  FileText,
   ClipboardList,
-  Calendar,
   AlertCircle,
   Sparkles,
-  ChevronRight,
   MessageSquare,
   QrCode,
-  CalendarCheck,
   EyeOff,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../contexts/StoreContext';
-import PhanCaHanhChinhTab from './TienIch/components/PhanCaHanhChinhTab';
-import PhanCaTable from '../components/PhanCaTable';
-import PhanCaTuanTable from '../components/PhanCaTuanTable';
-import BienBanTinhTrangHangHoa from '../components/BienBanTinhTrangHangHoa';
-import BaoGiaCongTyModal from '../components/BaoGiaCongTyModal';
 import InventoryManagement from '../components/InventoryManagement';
-import { RoadshowManagement } from '../components/RoadshowManagement';
 import { TuongTacLineTab } from './TienIch/components/TuongTacLineTab';
 import InQrSpTab from './TienIch/components/InQrSpTab';
 
@@ -32,27 +20,27 @@ interface TienIchProps {
   pageHiddenState?: Record<string, boolean>;
 }
 
+const ALLOWED_TIENICH_TABS = ['tuong-tac-line', 'in-qr-sp', 'kiem-ke'];
+
 export default function TienIch({ pageMaintenanceState = {}, isUser43751Local = false, pageHiddenState = {} }: TienIchProps) {
   const { userProfile } = useAuth();
-  const { currentStoreId, activeTienIchTab: activeTab, setActiveTienIchTab: setActiveTab } = useStore();
+  const { activeTienIchTab: rawActiveTab, setActiveTienIchTab: setActiveTab } = useStore();
+  const activeTab = ALLOWED_TIENICH_TABS.includes(rawActiveTab) ? rawActiveTab : 'tuong-tac-line';
 
-  const [isBienBanModalOpen, setIsBienBanModalOpen] = useState(false);
-  const [bienBanTitle, setBienBanTitle] = useState('BIÊN BẢN GHI NHẬN TÌNH TRẠNG HÀNG HÓA');
-  const [isBaoGiaModalOpen, setIsBaoGiaModalOpen] = useState(false);
+  useEffect(() => {
+    if (!ALLOWED_TIENICH_TABS.includes(rawActiveTab)) {
+      setActiveTab('tuong-tac-line');
+    }
+  }, [rawActiveTab, setActiveTab]);
 
   const maKho = userProfile?.ma_kho || '';
   const isUser43751 = userProfile?.username === '43751' || isUser43751Local;
   const isAdmin = isUser43751;
 
   const menuItems = [
-    { id: 'phan-ca-hc', label: 'PHÂN CA HÀNH CHÍNH', icon: CalendarCheck, color: 'text-sky-500' },
-    { id: 'phan-ca-thang', label: 'PHÂN CA THÁNG', icon: Users, color: 'text-purple-500' },
-    { id: 'phan-ca-tuan', label: 'PHÂN CA TUẦN', icon: UploadCloud, color: 'text-orange-500' },
     { id: 'tuong-tac-line', label: 'TƯƠNG TÁC LINE', icon: MessageSquare, color: 'text-emerald-500' },
     { id: 'in-qr-sp', label: 'IN QR SP', icon: QrCode, color: 'text-sky-500' },
-    { id: 'bien-ban', label: 'BIÊN BẢN CÁC LOẠI', icon: FileText, color: 'text-rose-500' },
     ...(isAdmin ? [{ id: 'kiem-ke', label: 'KIỂM KÊ', icon: ClipboardList, color: 'text-amber-500' }] : []),
-    { id: 'roadshow', label: 'ROADSHOW', icon: Calendar, color: 'text-fuchsia-500' },
   ];
 
   return (
@@ -72,7 +60,7 @@ export default function TienIch({ pageMaintenanceState = {}, isUser43751Local = 
                 </span>
               </h1>
               <p className="text-xs text-slate-400 font-bold">
-                Phân ca, biên bản, kiểm kê & roadshow siêu thị
+                Tương tác LINE, In QR SP & Kiểm kê siêu thị
               </p>
             </div>
           </div>
@@ -124,42 +112,6 @@ export default function TienIch({ pageMaintenanceState = {}, isUser43751Local = 
           </div>
         ) : (
           <AnimatePresence>
-            {activeTab === 'phan-ca-hc' && (
-              <motion.div
-                key="phan-ca-hc"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.08 }}
-              >
-                <PhanCaHanhChinhTab />
-              </motion.div>
-            )}
-
-            {activeTab === 'phan-ca-thang' && (
-              <motion.div
-                key="phan-ca-thang"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
-              >
-                <PhanCaTable />
-              </motion.div>
-            )}
-
-            {activeTab === 'phan-ca-tuan' && (
-              <motion.div
-                key="phan-ca-tuan"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
-              >
-                <PhanCaTuanTable />
-              </motion.div>
-            )}
-
             {activeTab === 'tuong-tac-line' && (
               <motion.div
                 key="tuong-tac-line"
@@ -203,77 +155,9 @@ export default function TienIch({ pageMaintenanceState = {}, isUser43751Local = 
                 <InventoryManagement warehouseCode={maKho || '43751'} />
               </motion.div>
             )}
-
-            {activeTab === 'roadshow' && (
-              <motion.div
-                key="roadshow"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
-              >
-                <RoadshowManagement warehouseCode={maKho || currentStoreId || '43751'} />
-              </motion.div>
-            )}
-
-            {activeTab === 'bien-ban' && (
-              <motion.div
-                key="bien-ban"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.2 }}
-                className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 min-h-[500px]"
-              >
-                <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-                    <FileText size={24} />
-                  </div>
-                  <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">BIÊN BẢN CÁC LOẠI</h2>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <button
-                    onClick={() => {
-                      setBienBanTitle('BIÊN BẢN GHI NHẬN TÌNH TRẠNG HÀNG HÓA');
-                      setIsBienBanModalOpen(true);
-                    }}
-                    className="flex flex-col items-center justify-center p-6 bg-white border-2 border-indigo-100 hover:border-indigo-400 hover:shadow-lg hover:shadow-indigo-100/50 rounded-2xl transition-all cursor-pointer group text-left"
-                  >
-                    <div className="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                      <FileText size={32} />
-                    </div>
-                    <h3 className="text-lg font-bold text-slate-800 text-center uppercase">Biên bản Tình Trạng Hàng Hóa</h3>
-                    <p className="text-slate-500 text-sm text-center mt-2">Dùng khi ghi nhận tình trạng hàng hóa, in A4 ngang</p>
-                  </button>
-                  
-                  <button
-                    onClick={() => setIsBaoGiaModalOpen(true)}
-                    className="flex flex-col items-center justify-center p-6 bg-white border-2 border-emerald-100 hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-100/50 rounded-2xl transition-all cursor-pointer group text-left"
-                  >
-                    <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                      <FileText size={32} />
-                    </div>
-                    <h3 className="text-lg font-bold text-slate-800 text-center uppercase">Báo Giá Công Ty</h3>
-                    <p className="text-slate-500 text-sm text-center mt-2">Dùng khi tạo báo giá, in A4 dọc</p>
-                  </button>
-                </div>
-              </motion.div>
-            )}
           </AnimatePresence>
         )}
       </div>
-
-      <BienBanTinhTrangHangHoa 
-        isOpen={isBienBanModalOpen}
-        onClose={() => setIsBienBanModalOpen(false)}
-        title={bienBanTitle}
-      />
-
-      <BaoGiaCongTyModal 
-        isOpen={isBaoGiaModalOpen}
-        onClose={() => setIsBaoGiaModalOpen(false)}
-      />
     </div>
   );
 }

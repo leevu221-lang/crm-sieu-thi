@@ -381,7 +381,7 @@ const MOBILE_ITEM_META: Record<string, { subtitle: string; badge?: string; badge
   health:      { subtitle: 'Theo dõi sức khoẻ nhân viên' },
   toolhotro:   { subtitle: 'Công cụ in ấn & sticker' },
   bbkq:        { subtitle: 'Biên bản kiểm quỹ tiền mặt',   badge: 'MỚI',  badgeType: 'moi' },
-  tienich:     { subtitle: 'Phân ca, biên bản & kiểm kê' },
+  tienich:     { subtitle: 'Tương tác LINE, In QR & Kiểm kê' },
   tnbleader:   { subtitle: 'Thi đua & Bảng xếp hạng',     badge: 'HOT',  badgeType: 'hot' },
   birthday:    { subtitle: 'Danh sách sinh nhật NV' },
   feedback:    { subtitle: 'Góp ý & Hướng dẫn sử dụng' },

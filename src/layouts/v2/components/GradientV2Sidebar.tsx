@@ -77,7 +77,7 @@ const ITEM_META: Record<string, { subtitle: string; badge?: string; badgeType?: 
   health:      { subtitle: 'Theo dõi sức khoẻ nhân viên' },
   toolhotro:   { subtitle: 'Công cụ in ấn & sticker' },
   bbkq:        { subtitle: 'Biên bản kiểm quỹ tiền mặt', badge: 'MỚI', badgeType: 'moi' },
-  tienich:     { subtitle: 'Phân ca, biên bản & kiểm kê' },
+  tienich:     { subtitle: 'Tương tác LINE, In QR & Kiểm kê' },
   tnbleader:   { subtitle: 'Thi đua & Bảng xếp hạng',     badge: 'HOT',  badgeType: 'hot' },
   birthday:    { subtitle: 'Danh sách sinh nhật NV' },
   feedback:    { subtitle: 'Góp ý & Hướng dẫn sử dụng' },
@@ -132,19 +132,13 @@ const TOOLHOTRO_SUBS = [
 ];
 
 const TIENICH_SUBS = [
-  { id: 'phan-ca-hc', label: 'Phân Ca Hành Chính', icon: CalendarCheck },
-  { id: 'phan-ca-thang', label: 'Phân Ca Tháng', icon: Users },
-  { id: 'phan-ca-tuan', label: 'Phân Ca Tuần', icon: UploadCloud },
   { id: 'tuong-tac-line', label: 'Tương Tác LINE', icon: MessageSquare },
   { id: 'in-qr-sp', label: 'In QR SP', icon: QrCode },
-  { id: 'bien-ban', label: 'Biên Bản', icon: FileText },
 ];
 const TIENICH_SUBS_ADMIN = [
   { id: 'kiem-ke', label: 'Kiểm Kê', icon: ClipboardList },
 ];
-const TIENICH_SUBS_TAIL = [
-  { id: 'roadshow', label: 'Roadshow', icon: Calendar },
-];
+const TIENICH_SUBS_TAIL: { id: string; label: string; icon: any }[] = [];
 
 const STICKER_VARIANTS = new Set([
   'sticker-event-dmx', 'sticker-event', 'sticker-lk', 'popup-all-sp',

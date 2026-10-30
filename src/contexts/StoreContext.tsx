@@ -199,20 +199,21 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   });
   const [activeTienIchTab, setActiveTienIchTabRaw] = useState<string>(() => {
+    const validTabs = ['tuong-tac-line', 'in-qr-sp', 'kiem-ke'];
     try {
       if (isCurrentUrlForPage('tienich')) {
         const params = new URLSearchParams(window.location.search);
         const urlTab = params.get('tab');
-        if (urlTab && urlTab !== 'quay-so') return urlTab;
+        if (urlTab && validTabs.includes(urlTab)) return urlTab;
         if (isGuestShareLink(window.location.search)) {
-          return 'phan-ca-hc';
+          return 'tuong-tac-line';
         }
       }
       const saved = localStorage.getItem('crm_active_tienich_tab');
-      if (saved && saved !== 'quay-so') return saved;
-      return 'phan-ca-hc';
+      if (saved && validTabs.includes(saved)) return saved;
+      return 'tuong-tac-line';
     } catch {
-      return 'phan-ca-hc';
+      return 'tuong-tac-line';
     }
   });
   const [activeLuyKeTab, setActiveLuyKeTabRaw] = useState<'summary' | 'cum' | 'efficiency' | 'thuong_st' | 'bcdtnh' | 'ssg_boss'>(() =>
