@@ -31,8 +31,8 @@ export default function BbkqPage({
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans pb-16">
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1800px] mx-auto">
+    <div className="min-h-screen bg-[#EEF4FF] md:bg-[#f8fafc] font-sans pb-16">
+      <div className="p-0 md:p-6 lg:p-8 max-w-[1800px] mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}

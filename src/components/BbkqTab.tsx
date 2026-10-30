@@ -4,7 +4,6 @@ import {
   Banknote, 
   Copy, 
   Download, 
-  RotateCcw, 
   CheckCircle2, 
   AlertTriangle, 
   AlertCircle, 
@@ -14,7 +13,15 @@ import {
   X,
   ArrowDownCircle,
   Calendar,
-  Clock
+  Clock,
+  ArrowLeft,
+  Scale,
+  CreditCard,
+  Image as ImageIcon,
+  ChevronUp,
+  ChevronDown,
+  Coins,
+  Database
 } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
 import { useAuth } from '../contexts/AuthContext';
@@ -23,18 +30,118 @@ import { useNotification } from '../contexts/NotificationContext';
 import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
 import { ImagePreviewModal } from './ImagePreviewModal';
 
-// Denominations list (VND) with vibrant badge colors
+// Denominations list (VND) with vibrant badge colors for both Desktop and Mobile reference UI
 export const DENOMINATIONS = [
-  { value: 500000, label: '500.000 đ', badgeBg: 'bg-teal-600 text-white', textCol: 'text-teal-700' },
-  { value: 200000, label: '200.000 đ', badgeBg: 'bg-rose-600 text-white', textCol: 'text-rose-700' },
-  { value: 100000, label: '100.000 đ', badgeBg: 'bg-emerald-600 text-white', textCol: 'text-emerald-700' },
-  { value: 50000, label: '50.000 đ', badgeBg: 'bg-orange-500 text-white', textCol: 'text-orange-700' },
-  { value: 20000, label: '20.000 đ', badgeBg: 'bg-blue-600 text-white', textCol: 'text-blue-700' },
-  { value: 10000, label: '10.000 đ', badgeBg: 'bg-amber-600 text-white', textCol: 'text-amber-700' },
-  { value: 5000, label: '5.000 đ', badgeBg: 'bg-slate-700 text-white', textCol: 'text-slate-800' },
-  { value: 2000, label: '2.000 đ', badgeBg: 'bg-stone-600 text-white', textCol: 'text-stone-800' },
-  { value: 1000, label: '1.000 đ', badgeBg: 'bg-zinc-600 text-white', textCol: 'text-zinc-800' },
-  { value: 500, label: '500 đ', badgeBg: 'bg-red-500 text-white', textCol: 'text-red-700' },
+  {
+    value: 500000,
+    label: '500.000 đ',
+    badgeBg: 'bg-teal-600 text-white',
+    textCol: 'text-teal-700',
+    mobileBadgeHex: '#0F8A65',
+    mobileTextHex: '#0F8A65',
+    mobilePlusBg: '#E3F7F0',
+    mobilePlusBorder: '#B5E8D6',
+    mobilePlusText: '#0F8A65',
+  },
+  {
+    value: 200000,
+    label: '200.000 đ',
+    badgeBg: 'bg-rose-600 text-white',
+    textCol: 'text-rose-700',
+    mobileBadgeHex: '#DF1B41',
+    mobileTextHex: '#DF1B41',
+    mobilePlusBg: '#FFE6EB',
+    mobilePlusBorder: '#FBCFE8',
+    mobilePlusText: '#DF1B41',
+  },
+  {
+    value: 100000,
+    label: '100.000 đ',
+    badgeBg: 'bg-emerald-600 text-white',
+    textCol: 'text-emerald-700',
+    mobileBadgeHex: '#128A36',
+    mobileTextHex: '#128A36',
+    mobilePlusBg: '#E6F7EC',
+    mobilePlusBorder: '#BBF7D0',
+    mobilePlusText: '#128A36',
+  },
+  {
+    value: 50000,
+    label: '50.000 đ',
+    badgeBg: 'bg-orange-500 text-white',
+    textCol: 'text-orange-700',
+    mobileBadgeHex: '#F27405',
+    mobileTextHex: '#E06500',
+    mobilePlusBg: '#FFE8E5',
+    mobilePlusBorder: '#FECDD3',
+    mobilePlusText: '#E11D48',
+  },
+  {
+    value: 20000,
+    label: '20.000 đ',
+    badgeBg: 'bg-blue-600 text-white',
+    textCol: 'text-blue-700',
+    mobileBadgeHex: '#0B57D0',
+    mobileTextHex: '#0B57D0',
+    mobilePlusBg: '#E6F0FE',
+    mobilePlusBorder: '#BFDBFE',
+    mobilePlusText: '#0B57D0',
+  },
+  {
+    value: 10000,
+    label: '10.000 đ',
+    badgeBg: 'bg-amber-600 text-white',
+    textCol: 'text-amber-700',
+    mobileBadgeHex: '#E86C00',
+    mobileTextHex: '#D96B00',
+    mobilePlusBg: '#FFF1DF',
+    mobilePlusBorder: '#FDE68A',
+    mobilePlusText: '#D96B00',
+  },
+  {
+    value: 5000,
+    label: '5.000 đ',
+    badgeBg: 'bg-slate-700 text-white',
+    textCol: 'text-slate-800',
+    mobileBadgeHex: '#22344A',
+    mobileTextHex: '#22344A',
+    mobilePlusBg: '#E9EEF5',
+    mobilePlusBorder: '#CBD5E1',
+    mobilePlusText: '#22344A',
+  },
+  {
+    value: 2000,
+    label: '2.000 đ',
+    badgeBg: 'bg-stone-600 text-white',
+    textCol: 'text-stone-800',
+    mobileBadgeHex: '#6D4C2F',
+    mobileTextHex: '#6D4C2F',
+    mobilePlusBg: '#F4EAE0',
+    mobilePlusBorder: '#E5D3C0',
+    mobilePlusText: '#6D4C2F',
+  },
+  {
+    value: 1000,
+    label: '1.000 đ',
+    badgeBg: 'bg-zinc-600 text-white',
+    textCol: 'text-zinc-800',
+    mobileBadgeHex: '#636073',
+    mobileTextHex: '#636073',
+    mobilePlusBg: '#ECEBF0',
+    mobilePlusBorder: '#D5D3DF',
+    mobilePlusText: '#636073',
+  },
+  {
+    value: 500,
+    label: '500 đ',
+    badgeBg: 'bg-red-500 text-white',
+    textCol: 'text-red-700',
+    mobileBadgeHex: '#E5322E',
+    mobileTextHex: '#E5322E',
+    mobilePlusBg: '#FFE8E8',
+    mobilePlusBorder: '#FECDD3',
+    mobilePlusText: '#E5322E',
+  },
 ];
 
 export const formatMoney = (val: number | undefined | null): string => {
@@ -73,6 +180,15 @@ export default function BbkqTab() {
   const storeName = currentStoreId !== 'ALL' && currentStoreId ? currentStoreId : (userProfile?.ten_sieu_thi || userProfile?.ma_kho || '');
   const storeCode = userProfile?.ma_kho || '';
 
+  // Current date string (DD/MM/YYYY) constructed safely
+  const todayDateStr = React.useMemo(() => {
+    const now = new Date();
+    const d = String(now.getDate()).padStart(2, '0');
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const y = now.getFullYear();
+    return `${d}/${m}/${y}`;
+  }, []);
+
   // Denominations counts
   const [counts, setCounts] = useState<Record<number, number>>(() => {
     try {
@@ -97,6 +213,14 @@ export default function BbkqTab() {
       500: 0,
     };
   });
+
+  // Mobile input editing state so clearing an input does not force '0' back while typing
+  const [focusedDenom, setFocusedDenom] = useState<number | null>(null);
+  const [editingCountStr, setEditingCountStr] = useState<string>('');
+  const [isErpFocused, setIsErpFocused] = useState(false);
+  const [editingErpStr, setEditingErpStr] = useState<string>('');
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(true);
+  const [justSavedFeedback, setJustSavedFeedback] = useState(false);
 
   // ERP System Total Input
   const [erpTotal, setErpTotal] = useState<number>(() => {
@@ -149,10 +273,16 @@ export default function BbkqTab() {
 
   // Handlers for Count Changes
   const handleCountChange = (val: number, delta: number) => {
-    setCounts(prev => ({
-      ...prev,
-      [val]: Math.max(0, (prev[val] || 0) + delta)
-    }));
+    setCounts(prev => {
+      const nextVal = Math.max(0, (prev[val] || 0) + delta);
+      if (focusedDenom === val) {
+        setEditingCountStr(String(nextVal));
+      }
+      return {
+        ...prev,
+        [val]: nextVal
+      };
+    });
   };
 
   const handleSetCount = (val: number, directCount: number) => {
@@ -167,6 +297,8 @@ export default function BbkqTab() {
     const resetCounts: Record<number, number> = {};
     DENOMINATIONS.forEach(d => { resetCounts[d.value] = 0; });
     setCounts(resetCounts);
+    setFocusedDenom(null);
+    setEditingCountStr('');
     showNotification('Đã xóa tất cả số tờ về 0!', 'success');
   };
 
@@ -203,6 +335,8 @@ export default function BbkqTab() {
       console.error(e);
     }
 
+    setJustSavedFeedback(true);
+    setTimeout(() => setJustSavedFeedback(false), 1800);
     showNotification(`Đã lưu lịch sử kiểm tiền lúc ${timeStr}! (${formatMoney(totalActual)})`, 'success');
   };
 
@@ -291,6 +425,10 @@ export default function BbkqTab() {
 
       const node = tableRef.current;
       const clone = node.cloneNode(true) as HTMLElement;
+
+      // Ensure clone is visible even when triggered from mobile view
+      clone.classList.remove('hidden', 'md:block');
+      clone.style.display = 'block';
 
       // 1. Remove all scrollable behaviors and set clear fixed dimensions
       clone.style.boxShadow = 'none';
@@ -385,268 +523,774 @@ export default function BbkqTab() {
     }
   };
 
+  const handleMobileBack = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      window.dispatchEvent(new CustomEvent('navigate-page', { detail: 'realtime' }));
+    }
+  };
+
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-6 pb-16 font-sans">
-      {/* ── Top Header Toolbar ── */}
-      <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 flex items-center justify-center text-white shadow-md shadow-emerald-600/20 shrink-0">
-            <Banknote size={26} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 uppercase tracking-tight" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
-                KIỂM KÊ TIỀN MẶT THU NGÂN
-              </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 uppercase tracking-wider">
-                BBKQ
-              </span>
-            </div>
-            <p className="text-xs text-slate-400 font-bold mt-0.5">
-              {storeName} · Kho: {storeCode}
-            </p>
-          </div>
-        </div>
-
-        {/* Action Buttons Toolbar */}
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
-          {/* Nút Copy Zalo */}
-          <button
-            onClick={handleCopyZalo}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer"
-            title="Copy báo cáo chi tiết gửi Zalo"
-          >
-            <Copy size={15} /> COPY ZALO
-          </button>
-
-          {/* Nút Lưu Lịch Sử */}
-          <button
-            onClick={handleSaveHistory}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer"
-            title="Lưu bản ghi kiểm tiền này vào lịch sử trong ngày"
-          >
-            <Save size={15} /> LƯU LỊCH SỬ
-          </button>
-
-          {/* Nút Xem Lại Lịch Sử */}
-          <button
-            onClick={() => setIsHistoryModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-black uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer"
-            title="Xem lại lịch sử các lần kiểm tiền đã lưu"
-          >
-            <History size={15} /> LỊCH SỬ ({historyList.length})
-          </button>
-
-          {/* Nút Xuất Ảnh */}
-          <button
-            onClick={handleExportImage}
-            disabled={isExporting}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer"
-            title="Xuất ảnh bảng kê tiền mặt HD"
-          >
-            <Download size={15} /> {isExporting ? 'ĐANG XUẤT...' : 'XUẤT ẢNH'}
-          </button>
-
-          {/* Nút Xóa Số Tờ ALL */}
-          <button
-            onClick={handleClearAllCounts}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-black uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer"
-            title="Xóa toàn bộ số lượng tờ về 0"
-          >
-            <Trash2 size={15} /> XÓA SỐ TỜ ALL
-          </button>
-        </div>
-      </div>
-
-      {/* ── 3 Big KPI Summary Cards ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* 1. Tổng tiền mặt thực đếm */}
-        <div className="bg-white rounded-3xl p-5 sm:p-6 border-2 border-emerald-200 shadow-sm relative overflow-hidden">
-          <div className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">
-            1. TỔNG THỰC ĐẾM (TIỀN MẶT)
-          </div>
-          <div className="text-2xl sm:text-3xl font-black text-emerald-700">
-            {formatMoney(totalActual)}
-          </div>
-          <div className="text-xs font-bold text-slate-400 mt-1">
-            Tổng cộng: <span className="text-slate-800 font-black">{totalBills}</span> tờ tiền
-          </div>
-        </div>
-
-        {/* 2. Ô nhập tổng tiền ERP */}
-        <div className="bg-white rounded-3xl p-5 sm:p-6 border-2 border-blue-200 shadow-sm relative space-y-2">
-          <div className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">
-            2. TỔNG TIỀN THEO ERP
-          </div>
-          <input
-            type="text"
-            value={erpTotal === 0 ? '' : new Intl.NumberFormat('vi-VN').format(erpTotal)}
-            placeholder="Nhập tổng tiền ERP (VNĐ)..."
-            onChange={e => setErpTotal(parseMoneyInput(e.target.value))}
-            className="w-full px-3.5 py-2 bg-blue-50/50 border-2 border-blue-300 rounded-xl text-xl sm:text-2xl font-black text-blue-800 focus:bg-white focus:border-blue-600 outline-none transition-all"
-          />
-          <div className="text-[11px] font-medium text-slate-400">
-            Nhập số liệu tiền hàng từ phần mềm bán hàng POS
-          </div>
-        </div>
-
-        {/* 3. Ô thể hiện chênh lệch tiền */}
-        <div className={`rounded-3xl p-5 sm:p-6 border-2 shadow-sm flex flex-col justify-between transition-all ${
-          erpTotal === 0
-            ? 'bg-slate-50 border-slate-200 text-slate-800'
-            : isBalanced
-              ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
-              : isSurplus
-                ? 'bg-amber-50 border-amber-300 text-amber-950'
-                : 'bg-rose-50 border-rose-300 text-rose-950'
-        }`}>
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-black uppercase tracking-wider">
-                3. CHÊNH LỆCH TIỀN
-              </span>
-              {erpTotal > 0 && (
-                isBalanced 
-                  ? <CheckCircle2 size={20} className="text-emerald-600" />
-                  : isSurplus 
-                    ? <AlertTriangle size={20} className="text-amber-600" />
-                    : <AlertCircle size={20} className="text-rose-600" />
-              )}
-            </div>
-            <div className={`text-2xl sm:text-3xl font-black ${
-              erpTotal === 0 
-                ? 'text-slate-400' 
-                : isBalanced 
-                  ? 'text-emerald-700' 
-                  : isSurplus 
-                    ? 'text-amber-700' 
-                    : 'text-rose-600'
-            }`}>
-              {erpTotal === 0 ? '0 đ' : (discrepancy > 0 ? `+${formatMoney(discrepancy)}` : formatMoney(discrepancy))}
-            </div>
-          </div>
-          <div className="text-xs font-black uppercase tracking-tight mt-1">
-            {erpTotal === 0 
-              ? 'Chờ nhập tiền ERP' 
-              : isBalanced 
-                ? '✅ Khớp tiền 100%' 
-                : isSurplus 
-                  ? '⚠️ Dư tiền thực tế' 
-                  : '🚨 Thiếu / Hụt tiền'}
-          </div>
-        </div>
-      </div>
-
-      {/* ── BẢNG KÊ TIỀN MẶT THEO MỆNH GIÁ (Main Table) ── */}
-      <div 
-        ref={tableRef}
-        className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-md space-y-4"
+    <div className="w-full font-sans">
+      {/* =====================================================================
+          1. MOBILE INTERFACE (< 768px) - 100% MATCH TO REFERENCE DESIGN
+         ===================================================================== */}
+      <div
+        className="md:hidden w-full min-h-screen bg-gradient-to-b from-[#E9F2FF] via-[#F2F7FD] to-[#F7FAFC] pb-8 overflow-x-hidden"
+        style={{
+          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
+        }}
       >
-        {/* Table Banner Title */}
-        <div className="text-center pb-4 border-b-2 border-slate-900">
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 uppercase tracking-tight" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
-            BẢNG KÊ TIỀN MẶT THEO MỆNH GIÁ
-          </h2>
-          <p className="text-xs sm:text-sm font-bold text-slate-500 mt-0.5">
-            {storeName} · Mã Kho: {storeCode}
-          </p>
+        {/* ── MOBILE HERO HEADER ── */}
+        <div
+          className="relative overflow-hidden px-3.5 pt-3.5 pb-7 text-white"
+          style={{
+            background: 'linear-gradient(135deg, #0948C8 0%, #1463F3 52%, #3B86FF 100%)',
+          }}
+        >
+          {/* Subtle geometric background shapes */}
+          <div
+            className="pointer-events-none absolute -top-12 -right-10 w-44 h-44 rounded-full opacity-20"
+            style={{ background: 'radial-gradient(circle, #93C5FD 0%, transparent 70%)' }}
+          />
+          <div
+            className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 opacity-25"
+            style={{
+              background: 'linear-gradient(180deg, transparent 0%, #E9F2FF 100%)',
+            }}
+          />
+
+          <div className="relative z-10 flex items-start justify-between gap-2">
+            {/* Left group: Back button + BBKQ Title & Store Details */}
+            <div className="flex items-start gap-2.5 min-w-0 flex-1">
+              <button
+                type="button"
+                onClick={handleMobileBack}
+                aria-label="Quay lại"
+                className="w-9 h-9 rounded-full bg-white/90 text-[#1459E6] flex items-center justify-center shadow-sm shrink-0 active:scale-95 transition-transform mt-0.5 cursor-pointer"
+              >
+                <ArrowLeft size={18} strokeWidth={2.6} />
+              </button>
+
+              <div className="min-w-0 flex-1">
+                {/* BBKQ Aqua Badge */}
+                <span
+                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10.5px] font-black uppercase tracking-wider text-white shadow-2xs"
+                  style={{ background: 'linear-gradient(90deg, #1AD1B5 0%, #2EE2C5 100%)' }}
+                >
+                  BBKQ
+                </span>
+
+                {/* Main Title */}
+                <h1 className="text-[17px] min-[375px]:text-[18.5px] min-[410px]:text-[20px] font-black text-white uppercase tracking-tight leading-[1.2] mt-1">
+                  KIỂM KÊ TIỀN MẶT THU NGÂN
+                </h1>
+
+                {/* Store Name */}
+                <p className="text-[12px] min-[375px]:text-[12.5px] font-bold text-white/95 truncate mt-1">
+                  {storeName || 'Chưa cấu hình siêu thị'}
+                </p>
+
+                {/* Warehouse & Date */}
+                <p className="text-[11.5px] min-[375px]:text-[12px] font-semibold text-blue-100/95 truncate mt-0.5">
+                  Kho: <span className="font-bold text-white">{storeCode || '---'}</span>
+                  <span className="mx-1.5 opacity-75">|</span>
+                  Ngày kiểm kê: <span className="font-bold text-white">{todayDateStr}</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Right: 3D-style Cash Stack & Gold Coins Illustration */}
+            <div className="shrink-0 flex flex-col items-end justify-between self-stretch pointer-events-none select-none">
+              <svg
+                width="68"
+                height="62"
+                viewBox="0 0 88 80"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="drop-shadow-md mt-2"
+              >
+                {/* Stacked Green Banknotes */}
+                <rect x="20" y="24" width="60" height="36" rx="6" transform="rotate(-8 20 24)" fill="#059669" />
+                <rect x="20" y="19" width="60" height="36" rx="6" transform="rotate(-8 20 19)" fill="#10B981" />
+                <rect x="20" y="14" width="60" height="36" rx="6" transform="rotate(-8 20 14)" fill="#34D399" stroke="#A7F3D0" strokeWidth="1.5" />
+                <circle cx="51" cy="28" r="9" fill="#059669" fillOpacity="0.45" />
+                {/* Gold Coins Stack Left */}
+                <ellipse cx="26" cy="64" rx="13" ry="4.5" fill="#D97706" />
+                <rect x="13" y="56" width="26" height="8" fill="#F59E0B" />
+                <ellipse cx="26" cy="56" rx="13" ry="4.5" fill="#FBBF24" />
+                <rect x="13" y="48" width="26" height="8" fill="#F59E0B" />
+                <ellipse cx="26" cy="48" rx="13" ry="4.5" fill="#FDE047" />
+                {/* Gold Coin Front Right */}
+                <circle cx="50" cy="56" r="14" fill="#F59E0B" stroke="#FDE047" strokeWidth="2" />
+                <circle cx="50" cy="56" r="9.5" fill="#FBBF24" />
+              </svg>
+            </div>
+          </div>
         </div>
 
-        {/* Large Typography Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse" style={{ tableLayout: 'fixed' }}>
-            <colgroup>
-              <col style={{ width: '28%' }} />
-              <col style={{ width: '38%' }} />
-              <col style={{ width: '34%' }} />
-            </colgroup>
-            <thead>
-              <tr className="border-b-2 border-slate-200 text-xs sm:text-sm font-black text-slate-700 uppercase tracking-wider bg-slate-50">
-                <th className="py-4 px-4 whitespace-nowrap">MỆNH GIÁ</th>
-                <th className="py-4 px-4 text-center whitespace-nowrap">SỐ LƯỢNG (TỜ)</th>
-                <th className="py-4 px-4 text-right whitespace-nowrap">THÀNH TIỀN</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {DENOMINATIONS.map((denom) => {
+        {/* ── MOBILE BODY CONTENT CONTAINER ── */}
+        <div className="px-3 -mt-3.5 relative z-20 space-y-3">
+          {/* 1. NHÓM 4 NÚT CHỨC NĂNG TRÊN CÙNG MỘT HÀNG */}
+          <div className="grid grid-cols-4 gap-1.5 min-[375px]:gap-2">
+            {/* COPY ZALO */}
+            <button
+              type="button"
+              onClick={handleCopyZalo}
+              className="min-w-0 min-h-[56px] py-2 px-1 rounded-[16px] bg-gradient-to-b from-[#F4F9FF] to-[#E6F0FF] border border-[#C9DFFF] shadow-[0_3px_10px_rgba(29,78,216,0.08)] flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform cursor-pointer"
+            >
+              <div className="w-6 h-6 rounded-lg bg-[#DBEAFE] text-[#1D4ED8] flex items-center justify-center">
+                <Copy size={14} strokeWidth={2.4} />
+              </div>
+              <span className="text-[9.5px] min-[375px]:text-[10.5px] font-black text-[#1E40AF] uppercase tracking-tight whitespace-nowrap truncate max-w-full">
+                COPY ZALO
+              </span>
+            </button>
+
+            {/* LƯU LỊCH SỬ */}
+            <button
+              type="button"
+              onClick={handleSaveHistory}
+              className="min-w-0 min-h-[56px] py-2 px-1 rounded-[16px] bg-gradient-to-b from-[#F7F3FF] to-[#EDE4FF] border border-[#D8C7FF] shadow-[0_3px_10px_rgba(109,40,217,0.08)] flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform cursor-pointer"
+            >
+              <div className="w-6 h-6 rounded-lg bg-[#EDE9FE] text-[#6D28D9] flex items-center justify-center">
+                <Save size={14} strokeWidth={2.4} />
+              </div>
+              <span className="text-[9.5px] min-[375px]:text-[10.5px] font-black text-[#5B21B6] uppercase tracking-tight whitespace-nowrap truncate max-w-full">
+                LƯU LỊCH SỬ
+              </span>
+            </button>
+
+            {/* LỊCH SỬ (N) */}
+            <button
+              type="button"
+              onClick={() => setIsHistoryModalOpen(true)}
+              className="min-w-0 min-h-[56px] py-2 px-1 rounded-[16px] bg-gradient-to-b from-[#FAF3FC] to-[#F2E4FA] border border-[#E4C7F5] shadow-[0_3px_10px_rgba(126,34,206,0.08)] flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform cursor-pointer"
+            >
+              <div className="w-6 h-6 rounded-lg bg-[#F3E8FF] text-[#7E22CE] flex items-center justify-center">
+                <History size={14} strokeWidth={2.4} />
+              </div>
+              <span className="text-[9.5px] min-[375px]:text-[10.5px] font-black text-[#6B21A8] uppercase tracking-tight whitespace-nowrap truncate max-w-full">
+                LỊCH SỬ ({historyList.length})
+              </span>
+            </button>
+
+            {/* XUẤT ẢNH */}
+            <button
+              type="button"
+              onClick={handleExportImage}
+              disabled={isExporting}
+              className="min-w-0 min-h-[56px] py-2 px-1 rounded-[16px] bg-gradient-to-b from-[#F0FDF7] to-[#DCFCEB] border border-[#B6F0D2] shadow-[0_3px_10px_rgba(4,120,87,0.08)] flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform cursor-pointer disabled:opacity-60"
+            >
+              <div className="w-6 h-6 rounded-lg bg-[#D1FAE5] text-[#047857] flex items-center justify-center">
+                <ImageIcon size={14} strokeWidth={2.4} />
+              </div>
+              <span className="text-[9.5px] min-[375px]:text-[10.5px] font-black text-[#047857] uppercase tracking-tight whitespace-nowrap truncate max-w-full">
+                {isExporting ? 'ĐANG XUẤT' : 'XUẤT ẢNH'}
+              </span>
+            </button>
+          </div>
+
+          {/* 2. BA THẺ TỔNG QUAN (3 OVERVIEW CARDS) */}
+          <div className="grid grid-cols-1 min-[350px]:grid-cols-3 gap-2">
+            {/* Card 1: TỔNG THỰC ĐẾM (TIỀN MẶT) */}
+            <div className="min-w-0 rounded-[18px] p-2.5 bg-gradient-to-br from-[#F3FDF8] via-[#E9FBF1] to-[#DCFCE7] border border-[#BBF7D0] shadow-[0_3px_12px_rgba(22,163,74,0.06)] flex flex-col justify-between">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="w-7 h-7 min-[390px]:w-8 min-[390px]:h-8 rounded-[10px] bg-[#16A34A] text-white flex items-center justify-center shrink-0 shadow-2xs">
+                  <Coins size={15} strokeWidth={2.4} />
+                </div>
+                <div className="text-[9px] min-[390px]:text-[9.5px] font-black text-slate-800 uppercase leading-[1.15] min-w-0">
+                  <div>TỔNG THỰC ĐẾM</div>
+                  <div className="text-slate-600">(TIỀN MẶT)</div>
+                </div>
+              </div>
+
+              <div className="text-[16px] min-[390px]:text-[18px] font-black text-[#15803D] leading-tight mt-2 truncate">
+                {formatMoney(totalActual)}
+              </div>
+
+              <div className="text-[10px] text-slate-600 font-medium mt-1 truncate">
+                Tổng cộng: <span className="font-black text-slate-900">{totalBills}</span> tờ tiền
+              </div>
+            </div>
+
+            {/* Card 2: TỔNG TIỀN THEO ERP */}
+            <div className="min-w-0 rounded-[18px] p-2.5 bg-gradient-to-br from-[#F2F8FF] via-[#E8F2FF] to-[#DBEAFE] border border-[#BFDBFE] shadow-[0_3px_12px_rgba(29,78,216,0.06)] flex flex-col justify-between">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="w-7 h-7 min-[390px]:w-8 min-[390px]:h-8 rounded-[10px] bg-[#1D4ED8] text-white flex items-center justify-center shrink-0 shadow-2xs">
+                  <CreditCard size={15} strokeWidth={2.4} />
+                </div>
+                <div className="text-[9px] min-[390px]:text-[9.5px] font-black text-slate-800 uppercase leading-[1.15] min-w-0">
+                  <div>TỔNG TIỀN</div>
+                  <div>THEO ERP</div>
+                </div>
+              </div>
+
+              <div className="mt-1.5">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  aria-label="Tổng tiền theo ERP"
+                  value={
+                    isErpFocused
+                      ? editingErpStr
+                      : erpTotal === 0
+                        ? '0 đ'
+                        : formatMoney(erpTotal)
+                  }
+                  placeholder="0 đ"
+                  onFocus={() => {
+                    setIsErpFocused(true);
+                    setEditingErpStr(erpTotal === 0 ? '' : new Intl.NumberFormat('vi-VN').format(erpTotal));
+                  }}
+                  onBlur={() => {
+                    setIsErpFocused(false);
+                  }}
+                  onChange={e => {
+                    const parsed = parseMoneyInput(e.target.value);
+                    setErpTotal(parsed);
+                    setEditingErpStr(parsed === 0 && e.target.value === '' ? '' : new Intl.NumberFormat('vi-VN').format(parsed));
+                  }}
+                  className="w-full bg-white/75 focus:bg-white border border-blue-200/90 focus:border-blue-600 rounded-lg px-1.5 py-0.5 text-[16px] min-[390px]:text-[18px] font-black text-[#1D4ED8] leading-tight outline-none transition-all"
+                />
+              </div>
+
+              <div className="text-[9.5px] leading-[1.2] text-slate-500 font-medium mt-1">
+                Nhập số liệu từ phần mềm POS
+              </div>
+            </div>
+
+            {/* Card 3: CHÊNH LỆCH TIỀN */}
+            <div className="min-w-0 rounded-[18px] p-2.5 bg-gradient-to-br from-[#FFFDF5] via-[#FFF6E5] to-[#FFEDD5] border border-[#FED7AA] shadow-[0_3px_12px_rgba(234,88,12,0.06)] flex flex-col justify-between">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="w-7 h-7 min-[390px]:w-8 min-[390px]:h-8 rounded-[10px] bg-[#EA580C] text-white flex items-center justify-center shrink-0 shadow-2xs">
+                  <Scale size={15} strokeWidth={2.4} />
+                </div>
+                <div className="text-[9px] min-[390px]:text-[9.5px] font-black text-[#9A3412] uppercase leading-[1.15] min-w-0">
+                  <div>CHÊNH LỆCH</div>
+                  <div>TIỀN</div>
+                </div>
+              </div>
+
+              <div className="text-[16px] min-[390px]:text-[18px] font-black text-[#C2410C] leading-tight mt-2 truncate">
+                {erpTotal === 0
+                  ? '0 đ'
+                  : discrepancy > 0
+                    ? `+${formatMoney(discrepancy)}`
+                    : formatMoney(discrepancy)}
+              </div>
+
+              <div className="text-[9.5px] font-bold text-slate-600 uppercase tracking-tight mt-1 truncate">
+                THỰC ĐẾM - ERP
+              </div>
+            </div>
+          </div>
+
+          {/* 3. BẢNG KÊ TIỀN MẶT THEO MỆNH GIÁ CARD */}
+          <div className="bg-white rounded-[20px] p-2.5 min-[375px]:p-3 border border-slate-200/90 shadow-[0_4px_18px_rgba(15,23,42,0.04)]">
+            {/* Card Header + XÓA SỐ TỜ ALL Button */}
+            <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <div className="w-8 h-8 rounded-xl bg-[#ECFDF5] border border-[#A7F3D0] text-[#059669] flex items-center justify-center shrink-0">
+                  <Banknote size={17} strokeWidth={2.4} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-[12px] min-[375px]:text-[13.5px] font-black text-slate-900 uppercase tracking-tight truncate">
+                    BẢNG KÊ TIỀN MẶT THEO MỆNH GIÁ
+                  </h2>
+                  <p className="text-[10.5px] font-medium text-slate-500 truncate">
+                    {storeName} · Mã Kho: {storeCode}
+                  </p>
+                </div>
+              </div>
+
+              {/* Nút XÓA SỐ TỜ ALL */}
+              <button
+                type="button"
+                onClick={handleClearAllCounts}
+                className="shrink-0 min-h-[34px] px-2 min-[375px]:px-2.5 py-1.5 rounded-xl bg-[#FFF1F2] hover:bg-[#FFE4E6] active:scale-95 border border-[#FECDD3] text-[#E11D48] text-[9.5px] min-[375px]:text-[10px] font-black uppercase tracking-tight flex items-center gap-1 cursor-pointer transition-all"
+              >
+                <Trash2 size={12} strokeWidth={2.5} />
+                <span>XÓA SỐ TỜ ALL</span>
+              </button>
+            </div>
+
+            {/* Table Column Header Row */}
+            <div className="grid grid-cols-[96px_1fr_68px] min-[375px]:grid-cols-[114px_1fr_86px] min-[410px]:grid-cols-[122px_1fr_96px] items-center py-2 px-1 bg-[#F8FAFC] rounded-lg mt-2 text-[9.5px] min-[375px]:text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+              <div className="pl-1">MỆNH GIÁ</div>
+              <div className="text-center">SỐ LƯỢNG (TỜ)</div>
+              <div className="text-right pr-1">THÀNH TIỀN</div>
+            </div>
+
+            {/* 10 Denomination Rows */}
+            <div className="divide-y divide-slate-100">
+              {DENOMINATIONS.map((denom, idx) => {
                 const count = counts[denom.value] || 0;
                 const lineTotal = count * denom.value;
+                const isFocused = focusedDenom === denom.value;
+                const displayCount = isFocused ? editingCountStr : String(count);
+
                 return (
-                  <tr key={denom.value} className="hover:bg-slate-50/80 transition-colors">
-                    {/* 1. Mệnh giá Badge */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm sm:text-base font-black shadow-xs ${denom.badgeBg}`}>
-                        {denom.label}
-                      </span>
-                    </td>
+                  <div
+                    key={denom.value}
+                    className={`grid grid-cols-[96px_1fr_68px] min-[375px]:grid-cols-[114px_1fr_86px] min-[410px]:grid-cols-[122px_1fr_96px] items-center py-2 px-0.5 min-w-0 ${
+                      idx % 2 === 1 ? 'bg-[#F8FAFC]/60' : 'bg-white'
+                    }`}
+                  >
+                    {/* Col 1: Denomination Badge */}
+                    <div className="pr-1 min-w-0">
+                      <div
+                        className="w-full h-[30px] min-[375px]:h-[34px] px-1.5 min-[375px]:px-2 rounded-[9px] text-white font-extrabold text-[11px] min-[375px]:text-[12.5px] flex items-center gap-1 min-[375px]:gap-1.5 shadow-2xs whitespace-nowrap"
+                        style={{ backgroundColor: denom.mobileBadgeHex }}
+                      >
+                        <span className="inline-flex items-center justify-center w-3.5 h-3 min-[375px]:w-4 min-[375px]:h-3 rounded-[3px] border border-white/60 text-[7.5px] min-[375px]:text-[8px] font-black leading-none shrink-0">
+                          đ
+                        </span>
+                        <span className="truncate">{denom.label}</span>
+                      </div>
+                    </div>
 
-                    {/* 2. Số lượng tờ (Chỉ ô nhập thủ công) */}
-                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                    {/* Col 2: Quantity Stepper (- [input] +) */}
+                    <div className="flex items-center justify-center gap-1 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => handleCountChange(denom.value, -1)}
+                        aria-label={`Giảm số tờ ${denom.label}`}
+                        className="w-[28px] h-[30px] min-[375px]:w-[32px] min-[375px]:h-[34px] rounded-[9px] bg-[#F1F5F9] hover:bg-[#E2E8F0] active:scale-95 border border-slate-200/90 text-slate-600 font-bold text-base flex items-center justify-center shrink-0 cursor-pointer select-none"
+                      >
+                        −
+                      </button>
+
                       <input
-                        type="number"
-                        min="0"
-                        value={count === 0 ? '' : count}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        aria-label={`Số lượng tờ ${denom.label}`}
+                        value={displayCount}
                         placeholder="0"
-                        onFocus={e => e.target.select()}
-                        onChange={e => handleSetCount(denom.value, parseInt(e.target.value, 10))}
-                        className="w-28 sm:w-36 text-center bg-white font-black text-slate-900 text-base sm:text-lg py-2 rounded-2xl border-2 border-slate-200 hover:border-slate-300 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all shadow-xs"
+                        onFocus={e => {
+                          setFocusedDenom(denom.value);
+                          setEditingCountStr(count === 0 ? '' : String(count));
+                          setTimeout(() => e.target.select(), 0);
+                        }}
+                        onBlur={() => {
+                          setFocusedDenom(null);
+                        }}
+                        onChange={e => {
+                          const cleanDigits = e.target.value.replace(/[^\d]/g, '');
+                          setEditingCountStr(cleanDigits);
+                          const numericVal = cleanDigits === '' ? 0 : parseInt(cleanDigits, 10);
+                          handleSetCount(denom.value, numericVal);
+                        }}
+                        className="w-[42px] min-[375px]:w-[50px] min-[410px]:w-[58px] h-[30px] min-[375px]:h-[34px] rounded-[9px] bg-white border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 text-center font-extrabold text-[13px] min-[375px]:text-[13.5px] text-slate-900 outline-none transition-all shrink-0"
                       />
-                    </td>
 
-                    {/* 3. Thành tiền */}
-                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                      <span className={`text-base sm:text-xl font-black ${lineTotal > 0 ? denom.textCol : 'text-slate-300'}`}>
-                        {formatMoney(lineTotal)}
-                      </span>
-                    </td>
-                  </tr>
+                      <button
+                        type="button"
+                        onClick={() => handleCountChange(denom.value, 1)}
+                        aria-label={`Tăng số tờ ${denom.label}`}
+                        style={{
+                          backgroundColor: denom.mobilePlusBg,
+                          borderColor: denom.mobilePlusBorder,
+                          color: denom.mobilePlusText,
+                        }}
+                        className="w-[28px] h-[30px] min-[375px]:w-[32px] min-[375px]:h-[34px] rounded-[9px] active:scale-95 border font-bold text-base flex items-center justify-center shrink-0 cursor-pointer select-none"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    {/* Col 3: Line Total */}
+                    <div
+                      className="text-right pr-1 font-extrabold text-[11.5px] min-[375px]:text-[13px] min-[410px]:text-[13.5px] whitespace-nowrap truncate"
+                      style={{ color: denom.mobileTextHex }}
+                    >
+                      {formatMoney(lineTotal)}
+                    </div>
+                  </div>
                 );
               })}
-            </tbody>
+            </div>
+          </div>
 
-            {/* Total Row */}
-            <tfoot>
-              <tr className="border-t-4 border-slate-900 bg-emerald-50/80">
-                <td className="py-4 px-4 font-black text-slate-900 uppercase text-sm sm:text-base whitespace-nowrap">
-                  TỔNG THỰC ĐẾM:
-                </td>
-                <td className="py-4 px-4 text-center font-black text-slate-700 text-sm sm:text-base whitespace-nowrap">
-                  {totalBills} tờ
-                </td>
-                <td className="py-4 px-4 text-right font-black text-emerald-800 text-xl sm:text-2xl whitespace-nowrap">
-                  {formatMoney(totalActual)}
-                </td>
-              </tr>
+          {/* 4. KHỐI TỔNG HỢP KẾT QUẢ */}
+          <div className="bg-white rounded-[20px] p-3 border border-slate-200/90 shadow-[0_4px_18px_rgba(15,23,42,0.04)]">
+            <button
+              type="button"
+              onClick={() => setIsSummaryExpanded(prev => !prev)}
+              className="w-full flex items-center justify-between gap-2 text-left cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-[9px] bg-[#1D4ED8] text-white font-black text-sm flex items-center justify-center shadow-2xs">
+                  Σ
+                </div>
+                <span className="text-[13px] min-[375px]:text-[13.5px] font-black text-slate-900 uppercase tracking-tight">
+                  TỔNG HỢP KẾT QUẢ
+                </span>
+              </div>
+              <div className="text-[#1D4ED8] p-1">
+                {isSummaryExpanded ? <ChevronUp size={18} strokeWidth={2.6} /> : <ChevronDown size={18} strokeWidth={2.6} />}
+              </div>
+            </button>
 
-              {/* ERP row */}
-              <tr className="border-t border-slate-200 bg-blue-50/50 font-black">
-                <td colSpan={2} className="py-4 px-4 uppercase text-slate-700 text-xs sm:text-sm whitespace-nowrap">
-                  TIỀN THEO PHẦN MỀM ERP:
-                </td>
-                <td className="py-4 px-4 text-right text-blue-800 text-base sm:text-lg whitespace-nowrap">
-                  {formatMoney(erpTotal)}
-                </td>
-              </tr>
+            {isSummaryExpanded && (
+              <div className="grid grid-cols-1 min-[350px]:grid-cols-3 gap-2 mt-3">
+                {/* 1. TỔNG THỰC ĐẾM */}
+                <div className="min-w-0 rounded-[16px] p-2.5 bg-gradient-to-br from-[#F0FDF4] to-[#DCFCE7]/85 border border-[#BBF7D0]">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-6 h-6 rounded-lg bg-[#16A34A] text-white flex items-center justify-center shrink-0">
+                      <Coins size={13} strokeWidth={2.4} />
+                    </div>
+                    <span className="text-[9.5px] font-black text-slate-800 uppercase leading-tight">
+                      TỔNG THỰC ĐẾM
+                    </span>
+                  </div>
+                  <div className="text-[16px] min-[390px]:text-[17px] font-black text-[#15803D] mt-1.5 truncate">
+                    {formatMoney(totalActual)}
+                  </div>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="text-[10px] font-extrabold text-[#166534]">
+                      {totalBills} tờ
+                    </span>
+                    <div className="h-1.5 flex-1 rounded-full bg-emerald-200/70 overflow-hidden">
+                      <div
+                        className="h-full bg-[#16A34A] rounded-full transition-all"
+                        style={{ width: totalBills > 0 ? '100%' : '20%' }}
+                      />
+                    </div>
+                  </div>
+                </div>
 
-              {/* Discrepancy row */}
-              <tr className={`border-t border-slate-300 font-black ${
-                erpTotal === 0
-                  ? 'bg-slate-50 text-slate-700'
-                  : isBalanced
-                    ? 'bg-emerald-100 text-emerald-950'
-                    : isSurplus
-                      ? 'bg-amber-100 text-amber-950'
-                      : 'bg-rose-100 text-rose-950'
+                {/* 2. TIỀN THEO ERP */}
+                <div className="min-w-0 rounded-[16px] p-2.5 bg-gradient-to-br from-[#F0F7FF] to-[#DBEAFE]/85 border border-[#BFDBFE]">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-6 h-6 rounded-lg bg-[#DBEAFE] text-[#1D4ED8] flex items-center justify-center shrink-0">
+                      <Database size={13} strokeWidth={2.4} />
+                    </div>
+                    <span className="text-[9.5px] font-black text-slate-800 uppercase leading-tight">
+                      TIỀN THEO ERP
+                    </span>
+                  </div>
+                  <div className="text-[16px] min-[390px]:text-[17px] font-black text-[#1D4ED8] mt-1.5 truncate">
+                    {formatMoney(erpTotal)}
+                  </div>
+                </div>
+
+                {/* 3. CHÊNH LỆCH QUỸ */}
+                <div className="min-w-0 rounded-[16px] p-2.5 bg-gradient-to-br from-[#FFFBEB] to-[#FFEDD5]/85 border border-[#FED7AA]">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-6 h-6 rounded-lg bg-[#EA580C] text-white flex items-center justify-center shrink-0">
+                      <Scale size={13} strokeWidth={2.4} />
+                    </div>
+                    <span className="text-[9.5px] font-black text-[#9A3412] uppercase leading-tight">
+                      CHÊNH LỆCH QUỸ
+                    </span>
+                  </div>
+                  <div className="text-[16px] min-[390px]:text-[17px] font-black text-[#C2410C] mt-1.5 truncate">
+                    {erpTotal === 0
+                      ? '0 đ'
+                      : discrepancy > 0
+                        ? `+${formatMoney(discrepancy)}`
+                        : formatMoney(discrepancy)}
+                  </div>
+                  <div className="text-[9.5px] font-bold text-slate-500 uppercase mt-1 truncate">
+                    {erpTotal === 0
+                      ? '(CHƯA NHẬP ERP)'
+                      : isBalanced
+                        ? '(KHỚP QUỸ 100%)'
+                        : isSurplus
+                          ? '(DƯ TIỀN)'
+                          : '(THIẾU TIỀN)'}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 5. NÚT LƯU KẾT QUẢ KIỂM KÊ (BOTTOM CTA) */}
+          <button
+            type="button"
+            onClick={handleSaveHistory}
+            className="w-full h-[56px] rounded-[18px] text-white font-black text-[14px] min-[375px]:text-[15px] uppercase tracking-wider flex items-center justify-center gap-2.5 shadow-[0_8px_22px_rgba(59,75,248,0.34)] active:scale-[0.99] transition-all cursor-pointer"
+            style={{
+              background: 'linear-gradient(90deg, #0A64F5 0%, #3F4DF8 52%, #6E27E5 100%)',
+            }}
+          >
+            <span className="w-6 h-6 rounded-full bg-white text-[#2563EB] flex items-center justify-center shadow-xs shrink-0">
+              <CheckCircle2 size={16} strokeWidth={3} />
+            </span>
+            <span>{justSavedFeedback ? 'ĐÃ LƯU KẾT QUẢ KIỂM KÊ!' : 'LƯU KẾT QUẢ KIỂM KÊ'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* =====================================================================
+          2. DESKTOP INTERFACE (>= 768px) - PRESERVED 100% INTACT
+         ===================================================================== */}
+      <div className="hidden md:block w-full max-w-5xl mx-auto space-y-6 pb-16 font-sans">
+        {/* ── Top Header Toolbar ── */}
+        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 flex items-center justify-center text-white shadow-md shadow-emerald-600/20 shrink-0">
+              <Banknote size={26} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 uppercase tracking-tight" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                  KIỂM KÊ TIỀN MẶT THU NGÂN
+                </h1>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 uppercase tracking-wider">
+                  BBKQ
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 font-bold mt-0.5">
+                {storeName} · Kho: {storeCode}
+              </p>
+            </div>
+          </div>
+
+          {/* Action Buttons Toolbar */}
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+            {/* Nút Copy Zalo */}
+            <button
+              onClick={handleCopyZalo}
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer"
+              title="Copy báo cáo chi tiết gửi Zalo"
+            >
+              <Copy size={15} /> COPY ZALO
+            </button>
+
+            {/* Nút Lưu Lịch Sử */}
+            <button
+              onClick={handleSaveHistory}
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer"
+              title="Lưu bản ghi kiểm tiền này vào lịch sử trong ngày"
+            >
+              <Save size={15} /> LƯU LỊCH SỬ
+            </button>
+
+            {/* Nút Xem Lại Lịch Sử */}
+            <button
+              onClick={() => setIsHistoryModalOpen(true)}
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-black uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer"
+              title="Xem lại lịch sử các lần kiểm tiền đã lưu"
+            >
+              <History size={15} /> LỊCH SỬ ({historyList.length})
+            </button>
+
+            {/* Nút Xuất Ảnh */}
+            <button
+              onClick={handleExportImage}
+              disabled={isExporting}
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer"
+              title="Xuất ảnh bảng kê tiền mặt HD"
+            >
+              <Download size={15} /> {isExporting ? 'ĐANG XUẤT...' : 'XUẤT ẢNH'}
+            </button>
+
+            {/* Nút Xóa Số Tờ ALL */}
+            <button
+              onClick={handleClearAllCounts}
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-black uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer"
+              title="Xóa toàn bộ số lượng tờ về 0"
+            >
+              <Trash2 size={15} /> XÓA SỐ TỜ ALL
+            </button>
+          </div>
+        </div>
+
+        {/* ── 3 Big KPI Summary Cards ── */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* 1. Tổng tiền mặt thực đếm */}
+          <div className="bg-white rounded-3xl p-5 sm:p-6 border-2 border-emerald-200 shadow-sm relative overflow-hidden">
+            <div className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">
+              1. TỔNG THỰC ĐẾM (TIỀN MẶT)
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-emerald-700">
+              {formatMoney(totalActual)}
+            </div>
+            <div className="text-xs font-bold text-slate-400 mt-1">
+              Tổng cộng: <span className="text-slate-800 font-black">{totalBills}</span> tờ tiền
+            </div>
+          </div>
+
+          {/* 2. Ô nhập tổng tiền ERP */}
+          <div className="bg-white rounded-3xl p-5 sm:p-6 border-2 border-blue-200 shadow-sm relative space-y-2">
+            <div className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">
+              2. TỔNG TIỀN THEO ERP
+            </div>
+            <input
+              type="text"
+              value={erpTotal === 0 ? '' : new Intl.NumberFormat('vi-VN').format(erpTotal)}
+              placeholder="Nhập tổng tiền ERP (VNĐ)..."
+              onChange={e => setErpTotal(parseMoneyInput(e.target.value))}
+              className="w-full px-3.5 py-2 bg-blue-50/50 border-2 border-blue-300 rounded-xl text-xl sm:text-2xl font-black text-blue-800 focus:bg-white focus:border-blue-600 outline-none transition-all"
+            />
+            <div className="text-[11px] font-medium text-slate-400">
+              Nhập số liệu tiền hàng từ phần mềm bán hàng POS
+            </div>
+          </div>
+
+          {/* 3. Ô thể hiện chênh lệch tiền */}
+          <div className={`rounded-3xl p-5 sm:p-6 border-2 shadow-sm flex flex-col justify-between transition-all ${
+            erpTotal === 0
+              ? 'bg-slate-50 border-slate-200 text-slate-800'
+              : isBalanced
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                : isSurplus
+                  ? 'bg-amber-50 border-amber-300 text-amber-950'
+                  : 'bg-rose-50 border-rose-300 text-rose-950'
+          }`}>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-black uppercase tracking-wider">
+                  3. CHÊNH LỆCH TIỀN
+                </span>
+                {erpTotal > 0 && (
+                  isBalanced 
+                    ? <CheckCircle2 size={20} className="text-emerald-600" />
+                    : isSurplus 
+                      ? <AlertTriangle size={20} className="text-amber-600" />
+                      : <AlertCircle size={20} className="text-rose-600" />
+                )}
+              </div>
+              <div className={`text-2xl sm:text-3xl font-black ${
+                erpTotal === 0 
+                  ? 'text-slate-400' 
+                  : isBalanced 
+                    ? 'text-emerald-700' 
+                    : isSurplus 
+                      ? 'text-amber-700' 
+                      : 'text-rose-600'
               }`}>
-                <td colSpan={2} className="py-4 px-4 uppercase text-xs sm:text-sm whitespace-nowrap">
-                  CHÊNH LỆCH QUỸ: {erpTotal === 0 ? '(Chưa nhập ERP)' : (isBalanced ? 'KHỚP TIỀN' : isSurplus ? 'DƯ TIỀN' : 'THIẾU TIỀN')}
-                </td>
-                <td className="py-4 px-4 text-right text-base sm:text-xl whitespace-nowrap">
-                  {erpTotal === 0 ? '0 đ' : (discrepancy > 0 ? `+${formatMoney(discrepancy)}` : formatMoney(discrepancy))}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+                {erpTotal === 0 ? '0 đ' : (discrepancy > 0 ? `+${formatMoney(discrepancy)}` : formatMoney(discrepancy))}
+              </div>
+            </div>
+            <div className="text-xs font-black uppercase tracking-tight mt-1">
+              {erpTotal === 0 
+                ? 'Chờ nhập tiền ERP' 
+                : isBalanced 
+                  ? '✅ Khớp tiền 100%' 
+                  : isSurplus 
+                    ? '⚠️ Dư tiền thực tế' 
+                    : '🚨 Thiếu / Hụt tiền'}
+            </div>
+          </div>
+        </div>
+
+        {/* ── BẢNG KÊ TIỀN MẶT THEO MỆNH GIÁ (Main Table & HD Export Source) ── */}
+        <div 
+          ref={tableRef}
+          className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-md space-y-4"
+        >
+          {/* Table Banner Title */}
+          <div className="text-center pb-4 border-b-2 border-slate-900">
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 uppercase tracking-tight" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+              BẢNG KÊ TIỀN MẶT THEO MỆNH GIÁ
+            </h2>
+            <p className="text-xs sm:text-sm font-bold text-slate-500 mt-0.5">
+              {storeName} · Mã Kho: {storeCode}
+            </p>
+          </div>
+
+          {/* Large Typography Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse" style={{ tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: '28%' }} />
+                <col style={{ width: '38%' }} />
+                <col style={{ width: '34%' }} />
+              </colgroup>
+              <thead>
+                <tr className="border-b-2 border-slate-200 text-xs sm:text-sm font-black text-slate-700 uppercase tracking-wider bg-slate-50">
+                  <th className="py-4 px-4 whitespace-nowrap">MỆNH GIÁ</th>
+                  <th className="py-4 px-4 text-center whitespace-nowrap">SỐ LƯỢNG (TỜ)</th>
+                  <th className="py-4 px-4 text-right whitespace-nowrap">THÀNH TIỀN</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {DENOMINATIONS.map((denom) => {
+                  const count = counts[denom.value] || 0;
+                  const lineTotal = count * denom.value;
+                  return (
+                    <tr key={denom.value} className="hover:bg-slate-50/80 transition-colors">
+                      {/* 1. Mệnh giá Badge */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm sm:text-base font-black shadow-xs ${denom.badgeBg}`}>
+                          {denom.label}
+                        </span>
+                      </td>
+
+                      {/* 2. Số lượng tờ */}
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <input
+                          type="number"
+                          min="0"
+                          value={count === 0 ? '' : count}
+                          placeholder="0"
+                          onFocus={e => e.target.select()}
+                          onChange={e => handleSetCount(denom.value, parseInt(e.target.value, 10))}
+                          className="w-28 sm:w-36 text-center bg-white font-black text-slate-900 text-base sm:text-lg py-2 rounded-2xl border-2 border-slate-200 hover:border-slate-300 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all shadow-xs"
+                        />
+                      </td>
+
+                      {/* 3. Thành tiền */}
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <span className={`text-base sm:text-xl font-black ${lineTotal > 0 ? denom.textCol : 'text-slate-300'}`}>
+                          {formatMoney(lineTotal)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+
+              {/* Total Row */}
+              <tfoot>
+                <tr className="border-t-4 border-slate-900 bg-emerald-50/80">
+                  <td className="py-4 px-4 font-black text-slate-900 uppercase text-sm sm:text-base whitespace-nowrap">
+                    TỔNG THỰC ĐẾM:
+                  </td>
+                  <td className="py-4 px-4 text-center font-black text-slate-700 text-sm sm:text-base whitespace-nowrap">
+                    {totalBills} tờ
+                  </td>
+                  <td className="py-4 px-4 text-right font-black text-emerald-800 text-xl sm:text-2xl whitespace-nowrap">
+                    {formatMoney(totalActual)}
+                  </td>
+                </tr>
+
+                {/* ERP row */}
+                <tr className="border-t border-slate-200 bg-blue-50/50 font-black">
+                  <td colSpan={2} className="py-4 px-4 uppercase text-slate-700 text-xs sm:text-sm whitespace-nowrap">
+                    TIỀN THEO PHẦN MỀM ERP:
+                  </td>
+                  <td className="py-4 px-4 text-right text-blue-800 text-base sm:text-lg whitespace-nowrap">
+                    {formatMoney(erpTotal)}
+                  </td>
+                </tr>
+
+                {/* Discrepancy row */}
+                <tr className={`border-t border-slate-300 font-black ${
+                  erpTotal === 0
+                    ? 'bg-slate-50 text-slate-700'
+                    : isBalanced
+                      ? 'bg-emerald-100 text-emerald-950'
+                      : isSurplus
+                        ? 'bg-amber-100 text-amber-950'
+                        : 'bg-rose-100 text-rose-950'
+                }`}>
+                  <td colSpan={2} className="py-4 px-4 uppercase text-xs sm:text-sm whitespace-nowrap">
+                    CHÊNH LỆCH QUỸ: {erpTotal === 0 ? '(Chưa nhập ERP)' : (isBalanced ? 'KHỚP TIỀN' : isSurplus ? 'DƯ TIỀN' : 'THIẾU TIỀN')}
+                  </td>
+                  <td className="py-4 px-4 text-right text-base sm:text-xl whitespace-nowrap">
+                    {erpTotal === 0 ? '0 đ' : (discrepancy > 0 ? `+${formatMoney(discrepancy)}` : formatMoney(discrepancy))}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </div>
       </div>
 
