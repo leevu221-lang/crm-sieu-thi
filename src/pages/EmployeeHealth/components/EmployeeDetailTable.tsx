@@ -592,6 +592,45 @@ let cachedStaffMatrixInput: {
   result: ReturnType<typeof parseStaffMatrixDataRefined>;
 } | null = null;
 
+interface PreparedMergedCategory {
+  name: string;
+  cleanCatName: string;
+  type: 'SL' | 'DT' | 'ALL';
+  target: number;
+  baseTarget: number;
+  detailIdx: number;
+}
+
+let cachedMergedCategoriesInput: {
+  categoryConfig: any;
+  effectiveLuykeCategories: CategoryData[];
+  categoryTargets: any;
+  detailCategories: string[];
+  parsedCategoryTypes: any;
+  result: PreparedMergedCategory[];
+} | null = null;
+
+let cachedReachedCountsInput: {
+  mergedCategories: PreparedMergedCategory[];
+  staffCount: number;
+  daysPassed: number;
+  totalDays: number;
+  counts: WeakMap<StaffMatrixData, number>;
+} | null = null;
+
+const isSlCategoryByKeyword = (catName: string): boolean => {
+  const upper = (catName || '').toUpperCase();
+  return (
+    upper.includes('SIM') ||
+    upper.includes('VAS') ||
+    upper.includes('OTT') ||
+    upper.includes('NẠP') ||
+    upper.includes('RÚT TIỀN') ||
+    upper.includes('MÁY LẠNH') ||
+    upper.includes('MỞ THẺ TÍN DỤNG')
+  );
+};
+
 const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
   staffName,
   luyKeNganhHang,
@@ -673,226 +712,263 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
   }, [thiDuaNv, staffCount, categoryTargets, effectiveLuykeCategories, daysPassed, totalDays, categoryConfig]);
   
   // Extract staff ID from staffName (format: "NAME - ID" or "ID - NAME")
-  const { id: extractedStaffId, name: extractedStaffName } = extractStaffNameAndId(staffName);
-  const staffId = extractedStaffId || staffName.match(/\b\d{4,8}\b/)?.[0] || staffName.split(/[-–—]/).pop()?.trim() || '';
+  const { extractedStaffId, extractedStaffName, staffId } = useMemo(() => {
+    const parsed = extractStaffNameAndId(staffName);
+    const sId = parsed.id || staffName.match(/\b\d{4,8}\b/)?.[0] || staffName.split(/[-–—]/).pop()?.trim() || '';
+    return { extractedStaffId: parsed.id, extractedStaffName: parsed.name, staffId: sId };
+  }, [staffName]);
   
-  const staffData = staffMatrix.find(s => {
-    if (!s) return false;
-    if (staffId && s.fullId && s.fullId.toLowerCase().trim() === staffId.toLowerCase().trim()) return true;
-    if (staffId && s.fullId && s.fullId.includes(staffId)) return true;
-    if (staffId && s.displayName && s.displayName.includes(staffId)) return true;
-
-    // Match by name
+  const staffData = useMemo(() => {
     const cleanExtracted = removeAccents(extractedStaffName).toLowerCase();
     const cleanStaffName = removeAccents(staffName).toLowerCase();
-    const sName = removeAccents((s as any).name || '').toLowerCase();
-    const sDisplayName = removeAccents(s.displayName || '').toLowerCase();
+    const lowerStaffId = staffId ? staffId.toLowerCase().trim() : '';
 
-    if (cleanExtracted && sName && (cleanExtracted === sName || sName.includes(cleanExtracted) || cleanExtracted.includes(sName))) return true;
-    if (cleanExtracted && sDisplayName.includes(cleanExtracted)) return true;
-    if (sName && cleanStaffName.includes(sName)) return true;
-    return false;
-  });
+    return staffMatrix.find(s => {
+      if (!s) return false;
+      if (lowerStaffId && s.fullId && s.fullId.toLowerCase().trim() === lowerStaffId) return true;
+      if (lowerStaffId && s.fullId && s.fullId.includes(staffId)) return true;
+      if (lowerStaffId && s.displayName && s.displayName.includes(staffId)) return true;
 
-  // Build a comprehensive lookup for category type ('SL' vs 'DT') from all sources:
-  // 1. parsedCategoryTypes (from thiDuaNv section headers)
-  // 2. effectiveLuykeCategories (from BC THÁNG / lk_nh_sieu_thi)
-  // 3. categoryTargets (from store category_targets)
-  const catTypeLookup: Record<string, 'SL' | 'DT' | 'ALL'> = { ...parsedCategoryTypes };
-  effectiveLuykeCategories.forEach(cat => {
-    const clean = cleanCategoryName(cat.name);
-    if (!clean) return;
-    if (cat.type && cat.type !== 'ALL') {
-      catTypeLookup[clean] = cat.type;
-    } else if (!catTypeLookup[clean]) {
-      catTypeLookup[clean] = cat.type || 'ALL';
+      // Match by name
+      const sName = removeAccents((s as any).name || '').toLowerCase();
+      const sDisplayName = removeAccents(s.displayName || '').toLowerCase();
+
+      if (cleanExtracted && sName && (cleanExtracted === sName || sName.includes(cleanExtracted) || cleanExtracted.includes(sName))) return true;
+      if (cleanExtracted && sDisplayName.includes(cleanExtracted)) return true;
+      if (sName && cleanStaffName.includes(sName)) return true;
+      return false;
+    });
+  }, [staffMatrix, staffId, extractedStaffName, staffName]);
+
+  // Build and memoize mergedCategories with pre-resolved cleanCatName, baseTarget, and detailIdx
+  // Shared across all EmployeeDetailTable cards via cachedMergedCategoriesInput
+  const mergedCategories = useMemo((): PreparedMergedCategory[] => {
+    if (
+      cachedMergedCategoriesInput &&
+      cachedMergedCategoriesInput.categoryConfig === categoryConfig &&
+      cachedMergedCategoriesInput.effectiveLuykeCategories === effectiveLuykeCategories &&
+      cachedMergedCategoriesInput.categoryTargets === categoryTargets &&
+      cachedMergedCategoriesInput.detailCategories === detailCategories &&
+      cachedMergedCategoriesInput.parsedCategoryTypes === parsedCategoryTypes
+    ) {
+      return cachedMergedCategoriesInput.result;
     }
-  });
-  if (Array.isArray(categoryTargets)) {
-    categoryTargets.forEach((t: any) => {
-      const clean = cleanCategoryName(t?.name || '');
+
+    const catTypeLookup: Record<string, 'SL' | 'DT' | 'ALL'> = { ...parsedCategoryTypes };
+    effectiveLuykeCategories.forEach(cat => {
+      const clean = cleanCategoryName(cat.name);
       if (!clean) return;
-      if ((t?.type === 'SL' || t?.type === 'DT') && (!catTypeLookup[clean] || catTypeLookup[clean] === 'ALL')) {
-        catTypeLookup[clean] = t.type;
+      if (cat.type && cat.type !== 'ALL') {
+        catTypeLookup[clean] = cat.type;
+      } else if (!catTypeLookup[clean]) {
+        catTypeLookup[clean] = cat.type || 'ALL';
       }
     });
-  }
-
-  const isSlCategoryByKeyword = (catName: string): boolean => {
-    const upper = (catName || '').toUpperCase();
-    return (
-      upper.includes('SIM') ||
-      upper.includes('VAS') ||
-      upper.includes('OTT') ||
-      upper.includes('NẠP') ||
-      upper.includes('RÚT TIỀN') ||
-      upper.includes('MÁY LẠNH') ||
-      upper.includes('MỞ THẺ TÍN DỤNG')
-    );
-  };
-
-  const resolveCategoryType = (catName: string, explicitType?: string): 'SL' | 'DT' => {
-    if (explicitType === 'SL' || explicitType === 'DT') return explicitType;
-    const clean = cleanCategoryName(catName);
-    if (clean) {
-      const direct = catTypeLookup[clean];
-      if (direct === 'SL' || direct === 'DT') return direct;
-      for (const [k, v] of Object.entries(catTypeLookup)) {
-        if ((v === 'SL' || v === 'DT') && isSameCategoryClean(clean, k)) {
-          return v;
+    if (Array.isArray(categoryTargets)) {
+      categoryTargets.forEach((t: any) => {
+        const clean = cleanCategoryName(t?.name || '');
+        if (!clean) return;
+        if ((t?.type === 'SL' || t?.type === 'DT') && (!catTypeLookup[clean] || catTypeLookup[clean] === 'ALL')) {
+          catTypeLookup[clean] = t.type;
         }
-      }
-      const targetMatch = categoryTargets?.find((t: any) => isSameCategoryClean(cleanCategoryName(t?.name || ''), clean));
-      if (targetMatch?.type === 'SL' || targetMatch?.type === 'DT') return targetMatch.type;
-      const luykeMatch = effectiveLuykeCategories.find(c => isSameCategoryClean(cleanCategoryName(c.name), clean));
-      if (luykeMatch?.type === 'SL' || luykeMatch?.type === 'DT') return luykeMatch.type;
-    }
-    return isSlCategoryByKeyword(catName) ? 'SL' : 'DT';
-  };
-
-  const resolveStoreBaseTarget = (catName: string, fallbackTarget: number = 0): number => {
-    const clean = cleanCategoryName(catName);
-    if (!clean) return fallbackTarget;
-    const matchingTarget = categoryTargets?.find((t: any) => isSameCategoryClean(cleanCategoryName(t?.name || ''), clean));
-    if (matchingTarget) {
-      if (typeof matchingTarget.adjustedTarget === 'number' && !isNaN(matchingTarget.adjustedTarget)) {
-        return matchingTarget.adjustedTarget;
-      }
-      if (typeof matchingTarget.target === 'number' && !isNaN(matchingTarget.target)) {
-        return matchingTarget.target;
-      }
-    }
-    const matchingLuyke = effectiveLuykeCategories.find(c => isSameCategoryClean(cleanCategoryName(c.name), clean));
-    if (matchingLuyke && typeof matchingLuyke.target === 'number' && !isNaN(matchingLuyke.target)) {
-      return matchingLuyke.target;
-    }
-    return fallbackTarget || 0;
-  };
-
-  // Merge all valid categories across categoryConfig, effectiveLuykeCategories, categoryTargets, and detailCategories
-  const mergedCategories: { name: string; type: 'SL' | 'DT' | 'ALL'; target: number }[] = [];
-  const addMergedCategory = (rawName: string, rawType?: string, rawTarget?: number) => {
-    if (!rawName || !/[a-zA-Zà-ỹÀ-Ỹ]/.test(rawName)) return;
-    if (/^[\d\s,.\-+/%:()]+$/.test(rawName)) return;
-    const clean = cleanCategoryName(rawName);
-    if (!clean) return;
-    const existingIdx = mergedCategories.findIndex(mc => isSameCategoryClean(cleanCategoryName(mc.name), clean));
-    const resolvedType = resolveCategoryType(rawName, rawType);
-    const resolvedTarget = resolveStoreBaseTarget(rawName, rawTarget ?? 0);
-    if (existingIdx === -1) {
-      mergedCategories.push({
-        name: rawName,
-        type: resolvedType,
-        target: resolvedTarget,
       });
-    } else {
-      const existing = mergedCategories[existingIdx];
-      if ((!existing.type || existing.type === 'ALL') && (resolvedType === 'SL' || resolvedType === 'DT')) {
-        existing.type = resolvedType;
-      }
-      if ((existing.target <= 0 || isNaN(existing.target)) && resolvedTarget > 0) {
-        existing.target = resolvedTarget;
-      }
     }
-  };
 
-  if (categoryConfig && categoryConfig.length > 0) {
-    categoryConfig.forEach(c => addMergedCategory(c.name));
-  }
-  effectiveLuykeCategories.forEach(cat => addMergedCategory(cat.name, cat.type, cat.target));
-  if (Array.isArray(categoryTargets)) {
-    categoryTargets.forEach((t: any) => addMergedCategory(t?.name || '', t?.type, t?.adjustedTarget ?? t?.target ?? 0));
-  }
-  detailCategories.forEach(dcName => addMergedCategory(dcName));
+    const resolveCategoryType = (catName: string, explicitType?: string): 'SL' | 'DT' => {
+      if (explicitType === 'SL' || explicitType === 'DT') return explicitType;
+      const clean = cleanCategoryName(catName);
+      if (clean) {
+        const direct = catTypeLookup[clean];
+        if (direct === 'SL' || direct === 'DT') return direct;
+        for (const [k, v] of Object.entries(catTypeLookup)) {
+          if ((v === 'SL' || v === 'DT') && isSameCategoryClean(clean, k)) {
+            return v;
+          }
+        }
+        const targetMatch = categoryTargets?.find((t: any) => isSameCategoryClean(cleanCategoryName(t?.name || ''), clean));
+        if (targetMatch?.type === 'SL' || targetMatch?.type === 'DT') return targetMatch.type;
+        const luykeMatch = effectiveLuykeCategories.find(c => isSameCategoryClean(cleanCategoryName(c.name), clean));
+        if (luykeMatch?.type === 'SL' || luykeMatch?.type === 'DT') return luykeMatch.type;
+      }
+      return isSlCategoryByKeyword(catName) ? 'SL' : 'DT';
+    };
 
-  const allRowData = staffData ? mergedCategories.map((cat: any) => {
-    const cleanCatName = cleanCategoryName(cat.name);
-    
-    // Find target
-    const baseTarget = resolveStoreBaseTarget(cat.name, cat.target || 0);
-    const target = staffCount > 0 ? baseTarget / staffCount : baseTarget;
-    
-    // Find accumulated value from staff data
-    // 1. Direct lookup from valuesMap (populated by parseStaffMatrixDataRefined)
-    let accumulated = 0;
-    let foundVal = false;
-    const valuesMap = staffData.valuesMap;
-    if (valuesMap && valuesMap[cleanCatName] !== undefined) {
-      accumulated = valuesMap[cleanCatName];
-      foundVal = true;
-    } else if (valuesMap) {
-      // 2. Safe fuzzy key match in valuesMap
-      for (const [k, v] of Object.entries(valuesMap)) {
-        if (isSameCategoryClean(k, cleanCatName)) {
-          accumulated = v;
-          foundVal = true;
-          break;
+    const resolveStoreBaseTarget = (catName: string, fallbackTarget: number = 0): number => {
+      const clean = cleanCategoryName(catName);
+      if (!clean) return fallbackTarget;
+      const matchingTarget = categoryTargets?.find((t: any) => isSameCategoryClean(cleanCategoryName(t?.name || ''), clean));
+      if (matchingTarget) {
+        if (typeof matchingTarget.adjustedTarget === 'number' && !isNaN(matchingTarget.adjustedTarget)) {
+          return matchingTarget.adjustedTarget;
+        }
+        if (typeof matchingTarget.target === 'number' && !isNaN(matchingTarget.target)) {
+          return matchingTarget.target;
         }
       }
-    }
-
-    // 3. Fallback: match via detailCategories and rawValues
-    if (!foundVal && staffData.rawValues && staffData.rawValues.length > 0) {
-      const detailIdx = detailCategories.findIndex(dc => isSameCategoryClean(cleanCategoryName(dc), cleanCatName));
-      if (detailIdx !== -1 && staffData.rawValues[detailIdx] !== undefined) {
-        accumulated = staffData.rawValues[detailIdx] ?? 0;
+      const matchingLuyke = effectiveLuykeCategories.find(c => isSameCategoryClean(cleanCategoryName(c.name), clean));
+      if (matchingLuyke && typeof matchingLuyke.target === 'number' && !isNaN(matchingLuyke.target)) {
+        return matchingLuyke.target;
       }
-    }
-
-    const percentHT = (target > 0 && daysPassed > 0) 
-      ? (((accumulated / daysPassed) * totalDays) / target) * 100 
-      : 0;
-    const remainingVal = accumulated - target;
-    const catType = cat.type || 'DT';
-    
-    return {
-      name: cat.name,
-      target,
-      accumulated,
-      percentHT,
-      remainingVal,
-      catType
+      return fallbackTarget || 0;
     };
-  }) : [];
 
-  // Split by type based on luykeCategories (BC THÁNG → CHI TIẾT NGÀNH HÀNG)
-  const sllkRows = allRowData
-    .filter(r => r.catType === 'SL')
-    .sort((a, b) => b.percentHT - a.percentHT);
-  const dtlkRows = allRowData
-    .filter(r => r.catType === 'DT')
-    .sort((a, b) => b.percentHT - a.percentHT);
-  const otherRows = allRowData
-    .filter(r => r.catType === 'ALL')
-    .sort((a, b) => b.percentHT - a.percentHT);
+    const rawMerged: { name: string; cleanCatName: string; type: 'SL' | 'DT' | 'ALL'; target: number }[] = [];
+    const addMergedCategory = (rawName: string, rawType?: string, rawTarget?: number) => {
+      if (!rawName || !/[a-zA-Zà-ỹÀ-Ỹ]/.test(rawName)) return;
+      if (/^[\d\s,.\-+/%:()]+$/.test(rawName)) return;
+      const clean = cleanCategoryName(rawName);
+      if (!clean) return;
+      const existingIdx = rawMerged.findIndex(mc => isSameCategoryClean(mc.cleanCatName, clean));
+      const resolvedType = resolveCategoryType(rawName, rawType);
+      const resolvedTarget = resolveStoreBaseTarget(rawName, rawTarget ?? 0);
+      if (existingIdx === -1) {
+        rawMerged.push({
+          name: rawName,
+          cleanCatName: clean,
+          type: resolvedType,
+          target: resolvedTarget,
+        });
+      } else {
+        const existing = rawMerged[existingIdx];
+        if ((!existing.type || existing.type === 'ALL') && (resolvedType === 'SL' || resolvedType === 'DT')) {
+          existing.type = resolvedType;
+        }
+        if ((existing.target <= 0 || isNaN(existing.target)) && resolvedTarget > 0) {
+          existing.target = resolvedTarget;
+        }
+      }
+    };
 
-  if (!staffData || mergedCategories.length === 0) {
-    return (
-      <div className="bg-white p-2.5 sm:p-4 border border-slate-300 shadow-xl rounded-xl sm:rounded-2xl" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
-        <h2 className="text-[13px] sm:text-xl font-black text-slate-900 uppercase tracking-tight mb-2 sm:mb-4 border-b border-slate-300 pb-2">
-          CHI TIẾT NHÂN VIÊN: {staffName}
-        </h2>
-        <p className="text-sm text-slate-500 font-bold uppercase tracking-widest text-center py-8">
-          Chưa có dữ liệu chi tiết cho nhân viên này
-        </p>
-      </div>
-    );
-  }
+    if (categoryConfig && categoryConfig.length > 0) {
+      categoryConfig.forEach(c => addMergedCategory(c.name));
+    }
+    effectiveLuykeCategories.forEach(cat => addMergedCategory(cat.name, cat.type, cat.target));
+    if (Array.isArray(categoryTargets)) {
+      categoryTargets.forEach((t: any) => addMergedCategory(t?.name || '', t?.type, t?.adjustedTarget ?? t?.target ?? 0));
+    }
+    detailCategories.forEach(dcName => addMergedCategory(dcName));
 
-  // Calculate combined stats
-  const totalReached = allRowData.filter(r => r.percentHT >= 100).length;
-  const totalCats = allRowData.length;
+    const cleanDetailCats = detailCategories.map(dc => cleanCategoryName(dc));
+    const prepared: PreparedMergedCategory[] = rawMerged.map(mc => ({
+      name: mc.name,
+      cleanCatName: mc.cleanCatName,
+      type: mc.type,
+      target: mc.target,
+      baseTarget: resolveStoreBaseTarget(mc.name, mc.target || 0),
+      detailIdx: cleanDetailCats.findIndex(dc => isSameCategoryClean(dc, mc.cleanCatName))
+    }));
+
+    cachedMergedCategoriesInput = {
+      categoryConfig,
+      effectiveLuykeCategories,
+      categoryTargets,
+      detailCategories,
+      parsedCategoryTypes,
+      result: prepared
+    };
+    return prepared;
+  }, [categoryConfig, effectiveLuykeCategories, categoryTargets, detailCategories, parsedCategoryTypes]);
+
+  const { allRowData, sllkRows, dtlkRows, otherRows, totalReached, totalCats } = useMemo(() => {
+    const rows = staffData ? mergedCategories.map((cat) => {
+      const cleanCatName = cat.cleanCatName;
+      const baseTarget = cat.baseTarget;
+      const target = staffCount > 0 ? baseTarget / staffCount : baseTarget;
+      
+      let accumulated = 0;
+      let foundVal = false;
+      const valuesMap = staffData.valuesMap;
+      if (valuesMap && valuesMap[cleanCatName] !== undefined) {
+        accumulated = valuesMap[cleanCatName];
+        foundVal = true;
+      } else if (valuesMap) {
+        for (const [k, v] of Object.entries(valuesMap)) {
+          if (isSameCategoryClean(k, cleanCatName)) {
+            accumulated = v;
+            foundVal = true;
+            break;
+          }
+        }
+      }
+
+      if (!foundVal && staffData.rawValues && staffData.rawValues.length > 0) {
+        if (cat.detailIdx !== -1 && staffData.rawValues[cat.detailIdx] !== undefined) {
+          accumulated = staffData.rawValues[cat.detailIdx] ?? 0;
+        }
+      }
+
+      const percentHT = (target > 0 && daysPassed > 0) 
+        ? (((accumulated / daysPassed) * totalDays) / target) * 100 
+        : 0;
+      const remainingVal = accumulated - target;
+      const catType = cat.type || 'DT';
+      
+      return {
+        name: cat.name,
+        target,
+        accumulated,
+        percentHT,
+        remainingVal,
+        catType
+      };
+    }) : [];
+
+    const sllk = rows
+      .filter(r => r.catType === 'SL')
+      .sort((a, b) => b.percentHT - a.percentHT);
+    const dtlk = rows
+      .filter(r => r.catType === 'DT')
+      .sort((a, b) => b.percentHT - a.percentHT);
+    const other = rows
+      .filter(r => r.catType === 'ALL')
+      .sort((a, b) => b.percentHT - a.percentHT);
+
+    const reached = rows.filter(r => r.percentHT >= 100).length;
+    return {
+      allRowData: rows,
+      sllkRows: sllk,
+      dtlkRows: dtlk,
+      otherRows: other,
+      totalReached: reached,
+      totalCats: rows.length
+    };
+  }, [staffData, mergedCategories, staffCount, daysPassed, totalDays]);
 
   // Compute TOP 20% / BOT 20% rank badge by category achievement (e.g. 20/40 vs 5/40) within the displayed/filtered employee list
-  const rankBadge: 'TOP' | 'BOT' | null = (() => {
+  const rankBadge: 'TOP' | 'BOT' | null = useMemo(() => {
+    if (!staffData || mergedCategories.length === 0) return null;
+
+    if (
+      !cachedReachedCountsInput ||
+      cachedReachedCountsInput.mergedCategories !== mergedCategories ||
+      cachedReachedCountsInput.staffCount !== staffCount ||
+      cachedReachedCountsInput.daysPassed !== daysPassed ||
+      cachedReachedCountsInput.totalDays !== totalDays
+    ) {
+      cachedReachedCountsInput = {
+        mergedCategories,
+        staffCount,
+        daysPassed,
+        totalDays,
+        counts: new WeakMap()
+      };
+    }
+    const countsMap = cachedReachedCountsInput.counts;
+
     const computeStaffReachedCount = (s: StaffMatrixData): number => {
-      if (s === staffData) return totalReached;
+      if (s === staffData) {
+        countsMap.set(s, totalReached);
+        return totalReached;
+      }
+      const cached = countsMap.get(s);
+      if (cached !== undefined) return cached;
+
       let count = 0;
       const sValuesMap = s.valuesMap;
       for (let i = 0; i < mergedCategories.length; i++) {
         const cat = mergedCategories[i];
-        const cleanCatName = cleanCategoryName(cat.name);
-        const baseTarget = resolveStoreBaseTarget(cat.name, cat.target || 0);
+        const cleanCatName = cat.cleanCatName;
+        const baseTarget = cat.baseTarget;
         const target = staffCount > 0 ? baseTarget / staffCount : baseTarget;
 
         let accumulated = 0;
@@ -910,9 +986,8 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
           }
         }
         if (!foundSVal && s.rawValues && s.rawValues.length > 0) {
-          const detailIdx = detailCategories.findIndex(dc => isSameCategoryClean(cleanCategoryName(dc), cleanCatName));
-          if (detailIdx !== -1 && s.rawValues[detailIdx] !== undefined) {
-            accumulated = s.rawValues[detailIdx] || 0;
+          if (cat.detailIdx !== -1 && s.rawValues[cat.detailIdx] !== undefined) {
+            accumulated = s.rawValues[cat.detailIdx] || 0;
           }
         }
 
@@ -921,6 +996,7 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
           : 0;
         if (pctHT >= 100) count++;
       }
+      countsMap.set(s, count);
       return count;
     };
 
@@ -931,6 +1007,7 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
       selectedStaffIds.forEach(selId => {
         const cleanSel = (selId || '').trim().toLowerCase();
         if (!cleanSel) return;
+        const cleanSelNoAccents = removeAccents(cleanSel);
         const matched = staffMatrix.find(s => {
           if (!s || seen.has(s)) return false;
           const sId = (s.fullId || '').trim().toLowerCase();
@@ -938,8 +1015,8 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
           const sDisplay = removeAccents(s.displayName || '').toLowerCase();
           return (
             (sId && (sId === cleanSel || sId.includes(cleanSel) || cleanSel.includes(sId))) ||
-            (sName && sName.includes(removeAccents(cleanSel))) ||
-            (sDisplay && sDisplay.includes(removeAccents(cleanSel)))
+            (sName && sName.includes(cleanSelNoAccents)) ||
+            (sDisplay && sDisplay.includes(cleanSelNoAccents))
           );
         });
         if (matched) {
@@ -979,10 +1056,23 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
     if (rankIndex < topCount) return 'TOP';
     if (totalEmployees > 1 && rankIndex >= totalEmployees - botCount && rankIndex >= topCount) return 'BOT';
     return null;
-  })();
+  }, [staffData, mergedCategories, staffCount, daysPassed, totalDays, selectedStaffIds, staffMatrix, totalReached]);
 
   const [isCapturing, setIsCapturing] = useState(false);
   const [showSlowNotice, setShowSlowNotice] = useState(false);
+
+  if (!staffData || mergedCategories.length === 0) {
+    return (
+      <div className="bg-white p-2.5 sm:p-4 border border-slate-300 shadow-xl rounded-xl sm:rounded-2xl" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
+        <h2 className="text-[13px] sm:text-xl font-black text-slate-900 uppercase tracking-tight mb-2 sm:mb-4 border-b border-slate-300 pb-2">
+          CHI TIẾT NHÂN VIÊN: {staffName}
+        </h2>
+        <p className="text-sm text-slate-500 font-bold uppercase tracking-widest text-center py-8">
+          Chưa có dữ liệu chi tiết cho nhân viên này
+        </p>
+      </div>
+    );
+  }
 
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
@@ -1662,6 +1752,7 @@ export default React.memo(EmployeeDetailTable, (prev, next) => {
     prev.totalDays === next.totalDays &&
     prev.categoryTargets === next.categoryTargets &&
     prev.luykeCategories === next.luykeCategories &&
+    prev.categoryConfig === next.categoryConfig &&
     prev.staffTargetQd === next.staffTargetQd &&
     prev.staffDtqd === next.staffDtqd &&
     prev.staffPercentHT === next.staffPercentHT &&

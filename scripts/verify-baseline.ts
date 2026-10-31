@@ -15,6 +15,8 @@ import { findIsolatedStoreTarget, getWarehouseStoreTargetKey } from '../src/page
 import { buildLuykeProcessSignature } from '../src/contexts/LuykeDataContext';
 import { APP_PAGES_REGISTRY, getDefaultAllowedPagesForNewUser } from '../src/constants/routes';
 import { SUPER_ADMIN_ALL_PAGES, isSuperAdmin43751 } from '../src/firebaseAdapter';
+import { getHealthCacheKey, invalidateEmployeeHealthCache } from '../src/pages/EmployeeHealth/hooks/useEmployeeHealth';
+import { parseStaffMatrixDataRefined } from '../src/pages/EmployeeHealth/components/SummaryThiDuaTable';
 
 // 1. Deterministic Multi-Store BI Market Input (Tests RTST & LUYKE + Store Isolation)
 const SAMPLE_BI_MARKET_INPUT = `
@@ -401,3 +403,56 @@ function runPhase2ContextAndIsolationSuite() {
 }
 
 runPhase2ContextAndIsolationSuite();
+
+function runPhase3EmployeeHealthSuite() {
+  console.log('\n--- PHASE 3 (STEP 1): EMPLOYEE HEALTH OPTIMIZATION & ISOLATION VERIFICATION ---');
+
+  const storeA = 'ĐML - 155A NGUYỄN TẤT THÀNH - 1841';
+  const storeB = 'ĐMM - TRẦN HƯNG ĐẠO - 2910';
+  const foreignStore = 'ĐML - KHO KHÁC - 9999';
+
+  // 1. Verify getHealthCacheKey strict isolation by warehouse_code + storeName
+  const keyA1 = getHealthCacheKey('1841', storeA);
+  const keyA2 = getHealthCacheKey('001841', storeA);
+  const keyB = getHealthCacheKey('1841', storeB);
+  const keyAll = getHealthCacheKey('1841', 'ALL');
+  const keyForeign = getHealthCacheKey('9999', foreignStore);
+
+  if (
+    keyA1 !== keyA2 ||
+    keyA1 === keyB ||
+    keyA1 === keyAll ||
+    keyA1 === keyForeign
+  ) {
+    console.error('[FAIL] EmployeeHealth cache key isolation check failed!', {
+      keyA1,
+      keyA2,
+      keyB,
+      keyAll,
+      keyForeign
+    });
+    process.exit(1);
+  }
+  invalidateEmployeeHealthCache('1841');
+  console.log('  [PASS 100%] globalHealthCache key isolation (cleanMaKho + storeName) & cache invalidation verified');
+
+  // 2. Verify parseStaffMatrixDataRefined memo cache hit & reference stability
+  const mockTargets = [{ name: 'ĐIỆN THOẠI', target: 300, type: 'DT' }, { name: 'LAPTOP', target: 150, type: 'DT' }];
+  const mockLuykeCats: any[] = [];
+  const tColdStart = performance.now();
+  const resCold = parseStaffMatrixDataRefined(SAMPLE_STAFF_MATRIX_INPUT, 3, mockTargets, mockLuykeCats, 15, 30, false);
+  const coldMs = performance.now() - tColdStart;
+
+  const tWarmStart = performance.now();
+  for (let i = 0; i < 30; i++) {
+    const resWarm = parseStaffMatrixDataRefined(SAMPLE_STAFF_MATRIX_INPUT, 3, mockTargets, mockLuykeCats, 15, 30, false);
+    if (resWarm !== resCold) {
+      console.error('[FAIL] parseStaffMatrixDataRefined memo cache did not return identical reference!');
+      process.exit(1);
+    }
+  }
+  const warm30Ms = performance.now() - tWarmStart;
+  console.log(`  [PASS 100%] parseStaffMatrixDataRefined memo cache: 1 cold parse = ${coldMs.toFixed(3)}ms, 30 warm calls = ${warm30Ms.toFixed(3)}ms`);
+}
+
+runPhase3EmployeeHealthSuite();

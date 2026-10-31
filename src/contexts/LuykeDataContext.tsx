@@ -28,6 +28,7 @@ import {
 } from '../pages/RTST/utils';
 import { cleanBiReportText } from '../utils/rtstHelpers';
 import { mergeStaffCategoryReportSections } from '../pages/EmployeeHealth/components/SummaryThiDuaTable';
+import { invalidateEmployeeHealthCache } from '../pages/EmployeeHealth/hooks/useEmployeeHealth';
 const initGlobalAllStoresCache = (): Record<string, any> => {
   try {
     const saved = localStorage.getItem('crm_all_stores_cache_v2');
@@ -551,6 +552,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         
         return newCache;
       });
+      invalidateEmployeeHealthCache(shortMaKho);
 
       if (!isSilent) {
         const msg = fieldName ? `Lưu dữ liệu ${fieldName} thành công!` : 'Lưu dữ liệu Luỹ kế thành công!';
@@ -1527,6 +1529,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
           if (payload.new) {
             const record = payload.new as any;
+            invalidateEmployeeHealthCache(shortMaKho);
             
             const recordStore = record.ten_sieu_thi || '';
             const isGlobalRecord = !recordStore;
@@ -1955,6 +1958,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (activeStoreRef.current) {
       delete dbStoreSnapshotsRef.current[normalizeStoreId(activeStoreRef.current)];
     }
+    invalidateEmployeeHealthCache(shortMaKho);
 
     // Save immediately — no delay
     if (saveLuykeDataRef.current) {

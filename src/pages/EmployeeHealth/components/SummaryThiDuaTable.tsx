@@ -598,6 +598,19 @@ const cleanNumLocal = (s: string | undefined): number => {
   return isNaN(n) ? 0 : n;
 };
 
+interface StaffMatrixParseCacheEntry {
+  input: string;
+  staffCount: number;
+  categoryTargets: any[];
+  luykeCategories: CategoryData[];
+  daysPassed: number;
+  totalDays: number;
+  sortAlpha: boolean;
+  categoryConfig?: CategoryConfigItem[];
+  result: { staffMatrix: StaffMatrixData[]; categories: string[]; results: StaffMatrixData[]; categoryTypes?: Record<string, 'SL' | 'DT'> };
+}
+const staffMatrixParseCache: StaffMatrixParseCacheEntry[] = [];
+
 export const parseStaffMatrixDataRefined = (
   input: string, 
   staffCount: number, 
@@ -610,6 +623,21 @@ export const parseStaffMatrixDataRefined = (
 ): { staffMatrix: StaffMatrixData[], categories: string[], results: StaffMatrixData[], categoryTypes?: Record<string, 'SL' | 'DT'> } => {
   const raw = (input || '').trim();
   if (!raw) return { staffMatrix: [], categories: [], results: [], categoryTypes: {} };
+
+  const cachedHit = staffMatrixParseCache.find(
+    e =>
+      e.input === raw &&
+      e.staffCount === staffCount &&
+      e.categoryTargets === categoryTargets &&
+      e.luykeCategories === luykeCategories &&
+      e.daysPassed === daysPassed &&
+      e.totalDays === totalDays &&
+      e.sortAlpha === sortAlpha &&
+      e.categoryConfig === categoryConfig
+  );
+  if (cachedHit) {
+    return cachedHit.result;
+  }
 
   const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !isUiNoiseLine(l));
   if (lines.length === 0) return { staffMatrix: [], categories: [], results: [], categoryTypes: {} };
@@ -1259,7 +1287,22 @@ export const parseStaffMatrixDataRefined = (
     } as any);
   }
 
-  return { staffMatrix: results, categories: resolvedCategories, results, categoryTypes: {} };
+  const finalResult = { staffMatrix: results, categories: resolvedCategories, results, categoryTypes: {} };
+  staffMatrixParseCache.unshift({
+    input: raw,
+    staffCount,
+    categoryTargets,
+    luykeCategories,
+    daysPassed,
+    totalDays,
+    sortAlpha,
+    categoryConfig,
+    result: finalResult
+  });
+  if (staffMatrixParseCache.length > 8) {
+    staffMatrixParseCache.pop();
+  }
+  return finalResult;
 };
 
 

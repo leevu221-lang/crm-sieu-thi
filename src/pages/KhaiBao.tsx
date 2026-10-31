@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { useRealtimeData } from './RTST/hooks/useRealtimeData';
 import { useLuykeData } from './RTST/hooks/useLuykeData';
 import { useRTSTSharedData } from './RTST/hooks/useRTSTSharedData';
-import { useEmployeeHealth } from './EmployeeHealth/hooks/useEmployeeHealth';
+import { usePhucVuStore } from './EmployeeHealth/hooks/useEmployeeHealth';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../contexts/StoreContext';
 import InputSection from './RTST/components/InputSection';
@@ -150,7 +150,7 @@ const KhaiBao: React.FC = () => {
     allStoreTargets
   } = useRTSTSharedData(maKho, isYcxDirty);
 
-  const { phucVu, savePhucVu } = useEmployeeHealth(maKho, marketFilter !== 'ALL' ? marketFilter : undefined);
+  const { phucVu, savePhucVu } = usePhucVuStore(maKho, marketFilter !== 'ALL' ? marketFilter : undefined, allStoresCache);
 
   // Synchronized with DB-declared stores list via useStore()
 

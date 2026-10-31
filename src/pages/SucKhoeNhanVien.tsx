@@ -552,6 +552,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   const { activeHealthTab: activeTab, setActiveHealthTab: setActiveTab } = useStore();
   const [maKho, setMaKho] = useState(() => userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '');
   const [isCapturing, setIsCapturing] = useState(false);
+  const [renderAllDetailCards, setRenderAllDetailCards] = useState(false);
   const [batchExportProgress, setBatchExportProgress] = useState<{ current: number; total: number; percent: number } | null>(null);
   const isExportingAllRef = useRef(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -956,8 +957,15 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const tTotalStart = performance.now();
     const tDataPrepStart = performance.now();
 
+    if (viewMode === 'single' && !renderAllDetailCards) {
+      ReactDOM.flushSync(() => {
+        setRenderAllDetailCards(true);
+      });
+    }
+
     const tables = Array.from(document.querySelectorAll('[id^="employee-detail-"]')) as HTMLElement[];
     if (tables.length === 0) {
+      setRenderAllDetailCards(false);
       showNotification('Không tìm thấy danh sách nhân viên nào để xuất!', 'warning');
       return;
     }
@@ -1194,6 +1202,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       isExportingAllRef.current = false;
       setIsCapturing(false);
       setBatchExportProgress(null);
+      setRenderAllDetailCards(false);
     }
   };
 
@@ -1414,6 +1423,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
   const {
     biRevenueData: dbBiRevenueData,
+    lkRaw: dbLkRaw,
     luyKeNganhHang,
     thiDuaNv: dbThiDuaNv,
     phucVu,
@@ -1440,6 +1450,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     rankMonth1, setRankMonth1,
     rankMonth2, setRankMonth2,
     rankMonth3, setRankMonth3,
+    thuongData, setThuongData,
+    dbSelectedStaffIds, updateCachedStaffIds,
     setBanKemNv,
     setTragopNv,
     nganhhangChinhNv,
@@ -1544,15 +1556,20 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     });
   }, [processedData.markets]);
 
-  const filteredLuykeCategories = useMemo(() => {
-    const baseCats = (processedData?.categories || []).filter((c: any) => isCategoryForMarket(c, marketFilter));
-    if (!luyKeNganhHang || !luyKeNganhHang.trim()) {
-      return baseCats;
-    }
+  const fallbackStoreNameForParse = allowedMarkets.length > 0 ? '' : (marketFilter !== 'ALL' ? marketFilter : (tenSieuThi || maKho));
+  const parsedFromStoreRaw = useMemo(() => {
+    if (!luyKeNganhHang || !luyKeNganhHang.trim()) return [];
     const effectiveMarkets = allowedMarkets.length > 0
       ? allowedMarkets
-      : [{ name: marketFilter !== 'ALL' ? marketFilter : (tenSieuThi || maKho), targetST: 0, actualReal: 0, actualVirtual: 0, dtHomQua: 0, percentHT: 0 }];
-    const parsedFromStoreRaw = parseCategoryData(luyKeNganhHang, daysPassed, totalDays, effectiveMarkets as any, 'LUYKE');
+      : [{ name: fallbackStoreNameForParse, targetST: 0, actualReal: 0, actualVirtual: 0, dtHomQua: 0, percentHT: 0 }];
+    return parseCategoryData(luyKeNganhHang, daysPassed, totalDays, effectiveMarkets as any, 'LUYKE');
+  }, [luyKeNganhHang, daysPassed, totalDays, allowedMarkets, fallbackStoreNameForParse]);
+
+  const filteredLuykeCategories = useMemo(() => {
+    const baseCats = (processedData?.categories || []).filter((c: any) => isCategoryForMarket(c, marketFilter));
+    if (parsedFromStoreRaw.length === 0) {
+      return baseCats;
+    }
     const matchingFromStoreRaw = parsedFromStoreRaw.filter((c: any) => {
       if (!marketFilter || marketFilter === 'ALL') return true;
       if (!c?.marketName) return true;
@@ -1571,7 +1588,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       }
     });
     return merged;
-  }, [processedData?.categories, marketFilter, luyKeNganhHang, daysPassed, totalDays, allowedMarkets, tenSieuThi, maKho]);
+  }, [processedData?.categories, marketFilter, parsedFromStoreRaw]);
 
   const currentMarket = useMemo(() => {
     if (!marketFilter || marketFilter === 'ALL') {
@@ -1714,7 +1731,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   // Use KHAI BÁO inputs (DOANH THU + THI ĐUA NV) when available, otherwise use DB data
   const biRevenueData = React.useMemo(() => {
     const activeStoreKey = marketFilter !== 'ALL' ? marketFilter : (tenSieuThi || stName || maKho || '');
-    const baseList = staffInput ? parseStaffRankData(staffInput, effectiveStaffInputThuc, activeStoreKey) : dbBiRevenueData;
+    const canReuseDbBiRevenue =
+      dbBiRevenueData.length > 0 &&
+      (!staffInput || staffInput.trim() === (dbLkRaw || '').trim());
+    const baseList = canReuseDbBiRevenue
+      ? dbBiRevenueData
+      : (staffInput ? parseStaffRankData(staffInput, effectiveStaffInputThuc, activeStoreKey) : dbBiRevenueData);
     if (!effectiveStaffInputThuc || baseList.length === 0) return baseList;
 
     // Ensure actualVal and effVal are mapped onto each staff member strictly by employee code first
@@ -1771,39 +1793,50 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       }
       return staff;
     });
-  }, [staffInput, effectiveStaffInputThuc, dbBiRevenueData, marketFilter, tenSieuThi, stName, maKho]);
+  }, [staffInput, dbLkRaw, effectiveStaffInputThuc, dbBiRevenueData, marketFilter, tenSieuThi, stName, maKho]);
 
   const thiDuaNv = React.useMemo(() => {
     const candidates: string[] = [];
-    if (staffCategoryInput && staffCategoryInput.trim()) {
-      candidates.push(staffCategoryInput);
-    }
-    if (dbThiDuaNv && dbThiDuaNv.trim()) {
-      candidates.push(dbThiDuaNv);
-    }
-    if (marketFilter && marketFilter !== 'ALL' && allStoresCache?.[marketFilter]?.staffCategoryInput?.trim()) {
-      candidates.push(allStoresCache[marketFilter].staffCategoryInput);
+    const addCandidate = (raw?: string) => {
+      const trimmed = (raw || '').trim();
+      if (!trimmed) return;
+      if (!candidates.some(c => c.trim() === trimmed)) {
+        candidates.push(trimmed);
+      }
+    };
+    const shortMaKho = (maKho || '').trim().replace(/^0+/, '');
+    const isSameWh = (entry: any) =>
+      !entry?.warehouseCode || !shortMaKho || String(entry.warehouseCode).replace(/^0+/, '') === shortMaKho;
+
+    addCandidate(staffCategoryInput);
+    addCandidate(dbThiDuaNv);
+    if (marketFilter && marketFilter !== 'ALL' && isSameWh(allStoresCache?.[marketFilter])) {
+      addCandidate(allStoresCache?.[marketFilter]?.staffCategoryInput);
     }
     const storeKey = marketFilter !== 'ALL' ? marketFilter : (tenSieuThi || stName || '');
     if (storeKey && allStoresCache) {
       const cleanStoreKey = storeKey.replace(/^(\d+\s*[-–—]\s*)/, '').trim().toLowerCase();
       const found = Object.entries(allStoresCache).find(([k, v]: [string, any]) => {
+        if (!isSameWh(v)) return false;
         const cleanK = k.replace(/^(\d+\s*[-–—]\s*)/, '').trim().toLowerCase();
         return (cleanK === cleanStoreKey || k.toLowerCase().includes(cleanStoreKey) || cleanStoreKey.includes(cleanK)) && v?.staffCategoryInput?.trim();
       });
       if (found && (found[1] as any)?.staffCategoryInput) {
-        candidates.push((found[1] as any).staffCategoryInput);
+        addCandidate((found[1] as any).staffCategoryInput);
       }
     }
-    if (candidates.length > 0) {
+    if (candidates.length === 1) {
+      return candidates[0];
+    }
+    if (candidates.length > 1) {
       return candidates.reduce((acc, cur) => (acc ? mergeStaffCategoryReportSections(cur, acc) : cur), '');
     }
     if (!storeKey || storeKey === 'ALL') {
-      const anyCached = Object.values(allStoresCache || {}).find((s: any) => s?.staffCategoryInput?.trim()) as any;
+      const anyCached = Object.values(allStoresCache || {}).find((s: any) => isSameWh(s) && s?.staffCategoryInput?.trim()) as any;
       if (anyCached?.staffCategoryInput) return anyCached.staffCategoryInput;
     }
     return '';
-  }, [staffCategoryInput, dbThiDuaNv, marketFilter, tenSieuThi, stName, allStoresCache]);
+  }, [staffCategoryInput, dbThiDuaNv, marketFilter, tenSieuThi, stName, allStoresCache, maKho]);
 
   const effectiveTragopNv = React.useMemo(() => {
     if (luykeTragopNv && luykeTragopNv.trim()) return luykeTragopNv;
@@ -2588,7 +2621,6 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
   const initializedRef = useRef<string | null>(null);
-  const [thuongData, setThuongData] = useState<Record<string, { truoc: string; hientai: string }>>({});
   const thuongSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Save entire thuong data object as JSON into a single column
@@ -2613,6 +2645,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   };
 
   const saveStaffIdsToDb = (ids: string[]) => {
+    updateCachedStaffIds(ids);
     const storeName = marketFilter !== 'ALL' ? marketFilter : '';
     if (!storeName || !maKho) return;
     const shortMaKho = maKho.replace(/^0+/, '');
@@ -2870,7 +2903,14 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   // - If it is not empty, we initialize selectedStaffIds to all staff.
   useEffect(() => {
     if (!maKho) return;
-    const storeKey = `${maKho}_${marketFilter}`;
+    const shortMaKho = maKho.replace(/^0+/, '');
+    const storeKey = `${shortMaKho}_${marketFilter}`;
+
+    if (Array.isArray(dbSelectedStaffIds) && dbSelectedStaffIds.length > 0) {
+      setSelectedStaffIds(dbSelectedStaffIds);
+      initializedRef.current = storeKey;
+      return;
+    }
 
     if (biRevenueData.length === 0) {
       if (initializedRef.current !== storeKey) {
@@ -2889,7 +2929,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       initializedRef.current = storeKey;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [maKho, biRevenueData]); // intentionally omit marketFilter & selectedStaffIds to avoid race condition
+  }, [maKho, biRevenueData, dbSelectedStaffIds]); // intentionally omit marketFilter & selectedStaffIds to avoid race condition
 
   // --- State & Memoized Filtering cho Tab CHI TIẾT NHÂN VIÊN (Độc lập 100% với danh sách gốc) ---
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -4118,98 +4158,6 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     return { stats, sets: { topM1Keys, botM1Keys, topM2Keys, botM2Keys, topM3Keys, botM3Keys, topTbKeys, botTbKeys } };
   }, [filteredRank3TData]);
 
-  const parsedKhaiThacRows = useMemo(() => {
-    const parsed = parseKhaiThacData(tragopMatran);
-    return parsed
-      .filter((row: any) => {
-        const matchingStaff = biRevenueData.find(staff => {
-          const staffId = staff.fullId.toLowerCase().trim();
-          const staffName = (staff.displayName.split('-').pop() || '').trim();
-          const staffNameClean = removeAccents(staffName);
-          const rowValClean = removeAccents(row.nhanVien);
-          return rowValClean.includes(staffId) || 
-                 rowValClean === staffNameClean ||
-                 rowValClean.includes(staffNameClean) ||
-                 staffNameClean.includes(rowValClean);
-        });
-        if (!matchingStaff) return false;
-        if (!selectedStaffIds.includes(matchingStaff.fullId)) return false;
-
-        // Filter by category
-        if (khaiThacCategoryFilter !== 'ALL' && row.nhomHang !== khaiThacCategoryFilter) {
-          return false;
-        }
-
-        return true;
-      })
-      .sort((a, b) => b.dtlk - a.dtlk);
-  }, [tragopMatran, selectedStaffIds, biRevenueData, parseKhaiThacData, khaiThacCategoryFilter]);
-
-  const availableKhaiThacCategories = useMemo(() => {
-    const parsed = parseKhaiThacData(tragopMatran);
-    const categories = new Set<string>();
-    parsed.forEach((row: any) => {
-      if (row.nhomHang) {
-        categories.add(row.nhomHang);
-      }
-    });
-    return Array.from(categories);
-  }, [tragopMatran, parseKhaiThacData]);
-
-  // Load thuong data from DB when store or marketFilter changes
-  useEffect(() => {
-    if (!maKho) return;
-    const shortMaKho = maKho.replace(/^0+/, '');
-    const isAll = !marketFilter || marketFilter === 'ALL';
-    
-    let query = supabase.from('store').select('thuong_nv_data, selected_staff_ids');
-    if (isAll) {
-      query = query.or(`warehouse_code.eq.${shortMaKho},warehouse_code.eq.${maKho.trim()}`);
-    } else {
-      query = query.eq('id', normalizeStoreId(marketFilter.trim()));
-    }
-
-    query.then(({ data }: any) => {
-      if (!data) {
-        setThuongData({});
-        return;
-      }
-      const records = Array.isArray(data) ? data : [data];
-      const mergedThuong: Record<string, { truoc: string; hientai: string }> = {};
-      
-      records.forEach(r => {
-        if (r.thuong_nv_data) {
-          try {
-            const parsed = typeof r.thuong_nv_data === 'string' ? JSON.parse(r.thuong_nv_data) : r.thuong_nv_data;
-            if (parsed && typeof parsed === 'object') {
-              Object.assign(mergedThuong, parsed);
-            }
-          } catch (e) {
-            console.error('[THUONG] Parse error:', e);
-          }
-        }
-      });
-      
-      setThuongData(mergedThuong);
-      console.log('[THUONG] Loaded merged thuong_nv_data:', Object.keys(mergedThuong).length, 'staff');
-
-      const firstWithIds = records.find(r => r.selected_staff_ids);
-      if (firstWithIds?.selected_staff_ids) {
-        try {
-          const parsedIds = typeof firstWithIds.selected_staff_ids === 'string'
-            ? JSON.parse(firstWithIds.selected_staff_ids)
-            : firstWithIds.selected_staff_ids;
-          if (Array.isArray(parsedIds)) {
-            setSelectedStaffIds(parsedIds);
-            initializedRef.current = `${shortMaKho}_${marketFilter}`;
-          }
-        } catch(e) {
-          console.error('[EmployeeHealth] Parse selected_staff_ids error:', e);
-        }
-      }
-    });
-  }, [marketFilter, maKho]);
-
   // Listen to cross-origin sync hash data for Thưởng NV
   useEffect(() => {
     const handleHashSyncThuong = () => {
@@ -4646,9 +4594,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     return nhcRows;
   }, [nganhhangChinhNv]);
 
-  // Pre-calculate comparison staff list and detail categories for Head-to-Head Arena
+  // Pre-calculate comparison staff list and detail categories for Head-to-Head Arena (only when modal is open)
   const { comparisonStaffList, detailComparisonCategories } = useMemo(() => {
-    if ((activeTab !== 'CHI_TIET' && !isCompareOpen) || !biRevenueData || biRevenueData.length === 0) {
+    if (!isCompareOpen || !biRevenueData || biRevenueData.length === 0) {
       return { comparisonStaffList: [], detailComparisonCategories: [] };
     }
 
@@ -4656,7 +4604,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       thiDuaNv || '',
       filteredBiData.length > 0 ? filteredBiData.length : 1,
       categoryTargets || [],
-      (processedData?.categories || []).filter((c: any) => isCategoryForMarket(c, marketFilter)),
+      filteredLuykeCategories,
       daysPassed || 1,
       totalDays || 30,
       false,
@@ -4736,7 +4684,103 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     });
 
     return { comparisonStaffList: list, detailComparisonCategories: detailCategories };
-  }, [activeTab, isCompareOpen, biRevenueData, filteredBiData, thiDuaNv, categoryTargets, processedData.categories, marketFilter, daysPassed, totalDays, displayTargetQD, thuongData, parsedTraChamRows, nganhhangChinhNv]);
+  }, [isCompareOpen, biRevenueData, filteredBiData, thiDuaNv, categoryTargets, filteredLuykeCategories, categoryConfig, marketFilter, daysPassed, totalDays, displayTargetQD, thuongData, parsedTraChamRows, parsedNhcStaffRows]);
+
+  const phucVuParsed = useMemo(() => {
+    if (activeTab !== 'PHUC_VU' || !phucVu) return null;
+    const lines = phucVu.split('\n').filter(l => l.trim() !== '');
+    const headerIdx = lines.findIndex(l => l.toUpperCase().includes('5 SAO') && l.includes('\t'));
+    if (headerIdx === -1) return null;
+
+    const allHeaders = lines[headerIdx].split('\t');
+    const excludedColumns = [
+      'Tổng điểm KH đánh giá NV',
+      'Tổng SL ĐH gửi khảo sát (đã gửi hoặc KH đã quét QR)',
+      'Tổng ĐH KH đánh giá NV',
+      'Tỉ Lệ tiếp cận thành công',
+      'Điểm KH hài lòng của NV (tạm tính)',
+      'STT',
+      'MIỀN',
+      'CÔNG TY',
+      'MIEN',
+      'CONG TY'
+    ];
+
+    const visibleIndices = allHeaders
+      .map((h, i) => {
+        const headerText = h.trim().toUpperCase();
+        const isExcluded = excludedColumns.some(excluded =>
+          excluded.toUpperCase() === headerText
+        );
+        return isExcluded ? -1 : i;
+      })
+      .filter(i => i !== -1);
+
+    const rows = lines.slice(headerIdx + 1).filter(l => {
+      const parts = l.split('\t');
+      if (parts.length < 5) return false;
+      return /^(\d{4,6})\s*-/.test(parts[0]) || parts.length >= allHeaders.length - 2;
+    });
+
+    const colIndex5Sao = allHeaders.findIndex(h => h.trim().toUpperCase().includes('5 SAO'));
+    const sortedRows = [...rows];
+    if (colIndex5Sao !== -1) {
+      sortedRows.sort((a, b) => {
+        const cellA = a.split('\t')[colIndex5Sao] || '0';
+        const cellB = b.split('\t')[colIndex5Sao] || '0';
+        const valA = parseFloat(cellA.replace(/[^0-9.-]+/g, "")) || 0;
+        const valB = parseFloat(cellB.replace(/[^0-9.-]+/g, "")) || 0;
+        return valB - valA;
+      });
+    }
+
+    const totalRows = sortedRows.length;
+    const topLimit = Math.ceil(totalRows * 0.2);
+    const botLimit = Math.ceil(totalRows * 0.2);
+    const startIndex5Sao = visibleIndices.findIndex(idx =>
+      allHeaders[idx].trim().toUpperCase().includes('5 SAO')
+    );
+
+    return { allHeaders, visibleIndices, sortedRows, totalRows, topLimit, botLimit, startIndex5Sao };
+  }, [activeTab, phucVu]);
+
+  const thuongTableComputed = useMemo(() => {
+    if (activeTab !== 'THUONG_NV') return null;
+    const colTotalsT = Array(8).fill(0);
+    const colTotalsH = Array(8).fill(0);
+    let hasAnyDataT = false;
+    let hasAnyDataH = false;
+    const byStaffId: Record<string, { truocData: ReturnType<typeof parseBonusData>; hientaiData: ReturnType<typeof parseBonusData>; diff7: number }> = {};
+
+    filteredBiData.forEach(staff => {
+      const truoc = thuongData[staff.fullId]?.truoc || '';
+      const hientai = thuongData[staff.fullId]?.hientai || '';
+      const tD = parseBonusData(truoc, staff, marketFilter);
+      const hD = parseBonusData(hientai, staff, marketFilter);
+      const valT7 = tD.details[7] || 0;
+      const valH7 = hD.details[7] || 0;
+      byStaffId[staff.fullId] = { truocData: tD, hientaiData: hD, diff7: valH7 - valT7 };
+
+      for (let i = 0; i < 8; i++) {
+        if (tD.details[i] !== null) {
+          colTotalsT[i] += tD.details[i] || 0;
+          hasAnyDataT = true;
+        }
+        if (hD.details[i] !== null) {
+          colTotalsH[i] += hD.details[i] || 0;
+          hasAnyDataH = true;
+        }
+      }
+    });
+
+    const sortedBiDataForBonus = [...filteredBiData].sort((a, b) => {
+      const diffA = byStaffId[a.fullId]?.diff7 || 0;
+      const diffB = byStaffId[b.fullId]?.diff7 || 0;
+      return diffB - diffA;
+    });
+
+    return { colTotalsT, colTotalsH, hasAnyDataT, hasAnyDataH, byStaffId, sortedBiDataForBonus };
+  }, [activeTab, filteredBiData, thuongData, marketFilter]);
 
   return (
     <div className="w-full max-w-full min-w-0 min-h-screen bg-slate-50 overflow-x-hidden box-border font-sans" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
@@ -5407,7 +5451,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                         filteredEmployees.length === 0 && "hidden"
                       )}
                     >
-                      {allEmployees.map((staff, idx) => {
+                      {(viewMode === 'single' && !renderAllDetailCards ? filteredEmployees : allEmployees).map((staff, idx) => {
                         const id = staff.fullId;
                         const isVisible = filteredEmployeeIdSet.has(id);
                         const targetQdPerStaff = filteredBiData.length > 0 ? displayTargetQD / filteredBiData.length : 0;
@@ -5486,7 +5530,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                               onPreviewImage={setPreviewImage}
                               onOpenCompare={(targetStaffId) => {
                                 setCompareStaffAId(targetStaffId);
-                                const otherStaff = comparisonStaffList.find(s => s.fullId !== targetStaffId);
+                                const otherStaff = biRevenueData.find(s => s.fullId !== targetStaffId);
                                 if (otherStaff) {
                                   setCompareStaffBId(otherStaff.fullId);
                                 }
@@ -5579,65 +5623,11 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                     </div>
                   )}
 
-                  {phucVu && (() => {
-                    const lines = phucVu.split('\n').filter(l => l.trim() !== '');
-                    const headerIdx = lines.findIndex(l => l.toUpperCase().includes('5 SAO') && l.includes('\t'));
-                    if (headerIdx === -1) return null; // Could not find header row
-                    
-                    const allHeaders = lines[headerIdx].split('\t');
-                    const excludedColumns = [
-                      'Tổng điểm KH đánh giá NV',
-                      'Tổng SL ĐH gửi khảo sát (đã gửi hoặc KH đã quét QR)',
-                      'Tổng ĐH KH đánh giá NV',
-                      'Tỉ Lệ tiếp cận thành công',
-                      'Điểm KH hài lòng của NV (tạm tính)',
-                      'STT',
-                      'MIỀN',
-                      'CÔNG TY',
-                      'MIEN',
-                      'CONG TY'
-                    ];
-
-                    const visibleIndices = allHeaders
-                      .map((h, i) => {
-                        const headerText = h.trim().toUpperCase();
-                        const isExcluded = excludedColumns.some(excluded =>
-                          excluded.toUpperCase() === headerText
-                        );
-                        return isExcluded ? -1 : i;
-                      })
-                      .filter(i => i !== -1);
-
-                    const rows = lines.slice(headerIdx + 1).filter(l => {
-                      const parts = l.split('\t');
-                      // Only keep rows that look like employee data (has ID or enough columns)
-                      if (parts.length < 5) return false;
-                      return /^(\d{4,6})\s*-/.test(parts[0]) || parts.length >= allHeaders.length - 2;
-                    });
-
-                    // Sorting by '5 SAO' descending
-                    const colIndex5Sao = allHeaders.findIndex(h => h.trim().toUpperCase().includes('5 SAO'));
-                    let sortedRows = [...rows];
-                    if (colIndex5Sao !== -1) {
-                      sortedRows.sort((a, b) => {
-                        const cellA = a.split('\t')[colIndex5Sao] || '0';
-                        const cellB = b.split('\t')[colIndex5Sao] || '0';
-                        const valA = parseFloat(cellA.replace(/[^0-9.-]+/g, "")) || 0;
-                        const valB = parseFloat(cellB.replace(/[^0-9.-]+/g, "")) || 0;
-                        return valB - valA;
-                      });
-                    }
-
-                    const totalRows = sortedRows.length;
-                    const topLimit = Math.ceil(totalRows * 0.2);
-                    const botLimit = Math.ceil(totalRows * 0.2);
+                  {phucVuParsed && (() => {
+                    const { allHeaders, visibleIndices, sortedRows, totalRows, topLimit, botLimit, startIndex5Sao } = phucVuParsed;
                     const yesterdayObj = new Date();
                     yesterdayObj.setDate(yesterdayObj.getDate() - 1);
                     const today = yesterdayObj.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
-
-                    const startIndex5Sao = visibleIndices.findIndex(idx =>
-                      allHeaders[idx].trim().toUpperCase().includes('5 SAO')
-                    );
 
                     const generatePhucVuComment = (tmpl: 1 | 2 | 3): string => {
                       if (sortedRows.length === 0) return '';
@@ -6252,51 +6242,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
                       {/* Table Content */}
                       <div className="overflow-x-auto scrollbar-thin select-none">
-                        {(() => {
-                          // Tính toán hàng Tổng cho Footer
-                          const colTotalsT = Array(8).fill(0);
-                          const colTotalsH = Array(8).fill(0);
-                          let hasAnyDataT = false;
-                          let hasAnyDataH = false;
-
-                          filteredBiData.forEach(staff => {
-                            const truoc = thuongData[staff.fullId]?.truoc || '';
-                            const hientai = thuongData[staff.fullId]?.hientai || '';
-                            const tD = parseBonusData(truoc, staff, marketFilter);
-                            const hD = parseBonusData(hientai, staff, marketFilter);
-                            
-                            for (let i = 0; i < 8; i++) {
-                              if (tD.details[i] !== null) {
-                                colTotalsT[i] += tD.details[i] || 0;
-                                hasAnyDataT = true;
-                              }
-                              if (hD.details[i] !== null) {
-                                colTotalsH[i] += hD.details[i] || 0;
-                                hasAnyDataH = true;
-                              }
-                            }
-                          });
-
-                          // Sắp xếp danh sách nhân viên theo thứ tự Tăng/Giảm (Hiện tại - Tháng trước) giảm dần
-                          const sortedBiDataForBonus = [...filteredBiData].sort((a, b) => {
-                            const truocA = thuongData[a.fullId]?.truoc || '';
-                            const hientaiA = thuongData[a.fullId]?.hientai || '';
-                            const tDA = parseBonusData(truocA, a, marketFilter);
-                            const hDA = parseBonusData(hientaiA, a, marketFilter);
-                            const valTA = tDA.details[7] || 0;
-                            const valHA = hDA.details[7] || 0;
-                            const diffA = valHA - valTA;
-
-                            const truocB = thuongData[b.fullId]?.truoc || '';
-                            const hientaiB = thuongData[b.fullId]?.hientai || '';
-                            const tDB = parseBonusData(truocB, b, marketFilter);
-                            const hDB = parseBonusData(hientaiB, b, marketFilter);
-                            const valTB = tDB.details[7] || 0;
-                            const valHB = hDB.details[7] || 0;
-                            const diffB = valHB - valTB;
-
-                            return diffB - diffA;
-                          });
+                        {thuongTableComputed && (() => {
+                          const { colTotalsT, colTotalsH, hasAnyDataT, hasAnyDataH, byStaffId, sortedBiDataForBonus } = thuongTableComputed;
 
                           return (
                             <>
@@ -6325,11 +6272,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                 </thead>
                                 <tbody className="divide-y divide-slate-200">
                                   {sortedBiDataForBonus.map((staff, idx) => {
-                                    const truoc = thuongData[staff.fullId]?.truoc || '';
-                                    const hientai = thuongData[staff.fullId]?.hientai || '';
-                                    
-                                    const truocData = parseBonusData(truoc, staff, marketFilter);
-                                    const hientaiData = parseBonusData(hientai, staff, marketFilter);
+                                    const staffParsed = byStaffId[staff.fullId];
+                                    const truocData = staffParsed ? staffParsed.truocData : parseBonusData(thuongData[staff.fullId]?.truoc || '', staff, marketFilter);
+                                    const hientaiData = staffParsed ? staffParsed.hientaiData : parseBonusData(thuongData[staff.fullId]?.hientai || '', staff, marketFilter);
                                     
                                     const valTruoc = truocData.tong !== null ? truocData.tong : 0;
                                     const valHientai = hientaiData.tong !== null ? hientaiData.tong : 0;

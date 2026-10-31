@@ -9,9 +9,35 @@ import { useStore } from '../../../contexts/StoreContext';
 import { parseYcxData, parseStaffRankData, getStoredStaffThucInput, normalizeStoreId, normalize } from '../../RTST/utils';
 import { cleanBiReportText } from '../../../utils/rtstHelpers';
 import { StaffData } from '../../RTST/types';
+import { registerCacheCleaner } from '../../../services/globalCacheRegistry';
 
 const globalHealthCache: Record<string, any> = {};
+const warehouseRowsCache: Record<string, { rows: any[]; loadedAt: number }> = {};
+const inFlightWarehouseFetches: Record<string, Promise<any[]> | undefined> = {};
 const healthCacheSubscribers = new Set<(tKey: string, entry: any) => void>();
+
+export function getHealthCacheKey(maKho: string, storeName?: string): string {
+  const cleanMaKho = (maKho || '').trim().replace(/^0+/, '');
+  const cleanStore = storeName && storeName !== 'ALL' ? normalizeStoreId(storeName.trim()) : 'ALL';
+  return `${cleanMaKho}__${cleanStore}`;
+}
+
+export function invalidateEmployeeHealthCache(maKho?: string) {
+  if (!maKho) {
+    Object.keys(globalHealthCache).forEach(k => delete globalHealthCache[k]);
+    Object.keys(warehouseRowsCache).forEach(k => delete warehouseRowsCache[k]);
+    return;
+  }
+  const cleanMaKho = maKho.trim().replace(/^0+/, '');
+  delete warehouseRowsCache[cleanMaKho];
+  Object.keys(globalHealthCache).forEach(k => {
+    if (k.startsWith(`${cleanMaKho}__`)) {
+      delete globalHealthCache[k];
+    }
+  });
+}
+
+registerCacheCleaner(() => invalidateEmployeeHealthCache());
 
 function notifyHealthCache(tKey: string) {
   const entry = globalHealthCache[tKey];
@@ -21,6 +47,71 @@ function notifyHealthCache(tKey: string) {
   });
 }
 
+/**
+ * Lightweight hook for KhaiBao.tsx that ONLY manages `phuc_vu` without mounting
+ * the 32-column EmployeeHealth query, YCX parser, or duplicate realtime listener in Keep-Alive.
+ */
+export const usePhucVuStore = (
+  maKho: string,
+  storeName?: string,
+  allStoresCache?: Record<string, any>
+) => {
+  const targetKey = getHealthCacheKey(maKho, storeName);
+  const cachedFromHealth = globalHealthCache[targetKey]?.phucVu;
+  const cachedFromLuyke = storeName && storeName !== 'ALL' ? allStoresCache?.[storeName]?.phucVu : '';
+  const [localPhucVu, setLocalPhucVu] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLocalPhucVu(null);
+  }, [maKho, storeName]);
+
+  const phucVu = localPhucVu !== null ? localPhucVu : (cachedFromHealth ?? cachedFromLuyke ?? '');
+
+  const savePhucVu = useCallback(async (data: string) => {
+    if (!maKho) return;
+    const cleanMaKho = maKho.trim();
+    const cleanStore = (storeName || '').trim();
+    if (!cleanStore || cleanStore === 'ALL') {
+      throw new Error('Chưa xác định được tên siêu thị. Vui lòng chọn siêu thị.');
+    }
+
+    setLocalPhucVu(data);
+    try {
+      const { error } = await supabase
+        .from('store')
+        .upsert({
+          id: normalizeStoreId(cleanStore),
+          warehouse_code: cleanMaKho,
+          ten_sieu_thi: cleanStore,
+          phuc_vu: data,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+
+      if (error) throw error;
+
+      // Keep globalHealthCache & allStoresCache in sync
+      const tKey = getHealthCacheKey(cleanMaKho, cleanStore);
+      const allKey = getHealthCacheKey(cleanMaKho, 'ALL');
+      if (globalHealthCache[tKey]) {
+        globalHealthCache[tKey].phucVu = data;
+        notifyHealthCache(tKey);
+      }
+      if (globalHealthCache[allKey]) {
+        delete globalHealthCache[allKey];
+      }
+      delete warehouseRowsCache[cleanMaKho.replace(/^0+/, '')];
+      if (allStoresCache && allStoresCache[cleanStore]) {
+        allStoresCache[cleanStore].phucVu = data ? 'has_data' : '';
+      }
+    } catch (error) {
+      setLocalPhucVu(null);
+      throw error;
+    }
+  }, [maKho, storeName, allStoresCache]);
+
+  return { phucVu, savePhucVu };
+};
+
 export const useEmployeeHealth = (maKho: string, storeName?: string) => {
   const { isStoreReady } = useStore();
 
@@ -29,16 +120,17 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
   useEffect(() => {
     if (prevMaKhoHealthRef.current && prevMaKhoHealthRef.current !== maKho) {
       prevMaKhoHealthRef.current = maKho;
-      Object.keys(globalHealthCache).forEach(k => delete globalHealthCache[k]);
+      invalidateEmployeeHealthCache();
     } else {
       prevMaKhoHealthRef.current = maKho;
     }
   }, [maKho]);
 
-  const targetKey = storeName || maKho;
+  const targetKey = getHealthCacheKey(maKho, storeName);
   const initialCache = globalHealthCache[targetKey];
 
   const [biRevenueData, setBiRevenueData] = useState<StaffData[]>(() => initialCache?.biRevenueData || []);
+  const [lkRaw, setLkRaw] = useState<string>(() => initialCache?.lkRaw || '');
   const [luyKeNganhHang, setLuyKeNganhHang] = useState<string>(() => initialCache?.luyKeNganhHang || '');
   const [thiDuaNv, setThiDuaNv] = useState<string>(() => initialCache?.thiDuaNv || '');
   const [phucVu, setPhucVu] = useState<string>(() => initialCache?.phucVu || '');
@@ -68,6 +160,8 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
   const [rankMonth3, setRankMonth3Internal] = useState<string>(() => initialCache?.rankMonth3 || 'Tháng 3');
   const [tenSieuThi, setTenSieuThi] = useState<string>(() => initialCache?.tenSieuThi || '');
   const [storeCategoryTargets, setStoreCategoryTargets] = useState<any[]>(() => initialCache?.storeCategoryTargets || []);
+  const [thuongData, setThuongDataInternal] = useState<Record<string, { truoc: string; hientai: string }>>(() => initialCache?.thuongData || {});
+  const [dbSelectedStaffIds, setDbSelectedStaffIds] = useState<string[] | null>(() => initialCache?.dbSelectedStaffIds ?? null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const hasLoadedRef = useRef(false);
@@ -234,41 +328,47 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     if (globalHealthCache[targetKey]) globalHealthCache[targetKey].rankMonth3 = val;
   }, [targetKey]);
 
-  const fetchAndMergeData = useCallback(async () => {
+  const setThuongData = useCallback((
+    updater: Record<string, { truoc: string; hientai: string }> | ((prev: Record<string, { truoc: string; hientai: string }>) => Record<string, { truoc: string; hientai: string }>)
+  ) => {
+    setThuongDataInternal(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (globalHealthCache[targetKey]) {
+        globalHealthCache[targetKey].thuongData = next;
+      }
+      const cleanMaKho = (maKho || '').trim().replace(/^0+/, '');
+      delete warehouseRowsCache[cleanMaKho];
+      return next;
+    });
+  }, [targetKey, maKho]);
+
+  const updateCachedStaffIds = useCallback((ids: string[]) => {
+    setDbSelectedStaffIds(ids);
+    if (globalHealthCache[targetKey]) {
+      globalHealthCache[targetKey].dbSelectedStaffIds = ids;
+    }
+    const cleanMaKho = (maKho || '').trim().replace(/^0+/, '');
+    delete warehouseRowsCache[cleanMaKho];
+  }, [targetKey, maKho]);
+
+  const fetchAndMergeData = useCallback(async (forceNetwork: boolean = false) => {
     if (!maKho) return;
     setIsLoading(true);
     try {
+      const cleanMaKho = maKho.trim().replace(/^0+/, '');
       const maKhoNum = parseInt(maKho, 10);
       const warehouseFilter = !isNaN(maKhoNum) 
-        ? `warehouse_code.eq.${maKho},warehouse_code.eq.${maKhoNum}`
-        : `warehouse_code.eq.${maKho}`;
+        ? `warehouse_code.eq.${maKho.trim()},warehouse_code.eq.${maKhoNum}`
+        : `warehouse_code.eq.${maKho.trim()}`;
 
-      let storeQuery;
+      const cleanStore = storeName && storeName !== 'ALL' ? storeName.trim() : '';
+      const normStoreId = cleanStore ? normalizeStoreId(cleanStore) : '';
+      const combinedOrFilter = normStoreId
+        ? `${warehouseFilter},id.eq.${normStoreId}`
+        : warehouseFilter;
 
-      if (storeName && storeName !== 'ALL') {
-        // Single store mode: query directly by normalized document ID (includes ycx_rt + all lk fields in 1 read)
-        const cleanStore = storeName.trim();
-        storeQuery = supabase
-          .from('store')
-          .select('id, ycx_rt, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, category_targets, phuc_vu, ban_kem_nv, tragop_nv, nganhhang_chinh_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, thidua_3t_1, thidua_3t_2, thidua_3t_3, tracham_3t_1, tracham_3t_2, tracham_3t_3, rank_month_1, rank_month_2, rank_month_3, ten_sieu_thi, updated_at')
-          .eq('id', normalizeStoreId(cleanStore));
-      } else {
-        // ALL stores mode: query once by warehouse_code
-        storeQuery = supabase
-          .from('store')
-          .select('id, ycx_rt, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, category_targets, phuc_vu, ban_kem_nv, tragop_nv, nganhhang_chinh_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, thidua_3t_1, thidua_3t_2, thidua_3t_3, tracham_3t_1, tracham_3t_2, tracham_3t_3, rank_month_1, rank_month_2, rank_month_3, ten_sieu_thi, updated_at')
-          .or(warehouseFilter);
-      }
-
-      console.log(`[EmployeeHealth] fetchAndMergeData → storeName="${storeName}", maKho="${maKho}"`);
-
-      const { data: combinedDataArrRaw, error: lkError } = await storeQuery;
-      const rtDataArrRaw = combinedDataArrRaw;
-      const lkDataArrRaw = combinedDataArrRaw;
-      const rtError = lkError;
-
-      console.log(`[EmployeeHealth] rtDataArrRaw:`, rtDataArrRaw, 'rtError:', rtError);
-      console.log(`[EmployeeHealth] lkDataArrRaw:`, lkDataArrRaw, 'lkError:', lkError);
+      const HEALTH_SELECT_COLUMNS =
+        'id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, category_targets, phuc_vu, ban_kem_nv, tragop_nv, nganhhang_chinh_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, thidua_3t_1, thidua_3t_2, thidua_3t_3, tracham_3t_1, tracham_3t_2, tracham_3t_3, rank_month_1, rank_month_2, rank_month_3, thuong_nv_data, selected_staff_ids, ten_sieu_thi, updated_at';
 
       // Normalize: maybeSingle() returns object, query returns array - handle both
       const normalizeToArray = (d: any): any[] => {
@@ -277,23 +377,48 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         return [d];
       };
 
-      // Fallback: if single-store lk query returned nothing, query by warehouse_code
-      // This handles edge cases where document doesn't exist or ID mismatch
-      let effectiveLkDataArr = normalizeToArray(lkDataArrRaw);
-      if (storeName && storeName !== 'ALL' && effectiveLkDataArr.length === 0) {
-        console.log(`[EmployeeHealth] lkQuery by ID returned empty, falling back to warehouse_code query...`);
-        const { data: fallbackData } = await supabase
-          .from('store')
-          .select('id, ycx_rt, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, category_targets, phuc_vu, ban_kem_nv, tragop_nv, nganhhang_chinh_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, thidua_3t_1, thidua_3t_2, thidua_3t_3, tracham_3t_1, tracham_3t_2, tracham_3t_3, rank_month_1, rank_month_2, rank_month_3, ten_sieu_thi, updated_at')
-          .or(warehouseFilter);
-        console.log(`[EmployeeHealth] Fallback lk data:`, fallbackData);
-        if (fallbackData) {
-          const arr = normalizeToArray(fallbackData);
-          const cleanStore = storeName.trim().toUpperCase();
-          const match = arr.filter(d => (d.ten_sieu_thi || d.id || '').trim().toUpperCase() === cleanStore);
-          effectiveLkDataArr = match.length > 0 ? match : arr;
-          console.log(`[EmployeeHealth] Using fallback data (${effectiveLkDataArr.length} records)`);
+      let effectiveLkDataArr: any[] = [];
+      const cachedWarehouse = warehouseRowsCache[cleanMaKho];
+      const hasMatchingStoreInCache =
+        !cleanStore ||
+        (cachedWarehouse?.rows || []).some((r: any) => {
+          const rTen = (r.ten_sieu_thi || '').trim().toUpperCase();
+          const rId = (r.id || '').trim().toUpperCase();
+          return (
+            rTen === cleanStore.toUpperCase() ||
+            rId === cleanStore.toUpperCase() ||
+            rId === normStoreId.toUpperCase()
+          );
+        });
+      const hasValidWarehouseCache =
+        !forceNetwork &&
+        cachedWarehouse &&
+        Array.isArray(cachedWarehouse.rows) &&
+        cachedWarehouse.rows.length > 0 &&
+        hasMatchingStoreInCache &&
+        Date.now() - cachedWarehouse.loadedAt < 300000;
+
+      if (hasValidWarehouseCache) {
+        effectiveLkDataArr = cachedWarehouse.rows;
+      } else {
+        if (!inFlightWarehouseFetches[cleanMaKho]) {
+          inFlightWarehouseFetches[cleanMaKho] = Promise.resolve(
+            supabase
+              .from('store')
+              .select(HEALTH_SELECT_COLUMNS)
+              .or(combinedOrFilter)
+          )
+            .then(({ data, error }) => {
+              if (error) console.error('[EmployeeHealth] Query Error:', error);
+              const rows = normalizeToArray(data);
+              warehouseRowsCache[cleanMaKho] = { rows, loadedAt: Date.now() };
+              return rows;
+            })
+            .finally(() => {
+              delete inFlightWarehouseFetches[cleanMaKho];
+            });
         }
+        effectiveLkDataArr = await inFlightWarehouseFetches[cleanMaKho]!;
       }
 
       // Sort client-side by updated_at descending
@@ -306,9 +431,6 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       const rtDataArr = sortByUpdated(effectiveLkDataArr);
       const lkDataArr = rtDataArr;
 
-      console.log(`[EmployeeHealth] rtDataArr (${rtDataArr.length}):`, rtDataArr.map(r => r.ten_sieu_thi));
-      console.log(`[EmployeeHealth] lkDataArr (${lkDataArr.length}):`, lkDataArr.map(r => r.id || r.ten_sieu_thi));
-
       // Pick the correct store record from the results
       let lkData: any = null;
       let globalLuyKe: any = null;
@@ -316,12 +438,13 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
 
       if (lkDataArr && lkDataArr.length > 0) {
         if (storeName && storeName !== 'ALL') {
-          const cleanStore = storeName.trim().toUpperCase();
+          const cleanStoreUpper = storeName.trim().toUpperCase();
           const cleanStoreNorm = normalize(storeName);
+          const normTargetId = normalizeStoreId(storeName.trim());
           const found = lkDataArr.find((r: any) => {
             const rTen = (r.ten_sieu_thi || '').trim().toUpperCase();
             const rId = (r.id || '').trim().toUpperCase();
-            return rTen === cleanStore || rId === cleanStore ||
+            return rTen === cleanStoreUpper || rId === cleanStoreUpper || rId === normTargetId ||
                    normalize(rTen) === cleanStoreNorm || normalize(rId) === cleanStoreNorm ||
                    (cleanStoreNorm && (normalize(rTen).includes(cleanStoreNorm) || cleanStoreNorm.includes(normalize(rTen))));
           });
@@ -333,21 +456,12 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       }
 
       if (rtDataArr && rtDataArr.length > 0) {
-        // In single-store mode, the query already filtered by ten_sieu_thi, so just take first result
-        // In ALL mode, take first (most recently updated)
-        rtData = rtDataArr[0];
+        rtData = lkData || rtDataArr[0];
       }
 
-      if (rtError) console.error('[EmployeeHealth] RT Error:', rtError);
-      if (lkError) console.error('[EmployeeHealth] LK Error:', lkError);
-      
       const isAllMode = !storeName || storeName === 'ALL';
 
-      const ycxRaw = isAllMode
-        ? (rtDataArr || []).map(r => r.ycx_rt || '').filter(Boolean).join('\n')
-        : (rtData?.ycx_rt || '');
-
-      const lkRaw = isAllMode
+      const lkRawVal = isAllMode
         ? (lkDataArr || []).map(r => r.lk_dt_nv || '').filter(Boolean).join('\n')
         : (lkData?.lk_dt_nv || '');
 
@@ -475,12 +589,40 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         ? lkData.category_targets
         : (lkDataArr?.find((r: any) => Array.isArray(r?.category_targets) && r.category_targets.length > 0)?.category_targets || []);
 
-      console.log(`[EmployeeHealth] lkRaw length: ${lkRaw.length}, ycxRaw length: ${ycxRaw.length}, lkNhRaw: ${lkNhRaw.length}`);
+      // Parse thuong_nv_data and selected_staff_ids from the matched record(s) (eliminating separate query in SucKhoeNhanVien.tsx)
+      const recordsForStore = isAllMode ? (lkDataArr || []) : (lkData ? [lkData] : []);
+      const mergedThuong: Record<string, { truoc: string; hientai: string }> = {};
+      recordsForStore.forEach((r: any) => {
+        if (r?.thuong_nv_data) {
+          try {
+            const parsed = typeof r.thuong_nv_data === 'string' ? JSON.parse(r.thuong_nv_data) : r.thuong_nv_data;
+            if (parsed && typeof parsed === 'object') {
+              Object.assign(mergedThuong, parsed);
+            }
+          } catch {}
+        }
+      });
 
+      let parsedSelectedStaffIds: string[] | null = null;
+      const firstWithIds = recordsForStore.find((r: any) => r?.selected_staff_ids);
+      if (firstWithIds?.selected_staff_ids) {
+        try {
+          const parsedIds = typeof firstWithIds.selected_staff_ids === 'string'
+            ? JSON.parse(firstWithIds.selected_staff_ids)
+            : firstWithIds.selected_staff_ids;
+          if (Array.isArray(parsedIds)) {
+            parsedSelectedStaffIds = parsedIds;
+          }
+        } catch {}
+      }
+
+      setLkRaw(lkRawVal);
       setLuyKeNganhHang(lkNhRaw);
       setThiDuaNv(lkTdRaw);
       setPhucVu(phucVuRaw);
       setStoreCategoryTargets(storeCatTargetsVal);
+      setThuongDataInternal(mergedThuong);
+      setDbSelectedStaffIds(parsedSelectedStaffIds);
       
       if (!banKemDirtyRef.current) {
         setBanKemNvInternal(banKemNvRaw);
@@ -517,35 +659,48 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       setTenSieuThi(tenSieuThiVal);
       hasLoadedRef.current = true;
 
-      const ycxStaffData = ycxRaw ? parseYcxData(ycxRaw) : [];
       const storeThucRaw = getStoredStaffThucInput(storeName || tenSieuThiVal || maKho);
-      const biData = lkRaw ? parseStaffRankData(lkRaw, storeThucRaw, storeName || tenSieuThiVal || maKho) : [];
-      
-      // Only fall back to YCX DTQĐ if lk_dt_nv did not already provide a converted revenue value
-      const mergedBiData = biData.map(staff => {
-        if (staff.virtualVal !== undefined && staff.virtualVal !== null && staff.virtualVal !== 0) {
+      const biData = lkRawVal ? parseStaffRankData(lkRawVal, storeThucRaw, storeName || tenSieuThiVal || maKho) : [];
+
+      // Lazy-load ycx_rt ONLY if biData has any staff member missing virtualVal (DTQĐ)
+      let ycxRaw = '';
+      let mergedBiData = biData;
+      const needsYcxFallback = biData.length > 0 && biData.some(
+        staff => staff.virtualVal === undefined || staff.virtualVal === null || staff.virtualVal === 0
+      );
+
+      if (needsYcxFallback) {
+        const { data: ycxRows } = await supabase
+          .from('store')
+          .select('id, ten_sieu_thi, ycx_rt')
+          .or(combinedOrFilter);
+        const ycxArr = normalizeToArray(ycxRows);
+        ycxRaw = isAllMode
+          ? ycxArr.map((r: any) => r.ycx_rt || '').filter(Boolean).join('\n')
+          : ((ycxArr.find((r: any) => r.id === lkData?.id) || ycxArr[0])?.ycx_rt || '');
+        const ycxStaffData = ycxRaw ? parseYcxData(ycxRaw) : [];
+
+        mergedBiData = biData.map(staff => {
+          if (staff.virtualVal !== undefined && staff.virtualVal !== null && staff.virtualVal !== 0) {
+            return staff;
+          }
+          const ycxMatch = ycxStaffData.find(y => y.staffName?.startsWith(staff.fullId));
+          if (ycxMatch && ycxMatch.convertedRevenue > 0) {
+            return {
+              ...staff,
+              virtualVal: ycxMatch.convertedRevenue
+            };
+          }
           return staff;
-        }
-        // Match by employee ID (fullId)
-        const ycxMatch = ycxStaffData.find(y => y.staffName?.startsWith(staff.fullId));
-        
-        if (ycxMatch && ycxMatch.convertedRevenue > 0) {
-          return {
-            ...staff,
-            virtualVal: ycxMatch.convertedRevenue
-          };
-        }
-        return staff;
-      });
+        });
+      }
 
-      console.log(`[EmployeeHealth] biData: ${biData.length} staff, mergedBiData: ${mergedBiData.length} staff`);
-
-      // Update global cache
-      const tKey = storeName || maKho;
+      // Update global cache with strict warehouse + store key
+      const tKey = getHealthCacheKey(maKho, storeName);
       globalHealthCache[tKey] = {
         biRevenueData: mergedBiData,
         ycxRaw,
-        lkRaw,
+        lkRaw: lkRawVal,
         luyKeNganhHang: lkNhRaw,
         thiDuaNv: lkTdRaw,
         phucVu: phucVuRaw,
@@ -575,6 +730,8 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         rankMonth3: rankMonth3Raw,
         tenSieuThi: tenSieuThiVal,
         storeCategoryTargets: storeCatTargetsVal,
+        thuongData: mergedThuong,
+        dbSelectedStaffIds: parsedSelectedStaffIds,
         loadedAt: Date.now()
       };
       notifyHealthCache(tKey);
@@ -596,22 +753,29 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
   const debouncedRefetch = useCallback(() => {
     if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
     realtimeDebounceRef.current = setTimeout(() => {
-      fetchRef.current();
+      fetchRef.current(true);
     }, 500); // 500ms debounce for fast sync
   }, []);
 
   // Subscribe to cross-tab cache updates so edits in "Cập nhật" reflect in "Sức khỏe NV" immediately
   useEffect(() => {
     const onCacheUpdate = (tKey: string, entry: any) => {
-      const myKey = storeName || maKho;
+      const myKey = getHealthCacheKey(maKho, storeName);
       if (tKey !== myKey || !entry) return;
       setBiRevenueData(prev => (prev !== entry.biRevenueData ? entry.biRevenueData : prev));
+      setLkRaw(prev => (prev !== (entry.lkRaw || '') ? (entry.lkRaw || '') : prev));
       setLuyKeNganhHang(prev => (prev !== entry.luyKeNganhHang ? entry.luyKeNganhHang : prev));
       setThiDuaNv(prev => (prev !== entry.thiDuaNv ? entry.thiDuaNv : prev));
       setPhucVu(prev => (prev !== entry.phucVu ? entry.phucVu : prev));
       setTenSieuThi(prev => (prev !== entry.tenSieuThi ? entry.tenSieuThi : prev));
       if (Array.isArray(entry.storeCategoryTargets)) {
         setStoreCategoryTargets(prev => (prev !== entry.storeCategoryTargets ? entry.storeCategoryTargets : prev));
+      }
+      if (entry.thuongData !== undefined) {
+        setThuongDataInternal(prev => (prev !== entry.thuongData ? entry.thuongData : prev));
+      }
+      if (entry.dbSelectedStaffIds !== undefined) {
+        setDbSelectedStaffIds(prev => (prev !== entry.dbSelectedStaffIds ? entry.dbSelectedStaffIds : prev));
       }
       if (!banKemDirtyRef.current) setBanKemNvInternal(prev => (prev !== entry.banKemNv ? entry.banKemNv : prev));
       if (!tragopDirtyRef.current) setTragopNvInternal(prev => (prev !== entry.tragopNv ? entry.tragopNv : prev));
@@ -627,19 +791,24 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
   useEffect(() => {
     if (!maKho) return;
     
-    // PERF: Cache-first store switching to prevent UI flash
-    const tKey = storeName || maKho;
+    // PERF: Cache-first store switching with strict warehouse + store key isolation
+    const tKey = getHealthCacheKey(maKho, storeName);
     const cached = globalHealthCache[tKey];
     
     if (cached) {
       setBiRevenueData(cached.biRevenueData);
+      setLkRaw(cached.lkRaw || '');
       setLuyKeNganhHang(cached.luyKeNganhHang);
       setThiDuaNv(cached.thiDuaNv);
       setPhucVu(cached.phucVu);
       setTenSieuThi(cached.tenSieuThi);
       if (Array.isArray(cached.storeCategoryTargets)) {
         setStoreCategoryTargets(cached.storeCategoryTargets);
+      } else {
+        setStoreCategoryTargets([]);
       }
+      setThuongDataInternal(cached.thuongData || {});
+      setDbSelectedStaffIds(cached.dbSelectedStaffIds ?? null);
       if (!banKemDirtyRef.current) setBanKemNvInternal(cached.banKemNv);
       if (!tragopDirtyRef.current) setTragopNvInternal(cached.tragopNv);
       if (!nganhhangChinhDirtyRef.current) setNganhhangChinhNvInternal(cached.nganhhangChinhNv || '');
@@ -666,6 +835,40 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         setRankMonth2Internal(cached.rankMonth2 || 'Tháng 2');
         setRankMonth3Internal(cached.rankMonth3 || 'Tháng 3');
       }
+    } else {
+      // Clear previous store state before loading new store to prevent cross-store flash
+      setBiRevenueData([]);
+      setLkRaw('');
+      setLuyKeNganhHang('');
+      setThiDuaNv('');
+      setPhucVu('');
+      setStoreCategoryTargets([]);
+      setThuongDataInternal({});
+      setDbSelectedStaffIds(null);
+      setBanKemNvInternal('');
+      setTragopNvInternal('');
+      setNganhhangChinhNvInternal('');
+      setDtqd3t1Internal('');
+      setDtqd3t2Internal('');
+      setDtqd3t3Internal('');
+      setThunhap3t1Internal('');
+      setThunhap3t2Internal('');
+      setThunhap3t3Internal('');
+      setNganhhang3t1Internal('');
+      setNganhhang3t2Internal('');
+      setNganhhang3t3Internal('');
+      setGiocong3t1Internal('');
+      setGiocong3t2Internal('');
+      setGiocong3t3Internal('');
+      setThidua3t1Internal('');
+      setThidua3t2Internal('');
+      setThidua3t3Internal('');
+      setTracham3t1Internal('');
+      setTracham3t2Internal('');
+      setTracham3t3Internal('');
+      setRankMonth1Internal('Tháng 1');
+      setRankMonth2Internal('Tháng 2');
+      setRankMonth3Internal('Tháng 3');
     }
     
     // Reset dirty flag when switching stores to avoid stale banKemNv
@@ -674,8 +877,8 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     nganhhangChinhDirtyRef.current = false;
     rank3tDirtyRef.current = false;
 
-    // Skip redundant network fetch & YCX/staff parsing if cache is already fresh
-    if (cached && cached.loadedAt && Date.now() - cached.loadedAt < 60000) {
+    // Skip redundant network fetch & parsing if cache is already fresh (realtime & LuykeDataContext invalidate it on any change)
+    if (cached && cached.loadedAt && Date.now() - cached.loadedAt < 300000) {
       hasLoadedRef.current = true;
       return;
     }
@@ -683,7 +886,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     hasLoadedRef.current = false;
     
     // Execute data fetch directly with latest closure
-    fetchAndMergeData();
+    fetchAndMergeData(false);
   }, [maKho, storeName, fetchAndMergeData]);
 
   // Effect 2: Manage realtime subscription channel for the current store
@@ -701,12 +904,23 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         (payload: any) => {
           if (payload.new) {
             const record = payload.new as any;
+            // Invalidate warehouse-level raw row cache whenever any row in this warehouse updates
+            delete warehouseRowsCache[cleanMaKho];
+            const allKey = getHealthCacheKey(maKho, 'ALL');
+            if (storeName && storeName !== 'ALL') {
+              delete globalHealthCache[allKey];
+            }
+
             const recordStore = record.ten_sieu_thi || '';
             const normRecordStore = recordStore.trim().toUpperCase();
             const normActiveStore = (storeName || '').trim().toUpperCase();
-            if (normRecordStore && normActiveStore && normRecordStore !== normActiveStore) return;
+            if (normRecordStore && normActiveStore && normActiveStore !== 'ALL' && normRecordStore !== normActiveStore) {
+              const otherKey = getHealthCacheKey(maKho, recordStore);
+              delete globalHealthCache[otherKey];
+              return;
+            }
 
-            const tKey = storeName || maKho;
+            const tKey = getHealthCacheKey(maKho, storeName);
             const cached = globalHealthCache[tKey];
             if (!cached) {
               debouncedRefetch();
@@ -714,17 +928,18 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
             }
 
             const hasChanged = 
-              (record.ycx_rt !== undefined && record.ycx_rt !== (cached.ycxRaw || '')) ||
               (record.lk_dt_nv !== undefined && record.lk_dt_nv !== (cached.lkRaw || '')) ||
               (record.lk_nh_sieu_thi !== undefined && record.lk_nh_sieu_thi !== (cached.luyKeNganhHang || '')) ||
               (record.lk_td_nv !== undefined && record.lk_td_nv !== (cached.thiDuaNv || '')) ||
               (record.phuc_vu !== undefined && record.phuc_vu !== (cached.phucVu || '')) ||
+              (record.thuong_nv_data !== undefined) ||
+              (record.selected_staff_ids !== undefined) ||
               (!banKemDirtyRef.current && record.ban_kem_nv !== undefined && record.ban_kem_nv !== (cached.banKemNv || '')) ||
               (!tragopDirtyRef.current && record.tragop_nv !== undefined && record.tragop_nv !== (cached.tragopNv || '')) ||
               (!nganhhangChinhDirtyRef.current && record.nganhhang_chinh_nv !== undefined && record.nganhhang_chinh_nv !== (cached.nganhhangChinhNv || ''));
 
             if (hasChanged) {
-              console.log('[EmployeeHealth] Monitored column change detected, refetching...');
+              delete globalHealthCache[tKey];
               debouncedRefetch();
             }
           }
@@ -862,6 +1077,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
           console.error('[EmployeeHealth] Auto-save ban_kem_nv error:', error);
         } else {
           banKemDirtyRef.current = false; // Clear dirty flag after successful save
+          delete warehouseRowsCache[maKho.trim().replace(/^0+/, '')];
+          const k = getHealthCacheKey(maKho, cleanStore);
+          if (globalHealthCache[k]) globalHealthCache[k].banKemNv = banKemNv;
         }
       } catch (err) {
         console.error('[EmployeeHealth] Auto-save ban_kem_nv failed:', err);
@@ -875,6 +1093,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       if (banKemDirtyRef.current) {
         const cleanStoreVal = (storeName || tenSieuThi || '').trim();
         if (cleanStoreVal && maKho) {
+          delete warehouseRowsCache[maKho.trim().replace(/^0+/, '')];
           supabase
             .from('store')
             .upsert({
@@ -919,6 +1138,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
           console.error('[EmployeeHealth] Auto-save tragop_nv error:', error);
         } else {
           tragopDirtyRef.current = false; // Clear dirty flag after successful save
+          delete warehouseRowsCache[maKho.trim().replace(/^0+/, '')];
+          const k = getHealthCacheKey(maKho, cleanStore);
+          if (globalHealthCache[k]) globalHealthCache[k].tragopNv = tragopNv;
         }
       } catch (err) {
         console.error('[EmployeeHealth] Auto-save tragop_nv failed:', err);
@@ -932,6 +1154,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       if (tragopDirtyRef.current) {
         const cleanStoreVal = (storeName || tenSieuThi || '').trim();
         if (cleanStoreVal && maKho) {
+          delete warehouseRowsCache[maKho.trim().replace(/^0+/, '')];
           supabase
             .from('store')
             .upsert({
@@ -976,6 +1199,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
           console.error('[EmployeeHealth] Auto-save nganhhang_chinh_nv error:', error);
         } else {
           nganhhangChinhDirtyRef.current = false;
+          delete warehouseRowsCache[maKho.trim().replace(/^0+/, '')];
+          const k = getHealthCacheKey(maKho, cleanStore);
+          if (globalHealthCache[k]) globalHealthCache[k].nganhhangChinhNv = nganhhangChinhNv;
         }
       } catch (err) {
         console.error('[EmployeeHealth] Auto-save nganhhang_chinh_nv failed:', err);
@@ -989,6 +1215,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       if (nganhhangChinhDirtyRef.current) {
         const cleanStoreVal = (storeName || tenSieuThi || '').trim();
         if (cleanStoreVal && maKho) {
+          delete warehouseRowsCache[maKho.trim().replace(/^0+/, '')];
           supabase
             .from('store')
             .upsert({
@@ -1007,7 +1234,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
   }, [nganhhangChinhNv, maKho, storeName, tenSieuThi, isStoreReady]);
 
   const refresh = useCallback(() => {
-    fetchAndMergeData();
+    fetchAndMergeData(true);
   }, [fetchAndMergeData]);
 
   const savePhucVu = useCallback(async (data: string) => {
@@ -1039,6 +1266,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
           }, { onConflict: 'id' });
 
       if (error) throw error;
+      delete warehouseRowsCache[cleanMaKho.replace(/^0+/, '')];
+      const k = getHealthCacheKey(cleanMaKho, cleanStore);
+      if (globalHealthCache[k]) globalHealthCache[k].phucVu = data;
     } catch (error) {
       console.error('Error saving phuc vu data:', error);
       setPhucVu(''); // Revert optimistic update on failure
@@ -1046,7 +1276,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     } finally {
       setIsSaving(false);
     }
-  }, [maKho, tenSieuThi, storeName]);
+  }, [maKho, tenSieuThi, storeName, phucVu]);
 
   const saveBanKemNv = useCallback(async (data: string) => {
     if (!maKho) return;
@@ -1074,11 +1304,14 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
             id: normalizeStoreId(cleanStore),
             warehouse_code: cleanMaKho,
             ten_sieu_thi: cleanStore,
-            ban_kem_nv: cleanBiReportText(data),
+            ban_kem_nv: cleaned,
             updated_at: new Date().toISOString()
           }, { onConflict: 'id' });
 
       if (error) throw error;
+      delete warehouseRowsCache[cleanMaKho.replace(/^0+/, '')];
+      const k = getHealthCacheKey(cleanMaKho, cleanStore);
+      if (globalHealthCache[k]) globalHealthCache[k].banKemNv = cleaned;
     } catch (error) {
       console.error('Error saving ban kem nv data:', error);
       setBanKemNvInternal(''); // Revert optimistic update on failure
@@ -1086,7 +1319,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     } finally {
       setIsSaving(false);
     }
-  }, [maKho, tenSieuThi, storeName]);
+  }, [maKho, tenSieuThi, storeName, banKemNv]);
 
   const saveNganhhangChinhNv = useCallback(async (data: string) => {
     if (!maKho) return;
@@ -1114,11 +1347,14 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
             id: normalizeStoreId(cleanStore),
             warehouse_code: cleanMaKho,
             ten_sieu_thi: cleanStore,
-            nganhhang_chinh_nv: cleanBiReportText(data),
+            nganhhang_chinh_nv: cleaned,
             updated_at: new Date().toISOString()
           }, { onConflict: 'id' });
 
       if (error) throw error;
+      delete warehouseRowsCache[cleanMaKho.replace(/^0+/, '')];
+      const k = getHealthCacheKey(cleanMaKho, cleanStore);
+      if (globalHealthCache[k]) globalHealthCache[k].nganhhangChinhNv = cleaned;
     } catch (error) {
       console.error('Error saving nganhhang_chinh_nv data:', error);
       setNganhhangChinhNvInternal(''); // Revert optimistic update on failure
@@ -1126,7 +1362,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     } finally {
       setIsSaving(false);
     }
-  }, [maKho, tenSieuThi, storeName]);
+  }, [maKho, tenSieuThi, storeName, nganhhangChinhNv]);
 
   const saveTragopNv = useCallback(async (data: string) => {
     if (!maKho) return;
@@ -1153,6 +1389,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
           }, { onConflict: 'id' });
 
       if (error) throw error;
+      delete warehouseRowsCache[cleanMaKho.replace(/^0+/, '')];
+      const k = getHealthCacheKey(cleanMaKho, cleanStore);
+      if (globalHealthCache[k]) globalHealthCache[k].tragopNv = data;
     } catch (error) {
       console.error('Error saving tragop nv data:', error);
       setTragopNvInternal(''); // Revert optimistic update on failure
@@ -1164,6 +1403,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
 
   return {
     biRevenueData,
+    lkRaw,
     luyKeNganhHang,
     thiDuaNv,
     phucVu,
@@ -1190,6 +1430,8 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     rankMonth1, setRankMonth1,
     rankMonth2, setRankMonth2,
     rankMonth3, setRankMonth3,
+    thuongData, setThuongData,
+    dbSelectedStaffIds, updateCachedStaffIds,
     setBanKemNv,
     setTragopNv,
     nganhhangChinhNv,
