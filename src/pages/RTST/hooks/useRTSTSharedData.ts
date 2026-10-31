@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { STORAGE_KEYS } from '../types';
 import { supabase } from '../../../supabaseClient';
 import { db } from '../../../firebaseConfig';
@@ -11,6 +11,54 @@ import { doc, setDoc, onSnapshot, serverTimestamp, writeBatch } from 'firebase/f
 import { useNotification } from '../../../contexts/NotificationContext';
 import { useStore, getStoreItem, setStoreItem } from '../../../contexts/StoreContext';
 import { isValidStoreName as isValidStoreNameUtil, normalize, safeSetItem, normalizeStoreId } from '../utils';
+
+/**
+ * Strict composite key helper for warehouse_code + currentStoreId isolation.
+ */
+export function getWarehouseStoreTargetKey(maKho: string | undefined | null, storeName: string | undefined | null): string {
+  const cleanWh = String(maKho || '').trim().replace(/^0+/, '') || 'DEFAULT';
+  const cleanStore = normalizeStoreId(String(storeName || '').trim());
+  return `${cleanWh}::${cleanStore}`;
+}
+
+/**
+ * Look up a store's cached target settings while enforcing strict warehouse_code + storeName isolation.
+ * Never returns a target entry belonging to a different warehouse_code or a different store.
+ */
+export function findIsolatedStoreTarget(
+  targetsMap: Record<string, any> | undefined | null,
+  maKho: string | undefined | null,
+  storeName: string | undefined | null
+): any | null {
+  if (!targetsMap || !storeName) return null;
+  const cleanWh = String(maKho || '').trim().replace(/^0+/, '');
+  const normTarget = normalize(storeName);
+  const upperTarget = storeName.trim().toUpperCase();
+  const normStoreId = normalizeStoreId(storeName.trim());
+
+  const candidate =
+    targetsMap[upperTarget] ||
+    targetsMap[normTarget] ||
+    (() => {
+      const matchedKey = Object.keys(targetsMap).find((k) => {
+        const entry = targetsMap[k];
+        if (entry?.storeId && entry.storeId === normStoreId) return true;
+        return normalize(k) === normTarget;
+      });
+      return matchedKey ? targetsMap[matchedKey] : null;
+    })();
+
+  if (!candidate) return null;
+
+  // Enforce warehouse_code isolation when candidate is tagged with warehouse_code
+  if (cleanWh && candidate.warehouse_code) {
+    const candWh = String(candidate.warehouse_code).trim().replace(/^0+/, '');
+    if (candWh && candWh !== cleanWh) {
+      return null;
+    }
+  }
+  return candidate;
+}
 
 const globalAllStoreTargets: Record<string, any> = {};
 let globalSharedLoadedMaKho: string | null = null;
@@ -68,22 +116,16 @@ function subscribeThuongStDoc(cb: (data: any) => void): () => void {
   };
 }
 
-export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getItem('RTST_YCX_DIRTY') === 'true') => {
+const useRTSTSharedDataInternal = (maKhoProp?: string, isYcxDirty = localStorage.getItem('RTST_YCX_DIRTY') === 'true') => {
   const { showNotification } = useNotification();
-  const { currentStoreId, isStoreReady } = useStore();
+  const { currentStoreId, isStoreReady, availableStores, warehouseCode: storeWarehouseCode } = useStore();
+  const maKho = maKhoProp || storeWarehouseCode || localStorage.getItem('rtst_ma_kho') || '';
 
-  // Reset global cache when warehouse/account changes
-  const prevMaKhoSharedRef = useRef(maKho);
-  useEffect(() => {
-    if (prevMaKhoSharedRef.current && prevMaKhoSharedRef.current !== maKho) {
-      prevMaKhoSharedRef.current = maKho;
-      globalSharedLoadedMaKho = null;
-      globalSharedLoadedAt = 0;
-      Object.keys(globalAllStoreTargets).forEach(k => delete globalAllStoreTargets[k]);
-    } else {
-      prevMaKhoSharedRef.current = maKho;
-    }
-  }, [maKho]);
+  const availableStoresRef = useRef(availableStores);
+  useEffect(() => { availableStoresRef.current = availableStores; }, [availableStores]);
+
+  const currentStoreIdRef = useRef(currentStoreId);
+  useEffect(() => { currentStoreIdRef.current = currentStoreId; }, [currentStoreId]);
 
   const [manualAdjustment, setManualAdjustment] = useState(() => Number(localStorage.getItem('BI_REAL_ADJUST_V1')) || 0);
   const [linkBcTongHop, setLinkBcTongHop] = useState(() => localStorage.getItem(STORAGE_KEYS.LINK_BC_TONG_HOP) || '');
@@ -123,8 +165,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     return saved ? JSON.parse(saved) : {};
   });
   const [staffListFileName, setStaffListFileName] = useState(() => localStorage.getItem('BI_REAL_STAFF_LIST_FILE_V1') || '');
-  const cachedStoreKey = currentStoreId ? Object.keys(globalAllStoreTargets).find(k => normalize(k) === normalize(currentStoreId)) : null;
-  const cachedStore = cachedStoreKey ? globalAllStoreTargets[cachedStoreKey] : {};
+  const cachedStore = findIsolatedStoreTarget(globalAllStoreTargets, maKho, currentStoreId) || {};
 
   const [drillFilterStaff, setDrillFilterStaff] = useState<string[]>(() => {
     if (cachedStore.drillFilterStaff !== undefined) return cachedStore.drillFilterStaff;
@@ -193,6 +234,22 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     return globalAllStoreTargets;
   });
 
+  // Reset global cache & state when warehouse/account changes
+  const prevMaKhoSharedRef = useRef(maKho);
+  useEffect(() => {
+    const cleanPrev = String(prevMaKhoSharedRef.current || '').trim().replace(/^0+/, '');
+    const cleanCurr = String(maKho || '').trim().replace(/^0+/, '');
+    if (cleanPrev && cleanCurr && cleanPrev !== cleanCurr) {
+      prevMaKhoSharedRef.current = maKho;
+      globalSharedLoadedMaKho = null;
+      globalSharedLoadedAt = 0;
+      Object.keys(globalAllStoreTargets).forEach(k => delete globalAllStoreTargets[k]);
+      setAllStoreTargets({});
+    } else {
+      prevMaKhoSharedRef.current = maKho;
+    }
+  }, [maKho]);
+
   const updateAllStoreTargets = useCallback((updater: any) => {
     setAllStoreTargets(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
@@ -244,6 +301,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
   // PERF: Removed stName from deps — uses stNameRef instead to avoid re-subscribing on every name change
   useEffect(() => {
     if (!maKho) return;
+    const cleanMaKho = maKho.trim().replace(/^0+/, '');
 
     console.log(`[SharedData] Subscribing to realtime updates for warehouse: ${maKho}`);
     
@@ -260,6 +318,10 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         (payload: any) => {
           if (payload.new) {
             const record = payload.new as any;
+            const recWh = String(record.warehouse_code || '').trim().replace(/^0+/, '');
+            if (recWh && cleanMaKho && recWh !== cleanMaKho) {
+              return;
+            }
             const settings = record.taget_doanh_thu;
             const storeName = record.ten_sieu_thi;
             
@@ -269,7 +331,8 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
                 const existing = prev[key];
                 const incoming = {
                   ...settings,
-                  warehouse_code: record.warehouse_code
+                  warehouse_code: record.warehouse_code,
+                  storeId: normalizeStoreId(storeName)
                 };
                 if (existing && JSON.stringify(existing) === JSON.stringify(incoming)) {
                   return prev;
@@ -280,11 +343,12 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
                 };
               });
               
-              // PERF: Use stNameRef instead of stName to avoid re-subscribing
-              const normActive = normalize(stNameRef.current || localStorage.getItem('ST_NAME_V1') || '');
+              // PERF: Use stNameRef & currentStoreIdRef to strictly match the active store
+              const activeRefName = currentStoreIdRef.current || stNameRef.current || localStorage.getItem('ST_NAME_V1') || '';
+              const normActive = normalize(activeRefName);
               const normUpdate = normalize(storeName);
               
-              if (normUpdate && normActive && (normUpdate === normActive || normUpdate.includes(normActive) || normActive.includes(normUpdate))) {
+              if (normUpdate && normActive && normUpdate === normActive) {
                 if (settings.categoryMappingInput !== undefined) setCategoryMappingInput((prev: string) => prev !== settings.categoryMappingInput ? settings.categoryMappingInput : prev);
                 if (settings.stName) setStName((prev: string) => prev !== settings.stName ? settings.stName : prev);
                 if (settings.stTargetSauHeSo !== undefined) setStTargetSauHeSo((prev: number) => prev !== settings.stTargetSauHeSo ? settings.stTargetSauHeSo : prev);
@@ -307,7 +371,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [maKho]); // PERF: Only re-subscribe when warehouse changes, not on every stName change
+  }, [maKho, updateAllStoreTargets]); // PERF: Only re-subscribe when warehouse changes, not on every stName change
 
   // 🔥 Real-time synchronization for Thưởng ST via shared Firebase Firestore listener across Mobile & Laptop
   useEffect(() => {
@@ -350,7 +414,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
 
           const activeCandidates = [
             localStorage.getItem('rtst_selected_store_filter'),
-            currentStoreId,
+            currentStoreIdRef.current,
             stNameRef.current
           ].filter(Boolean) as string[];
 
@@ -373,7 +437,8 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
             if (activeStoreData) break;
           }
 
-          if (!activeStoreData && clusterStoreNames && clusterStoreNames.length > 0) {
+          const clusterStoreNames = (availableStoresRef.current || []).map(s => s.name).filter(Boolean);
+          if (!activeStoreData && clusterStoreNames.length > 0) {
             // Only fall back within user's own cluster/declared stores, never jump into another warehouse
             activeStoreData = Object.values(data.stores as Record<string, any>).find((s: any) => {
               const sName = s.storeName || '';
@@ -576,6 +641,8 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     try {
       const newTargetData = {
         ...newTargetDataForCompare,
+        warehouse_code: cleanMaKho,
+        storeId: normalizeStoreId(cleanStore),
         updated_at: new Date().toISOString()
       };
 
@@ -613,13 +680,12 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     } finally {
       setIsSavingStoreRevenue(false);
     }
-  }, [stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, drillFilterStaff, showNotification]);
+  }, [stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, excelFileName, thuongStRows, topPercentRankLimit, drillFilterStaff, categoryMappingInput, isValidStoreName, updateAllStoreTargets, showNotification]);
 
   const loadStoreRevenue = useCallback(async (maKho: string, storeName?: string) => {
     if (!maKho) return;
     const cleanMaKho = maKho.trim();
     const shortMaKho = cleanMaKho.replace(/^0+/, '');
-    const paddedMaKho = shortMaKho.padStart(7, '0');
     
     // Cache-first approach: don't block UI if we already have local target data
     const hasCachedData = !!localStorage.getItem('ST_TARGET_SAU_HE_SO_V1');
@@ -634,7 +700,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
 
     console.log('[useRTSTSharedData] Loading shared settings for warehouse:', cleanMaKho);
     try {
-      const targetStore = storeName || stName || cleanMaKho;
+      const targetStore = storeName || stNameRef.current || currentStoreIdRef.current || cleanMaKho;
       const maKhoNum = parseInt(cleanMaKho, 10);
       let query = supabase
         .from('store')
@@ -651,23 +717,32 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       if (error) throw error;
       
       if (records && records.length > 0) {
-        // Map all store targets
+        // Map all store targets strictly tagged with warehouse_code + storeId
         const targetMap: Record<string, any> = {};
         records.forEach((r: any) => {
-          const storeName = (r.ten_sieu_thi || r.id || '').trim();
-          if (storeName && r.taget_doanh_thu) {
+          const recWh = String(r.warehouse_code || cleanMaKho).trim().replace(/^0+/, '');
+          if (shortMaKho && recWh && recWh !== shortMaKho) return;
+          const rStoreName = (r.ten_sieu_thi || r.id || '').trim();
+          if (rStoreName && r.taget_doanh_thu) {
             const entry = {
               ...r.taget_doanh_thu,
-              warehouse_code: r.warehouse_code
+              warehouse_code: r.warehouse_code || cleanMaKho,
+              storeId: normalizeStoreId(rStoreName)
             };
-            targetMap[storeName.toUpperCase()] = entry;
-            targetMap[normalize(storeName)] = entry;
+            targetMap[rStoreName.toUpperCase()] = entry;
+            targetMap[normalize(rStoreName)] = entry;
           }
         });
         updateAllStoreTargets(targetMap);
 
-        // Find the specific store settings for top-level state
-        const activeRecord = records.find((r: any) => r.id === normalizeStoreId(targetStore.trim())) || records[0];
+        // Find the specific store settings for top-level state.
+        // STRICT ISOLATION: If targetStore is a specific valid store name, NEVER fall back to records[0] (another store!).
+        const normTargetId = normalizeStoreId(targetStore.trim());
+        const normTargetName = normalize(targetStore);
+        const isSpecificTargetStore = isValidStoreNameUtil(targetStore);
+        const activeRecord =
+          records.find((r: any) => r.id === normTargetId || normalize(r.ten_sieu_thi || '') === normTargetName) ||
+          (!isSpecificTargetStore ? records[0] : null);
         const settings = activeRecord?.taget_doanh_thu;
 
         if (settings) {
@@ -705,7 +780,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
           if (settings.topPercentRankLimitOld !== undefined) setTopPercentRankLimitOld(settings.topPercentRankLimitOld ?? 7);
         } else {
           // STRICT ISOLATION: Do NOT fallback to another store's data if no match is found
-          console.log('[useRTSTSharedData] ✗ No settings found for', activeRecord.ten_sieu_thi, '- Enforcing strict isolation (clearing values)');
+          console.log('[useRTSTSharedData] ✗ No settings found for', activeRecord?.ten_sieu_thi || targetStore, '- Enforcing strict isolation (clearing values)');
           setStDtlk(0);
           setStDtqd(0);
           setStDtDuKienQD(0);
@@ -714,8 +789,6 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
           setStPercentTarget(100);
           setStTargetSauHeSo(0);
           setManualAdjustment(0);
-          setYcxFileName('');
-          setYcxFileNameMoi('');
           setExcelFileName('');
           setThuongStRows([]);
           setTopPercentRankLimit(7);
@@ -753,7 +826,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       clearTimeout(fallbackTimeout);
       setIsLoadingStoreRevenue(false);
     }
-  }, [isYcxDirty]);
+  }, [updateAllStoreTargets]);
 
   useEffect(() => {
     if (maKho && (maKho !== lastLoadedMaKho)) {
@@ -765,11 +838,11 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       console.log('[SharedData] maKho changed, resetting state for:', maKho);
       hasLoadedFromDB.current = false;
       
-      loadStoreRevenue(maKho, stName).then(() => {
+      loadStoreRevenue(maKho, currentStoreIdRef.current || stNameRef.current).then(() => {
         setLastLoadedMaKho(maKho);
       });
     }
-  }, [maKho, lastLoadedMaKho, loadStoreRevenue, stName]);
+  }, [maKho, lastLoadedMaKho, loadStoreRevenue]);
 
   // AUTO-CALCULATION: Target Quy Đổi từ stDtDuKienQD (market.targetQD từ dữ liệu báo cáo)
   useEffect(() => {
@@ -826,6 +899,8 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         ...prev,
         [storeKey]: {
           ...existing,
+          warehouse_code: existing.warehouse_code || maKho,
+          storeId: normalizeStoreId(currentStoreId),
           stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD,
           stTargetQuyDoi, stPercentTarget, stTargetSauHeSo,
           excelFileName, thuongStRows, topPercentRankLimit,
@@ -835,10 +910,10 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       };
     });
   }, [
-    stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, 
+    maKho, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, 
     stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, excelFileName, 
     thuongStRows, topPercentRankLimit, excelOldFileName, thuongStOldRows, topPercentRankLimitOld,
-    drillFilterStaff, currentStoreId, updateAllStoreTargets
+    drillFilterStaff, categoryMappingInput, currentStoreId, updateAllStoreTargets
   ]);
 
   // AUTO-REACT: When global currentStoreId changes, reload per-store settings from DB
@@ -853,11 +928,9 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     // Block auto-save during transition to prevent saving cleared values to DB
     hasLoadedFromDB.current = false;
     
-    // Use cached per-store values from allStoreTargets (populated on initial load)
-    // This avoids resetting to 0/100 and then flashing to DB values
+    // Use cached per-store values from allStoreTargets with strict warehouse_code + store isolation
     const normCurrent = normalize(currentStoreId);
-    const cachedKey = Object.keys(allStoreTargetsRef.current || {}).find(k => normalize(k) === normCurrent);
-    const cached = cachedKey ? allStoreTargetsRef.current[cachedKey] : null;
+    const cached = findIsolatedStoreTarget(allStoreTargetsRef.current, maKho, currentStoreId);
 
     // Check popup target config from localStorage as another immediate cache
     let clusterCfg: any = null;
@@ -889,14 +962,14 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       setStTargetQuyDoi(cached?.stTargetQuyDoi ?? 0);
       setStTargetSauHeSo(cached?.stTargetSauHeSo ?? 0);
     }
-    if (cached?.excelFileName) setExcelFileName(cached.excelFileName);
-    if (cached?.thuongStRows && cached.thuongStRows.length > 0) setThuongStRows(cached.thuongStRows);
-    if (cached?.topPercentRankLimit !== undefined) setTopPercentRankLimit(cached.topPercentRankLimit);
-    if (cached?.excelOldFileName) setExcelOldFileName(cached.excelOldFileName);
-    if (cached?.thuongStOldRows && cached.thuongStOldRows.length > 0) setThuongStOldRows(cached.thuongStOldRows);
-    if (cached?.topPercentRankLimitOld !== undefined) setTopPercentRankLimitOld(cached.topPercentRankLimitOld);
-    if (cached?.drillFilterStaff) setDrillFilterStaff(cached.drillFilterStaff);
-    if (cached?.categoryMappingInput) setCategoryMappingInput(cached.categoryMappingInput);
+    setExcelFileName(cached?.excelFileName || '');
+    setThuongStRows(cached?.thuongStRows || []);
+    setTopPercentRankLimit(cached?.topPercentRankLimit ?? 7);
+    setExcelOldFileName(cached?.excelOldFileName || '');
+    setThuongStOldRows(cached?.thuongStOldRows || []);
+    setTopPercentRankLimitOld(cached?.topPercentRankLimitOld ?? 7);
+    setDrillFilterStaff(cached?.drillFilterStaff || []);
+    setCategoryMappingInput(cached?.categoryMappingInput || '');
     
     if (cached && globalSharedLoadedMaKho === maKho && Date.now() - globalSharedLoadedAt < 60000) {
       hasLoadedFromDB.current = true;
@@ -989,7 +1062,438 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [maKho]);
 
-  return {
+  const updateStoreSettings = useCallback(async (storeName: string, settings: any) => {
+    if (!maKho) return;
+    const cleanMaKho = maKho.trim();
+    const cleanStore = storeName.trim();
+    
+    try {
+      const { data: existingData } = await supabase
+        .from('store')
+        .select('taget_doanh_thu, warehouse_code, ten_sieu_thi, category_targets, lk_dt_nv, lk_td_nv, ban_kem_nv, ds_nhan_vien, dt_gio_cong, data_phan_ca, tragop_matran, tragop_nv, phuc_vu, lk_bi_tong_quan, lk_nh_sieu_thi')
+        .eq('id', normalizeStoreId(cleanStore))
+        .maybeSingle();
+
+      const currentTargetQD = settings.stTargetQuyDoi || (existingData?.taget_doanh_thu?.stTargetQuyDoi) || 0;
+      const currentPercent = settings.stPercentTarget !== undefined ? settings.stPercentTarget : (existingData?.taget_doanh_thu?.stPercentTarget ?? 100);
+
+      // Skip DB write if stPercentTarget was not changed
+      const oldPercent = existingData?.taget_doanh_thu?.stPercentTarget ?? 100;
+      const keys = Object.keys(settings);
+      if (keys.length === 1 && keys[0] === 'stPercentTarget' && settings.stPercentTarget === oldPercent) {
+        console.log(`[useRTSTSharedData] Skip updateStoreSettings — stPercentTarget unchanged (${oldPercent}) for "${cleanStore}"`);
+        return;
+      }
+
+      // Use existing stTargetSauHeSo from DB — no recalculation
+      const existingTargetSauHeSo = settings.stTargetSauHeSo || existingData?.taget_doanh_thu?.stTargetSauHeSo || Math.round(currentTargetQD * (currentPercent / 100));
+
+      const newTargetData = {
+        ...(existingData?.taget_doanh_thu || {}),
+        ...settings,
+        stTargetSauHeSo: existingTargetSauHeSo,
+        warehouse_code: cleanMaKho,
+        storeId: normalizeStoreId(cleanStore),
+        updated_at: new Date().toISOString()
+      };
+
+      // Update local map immediately for responsiveness
+      updateAllStoreTargets((prev: any) => ({
+        ...prev,
+        [cleanStore.toUpperCase()]: newTargetData
+      }));
+
+      // Update legacy storeSettings immediately
+      setStoreSettings(prev => ({
+        ...prev,
+        [cleanStore]: {
+          ...(prev[cleanStore] || {}),
+          percentTarget: currentPercent
+        }
+      }));
+
+      // If this is the active store, update top-level state too
+      if (normalize(storeName) === normalize(stName)) {
+        if (settings.stPercentTarget !== undefined) setStPercentTarget(settings.stPercentTarget);
+        setStTargetSauHeSo(existingTargetSauHeSo);
+      }
+
+      const payload: any = {
+        ...(existingData || {}),
+        id: normalizeStoreId(cleanStore),
+        warehouse_code: cleanMaKho,
+        ten_sieu_thi: cleanStore,
+        taget_doanh_thu: newTargetData,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await supabase
+        .from('store')
+        .upsert(payload, { onConflict: 'id' });
+
+      if (error) throw error;
+      showNotification('Đã cập nhật % TARGET siêu thị thành công!', 'success');
+    } catch (error) {
+      console.error('Error updating store settings:', error);
+    }
+  }, [maKho, stName, updateAllStoreTargets, showNotification]);
+
+  const saveExcelThuongStData = useCallback(async (
+    parsedRows: any[], 
+    fileName: string, 
+    detectedLimit: number, 
+    clusterStoreNames: string[],
+    parsedOldRows?: any[],
+    oldFileName?: string,
+    detectedOldLimit?: number
+  ) => {
+    const effectiveMaKho = (maKho || localStorage.getItem('rtst_ma_kho') || '').trim();
+    const shortMaKho = effectiveMaKho.replace(/^0+/, '');
+
+    // ⚡ FAST O(N) PRE-GROUPING: Group rows by normalized store name once
+    const newRowsByNormStore = new Map<string, any[]>();
+    let hasStoreInNew = false;
+    const noStoreNewRows: any[] = [];
+    for (const row of (parsedRows || [])) {
+      if (row.storeName) {
+        hasStoreInNew = true;
+        const k = normalize(row.storeName);
+        let arr = newRowsByNormStore.get(k);
+        if (!arr) {
+          arr = [];
+          newRowsByNormStore.set(k, arr);
+        }
+        arr.push(row);
+      } else {
+        noStoreNewRows.push(row);
+      }
+    }
+
+    const oldRowsByNormStore = new Map<string, any[]>();
+    let hasStoreInOld = false;
+    const noStoreOldRows: any[] = [];
+    for (const row of (parsedOldRows || [])) {
+      if (row.storeName) {
+        hasStoreInOld = true;
+        const k = normalize(row.storeName);
+        let arr = oldRowsByNormStore.get(k);
+        if (!arr) {
+          arr = [];
+          oldRowsByNormStore.set(k, arr);
+        }
+        arr.push(row);
+      } else {
+        noStoreOldRows.push(row);
+      }
+    }
+
+    // Fast O(1) store rows lookup with fallback to intelligent multi-pass matching
+    const getRowsForStore = (
+      rawStoreName: string,
+      rowsMap: Map<string, any[]>,
+      hasStoreCol: boolean,
+      defaultRows: any[]
+    ): any[] => {
+      if (!hasStoreCol) return defaultRows;
+      const norm = normalize(rawStoreName);
+      if (!norm) return [];
+
+      // Pass 1: Exact normalized match
+      const exact = rowsMap.get(norm);
+      if (exact && exact.length > 0) return exact;
+
+      // Pass 2: Substring inclusion match
+      for (const [k, v] of rowsMap.entries()) {
+        if (k === norm || k.includes(norm) || norm.includes(k)) {
+          return v;
+        }
+      }
+
+      // Pass 3: 3-5 digit store code match (e.g. 1841)
+      const codeMatch = rawStoreName.match(/\b\d{3,5}\b/);
+      if (codeMatch) {
+        const code = codeMatch[0];
+        for (const [k, v] of rowsMap.entries()) {
+          if (k.includes(code)) {
+            return v;
+          }
+        }
+      }
+
+      // Pass 4: Multi-token identifier match (e.g. dml, cma, cma)
+      const tokens1 = norm.split(/[\s\-_]+/).filter(t => t.length >= 3);
+      let bestMatch: any[] | null = null;
+      let maxCommon = 1;
+      for (const [k, v] of rowsMap.entries()) {
+        const tokens2 = k.split(/[\s\-_]+/).filter(t => t.length >= 3);
+        const common = tokens1.filter(t => tokens2.includes(t)).length;
+        if (common > maxCommon) {
+          maxCommon = common;
+          bestMatch = v;
+        }
+      }
+      if (bestMatch) return bestMatch;
+
+      return [];
+    };
+
+    // Robust Store List Resolution: Prioritize cluster stores first
+    const clusterStoresSet = new Set(
+      [
+        ...(clusterStoreNames || []).map(s => s.toUpperCase()),
+        (stName || '').toUpperCase(),
+        (currentStoreId || '').toUpperCase()
+      ].filter(Boolean)
+    );
+
+    const storesFromNew = (parsedRows || []).map(r => r.storeName).filter(Boolean);
+    const storesFromOld = (parsedOldRows || []).map(r => r.storeName).filter(Boolean);
+
+    const isClusterStoreCheck = (name: string): boolean => {
+      if (!name) return false;
+      const norm = normalize(name);
+      for (const cs of clusterStoresSet) {
+        const normCs = normalize(cs);
+        if (normCs && (norm === normCs || norm.includes(normCs) || normCs.includes(norm))) return true;
+        const codeCs = cs.match(/\b\d{3,5}\b/);
+        const codeName = name.match(/\b\d{3,5}\b/);
+        if (codeCs && codeName && codeCs[0] === codeName[0]) return true;
+      }
+      return false;
+    };
+
+    const prioritizedClusterStores = [
+      ...(clusterStoreNames || []),
+      stName,
+      currentStoreId,
+      ...storesFromNew.filter(isClusterStoreCheck),
+      ...storesFromOld.filter(isClusterStoreCheck)
+    ].filter(Boolean);
+
+    const allUniqueStores = Array.from(new Set([
+      ...prioritizedClusterStores,
+      ...storesFromNew,
+      ...storesFromOld
+    ].filter(Boolean)));
+
+    const storesToProcess = allUniqueStores.length > 0
+      ? allUniqueStores
+      : ['STORE_DEFAULT'];
+
+    try {
+      const payloads: any[] = [];
+      const updatedCache: Record<string, any> = {};
+      const storeDataMap: Record<string, any> = {};
+
+      // Helper to strip redundant storeName property on each row to optimize payload size
+      const compactRows = (rows: any[]) => {
+        return (rows || []).map(r => ({
+          categoryName: r.categoryName || '',
+          completion: Number(r.completion) || 0,
+          completionRank: Number(r.completionRank) || 0,
+          exceededRank: Number(r.exceededRank) || 0,
+          bonus: Number(r.bonus) || 0,
+          limit: Number(r.limit) || 7
+        }));
+      };
+
+      for (const storeName of storesToProcess) {
+        const normalizedStoreName = storeName.toUpperCase();
+
+        const rawStoreRows = fileName
+          ? getRowsForStore(storeName, newRowsByNormStore, hasStoreInNew, parsedRows || [])
+          : [];
+        const storeRows = compactRows(rawStoreRows);
+
+        let rawStoreOldRows: any[] = [];
+        if (oldFileName && parsedOldRows && parsedOldRows.length > 0) {
+          rawStoreOldRows = getRowsForStore(storeName, oldRowsByNormStore, hasStoreInOld, parsedOldRows);
+          if (rawStoreOldRows.length === 0 && globalAllStoreTargets[normalizedStoreName]?.thuongStRows?.length > 0) {
+            rawStoreOldRows = globalAllStoreTargets[normalizedStoreName].thuongStRows;
+          }
+        } else if (oldFileName === undefined) {
+          rawStoreOldRows = globalAllStoreTargets[normalizedStoreName]?.thuongStOldRows || [];
+        }
+        const storeOldRows = compactRows(rawStoreOldRows);
+
+        const finalOldFileName = oldFileName !== undefined ? oldFileName : (globalAllStoreTargets[normalizedStoreName]?.excelOldFileName || '');
+        const storeLimit = rawStoreRows[0]?.limit ?? detectedLimit ?? 7;
+        const finalOldLimit = detectedOldLimit !== undefined ? detectedOldLimit : (rawStoreOldRows[0]?.limit ?? globalAllStoreTargets[normalizedStoreName]?.topPercentRankLimitOld ?? 7);
+
+        const existingTargetData = globalAllStoreTargets[normalizedStoreName] || {};
+        const newTargetData = {
+          ...existingTargetData,
+          storeName,
+          excelFileName: fileName || '',
+          thuongStRows: storeRows,
+          topPercentRankLimit: storeLimit,
+          excelOldFileName: finalOldFileName,
+          thuongStOldRows: storeOldRows,
+          topPercentRankLimitOld: finalOldLimit,
+          updated_at: new Date().toISOString()
+        };
+
+        updatedCache[normalizedStoreName] = newTargetData;
+
+        const isCluster = isClusterStoreCheck(storeName);
+
+        if (isCluster || Object.keys(storeDataMap).length < 40) {
+          const entry = {
+            storeName,
+            excelFileName: fileName || '',
+            thuongStRows: storeRows,
+            topPercentRankLimit: storeLimit,
+            excelOldFileName: finalOldFileName,
+            thuongStOldRows: storeOldRows,
+            topPercentRankLimitOld: finalOldLimit,
+            updatedAt: new Date().toISOString()
+          };
+          storeDataMap[normalizedStoreName] = entry;
+
+          // Also add alias without numeric warehouse prefix for instant exact match
+          const stripped = storeName.replace(/^\d+[\s\-_]+/, '');
+          if (stripped !== storeName) {
+            storeDataMap[stripped.toUpperCase()] = { ...entry, storeName: stripped };
+            updatedCache[stripped.toUpperCase()] = { ...newTargetData, storeName: stripped };
+          }
+        }
+
+        payloads.push({
+          id: normalizeStoreId(storeName),
+          warehouse_code: shortMaKho,
+          ten_sieu_thi: storeName,
+          taget_doanh_thu: newTargetData,
+          updated_at: new Date().toISOString()
+        });
+      }
+
+      // 🔥 1. Save Global Snapshot Document to Firebase Firestore for Instant Sync
+      try {
+        const globalDocRef = doc(db, 'app_settings', 'thuong_st_data');
+        await setDoc(globalDocRef, {
+          excelFileName: fileName || '',
+          excelOldFileName: oldFileName || '',
+          topPercentRankLimit: detectedLimit ?? 7,
+          topPercentRankLimitOld: detectedOldLimit ?? 7,
+          stores: storeDataMap,
+          updatedAt: serverTimestamp(),
+          lastUpdatedBy: stName || currentStoreId || 'Mobile_User'
+        }, { merge: true });
+      } catch (fbErr) {
+        console.warn('[useRTSTSharedData] Failed to write global thuong_st_data doc:', fbErr);
+      }
+
+      // 🔥 2. Write Individual Store Documents in Firebase / Supabase
+      try {
+        const batch = writeBatch(db);
+        let count = 0;
+        for (const [key, sData] of Object.entries(storeDataMap)) {
+          const cleanId = normalizeStoreId(sData.storeName);
+          if (!cleanId || /^\d/.test(cleanId)) {
+            console.warn(`[useRTSTSharedData] Skipping invalid store doc ID: "${cleanId}" for "${sData.storeName}"`);
+            continue;
+          }
+          const sDocRef = doc(db, 'store', cleanId);
+          batch.set(sDocRef, {
+            id: cleanId,
+            ten_sieu_thi: cleanId,
+            taget_doanh_thu: {
+              excelFileName: sData.excelFileName,
+              thuongStRows: sData.thuongStRows,
+              topPercentRankLimit: sData.topPercentRankLimit,
+              excelOldFileName: sData.excelOldFileName,
+              thuongStOldRows: sData.thuongStOldRows,
+              topPercentRankLimitOld: sData.topPercentRankLimitOld,
+              updated_at: new Date().toISOString()
+            },
+            updated_at: serverTimestamp()
+          }, { merge: true });
+          count++;
+          if (count >= 400) {
+            await batch.commit();
+            count = 0;
+          }
+        }
+        if (count > 0) {
+          await batch.commit();
+        }
+      } catch (batchErr) {
+        console.warn('[useRTSTSharedData] Batch write store collection failed, fallback to upsert:', batchErr);
+        try { await supabase.from('store').upsert(payloads, { onConflict: 'id' }); } catch {}
+      }
+
+      // 🔥 3. Save LocalStorage Backup for Offline Resiliency & Instant F5 Persistence
+      try {
+        safeSetItem('ST_EXCEL_FILE_NAME_V1', fileName || '');
+        safeSetItem('ST_TOP_PERCENT_LIMIT_V1', String(detectedLimit ?? 7));
+        if (oldFileName !== undefined) {
+          safeSetItem('ST_EXCEL_OLD_FILE_NAME_V1', oldFileName || '');
+          safeSetItem('ST_TOP_PERCENT_LIMIT_OLD_V1', String(detectedOldLimit ?? 7));
+        }
+        safeSetItem('ST_THUONG_ST_ALL_STORES_V1', JSON.stringify(storeDataMap));
+      } catch (lsErr) {
+        console.warn('LocalStorage save warning:', lsErr);
+      }
+
+      // 🔥 4. Update Local States for the Active Store Immediately
+      const activeNormalized = (stName || currentStoreId || '').toUpperCase();
+      let activeData = updatedCache[activeNormalized];
+      if (!activeData) {
+        const normActive = normalize(stName || currentStoreId || '');
+        for (const key of Object.keys(updatedCache)) {
+          const normKey = normalize(key);
+          if (normKey === normActive || normKey.includes(normActive) || normActive.includes(normKey)) {
+            activeData = updatedCache[key];
+            break;
+          }
+        }
+      }
+
+      if (activeData) {
+        setExcelFileName(activeData.excelFileName || '');
+        setThuongStRows(activeData.thuongStRows || []);
+        setTopPercentRankLimit(activeData.topPercentRankLimit ?? 7);
+        setExcelOldFileName(activeData.excelOldFileName || '');
+        setThuongStOldRows(activeData.thuongStOldRows || []);
+        setTopPercentRankLimitOld(activeData.topPercentRankLimitOld ?? 7);
+        try {
+          safeSetItem('ST_THUONG_ST_ROWS_V1', JSON.stringify(activeData.thuongStRows || []));
+          safeSetItem('ST_THUONG_ST_OLD_ROWS_V1', JSON.stringify(activeData.thuongStOldRows || []));
+          setStoreItem('ST_THUONG_ST_ROWS_V1', JSON.stringify(activeData.thuongStRows || []), currentStoreId);
+          setStoreItem('ST_THUONG_ST_OLD_ROWS_V1', JSON.stringify(activeData.thuongStOldRows || []), currentStoreId);
+        } catch {}
+      } else {
+        setExcelFileName(fileName);
+        setThuongStRows(parsedRows || []);
+        setTopPercentRankLimit(detectedLimit);
+        setExcelOldFileName(oldFileName || '');
+        setThuongStOldRows(parsedOldRows || []);
+        setTopPercentRankLimitOld(detectedOldLimit ?? 7);
+        try {
+          safeSetItem('ST_THUONG_ST_ROWS_V1', JSON.stringify(parsedRows || []));
+          safeSetItem('ST_THUONG_ST_OLD_ROWS_V1', JSON.stringify(parsedOldRows || []));
+          setStoreItem('ST_THUONG_ST_ROWS_V1', JSON.stringify(parsedRows || []), currentStoreId);
+          setStoreItem('ST_THUONG_ST_OLD_ROWS_V1', JSON.stringify(parsedOldRows || []), currentStoreId);
+        } catch {}
+      }
+
+      updateAllStoreTargets((prev: any) => ({
+        ...prev,
+        ...updatedCache
+      }));
+
+      const notificationMsg = fileName && oldFileName
+        ? `⚡ Domino: Đã đẩy '${oldFileName}' thành Hôm Qua và nạp '${fileName}' làm Hôm Nay (Đã lưu Firebase)!`
+        : (fileName ? 'Tải lên và đồng bộ dữ liệu thi đua lên Firebase thành công!' : 'Đã xóa dữ liệu thi đua trên Firebase thành công!');
+
+      showNotification(notificationMsg, 'success');
+    } catch (err: any) {
+      console.error('Lỗi lưu dữ liệu thi đua:', err);
+      showNotification('Lỗi lưu dữ liệu thi đua: ' + err.message, 'error');
+    }
+  }, [maKho, stName, currentStoreId, updateAllStoreTargets, showNotification]);
+
+  return useMemo(() => ({
     categoryMappingInput, setCategoryMappingInput,
     manualAdjustment, setManualAdjustment,
 
@@ -1011,434 +1515,8 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     stTargetSauHeSo, setStTargetSauHeSo,
     drillFilterStaff, setDrillFilterStaff,
     allStoreTargets,
-    updateStoreSettings: useCallback(async (storeName: string, settings: any) => {
-      if (!maKho) return;
-      const cleanMaKho = maKho.trim();
-      const cleanStore = storeName.trim();
-      
-      try {
-        const { data: existingData } = await supabase
-          .from('store')
-          .select('taget_doanh_thu, warehouse_code, ten_sieu_thi, category_targets, lk_dt_nv, lk_td_nv, ban_kem_nv, ds_nhan_vien, dt_gio_cong, data_phan_ca, tragop_matran, tragop_nv, phuc_vu, lk_bi_tong_quan, lk_nh_sieu_thi')
-          .eq('id', normalizeStoreId(cleanStore))
-          .maybeSingle();
-
-        const currentTargetQD = settings.stTargetQuyDoi || (existingData?.taget_doanh_thu?.stTargetQuyDoi) || 0;
-        const currentPercent = settings.stPercentTarget !== undefined ? settings.stPercentTarget : (existingData?.taget_doanh_thu?.stPercentTarget ?? 100);
-
-        // Skip DB write if stPercentTarget was not changed
-        const oldPercent = existingData?.taget_doanh_thu?.stPercentTarget ?? 100;
-        const keys = Object.keys(settings);
-        if (keys.length === 1 && keys[0] === 'stPercentTarget' && settings.stPercentTarget === oldPercent) {
-          console.log(`[useRTSTSharedData] Skip updateStoreSettings — stPercentTarget unchanged (${oldPercent}) for "${cleanStore}"`);
-          return;
-        }
-
-        // Use existing stTargetSauHeSo from DB — no recalculation
-        const existingTargetSauHeSo = settings.stTargetSauHeSo || existingData?.taget_doanh_thu?.stTargetSauHeSo || Math.round(currentTargetQD * (currentPercent / 100));
-
-        const newTargetData = {
-          ...(existingData?.taget_doanh_thu || {}),
-          ...settings,
-          stTargetSauHeSo: existingTargetSauHeSo,
-          warehouse_code: cleanMaKho,
-          updated_at: new Date().toISOString()
-        };
-
-        // Update local map immediately for responsiveness
-        updateAllStoreTargets((prev: any) => ({
-          ...prev,
-          [cleanStore.toUpperCase()]: newTargetData
-        }));
-
-        // Update legacy storeSettings immediately
-        setStoreSettings(prev => ({
-          ...prev,
-          [cleanStore]: {
-            ...(prev[cleanStore] || {}),
-            percentTarget: currentPercent
-          }
-        }));
-
-        // If this is the active store, update top-level state too
-        if (normalize(storeName) === normalize(stName)) {
-          if (settings.stPercentTarget !== undefined) setStPercentTarget(settings.stPercentTarget);
-          setStTargetSauHeSo(existingTargetSauHeSo);
-        }
-
-        const payload: any = {
-          ...(existingData || {}),
-          id: normalizeStoreId(cleanStore),
-          warehouse_code: cleanMaKho,
-          ten_sieu_thi: cleanStore,
-          taget_doanh_thu: newTargetData,
-          updated_at: new Date().toISOString()
-        };
-
-        const { error } = await supabase
-          .from('store')
-          .upsert(payload, { onConflict: 'id' });
-
-        if (error) throw error;
-        showNotification('Đã cập nhật % TARGET siêu thị thành công!', 'success');
-      } catch (error) {
-        console.error('Error updating store settings:', error);
-      }
-    }, [maKho, stName, stPercentTarget, stTargetQuyDoi]),
-    saveExcelThuongStData: useCallback(async (
-      parsedRows: any[], 
-      fileName: string, 
-      detectedLimit: number, 
-      clusterStoreNames: string[],
-      parsedOldRows?: any[],
-      oldFileName?: string,
-      detectedOldLimit?: number
-    ) => {
-      const effectiveMaKho = (maKho || localStorage.getItem('rtst_ma_kho') || '').trim();
-      const shortMaKho = effectiveMaKho.replace(/^0+/, '');
-
-      // ⚡ FAST O(N) PRE-GROUPING: Group rows by normalized store name once
-      const newRowsByNormStore = new Map<string, any[]>();
-      let hasStoreInNew = false;
-      const noStoreNewRows: any[] = [];
-      for (const row of (parsedRows || [])) {
-        if (row.storeName) {
-          hasStoreInNew = true;
-          const k = normalize(row.storeName);
-          let arr = newRowsByNormStore.get(k);
-          if (!arr) {
-            arr = [];
-            newRowsByNormStore.set(k, arr);
-          }
-          arr.push(row);
-        } else {
-          noStoreNewRows.push(row);
-        }
-      }
-
-      const oldRowsByNormStore = new Map<string, any[]>();
-      let hasStoreInOld = false;
-      const noStoreOldRows: any[] = [];
-      for (const row of (parsedOldRows || [])) {
-        if (row.storeName) {
-          hasStoreInOld = true;
-          const k = normalize(row.storeName);
-          let arr = oldRowsByNormStore.get(k);
-          if (!arr) {
-            arr = [];
-            oldRowsByNormStore.set(k, arr);
-          }
-          arr.push(row);
-        } else {
-          noStoreOldRows.push(row);
-        }
-      }
-
-      // Fast O(1) store rows lookup with fallback to intelligent multi-pass matching
-      const getRowsForStore = (
-        rawStoreName: string,
-        rowsMap: Map<string, any[]>,
-        hasStoreCol: boolean,
-        defaultRows: any[]
-      ): any[] => {
-        if (!hasStoreCol) return defaultRows;
-        const norm = normalize(rawStoreName);
-        if (!norm) return [];
-
-        // Pass 1: Exact normalized match
-        const exact = rowsMap.get(norm);
-        if (exact && exact.length > 0) return exact;
-
-        // Pass 2: Substring inclusion match
-        for (const [k, v] of rowsMap.entries()) {
-          if (k === norm || k.includes(norm) || norm.includes(k)) {
-            return v;
-          }
-        }
-
-        // Pass 3: 3-5 digit store code match (e.g. 1841)
-        const codeMatch = rawStoreName.match(/\b\d{3,5}\b/);
-        if (codeMatch) {
-          const code = codeMatch[0];
-          for (const [k, v] of rowsMap.entries()) {
-            if (k.includes(code)) {
-              return v;
-            }
-          }
-        }
-
-        // Pass 4: Multi-token identifier match (e.g. dml, cma, cma)
-        const tokens1 = norm.split(/[\s\-_]+/).filter(t => t.length >= 3);
-        let bestMatch: any[] | null = null;
-        let maxCommon = 1;
-        for (const [k, v] of rowsMap.entries()) {
-          const tokens2 = k.split(/[\s\-_]+/).filter(t => t.length >= 3);
-          const common = tokens1.filter(t => tokens2.includes(t)).length;
-          if (common > maxCommon) {
-            maxCommon = common;
-            bestMatch = v;
-          }
-        }
-        if (bestMatch) return bestMatch;
-
-        return [];
-      };
-
-      // Robust Store List Resolution: Prioritize cluster stores first
-      const clusterStoresSet = new Set(
-        [
-          ...(clusterStoreNames || []).map(s => s.toUpperCase()),
-          (stName || '').toUpperCase(),
-          (currentStoreId || '').toUpperCase()
-        ].filter(Boolean)
-      );
-
-      const storesFromNew = (parsedRows || []).map(r => r.storeName).filter(Boolean);
-      const storesFromOld = (parsedOldRows || []).map(r => r.storeName).filter(Boolean);
-
-      const isClusterStoreCheck = (name: string): boolean => {
-        if (!name) return false;
-        const norm = normalize(name);
-        for (const cs of clusterStoresSet) {
-          const normCs = normalize(cs);
-          if (normCs && (norm === normCs || norm.includes(normCs) || normCs.includes(norm))) return true;
-          const codeCs = cs.match(/\b\d{3,5}\b/);
-          const codeName = name.match(/\b\d{3,5}\b/);
-          if (codeCs && codeName && codeCs[0] === codeName[0]) return true;
-        }
-        return false;
-      };
-
-      const prioritizedClusterStores = [
-        ...(clusterStoreNames || []),
-        stName,
-        currentStoreId,
-        ...storesFromNew.filter(isClusterStoreCheck),
-        ...storesFromOld.filter(isClusterStoreCheck)
-      ].filter(Boolean);
-
-      const allUniqueStores = Array.from(new Set([
-        ...prioritizedClusterStores,
-        ...storesFromNew,
-        ...storesFromOld
-      ].filter(Boolean)));
-
-      const storesToProcess = allUniqueStores.length > 0
-        ? allUniqueStores
-        : ['STORE_DEFAULT'];
-
-      try {
-        const payloads: any[] = [];
-        const updatedCache: Record<string, any> = {};
-        const storeDataMap: Record<string, any> = {};
-
-        // Helper to strip redundant storeName property on each row to optimize payload size
-        const compactRows = (rows: any[]) => {
-          return (rows || []).map(r => ({
-            categoryName: r.categoryName || '',
-            completion: Number(r.completion) || 0,
-            completionRank: Number(r.completionRank) || 0,
-            exceededRank: Number(r.exceededRank) || 0,
-            bonus: Number(r.bonus) || 0,
-            limit: Number(r.limit) || 7
-          }));
-        };
-
-        for (const storeName of storesToProcess) {
-          const normalizedStoreName = storeName.toUpperCase();
-
-          const rawStoreRows = fileName
-            ? getRowsForStore(storeName, newRowsByNormStore, hasStoreInNew, parsedRows || [])
-            : [];
-          const storeRows = compactRows(rawStoreRows);
-
-          let rawStoreOldRows: any[] = [];
-          if (oldFileName && parsedOldRows && parsedOldRows.length > 0) {
-            rawStoreOldRows = getRowsForStore(storeName, oldRowsByNormStore, hasStoreInOld, parsedOldRows);
-            if (rawStoreOldRows.length === 0 && globalAllStoreTargets[normalizedStoreName]?.thuongStRows?.length > 0) {
-              rawStoreOldRows = globalAllStoreTargets[normalizedStoreName].thuongStRows;
-            }
-          } else if (oldFileName === undefined) {
-            rawStoreOldRows = globalAllStoreTargets[normalizedStoreName]?.thuongStOldRows || [];
-          }
-          const storeOldRows = compactRows(rawStoreOldRows);
-
-          const finalOldFileName = oldFileName !== undefined ? oldFileName : (globalAllStoreTargets[normalizedStoreName]?.excelOldFileName || '');
-          const storeLimit = rawStoreRows[0]?.limit ?? detectedLimit ?? 7;
-          const finalOldLimit = detectedOldLimit !== undefined ? detectedOldLimit : (rawStoreOldRows[0]?.limit ?? globalAllStoreTargets[normalizedStoreName]?.topPercentRankLimitOld ?? 7);
-
-          const existingTargetData = globalAllStoreTargets[normalizedStoreName] || {};
-          const newTargetData = {
-            ...existingTargetData,
-            storeName,
-            excelFileName: fileName || '',
-            thuongStRows: storeRows,
-            topPercentRankLimit: storeLimit,
-            excelOldFileName: finalOldFileName,
-            thuongStOldRows: storeOldRows,
-            topPercentRankLimitOld: finalOldLimit,
-            updated_at: new Date().toISOString()
-          };
-
-          updatedCache[normalizedStoreName] = newTargetData;
-
-          const isCluster = isClusterStoreCheck(storeName);
-
-          if (isCluster || Object.keys(storeDataMap).length < 40) {
-            const entry = {
-              storeName,
-              excelFileName: fileName || '',
-              thuongStRows: storeRows,
-              topPercentRankLimit: storeLimit,
-              excelOldFileName: finalOldFileName,
-              thuongStOldRows: storeOldRows,
-              topPercentRankLimitOld: finalOldLimit,
-              updatedAt: new Date().toISOString()
-            };
-            storeDataMap[normalizedStoreName] = entry;
-
-            // Also add alias without numeric warehouse prefix for instant exact match
-            const stripped = storeName.replace(/^\d+[\s\-_]+/, '');
-            if (stripped !== storeName) {
-              storeDataMap[stripped.toUpperCase()] = { ...entry, storeName: stripped };
-              updatedCache[stripped.toUpperCase()] = { ...newTargetData, storeName: stripped };
-            }
-          }
-
-          payloads.push({
-            id: normalizeStoreId(storeName),
-            warehouse_code: shortMaKho,
-            ten_sieu_thi: storeName,
-            taget_doanh_thu: newTargetData,
-            updated_at: new Date().toISOString()
-          });
-        }
-
-        // 🔥 1. Save Global Snapshot Document to Firebase Firestore for Instant Sync
-        try {
-          const globalDocRef = doc(db, 'app_settings', 'thuong_st_data');
-          await setDoc(globalDocRef, {
-            excelFileName: fileName || '',
-            excelOldFileName: oldFileName || '',
-            topPercentRankLimit: detectedLimit ?? 7,
-            topPercentRankLimitOld: detectedOldLimit ?? 7,
-            stores: storeDataMap,
-            updatedAt: serverTimestamp(),
-            lastUpdatedBy: stName || currentStoreId || 'Mobile_User'
-          }, { merge: true });
-        } catch (fbErr) {
-          console.warn('[useRTSTSharedData] Failed to write global thuong_st_data doc:', fbErr);
-        }
-
-        // 🔥 2. Write Individual Store Documents in Firebase / Supabase
-        try {
-          const batch = writeBatch(db);
-          let count = 0;
-          for (const [key, sData] of Object.entries(storeDataMap)) {
-            const cleanId = normalizeStoreId(sData.storeName);
-            if (!cleanId || /^\d/.test(cleanId)) {
-              console.warn(`[useRTSTSharedData] Skipping invalid store doc ID: "${cleanId}" for "${sData.storeName}"`);
-              continue;
-            }
-            const sDocRef = doc(db, 'store', cleanId);
-            batch.set(sDocRef, {
-              id: cleanId,
-              ten_sieu_thi: cleanId,
-              taget_doanh_thu: {
-                excelFileName: sData.excelFileName,
-                thuongStRows: sData.thuongStRows,
-                topPercentRankLimit: sData.topPercentRankLimit,
-                excelOldFileName: sData.excelOldFileName,
-                thuongStOldRows: sData.thuongStOldRows,
-                topPercentRankLimitOld: sData.topPercentRankLimitOld,
-                updated_at: new Date().toISOString()
-              },
-              updated_at: serverTimestamp()
-            }, { merge: true });
-            count++;
-            if (count >= 400) {
-              await batch.commit();
-              count = 0;
-            }
-          }
-          if (count > 0) {
-            await batch.commit();
-          }
-        } catch (batchErr) {
-          console.warn('[useRTSTSharedData] Batch write store collection failed, fallback to upsert:', batchErr);
-          try { await supabase.from('store').upsert(payloads, { onConflict: 'id' }); } catch {}
-        }
-
-        // 🔥 3. Save LocalStorage Backup for Offline Resiliency & Instant F5 Persistence
-        try {
-          safeSetItem('ST_EXCEL_FILE_NAME_V1', fileName || '');
-          safeSetItem('ST_TOP_PERCENT_LIMIT_V1', String(detectedLimit ?? 7));
-          if (oldFileName !== undefined) {
-            safeSetItem('ST_EXCEL_OLD_FILE_NAME_V1', oldFileName || '');
-            safeSetItem('ST_TOP_PERCENT_LIMIT_OLD_V1', String(detectedOldLimit ?? 7));
-          }
-          safeSetItem('ST_THUONG_ST_ALL_STORES_V1', JSON.stringify(storeDataMap));
-        } catch (lsErr) {
-          console.warn('LocalStorage save warning:', lsErr);
-        }
-
-        // 🔥 4. Update Local States for the Active Store Immediately
-        const activeNormalized = (stName || currentStoreId || '').toUpperCase();
-        let activeData = updatedCache[activeNormalized];
-        if (!activeData) {
-          const normActive = normalize(stName || currentStoreId || '');
-          for (const key of Object.keys(updatedCache)) {
-            const normKey = normalize(key);
-            if (normKey === normActive || normKey.includes(normActive) || normActive.includes(normKey)) {
-              activeData = updatedCache[key];
-              break;
-            }
-          }
-        }
-
-        if (activeData) {
-          setExcelFileName(activeData.excelFileName || '');
-          setThuongStRows(activeData.thuongStRows || []);
-          setTopPercentRankLimit(activeData.topPercentRankLimit ?? 7);
-          setExcelOldFileName(activeData.excelOldFileName || '');
-          setThuongStOldRows(activeData.thuongStOldRows || []);
-          setTopPercentRankLimitOld(activeData.topPercentRankLimitOld ?? 7);
-          try {
-            safeSetItem('ST_THUONG_ST_ROWS_V1', JSON.stringify(activeData.thuongStRows || []));
-            safeSetItem('ST_THUONG_ST_OLD_ROWS_V1', JSON.stringify(activeData.thuongStOldRows || []));
-            setStoreItem('ST_THUONG_ST_ROWS_V1', JSON.stringify(activeData.thuongStRows || []), currentStoreId);
-            setStoreItem('ST_THUONG_ST_OLD_ROWS_V1', JSON.stringify(activeData.thuongStOldRows || []), currentStoreId);
-          } catch {}
-        } else {
-          setExcelFileName(fileName);
-          setThuongStRows(parsedRows || []);
-          setTopPercentRankLimit(detectedLimit);
-          setExcelOldFileName(oldFileName || '');
-          setThuongStOldRows(parsedOldRows || []);
-          setTopPercentRankLimitOld(detectedOldLimit ?? 7);
-          try {
-            safeSetItem('ST_THUONG_ST_ROWS_V1', JSON.stringify(parsedRows || []));
-            safeSetItem('ST_THUONG_ST_OLD_ROWS_V1', JSON.stringify(parsedOldRows || []));
-            setStoreItem('ST_THUONG_ST_ROWS_V1', JSON.stringify(parsedRows || []), currentStoreId);
-            setStoreItem('ST_THUONG_ST_OLD_ROWS_V1', JSON.stringify(parsedOldRows || []), currentStoreId);
-          } catch {}
-        }
-
-        updateAllStoreTargets((prev: any) => ({
-          ...prev,
-          ...updatedCache
-        }));
-
-        const notificationMsg = fileName && oldFileName
-          ? `⚡ Domino: Đã đẩy '${oldFileName}' thành Hôm Qua và nạp '${fileName}' làm Hôm Nay (Đã lưu Firebase)!`
-          : (fileName ? 'Tải lên và đồng bộ dữ liệu thi đua lên Firebase thành công!' : 'Đã xóa dữ liệu thi đua trên Firebase thành công!');
-
-        showNotification(notificationMsg, 'success');
-      } catch (err: any) {
-        console.error('Lỗi lưu dữ liệu thi đua:', err);
-        showNotification('Lỗi lưu dữ liệu thi đua: ' + err.message, 'error');
-      }
-    }, [maKho, stName, currentStoreId, updateAllStoreTargets, showNotification]),
+    updateStoreSettings,
+    saveExcelThuongStData,
     excelFileName,
     setExcelFileName,
     thuongStRows,
@@ -1457,5 +1535,58 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     loadStoreRevenue,
     isValidStoreName,
     VALID_STORE_PREFIXES: PRETTY_PREFIXES
-  };
+  }), [
+    categoryMappingInput,
+    manualAdjustment,
+    linkBcTongHop,
+    linkNganhHangTongHop,
+    selectedMonth,
+    setSelectedMonthLocal,
+    daysPassed,
+    totalDays,
+    excludedStaffIds,
+    storeSettings,
+    staffListFileName,
+    stName,
+    stDtlk,
+    stDtqd,
+    stDtDuKienQD,
+    stPercentHTTargetDuKienQD,
+    stTargetQuyDoi,
+    stPercentTarget,
+    stTargetSauHeSo,
+    drillFilterStaff,
+    allStoreTargets,
+    updateStoreSettings,
+    saveExcelThuongStData,
+    excelFileName,
+    thuongStRows,
+    topPercentRankLimit,
+    excelOldFileName,
+    thuongStOldRows,
+    topPercentRankLimitOld,
+    isSavingStoreRevenue,
+    isLoadingStoreRevenue,
+    saveStoreRevenue,
+    loadStoreRevenue,
+    isValidStoreName
+  ]);
+};
+
+export type RTSTSharedDataContextType = ReturnType<typeof useRTSTSharedDataInternal>;
+
+export const RTSTSharedDataContext = createContext<RTSTSharedDataContextType | null>(null);
+
+export const RTSTSharedDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { warehouseCode } = useStore();
+  const sharedData = useRTSTSharedDataInternal(warehouseCode);
+  return React.createElement(RTSTSharedDataContext.Provider, { value: sharedData }, children);
+};
+
+export const useRTSTSharedData = (_maKho?: string, _isYcxDirty?: boolean): RTSTSharedDataContextType => {
+  const context = useContext(RTSTSharedDataContext);
+  if (!context) {
+    throw new Error('useRTSTSharedData must be used within an RTSTSharedDataProvider');
+  }
+  return context;
 };

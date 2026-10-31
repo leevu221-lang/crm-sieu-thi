@@ -171,25 +171,8 @@ const KhaiBao: React.FC = () => {
     }
   }, [marketFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ═══════════════════════════════════════════════════════
-  // AUTO-SYNC: LUỸ KẾ TĐ → TARGET THI ĐUA per store
-  // When clusterCategoryInput changes (user paste/load) or store finishes loading,
-  // re-process the cluster data so categoryTargets are extracted for the active store.
-  // ═══════════════════════════════════════════════════════
-  const prevClusterCategoryRef = React.useRef(clusterCategoryInput);
-  React.useEffect(() => {
-    if (marketFilter === 'ALL' || !marketFilter) return;
-    if (isLoading) return; // Wait for store data to finish loading
-
-    // Only trigger when clusterCategoryInput actually changed (not just on mount)
-    const clusterChanged = prevClusterCategoryRef.current !== clusterCategoryInput;
-    prevClusterCategoryRef.current = clusterCategoryInput;
-
-    if (clusterChanged && clusterCategoryInput) {
-      console.log(`[KhaiBao] LUỸ KẾ TĐ changed → re-processing TARGET THI ĐUA for: ${marketFilter}`);
-      processLuykeData();
-    }
-  }, [clusterCategoryInput, marketFilter, isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  // NOTE: Luyke data (including clusterCategoryInput → categoryTargets) is automatically
+  // processed in LuykeDataContext with signature deduplication.
 
   // Auto-sync store revenue and target from parsed markets
   // Only trigger when data actually changes to prevent unnecessary re-renders

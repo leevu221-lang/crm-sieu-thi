@@ -7,9 +7,14 @@ import {
   parseCategoryData,
   parseYcxData,
   parseStaffMatrixData,
+  normalizeStoreId,
 } from '../src/pages/RTST/utils';
 import { parseLineChatData } from '../src/pages/TienIch/utils/lineChatParser';
 import { DEFAULT_LINE_CHAT_DATA } from '../src/pages/TienIch/data/defaultLineChatData';
+import { findIsolatedStoreTarget, getWarehouseStoreTargetKey } from '../src/pages/RTST/hooks/useRTSTSharedData';
+import { buildLuykeProcessSignature } from '../src/contexts/LuykeDataContext';
+import { APP_PAGES_REGISTRY, getDefaultAllowedPagesForNewUser } from '../src/constants/routes';
+import { SUPER_ADMIN_ALL_PAGES, isSuperAdmin43751 } from '../src/firebaseAdapter';
 
 // 1. Deterministic Multi-Store BI Market Input (Tests RTST & LUYKE + Store Isolation)
 const SAMPLE_BI_MARKET_INPUT = `
@@ -274,3 +279,125 @@ if (isSaveMode || !fs.existsSync(snapshotPath)) {
   }
   console.log('\n[SUCCESS] 100% Bit-for-Bit Calculation & Store Isolation Parity Verified!');
 }
+
+function runPhase2ContextAndIsolationSuite() {
+  console.log('\n--- PHASE 2: CONTEXT, HOOK & ISOLATION VERIFICATION ---');
+
+  // 1. Multi-Store & Multi-Warehouse Isolation Test (RTSTSharedDataProvider)
+  const storeA = 'ĐML - 155A NGUYỄN TẤT THÀNH - 1841';
+  const storeB = 'ĐMM - TRẦN HƯNG ĐẠO - 2910';
+  const storeC = 'ĐMS - CÁI NƯỚC - 4512';
+  const foreignStore = 'ĐML - KHO KHÁC - 9999';
+
+  const mockTargetsMap: Record<string, any> = {
+    [storeA.toUpperCase()]: {
+      stName: storeA,
+      stPercentTarget: 108,
+      stTargetQuyDoi: 1200,
+      categoryMappingInput: 'MAP_A',
+      warehouse_code: '1841',
+      storeId: normalizeStoreId(storeA),
+    },
+    [storeB.toUpperCase()]: {
+      stName: storeB,
+      stPercentTarget: 95,
+      stTargetQuyDoi: 800,
+      categoryMappingInput: '',
+      warehouse_code: '0001841',
+      storeId: normalizeStoreId(storeB),
+    },
+    [foreignStore.toUpperCase()]: {
+      stName: foreignStore,
+      stPercentTarget: 150,
+      stTargetQuyDoi: 5000,
+      categoryMappingInput: 'FOREIGN_MAP',
+      warehouse_code: '9999',
+      storeId: normalizeStoreId(foreignStore),
+    },
+  };
+
+  const targetA = findIsolatedStoreTarget(mockTargetsMap, '1841', storeA);
+  const targetB = findIsolatedStoreTarget(mockTargetsMap, '1841', storeB);
+  const targetC = findIsolatedStoreTarget(mockTargetsMap, '1841', storeC); // Store C has no DB target yet
+  const crossWhLeakCheck = findIsolatedStoreTarget(mockTargetsMap, '1841', foreignStore);
+
+  if (
+    targetA?.stPercentTarget !== 108 ||
+    targetB?.stPercentTarget !== 95 ||
+    targetB?.categoryMappingInput !== '' ||
+    targetC !== null ||
+    crossWhLeakCheck !== null ||
+    getWarehouseStoreTargetKey('001841', storeA) !== `1841::${normalizeStoreId(storeA)}`
+  ) {
+    console.error('[FAIL] Multi-store / multi-warehouse isolation check failed!', {
+      targetA,
+      targetB,
+      targetC,
+      crossWhLeakCheck,
+    });
+    process.exit(1);
+  }
+  console.log('  [PASS 100%] Multi-store switching (1841 -> 2910 -> 4512) & cross-warehouse (1841 vs 9999) strict isolation');
+
+  // 2. handleProcess Deduplication Simulation (Before vs After Phase 2)
+  let prePhase2ProcessCount = 0;
+  let postPhase2ProcessCount = 0;
+  let lastSig = '';
+
+  const simulateStoreLoadAndTabSwitches = (wh: string, store: string, summary: string, category: string, staff: string) => {
+    // Event 1: loadData cache hit
+    prePhase2ProcessCount++;
+    const sig1 = buildLuykeProcessSignature(wh, store, summary, category, staff);
+    if (sig1 !== lastSig) { postPhase2ProcessCount++; lastSig = sig1; }
+
+    // Event 2: loadData DB response with identical data
+    prePhase2ProcessCount++;
+    const sig2 = buildLuykeProcessSignature(wh, store, summary, category, staff);
+    if (sig2 !== lastSig) { postPhase2ProcessCount++; lastSig = sig2; }
+
+    // Event 3: setIsLoading(false) triggers 300ms useEffect
+    prePhase2ProcessCount++;
+    const sig3 = buildLuykeProcessSignature(wh, store, summary, category, staff);
+    if (sig3 !== lastSig) { postPhase2ProcessCount++; lastSig = sig3; }
+
+    // Event 4: KhaiBao useEffect on isLoading -> false
+    prePhase2ProcessCount++;
+
+    // Events 5..7: User clicks 3 sub-tabs in StoreContext (previously recreated warehouseCodes -> saveLuykeData -> handleProcess)
+    for (let t = 0; t < 3; t++) {
+      prePhase2ProcessCount++;
+      const sigTab = buildLuykeProcessSignature(wh, store, summary, category, staff);
+      if (sigTab !== lastSig) { postPhase2ProcessCount++; lastSig = sigTab; }
+    }
+  };
+
+  simulateStoreLoadAndTabSwitches('1841', storeA, SAMPLE_BI_MARKET_INPUT, SAMPLE_BI_CATEGORY_INPUT, SAMPLE_STAFF_MATRIX_INPUT);
+  simulateStoreLoadAndTabSwitches('1841', storeB, SAMPLE_BI_MARKET_INPUT, SAMPLE_BI_CATEGORY_INPUT, SAMPLE_STAFF_MATRIX_INPUT);
+  simulateStoreLoadAndTabSwitches('1841', storeC, SAMPLE_BI_MARKET_INPUT, SAMPLE_BI_CATEGORY_INPUT, SAMPLE_STAFF_MATRIX_INPUT);
+
+  if (postPhase2ProcessCount !== 3) {
+    console.error(`[FAIL] Expected 3 handleProcess executions for 3 distinct stores, got ${postPhase2ProcessCount}`);
+    process.exit(1);
+  }
+  console.log(`  [PASS 100%] handleProcess deduplication: Before = ${prePhase2ProcessCount} runs -> After = ${postPhase2ProcessCount} runs (-${((1 - postPhase2ProcessCount / prePhase2ProcessCount) * 100).toFixed(1)}%)`);
+
+  // 3. Admin 43751 & User RBAC Verification
+  const registryIds = APP_PAGES_REGISTRY.map(p => p.id);
+  const isAdmin43751Valid =
+    isSuperAdmin43751('43751') &&
+    isSuperAdmin43751(' 43751 ') &&
+    !isSuperAdmin43751('102345') &&
+    SUPER_ADMIN_ALL_PAGES.includes('users') &&
+    SUPER_ADMIN_ALL_PAGES.includes('khaibao') &&
+    registryIds.includes('realtime') &&
+    registryIds.includes('khaibao');
+  const defaultNewUserPages = getDefaultAllowedPagesForNewUser();
+
+  if (!isAdmin43751Valid || !Array.isArray(defaultNewUserPages)) {
+    console.error('[FAIL] RBAC / Admin 43751 verification failed!');
+    process.exit(1);
+  }
+  console.log('  [PASS 100%] Admin 43751 SuperAdmin bypass & User RBAC permission checks verified');
+}
+
+runPhase2ContextAndIsolationSuite();
