@@ -1,0 +1,750 @@
+{
+  "snapshot": {
+    "hashes": {
+      "marketsRtst": "91caf8cd0d1f147fb938b94eb2a20a4c8081ea59b06a02391bce16b948e457ee",
+      "marketsLuyke": "00fd2c3cfcf8fcd36da91681772617f3e3407a9219518ec020058be752bc73d8",
+      "categoriesRealtime": "f7e6933ffe7072e2f9844c54b412ed8360b4a13a7ff8259c05b654d1054a0569",
+      "categoriesLuyke": "f7e6933ffe7072e2f9844c54b412ed8360b4a13a7ff8259c05b654d1054a0569",
+      "ycxParsed": "5c287af91e083a370a3e58603b7dea8b84686c11fa27aaa470797f35cebb8045",
+      "staffMatrix": "3f34db8e1bda46de07d1b1c197d859972dbbde97af67905d7a1df1f41b3aefa7",
+      "lineChatSummary": "61ac3d257582b865ef8ceb191ddbfcb9205b4487dc79a201aec7e67a0a75e131"
+    },
+    "counts": {
+      "marketsRtstCount": 4,
+      "marketsLuykeCount": 4,
+      "categoriesRealtimeCount": 12,
+      "categoriesLuykeCount": 12,
+      "ycxStaffCount": 4,
+      "staffMatrixCount": 3,
+      "lineChatTotalMessages": 7952,
+      "lineChatEmployees": 21,
+      "lineChatDates": 157
+    },
+    "storeIsolation": {
+      "storesInMarket": [
+        "TỔNG",
+        "ĐML - 155A NGUYỄN TẤT THÀNH - 1841",
+        "ĐMM - TRẦN HƯNG ĐẠO - 2910",
+        "ĐMS - CÁI NƯỚC - 4512"
+      ],
+      "store1841CatsCount": 4,
+      "store2910CatsCount": 4,
+      "store4512CatsCount": 4
+    },
+    "outputs": {
+      "marketsRtst": [
+        {
+          "name": "TỔNG",
+          "targetST": 100.04,
+          "targetQD": 2500,
+          "actualReal": 1050.2,
+          "actualVirtual": 1250.5,
+          "dtHomQua": 0,
+          "percentHT": 50.02,
+          "isExplicitTarget": true
+        },
+        {
+          "name": "ĐML - 155A NGUYỄN TẤT THÀNH - 1841",
+          "targetST": 0,
+          "targetQD": 1200,
+          "actualReal": 520.1,
+          "actualVirtual": 640.25,
+          "dtHomQua": 0,
+          "percentHT": 53.35,
+          "percentQD": 0,
+          "installmentRate": 41.2,
+          "luotBillBanHang": 0,
+          "luotBillThuHo": 0,
+          "dtckThang": 0,
+          "luotBill": 0,
+          "tb3Thang": 0,
+          "percentTT": 0,
+          "dtTraGop": 15.2,
+          "percentTraGop": 41.2,
+          "isExplicitTarget": true,
+          "isSummary": false
+        },
+        {
+          "name": "ĐMM - TRẦN HƯNG ĐẠO - 2910",
+          "targetST": 0,
+          "targetQD": 800,
+          "actualReal": 310.05,
+          "actualVirtual": 360.15,
+          "dtHomQua": 0,
+          "percentHT": 45.02,
+          "percentQD": 0,
+          "installmentRate": 36,
+          "luotBillBanHang": 0,
+          "luotBillThuHo": 0,
+          "dtckThang": 0,
+          "luotBill": 0,
+          "tb3Thang": 0,
+          "percentTT": 0,
+          "dtTraGop": 8.4,
+          "percentTraGop": 36,
+          "isExplicitTarget": true,
+          "isSummary": false
+        },
+        {
+          "name": "ĐMS - CÁI NƯỚC - 4512",
+          "targetST": 0,
+          "targetQD": 500,
+          "actualReal": 220.05,
+          "actualVirtual": 250.1,
+          "dtHomQua": 0,
+          "percentHT": 50.02,
+          "percentQD": 0,
+          "installmentRate": 35.8,
+          "luotBillBanHang": 0,
+          "luotBillThuHo": 0,
+          "dtckThang": 0,
+          "luotBill": 0,
+          "tb3Thang": 0,
+          "percentTT": 0,
+          "dtTraGop": 11.1,
+          "percentTraGop": 35.8,
+          "isExplicitTarget": true,
+          "isSummary": false
+        }
+      ],
+      "marketsLuyke": [
+        {
+          "name": "TỔNG",
+          "targetST": 2500,
+          "targetQD": 0,
+          "actualReal": 1050.2,
+          "actualVirtual": 1250.5,
+          "dtHomQua": 0,
+          "percentHT": 50.02,
+          "isExplicitTarget": true
+        },
+        {
+          "name": "ĐML - 155A NGUYỄN TẤT THÀNH - 1841",
+          "ma_kho": "ĐML",
+          "targetST": 0,
+          "targetQD": 1200,
+          "actualReal": 0,
+          "actualVirtual": 640.25,
+          "dtHomQua": 0,
+          "percentHT": 53.35,
+          "percentHTTargetDuKienLNTT": 0,
+          "installmentRate": 41.2,
+          "dtckThang": 0,
+          "luotBillBanHang": 0,
+          "luotBillThuHo": 0,
+          "tb3Thang": 0,
+          "percentTT": 0,
+          "dtTraGop": 15.2,
+          "percentTraGop": 41.2,
+          "isExplicitTarget": true,
+          "isSummary": false
+        },
+        {
+          "name": "ĐMM - TRẦN HƯNG ĐẠO - 2910",
+          "ma_kho": "ĐMM",
+          "targetST": 0,
+          "targetQD": 800,
+          "actualReal": 0,
+          "actualVirtual": 360.15,
+          "dtHomQua": 0,
+          "percentHT": 45.02,
+          "percentHTTargetDuKienLNTT": 0,
+          "installmentRate": 36,
+          "dtckThang": 0,
+          "luotBillBanHang": 0,
+          "luotBillThuHo": 0,
+          "tb3Thang": 0,
+          "percentTT": 0,
+          "dtTraGop": 8.4,
+          "percentTraGop": 36,
+          "isExplicitTarget": true,
+          "isSummary": false
+        },
+        {
+          "name": "ĐMS - CÁI NƯỚC - 4512",
+          "ma_kho": "ĐMS",
+          "targetST": 0,
+          "targetQD": 500,
+          "actualReal": 0,
+          "actualVirtual": 250.1,
+          "dtHomQua": 0,
+          "percentHT": 50.02,
+          "percentHTTargetDuKienLNTT": 0,
+          "installmentRate": 35.8,
+          "dtckThang": 0,
+          "luotBillBanHang": 0,
+          "luotBillThuHo": 0,
+          "tb3Thang": 0,
+          "percentTT": 0,
+          "dtTraGop": 11.1,
+          "percentTraGop": 35.8,
+          "isExplicitTarget": true,
+          "isSummary": false
+        }
+      ],
+      "categoriesRealtime": [
+        {
+          "name": "Tivi",
+          "target": 250,
+          "actual": 135.5,
+          "rate": 54.2,
+          "marketName": "ĐML - 155A NGUYỄN TẤT THÀNH - 1841",
+          "type": "DT",
+          "revenue": 135.5,
+          "group": "ALL"
+        },
+        {
+          "name": "Tivi",
+          "target": 180,
+          "actual": 88.2,
+          "rate": 49,
+          "marketName": "ĐMM - TRẦN HƯNG ĐẠO - 2910",
+          "type": "DT",
+          "revenue": 88.2,
+          "group": "ALL"
+        },
+        {
+          "name": "Tivi",
+          "target": 100,
+          "actual": 52,
+          "rate": 52,
+          "marketName": "ĐMS - CÁI NƯỚC - 4512",
+          "type": "DT",
+          "revenue": 52,
+          "group": "ALL"
+        },
+        {
+          "name": "Tủ lạnh",
+          "target": 200,
+          "actual": 110,
+          "rate": 55,
+          "marketName": "ĐML - 155A NGUYỄN TẤT THÀNH - 1841",
+          "type": "DT",
+          "revenue": 110,
+          "group": "ALL"
+        },
+        {
+          "name": "Tủ lạnh",
+          "target": 150,
+          "actual": 72,
+          "rate": 48,
+          "marketName": "ĐMM - TRẦN HƯNG ĐẠO - 2910",
+          "type": "DT",
+          "revenue": 72,
+          "group": "ALL"
+        },
+        {
+          "name": "Tủ lạnh",
+          "target": 90,
+          "actual": 46.8,
+          "rate": 52,
+          "marketName": "ĐMS - CÁI NƯỚC - 4512",
+          "type": "DT",
+          "revenue": 46.8,
+          "group": "ALL"
+        },
+        {
+          "name": "Máy lạnh",
+          "target": 120,
+          "actual": 66,
+          "rate": 55,
+          "marketName": "ĐML - 155A NGUYỄN TẤT THÀNH - 1841",
+          "type": "SL",
+          "revenue": 66,
+          "group": "ALL"
+        },
+        {
+          "name": "Máy lạnh",
+          "target": 80,
+          "actual": 38,
+          "rate": 47.5,
+          "marketName": "ĐMM - TRẦN HƯNG ĐẠO - 2910",
+          "type": "SL",
+          "revenue": 38,
+          "group": "ALL"
+        },
+        {
+          "name": "Máy lạnh",
+          "target": 50,
+          "actual": 27,
+          "rate": 54,
+          "marketName": "ĐMS - CÁI NƯỚC - 4512",
+          "type": "SL",
+          "revenue": 27,
+          "group": "ALL"
+        },
+        {
+          "name": "Điện thoại",
+          "target": 300,
+          "actual": 165,
+          "rate": 55,
+          "marketName": "ĐML - 155A NGUYỄN TẤT THÀNH - 1841",
+          "type": "DT",
+          "revenue": 165,
+          "group": "ALL"
+        },
+        {
+          "name": "Điện thoại",
+          "target": 210,
+          "actual": 105,
+          "rate": 50,
+          "marketName": "ĐMM - TRẦN HƯNG ĐẠO - 2910",
+          "type": "DT",
+          "revenue": 105,
+          "group": "ALL"
+        },
+        {
+          "name": "Điện thoại",
+          "target": 120,
+          "actual": 60,
+          "rate": 50,
+          "marketName": "ĐMS - CÁI NƯỚC - 4512",
+          "type": "DT",
+          "revenue": 60,
+          "group": "ALL"
+        }
+      ],
+      "categoriesLuyke": [
+        {
+          "name": "Tivi",
+          "target": 250,
+          "actual": 135.5,
+          "rate": 54.2,
+          "marketName": "ĐML - 155A NGUYỄN TẤT THÀNH - 1841",
+          "type": "DT",
+          "revenue": 135.5,
+          "group": "ALL"
+        },
+        {
+          "name": "Tivi",
+          "target": 180,
+          "actual": 88.2,
+          "rate": 49,
+          "marketName": "ĐMM - TRẦN HƯNG ĐẠO - 2910",
+          "type": "DT",
+          "revenue": 88.2,
+          "group": "ALL"
+        },
+        {
+          "name": "Tivi",
+          "target": 100,
+          "actual": 52,
+          "rate": 52,
+          "marketName": "ĐMS - CÁI NƯỚC - 4512",
+          "type": "DT",
+          "revenue": 52,
+          "group": "ALL"
+        },
+        {
+          "name": "Tủ lạnh",
+          "target": 200,
+          "actual": 110,
+          "rate": 55,
+          "marketName": "ĐML - 155A NGUYỄN TẤT THÀNH - 1841",
+          "type": "DT",
+          "revenue": 110,
+          "group": "ALL"
+        },
+        {
+          "name": "Tủ lạnh",
+          "target": 150,
+          "actual": 72,
+          "rate": 48,
+          "marketName": "ĐMM - TRẦN HƯNG ĐẠO - 2910",
+          "type": "DT",
+          "revenue": 72,
+          "group": "ALL"
+        },
+        {
+          "name": "Tủ lạnh",
+          "target": 90,
+          "actual": 46.8,
+          "rate": 52,
+          "marketName": "ĐMS - CÁI NƯỚC - 4512",
+          "type": "DT",
+          "revenue": 46.8,
+          "group": "ALL"
+        },
+        {
+          "name": "Máy lạnh",
+          "target": 120,
+          "actual": 66,
+          "rate": 55,
+          "marketName": "ĐML - 155A NGUYỄN TẤT THÀNH - 1841",
+          "type": "SL",
+          "revenue": 66,
+          "group": "ALL"
+        },
+        {
+          "name": "Máy lạnh",
+          "target": 80,
+          "actual": 38,
+          "rate": 47.5,
+          "marketName": "ĐMM - TRẦN HƯNG ĐẠO - 2910",
+          "type": "SL",
+          "revenue": 38,
+          "group": "ALL"
+        },
+        {
+          "name": "Máy lạnh",
+          "target": 50,
+          "actual": 27,
+          "rate": 54,
+          "marketName": "ĐMS - CÁI NƯỚC - 4512",
+          "type": "SL",
+          "revenue": 27,
+          "group": "ALL"
+        },
+        {
+          "name": "Điện thoại",
+          "target": 300,
+          "actual": 165,
+          "rate": 55,
+          "marketName": "ĐML - 155A NGUYỄN TẤT THÀNH - 1841",
+          "type": "DT",
+          "revenue": 165,
+          "group": "ALL"
+        },
+        {
+          "name": "Điện thoại",
+          "target": 210,
+          "actual": 105,
+          "rate": 50,
+          "marketName": "ĐMM - TRẦN HƯNG ĐẠO - 2910",
+          "type": "DT",
+          "revenue": 105,
+          "group": "ALL"
+        },
+        {
+          "name": "Điện thoại",
+          "target": 120,
+          "actual": 60,
+          "rate": 50,
+          "marketName": "ĐMS - CÁI NƯỚC - 4512",
+          "type": "DT",
+          "revenue": 60,
+          "group": "ALL"
+        }
+      ],
+      "ycxParsed": [
+        {
+          "staffName": "204567 - Trần Thị B",
+          "staffId": "",
+          "marketName": "2910 - ĐMM TRẦN HƯNG ĐẠO",
+          "totalRevenue": 18500000,
+          "convertedRevenue": 18500000,
+          "installmentRevenue": 18500000,
+          "mayLanhImeiQty": 0,
+          "items": [
+            {
+              "productName": "Sản phẩm không tên",
+              "revenue": 18500000,
+              "convertedRevenue": 18500000,
+              "category": "364 - IT",
+              "isInstallment": true,
+              "quantity": 1,
+              "status": "Đã xuất",
+              "returnStatus": "",
+              "orderId": "YCX004",
+              "customerName": "",
+              "customerPhone": "",
+              "staffName": "204567 - Trần Thị B"
+            }
+          ],
+          "giaDung": {
+            "total": 0,
+            "mayLocNuoc": 0,
+            "noiCom": 0,
+            "noiChien": 0,
+            "quatGio": 0,
+            "bep": 0
+          },
+          "baoHiem": {
+            "total": 0,
+            "count": 0,
+            "motDoiMot": 0,
+            "moRong": 0,
+            "roiVo": 0,
+            "khac": 0
+          },
+          "ict": {
+            "smartphone": 0,
+            "sdp": 0,
+            "taiNghe": 0,
+            "camera": 0,
+            "sim": 0,
+            "vieon": 0,
+            "miengDan": 0
+          },
+          "ce": {
+            "total": 0,
+            "tivi": 0,
+            "tuLanh": 0,
+            "mayGiat": 0,
+            "mayLanh": 0,
+            "mayNuocNong": 0,
+            "msMrc": 0
+          }
+        },
+        {
+          "staffName": "43751 - Vũ Linh",
+          "staffId": "",
+          "marketName": "1841 - ĐML 155A NGUYỄN TẤT THÀNH",
+          "totalRevenue": 15500000,
+          "convertedRevenue": 15500000,
+          "installmentRevenue": 15000000,
+          "mayLanhImeiQty": 0,
+          "items": [
+            {
+              "productName": "Sản phẩm không tên",
+              "revenue": 15000000,
+              "convertedRevenue": 15000000,
+              "category": "1124 - Tivi",
+              "isInstallment": true,
+              "quantity": 1,
+              "status": "Đã xuất",
+              "returnStatus": "",
+              "orderId": "YCX001",
+              "customerName": "",
+              "customerPhone": "",
+              "staffName": "43751 - Vũ Linh"
+            },
+            {
+              "productName": "Sản phẩm không tên",
+              "revenue": 500000,
+              "convertedRevenue": 500000,
+              "category": "16 - Phụ kiện tiện ích",
+              "isInstallment": false,
+              "quantity": 2,
+              "status": "Đã xuất",
+              "returnStatus": "",
+              "orderId": "YCX002",
+              "customerName": "",
+              "customerPhone": "",
+              "staffName": "43751 - Vũ Linh"
+            }
+          ],
+          "giaDung": {
+            "total": 0,
+            "mayLocNuoc": 0,
+            "noiCom": 0,
+            "noiChien": 0,
+            "quatGio": 0,
+            "bep": 0
+          },
+          "baoHiem": {
+            "total": 0,
+            "count": 0,
+            "motDoiMot": 0,
+            "moRong": 0,
+            "roiVo": 0,
+            "khac": 0
+          },
+          "ict": {
+            "smartphone": 0,
+            "sdp": 0,
+            "taiNghe": 0,
+            "camera": 0,
+            "sim": 0,
+            "vieon": 0,
+            "miengDan": 0
+          },
+          "ce": {
+            "total": 0,
+            "tivi": 0,
+            "tuLanh": 0,
+            "mayGiat": 0,
+            "mayLanh": 0,
+            "mayNuocNong": 0,
+            "msMrc": 0
+          }
+        },
+        {
+          "staffName": "102345 - Nguyễn Văn A",
+          "staffId": "",
+          "marketName": "1841 - ĐML 155A NGUYỄN TẤT THÀNH",
+          "totalRevenue": 1200000,
+          "convertedRevenue": 1200000,
+          "installmentRevenue": 1200000,
+          "mayLanhImeiQty": 0,
+          "items": [
+            {
+              "productName": "Sản phẩm không tên",
+              "revenue": 1200000,
+              "convertedRevenue": 1200000,
+              "category": "1994 - Dịch vụ bảo hành, bảo dưỡng Điện Máy Xanh",
+              "isInstallment": true,
+              "quantity": 1,
+              "status": "Đã xuất",
+              "returnStatus": "",
+              "orderId": "YCX003",
+              "customerName": "",
+              "customerPhone": "",
+              "staffName": "102345 - Nguyễn Văn A"
+            }
+          ],
+          "giaDung": {
+            "total": 0,
+            "mayLocNuoc": 0,
+            "noiCom": 0,
+            "noiChien": 0,
+            "quatGio": 0,
+            "bep": 0
+          },
+          "baoHiem": {
+            "total": 1200000,
+            "count": 1,
+            "motDoiMot": 0,
+            "moRong": 0,
+            "roiVo": 1200000,
+            "khac": 0
+          },
+          "ict": {
+            "smartphone": 0,
+            "sdp": 0,
+            "taiNghe": 0,
+            "camera": 0,
+            "sim": 0,
+            "vieon": 0,
+            "miengDan": 0
+          },
+          "ce": {
+            "total": 0,
+            "tivi": 0,
+            "tuLanh": 0,
+            "mayGiat": 0,
+            "mayLanh": 0,
+            "mayNuocNong": 0,
+            "msMrc": 0
+          }
+        },
+        {
+          "staffName": "308901 - Lê Văn C",
+          "staffId": "",
+          "marketName": "4512 - ĐMS CÁI NƯỚC",
+          "totalRevenue": 450000,
+          "convertedRevenue": 450000,
+          "installmentRevenue": 0,
+          "mayLanhImeiQty": 0,
+          "items": [
+            {
+              "productName": "Sản phẩm không tên",
+              "revenue": 450000,
+              "convertedRevenue": 450000,
+              "category": "664 - Sim Online",
+              "isInstallment": false,
+              "quantity": 3,
+              "status": "Đã xuất",
+              "returnStatus": "",
+              "orderId": "YCX005",
+              "customerName": "",
+              "customerPhone": "",
+              "staffName": "308901 - Lê Văn C"
+            }
+          ],
+          "giaDung": {
+            "total": 0,
+            "mayLocNuoc": 0,
+            "noiCom": 0,
+            "noiChien": 0,
+            "quatGio": 0,
+            "bep": 0
+          },
+          "baoHiem": {
+            "total": 0,
+            "count": 0,
+            "motDoiMot": 0,
+            "moRong": 0,
+            "roiVo": 0,
+            "khac": 0
+          },
+          "ict": {
+            "smartphone": 0,
+            "sdp": 0,
+            "taiNghe": 0,
+            "camera": 0,
+            "sim": 3,
+            "vieon": 0,
+            "miengDan": 0
+          },
+          "ce": {
+            "total": 0,
+            "tivi": 0,
+            "tuLanh": 0,
+            "mayGiat": 0,
+            "mayLanh": 0,
+            "mayNuocNong": 0,
+            "msMrc": 0
+          }
+        }
+      ],
+      "staffMatrix": [
+        {
+          "displayName": "043751 - LINH",
+          "fullId": "043751",
+          "achieved": 4,
+          "totalCats": 4,
+          "rate": 100,
+          "rawValues": [
+            48.5,
+            39,
+            24,
+            58
+          ],
+          "projectedRates": [
+            116.40000000000002,
+            117,
+            120,
+            115.99999999999999
+          ]
+        },
+        {
+          "displayName": "102345 - A",
+          "fullId": "102345",
+          "achieved": 4,
+          "totalCats": 4,
+          "rate": 100,
+          "rawValues": [
+            44,
+            36.5,
+            22,
+            52
+          ],
+          "projectedRates": [
+            105.60000000000001,
+            109.5,
+            110.00000000000001,
+            104
+          ]
+        },
+        {
+          "displayName": "105678 - D",
+          "fullId": "105678",
+          "achieved": 4,
+          "totalCats": 4,
+          "rate": 100,
+          "rawValues": [
+            43,
+            34.5,
+            20,
+            55
+          ],
+          "projectedRates": [
+            103.2,
+            103.49999999999999,
+            100,
+            110.00000000000001
+          ]
+        }
+      ]
+    }
+  },
+  "baselineTimings": {
+    "parseMarketDataMs": 4.778,
+    "parseCategoryDataMs": 5.046,
+    "parseYcxDataMs": 2.612,
+    "parseStaffMatrixDataMs": 0.681,
+    "parseLineChatDataMs": 23.615,
+    "totalVerificationMs": 36.824
+  }
+}
