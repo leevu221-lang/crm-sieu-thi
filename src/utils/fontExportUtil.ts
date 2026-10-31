@@ -55,11 +55,16 @@ async function fetchFontAsBase64(primaryUrl: string, fallbackUrl?: string): Prom
   }
 }
 
-// Preload fonts immediately in the background
+// Preload fonts during browser idle time so initial page boot is never blocked
 if (typeof window !== 'undefined') {
-  setTimeout(() => {
+  const schedulePreload = () => {
     preloadFontDataCache().catch(() => {});
-  }, 200);
+  };
+  if ('requestIdleCallback' in window) {
+    (window as any).requestIdleCallback(schedulePreload, { timeout: 4000 });
+  } else {
+    setTimeout(schedulePreload, 2500);
+  }
 }
 
 /**

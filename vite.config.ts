@@ -50,7 +50,8 @@ export default defineConfig(({ mode }) => {
             'vendor-firebase': ['firebase/app', 'firebase/firestore', 'firebase/auth', 'firebase/storage'],
             'vendor-icons': ['lucide-react'],
             'vendor-motion': ['framer-motion'],
-            'vendor-charts': ['recharts']
+            'vendor-charts': ['recharts'],
+            'vendor-capture': ['html-to-image', 'modern-screenshot', 'html2canvas']
           }
         }
       }

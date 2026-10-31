@@ -23,10 +23,6 @@ import NewRealtimePage from './pages/RealtimePage';
 import EmployeeHealth from './pages/SucKhoeNhanVien';
 import LuyKe from './pages/LuyKe';
 import KhaiBao from './pages/KhaiBao';
-import LichLamViecPG from './pages/LichLamViecPG';
-import ToolHoTro from './pages/ToolHoTro';
-import BbkqPage from './pages/BbkqPage';
-import TienIch from './pages/TienIch';
 
 // Wrapper to auto-reload if dynamic import fails for secondary pages
 const lazyWithRetry = (componentImport: () => Promise<any>) =>
@@ -49,6 +45,10 @@ const lazyWithRetry = (componentImport: () => Promise<any>) =>
   });
 
 // Secondary pages lazy loaded with auto-retry
+const LichLamViecPG = lazyWithRetry(() => import('./pages/LichLamViecPG'));
+const ToolHoTro = lazyWithRetry(() => import('./pages/ToolHoTro'));
+const BbkqPage = lazyWithRetry(() => import('./pages/BbkqPage'));
+const TienIch = lazyWithRetry(() => import('./pages/TienIch'));
 const UserManagement = lazyWithRetry(() => import('./pages/DanhSachNguoiDung'));
 const StickerCeScanner = lazyWithRetry(() => import('./components/StickerCeScanner'));
 const TnbData = lazyWithRetry(() => import('./pages/TnbData'));

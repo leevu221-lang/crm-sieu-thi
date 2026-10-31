@@ -27,7 +27,6 @@ import {
 } from 'lucide-react';
 import { domToPng } from 'modern-screenshot';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
-import { DEFAULT_LINE_CHAT_DATA } from '../data/defaultLineChatData';
 import { 
   parseLineChatData, 
   LineChatAnalysisResult, 
@@ -41,14 +40,30 @@ import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 const STORAGE_KEY = 'crm_line_chat_data_custom';
 
 export const TuongTacLineTab: React.FC = () => {
-  // 1. Raw Data State with LocalStorage persistence
+  // 1. Raw Data State with LocalStorage persistence (default data lazy-loaded on demand)
   const [rawChatText, setRawChatText] = useState<string>(() => {
     try {
-      return localStorage.getItem(STORAGE_KEY) || DEFAULT_LINE_CHAT_DATA;
+      return localStorage.getItem(STORAGE_KEY) || '';
     } catch {
-      return DEFAULT_LINE_CHAT_DATA;
+      return '';
     }
   });
+
+  useEffect(() => {
+    if (!rawChatText) {
+      let cancelled = false;
+      import('../data/defaultLineChatData')
+        .then((mod) => {
+          if (!cancelled && mod?.DEFAULT_LINE_CHAT_DATA) {
+            setRawChatText((prev) => prev || mod.DEFAULT_LINE_CHAT_DATA);
+          }
+        })
+        .catch((err) => console.error('Failed to load default LINE chat data:', err));
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [rawChatText]);
 
   // 2. Parse Analysis Results
   const analysis: LineChatAnalysisResult = useMemo(() => {
@@ -555,12 +570,19 @@ export const TuongTacLineTab: React.FC = () => {
   };
 
   // Reset to Default Data
-  const handleResetDefault = () => {
+  const handleResetDefault = async () => {
     if (window.confirm('Bạn có chắc chắn muốn đặt lại dữ liệu nhật ký LINE mặc định ban đầu không?')) {
-      setRawChatText(DEFAULT_LINE_CHAT_DATA);
       try {
         localStorage.removeItem(STORAGE_KEY);
       } catch {}
+      try {
+        const mod = await import('../data/defaultLineChatData');
+        if (mod?.DEFAULT_LINE_CHAT_DATA) {
+          setRawChatText(mod.DEFAULT_LINE_CHAT_DATA);
+        }
+      } catch (err) {
+        console.error('Failed to load default LINE chat data on reset:', err);
+      }
       setIsUpdateModalOpen(false);
     }
   };
