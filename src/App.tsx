@@ -52,7 +52,6 @@ const BbkqPage = lazyWithRetry(() => import('./pages/BbkqPage'));
 const TienIch = lazyWithRetry(() => import('./pages/TienIch'));
 const UserManagement = lazyWithRetry(() => import('./pages/DanhSachNguoiDung'));
 const StickerCeScanner = lazyWithRetry(() => import('./components/StickerCeScanner'));
-const TnbData = lazyWithRetry(() => import('./pages/TnbData'));
 const TnbLeader = lazyWithRetry(() => import('./pages/TnbLeader'));
 const SinhNhatNv = lazyWithRetry(() => import('./pages/SinhNhatNv'));
 const FeedbackPage = lazyWithRetry(() => import('./pages/FeedbackPage'));
@@ -76,7 +75,7 @@ function MainApp() {
     return isGuestShareLink(window.location.search);
   }, []);
 
-  const [currentPage, setCurrentPage] = useState<'realtime' | 'users' | 'health' | 'khaibao' | 'luyke' | 'toolhotro' | 'bbkq' | 'tienich' | 'tnb_data' | 'birthday' | 'feedback' | 'excelviewer' | 'lichpg' | 'tnbleader'>(() => {
+  const [currentPage, setCurrentPage] = useState<'realtime' | 'users' | 'health' | 'khaibao' | 'luyke' | 'toolhotro' | 'bbkq' | 'tienich' | 'birthday' | 'feedback' | 'excelviewer' | 'lichpg' | 'tnbleader'>(() => {
     try {
       // 1. Ưu tiên đọc từ URL pathname (/posm, /lich-pg, /realtime, /suc-khoe...)
       const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
@@ -101,13 +100,13 @@ function MainApp() {
           sessionStorage.setItem('crm_opened_via_share_lichpg', 'true');
         } catch {}
       }
-      if (pageParam && pageParam !== 'bangiasoc') return pageParam as any;
+      if (pageParam && pageParam !== 'bangiasoc' && pageParam !== 'tnb_data') return pageParam as any;
       if (hash.startsWith('#sync_thuong=')) return 'health';
     } catch {}
 
     try {
       const saved = localStorage.getItem('crm_active_page');
-      if (saved && saved !== 'bangiasoc') return saved as any;
+      if (saved && saved !== 'bangiasoc' && saved !== 'tnb_data') return saved as any;
     } catch {}
 
     return 'realtime';
@@ -460,11 +459,12 @@ function MainApp() {
   
   const [supabaseError, setSupabaseError] = useState<string | null>(null);
   
-  // Free policy for all users: never lock due to subscription/expiration; only lock if explicitly rejected by Admin
+  // Free policy for all users: never lock due to subscription/expiration; only lock if explicitly rejected/locked by Admin
   const isLocked = useMemo(() => {
     if (isSuperAdminHardcoded) return false;
     if (!userProfile) return false;
-    if (userProfile.status === 'rejected') return true;
+    const st = String(userProfile.status ?? 'active').trim().toLowerCase();
+    if (['rejected', 'locked', 'blocked', 'inactive', 'disabled'].includes(st)) return true;
     return false;
   }, [userProfile, isSuperAdminHardcoded]);
 
@@ -562,7 +562,6 @@ function MainApp() {
     { id: 'toolhotro', label: 'Tool Hỗ Trợ', icon: Wrench, color: 'amber' },
     { id: 'bbkq', label: 'BBKQ (Kiểm Quỹ)', icon: Banknote, color: 'teal' },
     { id: 'tienich', label: 'Tiện Ích', icon: LayoutGrid, color: 'purple' },
-    { id: 'tnb_data', label: 'TNB DATA', icon: Database, color: 'emerald' },
     { id: 'tnbleader', label: 'TNB LEADER', icon: Trophy, color: 'amber' },
     { id: 'birthday', label: 'Sinh nhật NV', icon: Gift, color: 'pink' },
     { id: 'feedback', label: 'HƯỚNG DẪN & GÓP Ý', icon: MessageSquare, color: 'indigo' },
@@ -728,7 +727,6 @@ function MainApp() {
                 if (currentPage === 'health' && effectiveAllowedPages.includes('health')) {
                   return <EmployeeHealth pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} pageHiddenState={pageHiddenState} />;
                 }
-                if (currentPage === 'tnb_data' && effectiveAllowedPages.includes('tnb_data')) return <TnbData />;
                 if (currentPage === 'tnbleader' && effectiveAllowedPages.includes('tnbleader')) return <TnbLeader pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
                 if (currentPage === 'toolhotro' && effectiveAllowedPages.includes('toolhotro')) return <ToolHoTro pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
                 if (currentPage === 'bbkq' && effectiveAllowedPages.includes('bbkq')) return <BbkqPage pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;

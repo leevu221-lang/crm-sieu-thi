@@ -25,7 +25,6 @@ export const PAGE_NAMES_VI: Record<string, string> = {
   health: 'Sức Khỏe NV',
   toolhotro: 'Tool Hỗ Trợ',
   users: 'Quản Lý Người Dùng',
-  tnb_data: 'Báo Cáo TNB',
   birthday: 'Sinh Nhật NV',
   feedback: 'Hướng Dẫn & Góp Ý'
 };

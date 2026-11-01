@@ -360,7 +360,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             permissions: ['lkst', 'rtst', 'sknv', 'updata'] as any,
             userPermissions: {
               canEditUser: true,
-              allowedPages: ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tienich', 'users', 'tnb_data', 'birthday']
+              allowedPages: ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tienich', 'users', 'birthday']
             },
             ten_sieu_thi: `Siêu thị ${maKho} (Offline Mode)`,
             status: 'active',
@@ -374,6 +374,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { success: true, message: 'Đăng nhập thành công (Offline Mode).' };
         }
         return { success: false, message: 'Tài khoản không tồn tại hoặc sai mật khẩu.' };
+      }
+
+      const isSuperAdmin = isSuperAdmin43751(data.username || username);
+      const normalizedStatus = String(data.status ?? 'active').trim().toLowerCase();
+      if (!isSuperAdmin && ['rejected', 'locked', 'blocked', 'inactive', 'disabled'].includes(normalizedStatus)) {
+        return {
+          success: false,
+          message: 'Tài khoản của bạn đã bị khóa hoặc ngừng hoạt động. Vui lòng liên hệ Quản trị viên 43751.',
+        };
       }
 
       // Fetch store name from warehouses or declared stores
@@ -467,7 +476,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('user_id', username)
         .maybeSingle();
 
-      const isSuperAdmin = isSuperAdmin43751(data.username || username);
       const ALL_PAGES = SUPER_ADMIN_ALL_PAGES;
 
       // Ensure SuperAdmin 43751 is always active in database upon login
@@ -564,7 +572,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           permissions: ['lkst', 'rtst', 'sknv', 'updata'] as any,
           userPermissions: {
             canEditUser: true,
-            allowedPages: ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tienich', 'users', 'tnb_data', 'tnbleader', 'birthday']
+            allowedPages: ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tienich', 'users', 'tnbleader', 'birthday']
           },
           ten_sieu_thi: `Siêu thị ${maKho} (Offline Mode)`,
           status: 'active',

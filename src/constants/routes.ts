@@ -125,19 +125,6 @@ export const APP_PAGES_REGISTRY: AppPageRegistryItem[] = [
     protectedTables: ['inventory_schedules', 'inventory_assignments', 'store'],
   },
   {
-    id: 'tnb_data',
-    label: 'TNB DATA',
-    navLabel: 'TNB DATA',
-    badgeLabel: 'TNB DATA',
-    dotColor: 'bg-emerald-500',
-    badgeColor: 'bg-emerald-100 text-emerald-700',
-    path: '/tnb-data',
-    aliases: ['/tnb_data'],
-    section: 'management',
-    defaultGranted: false,
-    protectedTables: ['tnb_data', 'tnb_dm_7611_data'],
-  },
-  {
     id: 'tnbleader',
     label: 'TNB LEADER',
     navLabel: 'TNB LEADER',
@@ -241,8 +228,8 @@ export const TABLE_REQUIRED_PAGES_MAP: Record<string, string[]> = {
   inventory_assignments: ['tienich'],
   scanner_sessions: ['toolhotro'],
   bbkq_store_data: ['bbkq'],
-  tnb_data: ['tnb_data', 'tnbleader'],
-  tnb_dm_7611_data: ['tnbleader', 'tnb_data'],
+  tnb_data: ['tnbleader'],
+  tnb_dm_7611_data: ['tnbleader'],
   website_feedbacks: ['feedback'],
   website_feedback_replies: ['feedback'],
   phan_ca_hc: ['tienich', 'lichpg'],
@@ -285,10 +272,10 @@ export const PAGE_DEFAULT_TAB_MAP: Record<string, string> = {
 
 // Helper tạo URL chia sẻ chế độ khách (view-only) cho một trang + mã kho cụ thể
 // Tối ưu rút gọn tối đa:
-// - POSM ALL SP: https://crm-sieu-thi.pages.dev/posm
+// - POSM ALL SP: https://crm43751.pages.dev/posm
 // - Bỏ tab nếu trùng tab mặc định
 // - Bỏ siêu thị st nếu là siêu thị mặc định duy nhất hoặc siêu thị đầu tiên của kho
-// - Link siêu ngắn gọn: https://crm-sieu-thi.pages.dev/tool-ho-tro?kho=1841
+// - Link siêu ngắn gọn: https://crm43751.pages.dev/tool-ho-tro?kho=1841
 export const buildGuestShareUrl = (
   pageId: string, 
   kho: string, 
@@ -298,7 +285,7 @@ export const buildGuestShareUrl = (
 ): string => {
   const origin = typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')
     ? window.location.origin 
-    : 'https://crm-sieu-thi.pages.dev';
+    : 'https://crm43751.pages.dev';
 
   // Đặc biệt: Nếu là tab POSM ALL SP ('popup-all-sp') của Tool Hỗ Trợ
   if (pageId === 'toolhotro' && tab === 'popup-all-sp') {
