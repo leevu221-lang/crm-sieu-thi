@@ -876,11 +876,13 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
       return fallbackTarget || 0;
     };
 
+    const hasMasterConfig = Boolean(categoryConfig && categoryConfig.length > 0);
     const rawMerged: {
       name: string;
       cleanCatName: string;
       canonicalKey: string;
       isAmbiguous?: boolean;
+      isMapped?: boolean;
       orderIndex: number;
       type: 'SL' | 'DT' | 'ALL';
       target: number;
@@ -899,7 +901,7 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
       if (res.item && res.item.isActive === false) return;
 
       const displayName =
-        categoryConfig && categoryConfig.length > 0 && res.item && !res.isAmbiguous
+        hasMasterConfig && res.item && !res.isAmbiguous
           ? res.displayName
           : rawName.trim();
       const displayClean = cleanCategoryName(displayName) || clean;
@@ -910,17 +912,26 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
         if (res.isAmbiguous || mc.isAmbiguous) {
           return mc.cleanCatName === clean;
         }
+        if (mc.isMapped && !res.isUnmapped && mc.canonicalKey && res.canonicalKey) {
+          return mc.canonicalKey === res.canonicalKey;
+        }
         return mc.canonicalKey === res.canonicalKey || isSameCategoryClean(mc.cleanCatName, displayClean) || isSameCategoryClean(mc.cleanCatName, clean);
       });
 
       const resolvedType = resolveCategoryType(rawName, rawType);
       const resolvedTarget = resolveStoreBaseTarget(rawName, rawTarget ?? 0);
       if (existingIdx === -1) {
+        // Khi đã có Master Config (SSOT), chỉ hiển thị các ngành hàng thuộc Master Config;
+        // các ngành cũ trong BI đã được ghi nhận qua resolveCategoryMaster (recordUnmapped: true)
+        if (hasMasterConfig && !isFromMaster) {
+          return;
+        }
         rawMerged.push({
           name: displayName,
           cleanCatName: displayClean,
           canonicalKey: res.canonicalKey,
           isAmbiguous: res.isAmbiguous,
+          isMapped: !res.isUnmapped,
           orderIndex,
           type: resolvedType,
           target: resolvedTarget,

@@ -1371,11 +1371,35 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     return map;
   }, [categories, luykeCategories, categoryTargets, staffCount, staffMatrix, dropdownCategories, daysPassed, totalDays, categoryConfig]);
 
-  // Restore selection from localStorage (chuẩn theo bản backup, chạy đúng 1 lần khi dữ liệu sẵn sàng)
+  const masterConfigSignature = useMemo(
+    () =>
+      (categoryConfig || [])
+        .filter(c => c.isActive !== false)
+        .map(c => `${c.id || ''}:${c.name}:${c.group}:${c.order ?? ''}`)
+        .join('|'),
+    [categoryConfig]
+  );
+
+  // Restore selection from localStorage (chuẩn theo bản backup, chạy đúng 1 lần khi dữ liệu sẵn sàng, và tự động đồng bộ khi Master Config thay đổi)
   React.useEffect(() => {
-    if (dropdownCategories.length > 0 && !initializedRef.current) {
+    if (dropdownCategories.length === 0) return;
+    const storeKey = activeStore || 'GLOBAL';
+    const savedKey = `EH_DETAIL_CATEGORIES_${storeKey}`;
+    const sigKey = `EH_DETAIL_CATEGORIES_SIG_${storeKey}`;
+    const savedSig = localStorage.getItem(sigKey) || '';
+
+    if (masterConfigSignature && savedSig !== masterConfigSignature) {
+      setSelectedCategories(dropdownCategories);
+      try {
+        localStorage.setItem(savedKey, JSON.stringify(dropdownCategories));
+        localStorage.setItem(sigKey, masterConfigSignature);
+      } catch {}
+      initializedRef.current = true;
+      return;
+    }
+
+    if (!initializedRef.current) {
       // 1. Kiểm tra cache riêng của CT Ngành hàng
-      const savedKey = `EH_DETAIL_CATEGORIES_${activeStore || 'GLOBAL'}`;
       const savedVal = localStorage.getItem(savedKey);
       if (savedVal !== null) {
         try {
@@ -1397,7 +1421,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
       }
 
       // 2. Nếu chưa có cache, đọc từ cấu hình TH Thi Đua
-      const savedThiDuaKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
+      const savedThiDuaKey = `EH_VISIBLE_CATEGORIES_${storeKey}`;
       const savedThiDuaVal = localStorage.getItem(savedThiDuaKey);
       if (savedThiDuaVal !== null) {
         try {
@@ -1421,7 +1445,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
       // 3. Mặc định chọn tất cả
       setSelectedCategories(dropdownCategories);
       initializedRef.current = true;
-    } else if (dropdownCategories.length > 0 && initializedRef.current) {
+    } else if (initializedRef.current) {
       // Đồng bộ tên mới khi Admin đổi tên ngành hàng ở TNB LEADER
       setSelectedCategories(prev => {
         if (prev.length === 0) return prev;
@@ -1435,22 +1459,27 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
         return prev;
       });
     }
-  }, [dropdownCategories, activeStore, categoryConfig]);
+  }, [dropdownCategories, activeStore, categoryConfig, masterConfigSignature]);
 
   // Debounced save to localStorage (chuẩn theo bản backup, triệt tiêu 100% tình trạng nhấp nháy dữ liệu)
   React.useEffect(() => {
     if (initializedRef.current && selectedCategories.length > 0) {
-      const savedKey = `EH_DETAIL_CATEGORIES_${activeStore || 'GLOBAL'}`;
+      const storeKey = activeStore || 'GLOBAL';
+      const savedKey = `EH_DETAIL_CATEGORIES_${storeKey}`;
+      const sigKey = `EH_DETAIL_CATEGORIES_SIG_${storeKey}`;
       const timer = setTimeout(() => {
         try {
           localStorage.setItem(savedKey, JSON.stringify(selectedCategories));
+          if (masterConfigSignature) {
+            localStorage.setItem(sigKey, masterConfigSignature);
+          }
         } catch (e) {
           console.error(e);
         }
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [selectedCategories, activeStore]);
+  }, [selectedCategories, activeStore, masterConfigSignature]);
 
   const selectedCategoriesSet = useMemo(() => new Set(selectedCategories), [selectedCategories]);
 

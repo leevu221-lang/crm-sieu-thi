@@ -571,7 +571,14 @@ export function detectCategoryGroup(name: string, existingList?: { name: string,
   }
 
   // 3. Keyword-based matching
-  const clean = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').trim();
+  const clean = name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .replace(/^(t\d{1,2}\s*(?:-\s*t\d{1,2}\s*)?[-:_]?\s*)/i, '')
+    .replace(/^(thang\s*\d{1,2}\s*[-:_]?\s*)/i, '')
+    .trim();
   if (
     clean.includes('credit') || clean.includes('shinhan') || clean.includes('finance') ||
     clean.includes('vi tra sau') || clean.includes('cake') || clean.includes('ngan hang') ||
@@ -587,7 +594,8 @@ export function detectCategoryGroup(name: string, existingList?: { name: string,
   if (
     clean.includes('dien thoai') || clean.includes('smartphone') || clean.includes('tablet') ||
     clean.includes('vivo') || clean.includes('realme') || clean.includes('phu kien') ||
-    clean.includes('dong ho') || clean.includes('camera') || clean.includes('pin du phong') ||
+    clean.includes('dong ho') || clean.includes('smartwatch') || clean.includes('topzone') ||
+    clean.includes('camera') || clean.includes('pin du phong') ||
     clean.includes('pin sac') || clean.includes('sac du phong') || clean.includes('cap - sac') ||
     clean.includes('cap sac') || clean.includes('tai nghe') || clean.includes('bluetooth') ||
     clean.includes('laptop') || clean.includes('macbook') || clean === 'loa' || clean.startsWith('loa ') ||
@@ -2420,6 +2428,11 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
       try {
         localStorage.setItem('CRM_CATEGORY_CONFIG_LOCAL', JSON.stringify(reconciledConfig));
         localStorage.setItem('TNB_LEADER_DATA_CACHE', JSON.stringify({ data: payload, timestamp: Date.now() }));
+        Object.keys(localStorage).forEach(k => {
+          if (k.startsWith('EH_VISIBLE_CATEGORIES_') || k.startsWith('EH_DETAIL_CATEGORIES_')) {
+            localStorage.removeItem(k);
+          }
+        });
       } catch (e) {
         console.error('LocalStorage write error:', e);
       }

@@ -76,14 +76,21 @@ import {
 
 const EXACT_ONLY_CLEAN_KEYS = new Set([
   'tivi',
+  'tivitcl',
   'dientu',
+  'dientutcl',
   'maylanh',
   'maygiat',
+  'maynuocnong',
+  'maynuocnongferroli',
   'dongho',
+  'bhtho',
   'bhtong',
   'bhthodmx',
   'bhthodmxict',
   'bhthodmxce',
+  'sim',
+  'simdmx',
   'simtong',
   'simmobifonesimdmx',
   'tabletandroidmaydocsach',
@@ -107,8 +114,8 @@ export const isSameCategory = (nameA: string, nameB: string, categoryConfig?: Ca
   if (resA.isAmbiguous || resB.isAmbiguous) {
     return cleanCategoryName(nameA) === cleanCategoryName(nameB);
   }
-  if (!resA.isUnmapped && !resB.isUnmapped && resA.canonicalKey && resA.canonicalKey === resB.canonicalKey) {
-    return true;
+  if (!resA.isUnmapped && !resB.isUnmapped && resA.canonicalKey && resB.canonicalKey) {
+    return resA.canonicalKey === resB.canonicalKey;
   }
   return isSameCategoryClean(cleanCategoryName(nameA), cleanCategoryName(nameB));
 };
@@ -582,7 +589,13 @@ interface StaffMatrixParseCacheEntry {
   totalDays: number;
   sortAlpha: boolean;
   categoryConfig?: CategoryConfigItem[];
-  result: { staffMatrix: StaffMatrixData[]; categories: string[]; results: StaffMatrixData[]; categoryTypes?: Record<string, 'SL' | 'DT'> };
+  result: {
+    staffMatrix: StaffMatrixData[];
+    categories: string[];
+    results: StaffMatrixData[];
+    categoryTypes?: Record<string, 'SL' | 'DT'>;
+    categorySource?: 'MASTER' | 'FALLBACK';
+  };
 }
 const staffMatrixParseCache: StaffMatrixParseCacheEntry[] = [];
 
@@ -595,9 +608,38 @@ export const parseStaffMatrixDataRefined = (
   totalDays: number,
   sortAlpha: boolean = false,
   categoryConfig?: CategoryConfigItem[]
-): { staffMatrix: StaffMatrixData[], categories: string[], results: StaffMatrixData[], categoryTypes?: Record<string, 'SL' | 'DT'> } => {
+): {
+  staffMatrix: StaffMatrixData[];
+  categories: string[];
+  results: StaffMatrixData[];
+  categoryTypes?: Record<string, 'SL' | 'DT'>;
+  categorySource?: 'MASTER' | 'FALLBACK';
+} => {
   const raw = (input || '').trim();
-  if (!raw) return { staffMatrix: [], categories: [], results: [], categoryTypes: {} };
+  const hasMasterConfig = Boolean(categoryConfig && categoryConfig.length > 0);
+  const getActiveMasterNames = (): string[] => {
+    if (!hasMasterConfig || !categoryConfig) return [];
+    const list = categoryConfig
+      .filter(c => c.isActive !== false && c.name && c.name.trim().length > 0)
+      .slice()
+      .sort((a, b) => getCustomCategoryIndex(a.name, categoryConfig) - getCustomCategoryIndex(b.name, categoryConfig))
+      .map(c => c.name.trim());
+    if (sortAlpha) {
+      return [...list].sort((a, b) => a.localeCompare(b, 'vi'));
+    }
+    return list;
+  };
+
+  if (!raw) {
+    const emptyCats = getActiveMasterNames();
+    return {
+      staffMatrix: [],
+      categories: emptyCats,
+      results: [],
+      categoryTypes: {},
+      categorySource: hasMasterConfig ? 'MASTER' : 'FALLBACK',
+    };
+  }
 
   const cachedHit = staffMatrixParseCache.find(
     e =>
@@ -615,7 +657,16 @@ export const parseStaffMatrixDataRefined = (
   }
 
   const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !isUiNoiseLine(l));
-  if (lines.length === 0) return { staffMatrix: [], categories: [], results: [], categoryTypes: {} };
+  if (lines.length === 0) {
+    const emptyCats = getActiveMasterNames();
+    return {
+      staffMatrix: [],
+      categories: emptyCats,
+      results: [],
+      categoryTypes: {},
+      categorySource: hasMasterConfig ? 'MASTER' : 'FALLBACK',
+    };
+  }
 
   // ========================================================
   // FORMAT 1: Section-by-Section BI Report (Inline header, 2-line header, or vertical header)
@@ -873,8 +924,8 @@ export const parseStaffMatrixDataRefined = (
       const alreadyCovered = resolvedCategories.some(rc => {
         const rcRes = resolveCategoryMaster(rc, categoryConfig);
         if (rcRes.isAmbiguous) return false;
-        if (!res.isUnmapped && !rcRes.isUnmapped && res.canonicalKey && rcRes.canonicalKey === res.canonicalKey) {
-          return true;
+        if (!res.isUnmapped && !rcRes.isUnmapped && res.canonicalKey && rcRes.canonicalKey) {
+          return rcRes.canonicalKey === res.canonicalKey;
         }
         return isSameCategoryClean(cleanCategoryName(rc), displayClean) || isSameCategoryClean(cleanCategoryName(rc), clean);
       });
@@ -885,21 +936,30 @@ export const parseStaffMatrixDataRefined = (
       }
     };
 
+    const recordBiCategoryAudit = (rawCatName: string) => {
+      if (!rawCatName || isNonCategoryNoiseLine(rawCatName)) return;
+      if (!/[a-zA-Zà-ỹÀ-Ỹ]/.test(rawCatName) || /^[\d\s,.\-+/%:()]+$/.test(rawCatName)) return;
+      resolveCategoryMaster(rawCatName, categoryConfig, {
+        recordUnmapped: true,
+        source: 'SUC_KHOE_NV',
+      });
+    };
+
     if (categoryConfig && categoryConfig.length > 0) {
-      // MASTER LIST from TNB Leader: Tên ngành hàng và thứ tự chuẩn theo cấu hình bên TNB Leader
+      // MASTER LIST from TNB Leader: Tên ngành hàng, phân nhóm và thứ tự chuẩn tuyệt đối theo Master Config
       const activeMaster = categoryConfig
         .filter(c => c.isActive !== false)
         .slice()
         .sort((a, b) => getCustomCategoryIndex(a.name, categoryConfig) - getCustomCategoryIndex(b.name, categoryConfig));
       activeMaster.forEach(c => addUniqueCategory(c.name, true));
-      // Bổ sung các ngành hàng hợp lệ từ luykeCategories, categoryTargets và Thi Đua NV chưa có trong categoryConfig để không bao giờ bị sót ngành hàng
+      // Ghi nhận các ngành hàng chưa ánh xạ từ BI vào unmappedCategories để Admin kiểm tra (KHÔNG đẩy ngành cũ vào bảng làm sai danh mục Master)
       if (luykeCategories && luykeCategories.length > 0) {
-        luykeCategories.forEach(c => addUniqueCategory(c.name));
+        luykeCategories.forEach(c => recordBiCategoryAudit(c.name));
       }
       if (categoryTargets && categoryTargets.length > 0) {
-        categoryTargets.forEach((t: any) => addUniqueCategory(t?.name || ''));
+        categoryTargets.forEach((t: any) => recordBiCategoryAudit(t?.name || ''));
       }
-      inputCategories.forEach(catName => addUniqueCategory(catName));
+      inputCategories.forEach(catName => recordBiCategoryAudit(catName));
     } else {
       if (luykeCategories && luykeCategories.length > 0) {
         luykeCategories.forEach(c => addUniqueCategory(c.name));
@@ -1016,7 +1076,13 @@ export const parseStaffMatrixDataRefined = (
       } as any;
     });
 
-    const format1Result = { staffMatrix: staffMatrixResults, categories: resolvedCategories, results: staffMatrixResults, categoryTypes };
+    const format1Result = {
+      staffMatrix: staffMatrixResults,
+      categories: resolvedCategories,
+      results: staffMatrixResults,
+      categoryTypes,
+      categorySource: (hasMasterConfig ? 'MASTER' : 'FALLBACK') as 'MASTER' | 'FALLBACK',
+    };
     staffMatrixParseCache.unshift({
       input: raw,
       staffCount,
@@ -1287,8 +1353,8 @@ export const parseStaffMatrixDataRefined = (
     const alreadyCovered = resolvedCategories.some(rc => {
       const rcRes = resolveCategoryMaster(rc, categoryConfig);
       if (rcRes.isAmbiguous) return false;
-      if (!res.isUnmapped && !rcRes.isUnmapped && res.canonicalKey && rcRes.canonicalKey === res.canonicalKey) {
-        return true;
+      if (!res.isUnmapped && !rcRes.isUnmapped && res.canonicalKey && rcRes.canonicalKey) {
+        return rcRes.canonicalKey === res.canonicalKey;
       }
       return isSameCategoryClean(cleanCategoryName(rc), displayClean) || isSameCategoryClean(cleanCategoryName(rc), clean);
     });
@@ -1299,20 +1365,29 @@ export const parseStaffMatrixDataRefined = (
     }
   };
 
+  const recordBiCategoryAudit = (rawCatName: string) => {
+    if (!rawCatName || isNonCategoryNoiseLine(rawCatName)) return;
+    if (!/[a-zA-Zà-ỹÀ-Ỹ]/.test(rawCatName) || /^[\d\s,.\-+/%:()]+$/.test(rawCatName)) return;
+    resolveCategoryMaster(rawCatName, categoryConfig, {
+      recordUnmapped: true,
+      source: 'SUC_KHOE_NV',
+    });
+  };
+
   if (categoryConfig && categoryConfig.length > 0) {
-    // MASTER LIST from TNB Leader: Tên ngành hàng và thứ tự chuẩn theo cấu hình bên TNB Leader
+    // MASTER LIST from TNB Leader: Tên ngành hàng, phân nhóm và thứ tự chuẩn tuyệt đối theo Master Config
     const activeMaster = categoryConfig
       .filter(c => c.isActive !== false)
       .slice()
       .sort((a, b) => getCustomCategoryIndex(a.name, categoryConfig) - getCustomCategoryIndex(b.name, categoryConfig));
     activeMaster.forEach(c => addUniqueCategory(c.name, true));
     if (luykeCategories && luykeCategories.length > 0) {
-      luykeCategories.forEach(c => addUniqueCategory(c.name));
+      luykeCategories.forEach(c => recordBiCategoryAudit(c.name));
     }
     if (categoryTargets && categoryTargets.length > 0) {
-      categoryTargets.forEach((t: any) => addUniqueCategory(t?.name || ''));
+      categoryTargets.forEach((t: any) => recordBiCategoryAudit(t?.name || ''));
     }
-    inputCategories.forEach(catName => addUniqueCategory(catName));
+    inputCategories.forEach(catName => recordBiCategoryAudit(catName));
   } else {
     if (luykeCategories && luykeCategories.length > 0) {
       luykeCategories.forEach(c => addUniqueCategory(c.name));
@@ -1442,7 +1517,13 @@ export const parseStaffMatrixDataRefined = (
     }
   });
 
-  const finalResult = { staffMatrix: results, categories: resolvedCategories, results, categoryTypes: format2CategoryTypes };
+  const finalResult = {
+    staffMatrix: results,
+    categories: resolvedCategories,
+    results,
+    categoryTypes: format2CategoryTypes,
+    categorySource: (hasMasterConfig ? 'MASTER' : 'FALLBACK') as 'MASTER' | 'FALLBACK',
+  };
   staffMatrixParseCache.unshift({
     input: raw,
     staffCount,
@@ -1771,19 +1852,36 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   const isDvOnly = visibleCategories.length === dvCategories.length && dvCategories.length > 0 && dvCategories.every(c => visibleCategories.includes(c));
   const isCeOnly = visibleCategories.length === ceCategories.length && ceCategories.length > 0 && ceCategories.every(c => visibleCategories.includes(c));
 
+  // Fingerprint of Master Config so any update in TNB LEADER -> CẤU HÌNH immediately syncs visibleCategories
+  const masterConfigSignature = React.useMemo(
+    () =>
+      (categoryConfig || [])
+        .filter(c => c.isActive !== false)
+        .map(c => `${c.id || ''}:${c.name}:${c.group}:${c.order ?? ''}`)
+        .join('|'),
+    [categoryConfig]
+  );
+
   // Save selected categories synchronously to localStorage
   const saveCategoriesToStorage = (cats: string[]) => {
     try {
-      const savedKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
+      const storeKey = activeStore || 'GLOBAL';
+      const savedKey = `EH_VISIBLE_CATEGORIES_${storeKey}`;
+      const sigKey = `EH_VISIBLE_CATEGORIES_SIG_${storeKey}`;
       localStorage.setItem(savedKey, JSON.stringify(cats));
+      if (masterConfigSignature) {
+        localStorage.setItem(sigKey, masterConfigSignature);
+      }
     } catch (e) {
       console.error('Error saving visible categories:', e);
     }
   };
 
-  // Initialize visible categories once when categories load or activeStore changes
+  // Initialize visible categories once when categories load or activeStore changes,
+  // and auto-sync to full Master Config whenever TNB LEADER -> CẤU HÌNH changes
   const initializedRef = useRef(false);
   const prevStoreRef = useRef(activeStore);
+  const prevMasterSigRef = useRef<string>('');
 
   React.useEffect(() => {
     if (prevStoreRef.current !== activeStore) {
@@ -1794,8 +1892,25 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
 
   React.useEffect(() => {
     if (categories.length === 0) return;
+    const storeKey = activeStore || 'GLOBAL';
+    const savedKey = `EH_VISIBLE_CATEGORIES_${storeKey}`;
+    const sigKey = `EH_VISIBLE_CATEGORIES_SIG_${storeKey}`;
+    const savedSig = localStorage.getItem(sigKey) || '';
+
+    // If Master Config signature changed compared to what was last saved in localStorage,
+    // reset visibleCategories to 100% of current Master Config categories so new/renamed categories are never hidden
+    if (masterConfigSignature && savedSig !== masterConfigSignature) {
+      setVisibleCategories([...categories]);
+      try {
+        localStorage.setItem(savedKey, JSON.stringify(categories));
+        localStorage.setItem(sigKey, masterConfigSignature);
+      } catch {}
+      prevMasterSigRef.current = masterConfigSignature;
+      initializedRef.current = true;
+      return;
+    }
+
     if (!initializedRef.current) {
-      const savedKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
       const savedVal = localStorage.getItem(savedKey);
       if (savedVal !== null) {
         try {
@@ -1811,6 +1926,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
             });
             if (validSaved.length > 0) {
               setVisibleCategories(validSaved);
+              prevMasterSigRef.current = masterConfigSignature;
               initializedRef.current = true;
               return;
             }
@@ -1819,7 +1935,8 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
           console.error('Error loading saved visible categories:', e);
         }
       }
-      setVisibleCategories(categories);
+      setVisibleCategories([...categories]);
+      prevMasterSigRef.current = masterConfigSignature;
       initializedRef.current = true;
     } else {
       setVisibleCategories(prev => {
@@ -1832,10 +1949,10 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
             isSameCategoryByConfig(p, cat, categoryConfig)
           );
         });
-        return mapped.length > 0 ? mapped : categories;
+        return mapped.length > 0 ? mapped : [...categories];
       });
     }
-  }, [categories, activeStore, categoryConfig]);
+  }, [categories, activeStore, categoryConfig, masterConfigSignature]);
 
   const toggleCategory = (cat: string) => {
     setVisibleCategories(prev => {
