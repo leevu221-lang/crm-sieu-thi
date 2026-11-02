@@ -33,7 +33,12 @@ import StaffComparisonModal, { StaffComparisonData } from './EmployeeHealth/comp
 import { GiaTriDhTab } from './EmployeeHealth/components/GiaTriDhTab';
 import { extractStaffNameAndId } from './EmployeeHealth/utils/staffParserHelper';
 import { cn, parseStaffRankData, parseYcxData, normalizeStoreId, parseStaffValueList, normalize, parseCategoryData, cleanCategoryName, isKhoLuuDong, formatCurrencyValue, extractCategoriesFromStoreThiDua, extractStaffRevFromReport, getStoredStaffThucInput, isNonCategoryNoiseLine } from './RTST/utils';
-import { useCategoryConfig } from '../hooks/useCategoryConfig';
+import {
+  useCategoryConfig,
+  resolveCategoryMaster,
+  getCategoryOrderIndex,
+  isSameCategoryByConfig,
+} from '../hooks/useCategoryConfig';
 
 const removeAccents = (str: string): string => {
   return str
@@ -1490,16 +1495,38 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         if (!item || !item.name || isNonCategoryNoiseLine(item.name)) return;
         const clean = cleanCategoryName(item.name);
         if (!clean) return;
-        const normName = normalize(item.name);
-        const existingIdx = merged.findIndex(m => normalize(m.name) === normName && (!m.type || !item.type || m.type === item.type));
+        const res = resolveCategoryMaster(item.name, categoryConfig, {
+          recordUnmapped: true,
+          source: 'SUC_KHOE_NV',
+        });
+        if (res.item && res.item.isActive === false) return;
+        const displayName =
+          categoryConfig && categoryConfig.length > 0 && res.item && !res.isAmbiguous
+            ? res.displayName
+            : item.name;
+        const normName = normalize(displayName);
+        const existingIdx = merged.findIndex(m => {
+          const typeMatches = !m.type || !item.type || m.type === item.type;
+          if (!typeMatches) return false;
+          if (!res.isAmbiguous && !m.isAmbiguous && m.canonicalKey && res.canonicalKey) {
+            if (m.canonicalKey === res.canonicalKey) return true;
+          }
+          return normalize(m.name) === normName;
+        });
+        const resolvedItem = {
+          ...item,
+          name: displayName,
+          canonicalKey: res.canonicalKey,
+          isAmbiguous: res.isAmbiguous,
+        };
         if (existingIdx === -1) {
-          merged.push(item);
+          merged.push(resolvedItem);
         } else {
           const existing = merged[existingIdx];
           const existingVal = existing.adjustedTarget ?? existing.target ?? 0;
           const newVal = item.adjustedTarget ?? item.target ?? 0;
           if (existingVal <= 0 && newVal > 0) {
-            merged[existingIdx] = item;
+            merged[existingIdx] = resolvedItem;
           }
         }
       });
@@ -1518,8 +1545,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         addTargets((cacheEntry[1] as any).categoryTargets);
       }
     }
-    return merged;
-  }, [storeCategoryTargets, luykeCategoryTargets, allStoresCache, marketFilter]);
+    return merged.sort(
+      (a, b) => getCategoryOrderIndex(a.name, categoryConfig) - getCategoryOrderIndex(b.name, categoryConfig)
+    );
+  }, [storeCategoryTargets, luykeCategoryTargets, allStoresCache, marketFilter, categoryConfig]);
 
   const currentSystemMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
@@ -1566,29 +1595,68 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   }, [luyKeNganhHang, daysPassed, totalDays, allowedMarkets, fallbackStoreNameForParse]);
 
   const filteredLuykeCategories = useMemo(() => {
-    const baseCats = (processedData?.categories || []).filter((c: any) => isCategoryForMarket(c, marketFilter));
+    const mapCatToMaster = (c: any) => {
+      if (!c || !c.name) return null;
+      const res = resolveCategoryMaster(c.name, categoryConfig, {
+        recordUnmapped: true,
+        source: 'SUC_KHOE_NV',
+      });
+      if (res.item && res.item.isActive === false) return null;
+      const displayName =
+        categoryConfig && categoryConfig.length > 0 && res.item && !res.isAmbiguous
+          ? res.displayName
+          : c.name;
+      return {
+        ...c,
+        name: displayName,
+        canonicalKey: res.canonicalKey,
+        isAmbiguous: res.isAmbiguous,
+      };
+    };
+
+    const baseCats = (processedData?.categories || [])
+      .filter((c: any) => isCategoryForMarket(c, marketFilter))
+      .map(mapCatToMaster)
+      .filter(Boolean);
+
     if (parsedFromStoreRaw.length === 0) {
-      return baseCats;
+      return baseCats.sort(
+        (a: any, b: any) => getCategoryOrderIndex(a.name, categoryConfig) - getCategoryOrderIndex(b.name, categoryConfig)
+      );
     }
     const matchingFromStoreRaw = parsedFromStoreRaw.filter((c: any) => {
       if (!marketFilter || marketFilter === 'ALL') return true;
       if (!c?.marketName) return true;
       return isCategoryForMarket({ ...c, target: Math.max(c.target || 0, 1) }, marketFilter);
     });
+    const sourceToMerge = (matchingFromStoreRaw.length > 0 ? matchingFromStoreRaw : parsedFromStoreRaw)
+      .map(mapCatToMaster)
+      .filter(Boolean);
+
     if (baseCats.length === 0) {
-      return matchingFromStoreRaw.length > 0 ? matchingFromStoreRaw : parsedFromStoreRaw;
+      return sourceToMerge.sort(
+        (a: any, b: any) => getCategoryOrderIndex(a.name, categoryConfig) - getCategoryOrderIndex(b.name, categoryConfig)
+      );
     }
     const merged = [...baseCats];
-    const sourceToMerge = matchingFromStoreRaw.length > 0 ? matchingFromStoreRaw : parsedFromStoreRaw;
     sourceToMerge.forEach((c: any) => {
       const normName = normalize(c.name || '');
       if (!normName) return;
-      if (!merged.some(m => normalize(m.name || '') === normName && (!m.type || !c.type || m.type === c.type))) {
+      if (
+        !merged.some(
+          m =>
+            (normalize(m.name || '') === normName ||
+              (!m.isAmbiguous && !c.isAmbiguous && isSameCategoryByConfig(m.name || '', c.name || '', categoryConfig))) &&
+            (!m.type || !c.type || m.type === c.type)
+        )
+      ) {
         merged.push(c);
       }
     });
-    return merged;
-  }, [processedData?.categories, marketFilter, parsedFromStoreRaw]);
+    return merged.sort(
+      (a: any, b: any) => getCategoryOrderIndex(a.name, categoryConfig) - getCategoryOrderIndex(b.name, categoryConfig)
+    );
+  }, [processedData?.categories, marketFilter, parsedFromStoreRaw, categoryConfig]);
 
   const currentMarket = useMemo(() => {
     if (!marketFilter || marketFilter === 'ALL') {
@@ -8238,6 +8306,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         detailCategories={detailComparisonCategories}
         luykeCategories={filteredLuykeCategories}
         categoryTargets={categoryTargets}
+        categoryConfig={categoryConfig}
         staffCount={filteredBiData.length > 0 ? filteredBiData.length : 1}
         daysPassed={daysPassed}
         totalDays={totalDays}

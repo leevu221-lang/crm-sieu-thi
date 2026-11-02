@@ -1,9 +1,17 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StaffMatrixData, CategoryData } from '../../RTST/types';
+import {
+  useCategoryConfig,
+  CategoryConfigItem,
+  resolveCategoryMaster,
+  getCategoryOrderIndex,
+} from '../../../hooks/useCategoryConfig';
+import { cleanCategoryName } from './EmployeeDetailTable';
 
 interface StaffDetailTableProps {
   staffMatrixData: StaffMatrixData[];
   categoryTargets: CategoryData[];
+  categoryConfig?: CategoryConfigItem[];
   selectedStaffId: string | null;
   staffCount: number;
   daysPassed: number;
@@ -13,11 +21,37 @@ interface StaffDetailTableProps {
 const StaffDetailTable: React.FC<StaffDetailTableProps> = ({
   staffMatrixData,
   categoryTargets,
+  categoryConfig: categoryConfigProp,
   selectedStaffId,
   staffCount,
   daysPassed,
   totalDays
 }) => {
+  const { categoryConfig: masterCategoryConfig } = useCategoryConfig();
+  const categoryConfig = categoryConfigProp ?? masterCategoryConfig;
+
+  const sortedCategories = useMemo(() => {
+    const items = (categoryTargets || []).map((cat, originalIdx) => {
+      const res = resolveCategoryMaster(cat.name, categoryConfig, {
+        recordUnmapped: true,
+        source: 'SUC_KHOE_NV',
+      });
+      return {
+        cat,
+        originalIdx,
+        res,
+        displayName:
+          categoryConfig && categoryConfig.length > 0 && res.item && !res.isAmbiguous
+            ? res.displayName
+            : cat.name,
+        orderIndex:
+          res.order !== undefined ? res.order : getCategoryOrderIndex(cat.name, categoryConfig),
+      };
+    }).filter(item => !(item.res.item && item.res.item.isActive === false));
+
+    return items.sort((a, b) => a.orderIndex - b.orderIndex);
+  }, [categoryTargets, categoryConfig]);
+
   if (!selectedStaffId) return null;
 
   const staffData = staffMatrixData.find(s => s.fullId === selectedStaffId);
@@ -40,9 +74,15 @@ const StaffDetailTable: React.FC<StaffDetailTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-300">
-            {categoryTargets.map((cat, index) => {
+            {sortedCategories.map(({ cat, originalIdx, res, displayName }) => {
               const targetPerStaff = staffCount > 0 ? cat.target / staffCount : 0;
-              const luyKe = staffData.rawValues[index] || 0;
+              const cleanName = cleanCategoryName(cat.name);
+              const luyKe =
+                (!res.isAmbiguous && res.canonicalKey && staffData.valuesMap?.[res.canonicalKey] !== undefined)
+                  ? staffData.valuesMap[res.canonicalKey]
+                  : (staffData.valuesMap?.[cleanName] !== undefined
+                      ? staffData.valuesMap[cleanName]
+                      : (staffData.rawValues[originalIdx] || 0));
               const percentHT = (targetPerStaff > 0 && daysPassed > 0) 
                 ? (((luyKe / daysPassed) * totalDays) / targetPerStaff) * 100 
                 : 0;
@@ -57,9 +97,9 @@ const StaffDetailTable: React.FC<StaffDetailTableProps> = ({
               };
 
               return (
-                <tr key={cat.name} className="hover:bg-slate-50 transition-colors h-[30px]">
+                <tr key={res.canonicalKey || cat.name} className="hover:bg-slate-50 transition-colors h-[30px]">
                   <td className="px-4 py-2 border-r border-slate-300 text-xs font-black uppercase text-slate-700">
-                    {cat.name}
+                    {displayName}
                   </td>
                   <td className="px-4 py-2 text-center border-r border-slate-300 font-bold text-xs text-slate-800">
                     {formatVal(targetPerStaff)}

@@ -22,6 +22,14 @@ import { domToPng } from 'modern-screenshot';
 import { ensureFontsReady } from '../../../utils/fontExportUtil';
 import { cleanCategoryName, removeAccents } from './EmployeeDetailTable';
 import { CategoryData, StaffMatrixData } from '../../RTST/types';
+import { isSameCategoryClean } from './SummaryThiDuaTable';
+import {
+  useCategoryConfig,
+  CategoryConfigItem,
+  resolveCategoryMaster,
+  getCanonicalCategoryKey,
+  getCategoryOrderIndex,
+} from '../../../hooks/useCategoryConfig';
 
 export interface StaffComparisonData {
   fullId: string;
@@ -46,6 +54,7 @@ interface StaffComparisonModalProps {
   detailCategories: string[];
   luykeCategories: CategoryData[];
   categoryTargets: any[];
+  categoryConfig?: CategoryConfigItem[];
   staffCount: number;
   daysPassed: number;
   totalDays: number;
@@ -61,11 +70,14 @@ export const StaffComparisonModal: React.FC<StaffComparisonModalProps> = ({
   detailCategories = [],
   luykeCategories = [],
   categoryTargets = [],
+  categoryConfig: categoryConfigProp,
   staffCount = 1,
   daysPassed = 1,
   totalDays = 30,
   onPreviewImage,
 }) => {
+  const { categoryConfig: masterCategoryConfig } = useCategoryConfig();
+  const categoryConfig = categoryConfigProp ?? masterCategoryConfig;
   const safeStaffList = staffList || [];
   const safeDetailCategories = detailCategories || [];
   const safeLuykeCategories = luykeCategories || [];
@@ -139,33 +151,86 @@ export const StaffComparisonModal: React.FC<StaffComparisonModalProps> = ({
     const lookup: Record<string, 'SL' | 'DT' | 'ALL'> = {};
     safeLuykeCategories.forEach(cat => {
       if (cat && cat.name) {
-        lookup[cleanCategoryName(cat.name)] = cat.type || 'ALL';
+        const clean = cleanCategoryName(cat.name);
+        lookup[clean] = cat.type || 'ALL';
+        const cKey = getCanonicalCategoryKey(cat.name, categoryConfig);
+        if (cKey) lookup[cKey] = cat.type || 'ALL';
       }
     });
     return lookup;
-  }, [safeLuykeCategories]);
+  }, [safeLuykeCategories, categoryConfig]);
 
   // Compute category comparison items for Staff A & Staff B
   const categoryComparison = useMemo(() => {
     if (!staffA || !staffB || safeDetailCategories.length === 0) return { all: [], sl: [], dt: [] };
 
-    const categoriesToMap = (safeLuykeCategories && safeLuykeCategories.length > 0)
+    const rawCategoriesToMap = (safeLuykeCategories && safeLuykeCategories.length > 0)
       ? safeLuykeCategories
       : safeDetailCategories.map(name => ({ name, type: catTypeLookup[cleanCategoryName(name)] || 'ALL', target: 0 }));
 
-    const items = categoriesToMap.map((cat: any) => {
-      const cleanCatName = cleanCategoryName(cat?.name || '');
+    const detailCatsMeta = safeDetailCategories.map(dc => ({
+      clean: cleanCategoryName(dc),
+      res: resolveCategoryMaster(dc, categoryConfig, { recordUnmapped: false, source: 'SUC_KHOE_NV' }),
+    }));
+
+    const seenKeys = new Set<string>();
+    const items: {
+      name: string;
+      target: number;
+      accA: number;
+      pctA: number;
+      accB: number;
+      pctB: number;
+      catType: 'SL' | 'DT' | 'ALL';
+      winner: 'A' | 'B' | 'TIE';
+      diffPct: number;
+      orderIndex: number;
+    }[] = [];
+
+    rawCategoriesToMap.forEach((cat: any) => {
+      const rawName = cat?.name || '';
+      const cleanCatName = cleanCategoryName(rawName);
+      if (!cleanCatName) return;
+
+      const res = resolveCategoryMaster(rawName, categoryConfig, {
+        recordUnmapped: true,
+        source: 'SUC_KHOE_NV',
+      });
+      if (res.item && res.item.isActive === false) return;
+
+      const dedupKey = res.isAmbiguous ? `AMBIG:${cleanCatName}` : res.canonicalKey;
+      if (seenKeys.has(dedupKey)) return;
+      seenKeys.add(dedupKey);
+
+      const displayName =
+        categoryConfig && categoryConfig.length > 0 && res.item && !res.isAmbiguous
+          ? res.displayName
+          : rawName;
 
       // Find target per staff
       let target = 0;
-      const matchingTarget = safeCategoryTargets.find((t: any) => cleanCategoryName(t?.name || '') === cleanCatName);
+      const matchingTarget = safeCategoryTargets.find((t: any) => {
+        const tClean = cleanCategoryName(t?.name || '');
+        if (!tClean) return false;
+        if (res.isAmbiguous) return tClean === cleanCatName;
+        const tRes = resolveCategoryMaster(t?.name || '', categoryConfig, { recordUnmapped: false, source: 'SUC_KHOE_NV' });
+        if (tRes.isAmbiguous) return tClean === cleanCatName;
+        return tRes.canonicalKey === res.canonicalKey || isSameCategoryClean(tClean, cleanCatName);
+      });
       const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
         ? matchingTarget.adjustedTarget
         : (cat?.target || 0);
       target = staffCount > 0 ? baseTarget / staffCount : 0;
 
+      // Match index in detailCategories
+      const detailIdx = detailCatsMeta.findIndex(dc => {
+        if (res.isAmbiguous || dc.res.isAmbiguous) {
+          return dc.clean === cleanCatName;
+        }
+        return dc.res.canonicalKey === res.canonicalKey || isSameCategoryClean(dc.clean, cleanCatName);
+      });
+
       // Staff A value
-      const detailIdx = safeDetailCategories.findIndex(dc => cleanCategoryName(dc) === cleanCatName);
       const accA = detailIdx !== -1 ? ((staffA.rawMatrixValues && staffA.rawMatrixValues[detailIdx]) || 0) : 0;
       const pctA = (target > 0 && daysPassed > 0) ? (((accA / daysPassed) * totalDays) / target) * 100 : 0;
 
@@ -173,14 +238,20 @@ export const StaffComparisonModal: React.FC<StaffComparisonModalProps> = ({
       const accB = detailIdx !== -1 ? ((staffB.rawMatrixValues && staffB.rawMatrixValues[detailIdx]) || 0) : 0;
       const pctB = (target > 0 && daysPassed > 0) ? (((accB / daysPassed) * totalDays) / target) * 100 : 0;
 
-      const catType = cat?.type || catTypeLookup[cleanCatName] || 'ALL';
+      const catType =
+        cat?.type ||
+        (!res.isAmbiguous && res.canonicalKey ? catTypeLookup[res.canonicalKey] : undefined) ||
+        catTypeLookup[cleanCatName] ||
+        'ALL';
 
       let winner: 'A' | 'B' | 'TIE' = 'TIE';
       if (pctA > pctB) winner = 'A';
       else if (pctB > pctA) winner = 'B';
 
-      return {
-        name: cat.name,
+      const orderIndex = res.order !== undefined ? res.order : getCategoryOrderIndex(displayName, categoryConfig);
+
+      items.push({
+        name: displayName,
         target,
         accA,
         pctA,
@@ -189,14 +260,17 @@ export const StaffComparisonModal: React.FC<StaffComparisonModalProps> = ({
         catType,
         winner,
         diffPct: Math.abs(pctA - pctB),
-      };
+        orderIndex,
+      });
     });
 
-    const sl = items.filter(i => i.catType === 'SL').sort((a, b) => (b.pctA + b.pctB) - (a.pctA + a.pctB));
-    const dt = items.filter(i => i.catType === 'DT').sort((a, b) => (b.pctA + b.pctB) - (a.pctA + a.pctB));
+    items.sort((a, b) => a.orderIndex - b.orderIndex);
+
+    const sl = items.filter(i => i.catType === 'SL').sort((a, b) => (b.pctA + b.pctB) - (a.pctA + a.pctB) || (a.orderIndex - b.orderIndex));
+    const dt = items.filter(i => i.catType === 'DT').sort((a, b) => (b.pctA + b.pctB) - (a.pctA + a.pctB) || (a.orderIndex - b.orderIndex));
 
     return { all: items, sl, dt };
-  }, [staffA, staffB, detailCategories, luykeCategories, categoryTargets, catTypeLookup, staffCount, daysPassed, totalDays]);
+  }, [staffA, staffB, detailCategories, luykeCategories, categoryTargets, catTypeLookup, staffCount, daysPassed, totalDays, categoryConfig]);
 
   // Scores
   const scoreA = useMemo(() => {

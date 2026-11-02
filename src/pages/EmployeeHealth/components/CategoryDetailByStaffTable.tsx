@@ -12,7 +12,14 @@ import { StaffMatrixData, CategoryData } from '../../RTST/types';
 import { cleanCategoryName } from './EmployeeDetailTable';
 import { useLuykeData } from '../../RTST/hooks/useLuykeData';
 import { parseStaffMatrixDataRefined, getCategoryGroupType, isSameCategoryClean } from './SummaryThiDuaTable';
-import { CategoryConfigItem } from '../../../hooks/useCategoryConfig';
+import {
+  useCategoryConfig,
+  CategoryConfigItem,
+  resolveCategoryMaster,
+  getCanonicalCategoryKey,
+  getCategoryOrderIndex,
+  isSameCategoryByConfig,
+} from '../../../hooks/useCategoryConfig';
 
 export interface CategoryRowData {
   staffName: string;
@@ -1102,9 +1109,11 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   categoryTargets,
   selectedStaffIds = [],
   luykeCategories,
-  categoryConfig,
+  categoryConfig: categoryConfigProp,
   activeStore: propActiveStore
 }) => {
+  const { categoryConfig: masterCategoryConfig } = useCategoryConfig();
+  const categoryConfig = categoryConfigProp ?? masterCategoryConfig;
   const { activeStore: luykeActiveStore } = useLuykeData();
   const targetStore = propActiveStore || luykeActiveStore || 'GLOBAL';
   const activeStore = targetStore;
@@ -1129,10 +1138,27 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
       return categories;
     }
     if (luykeCategories && luykeCategories.length > 0) {
-      return luykeCategories.map((c: any) => c.name).filter((n: string) => Boolean(n));
+      const seenKeys = new Set<string>();
+      const resolved: string[] = [];
+      luykeCategories.forEach((c: any) => {
+        if (!c?.name) return;
+        const res = resolveCategoryMaster(c.name, categoryConfig, {
+          recordUnmapped: true,
+          source: 'SUC_KHOE_NV',
+        });
+        if (res.item && res.item.isActive === false) return;
+        const key = res.isAmbiguous ? `AMBIG:${cleanCategoryName(c.name)}` : res.canonicalKey;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          resolved.push(res.item && !res.isAmbiguous ? res.displayName : c.name);
+        }
+      });
+      return resolved.sort(
+        (a, b) => getCategoryOrderIndex(a, categoryConfig) - getCategoryOrderIndex(b, categoryConfig)
+      );
     }
     return [];
-  }, [categories, luykeCategories]);
+  }, [categories, luykeCategories, categoryConfig]);
 
   // Giữ tham chiếu ổn định để chống vòng lặp re-render nhấp nháy
   const dropdownCategoriesRef = useRef<string[]>([]);
@@ -1204,6 +1230,10 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     categories.forEach((c, idx) => {
       cleanCatToIdxMap.set(cleanCategoryName(c), idx);
       cleanCatToIdxMap.set(c.trim().toLowerCase(), idx);
+      const res = resolveCategoryMaster(c, categoryConfig, { recordUnmapped: false, source: 'SUC_KHOE_NV' });
+      if (!res.isAmbiguous && res.canonicalKey) {
+        cleanCatToIdxMap.set(res.canonicalKey, idx);
+      }
     });
 
     const cleanCatToLkTargetMap = new Map<string, number>();
@@ -1212,6 +1242,10 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
         if (c?.name) {
           cleanCatToLkTargetMap.set(cleanCategoryName(c.name), c.target || 0);
           cleanCatToLkTargetMap.set(c.name.trim().toLowerCase(), c.target || 0);
+          const res = resolveCategoryMaster(c.name, categoryConfig, { recordUnmapped: false, source: 'SUC_KHOE_NV' });
+          if (!res.isAmbiguous && res.canonicalKey) {
+            cleanCatToLkTargetMap.set(res.canonicalKey, c.target || 0);
+          }
         }
       });
     }
@@ -1222,6 +1256,10 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
         if (t?.name && typeof t.adjustedTarget === 'number') {
           cleanCatToMatchingTargetMap.set(cleanCategoryName(t.name), t.adjustedTarget);
           cleanCatToMatchingTargetMap.set(t.name.trim().toLowerCase(), t.adjustedTarget);
+          const res = resolveCategoryMaster(t.name, categoryConfig, { recordUnmapped: false, source: 'SUC_KHOE_NV' });
+          if (!res.isAmbiguous && res.canonicalKey) {
+            cleanCatToMatchingTargetMap.set(res.canonicalKey, t.adjustedTarget);
+          }
         }
       });
     }
@@ -1230,35 +1268,43 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     for (const catName of dropdownCategories) {
       const cleanName = cleanCategoryName(catName);
       const lowerName = catName.trim().toLowerCase();
+      const res = resolveCategoryMaster(catName, categoryConfig, { recordUnmapped: false, source: 'SUC_KHOE_NV' });
+      const cKey = res.canonicalKey;
 
       // Find staff matrix index
       let catIdx = -1;
-      if (cleanCatToIdxMap.has(cleanName)) {
+      if (!res.isAmbiguous && cKey && cleanCatToIdxMap.has(cKey)) {
+        catIdx = cleanCatToIdxMap.get(cKey)!;
+      } else if (cleanCatToIdxMap.has(cleanName)) {
         catIdx = cleanCatToIdxMap.get(cleanName)!;
       } else if (cleanCatToIdxMap.has(lowerName)) {
         catIdx = cleanCatToIdxMap.get(lowerName)!;
-      } else {
+      } else if (!res.isAmbiguous) {
         catIdx = categories.findIndex(c => {
           const cClean = cleanCategoryName(c);
-          return isSameCategoryClean(cClean, cleanName);
+          return isSameCategoryByConfig(c, catName, categoryConfig) || isSameCategoryClean(cClean, cleanName);
         });
       }
 
       // Find target
       let baseTarget = 0;
-      if (cleanCatToMatchingTargetMap.has(cleanName)) {
+      if (!res.isAmbiguous && cKey && cleanCatToMatchingTargetMap.has(cKey)) {
+        baseTarget = cleanCatToMatchingTargetMap.get(cKey)!;
+      } else if (cleanCatToMatchingTargetMap.has(cleanName)) {
         baseTarget = cleanCatToMatchingTargetMap.get(cleanName)!;
       } else if (cleanCatToMatchingTargetMap.has(lowerName)) {
         baseTarget = cleanCatToMatchingTargetMap.get(lowerName)!;
+      } else if (!res.isAmbiguous && cKey && cleanCatToLkTargetMap.has(cKey)) {
+        baseTarget = cleanCatToLkTargetMap.get(cKey)!;
       } else if (cleanCatToLkTargetMap.has(cleanName)) {
         baseTarget = cleanCatToLkTargetMap.get(cleanName)!;
       } else if (cleanCatToLkTargetMap.has(lowerName)) {
         baseTarget = cleanCatToLkTargetMap.get(lowerName)!;
-      } else {
+      } else if (!res.isAmbiguous) {
         const foundTarget = categoryTargets?.find((t: any) => {
           if (!t?.name) return false;
           const tClean = cleanCategoryName(t.name);
-          return isSameCategoryClean(tClean, cleanName);
+          return isSameCategoryByConfig(t.name, catName, categoryConfig) || isSameCategoryClean(tClean, cleanName);
         });
         if (foundTarget && typeof foundTarget.adjustedTarget === 'number') {
           baseTarget = foundTarget.adjustedTarget;
@@ -1266,7 +1312,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
           const foundLk = luykeCategories?.find((c: any) => {
             if (!c?.name) return false;
             const lkClean = cleanCategoryName(c.name);
-            return isSameCategoryClean(lkClean, cleanName);
+            return isSameCategoryByConfig(c.name, catName, categoryConfig) || isSameCategoryClean(lkClean, cleanName);
           });
           if (foundLk?.target) {
             baseTarget = foundLk.target;
@@ -1279,7 +1325,9 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
       const rowData: CategoryRowData[] = staffMatrix.map(staff => {
         const accumulated = catIdx >= 0
           ? (staff.rawValues[catIdx] ?? 0)
-          : (staff.valuesMap?.[cleanName] ?? 0);
+          : ((!res.isAmbiguous && cKey && staff.valuesMap?.[cKey] !== undefined)
+              ? staff.valuesMap[cKey]
+              : (staff.valuesMap?.[cleanName] ?? 0));
         const projectedRate = catIdx >= 0
           ? (staff.projectedRates[catIdx] ?? 0)
           : (targetPerStaff > 0 && daysPassed > 0 ? (((accumulated / daysPassed) * totalDays) / targetPerStaff) * 100 : (accumulated > 0 ? 100 : 0));
@@ -1311,14 +1359,17 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
         totDiff
       };
 
-      // Đăng ký cả 3 dạng key để truy xuất O(1) không bao giờ bị lỡ
+      // Đăng ký cả 4 dạng key để truy xuất O(1) không bao giờ bị lỡ
       map.set(catName, cardData);
       map.set(cleanName, cardData);
       map.set(lowerName, cardData);
+      if (!res.isAmbiguous && cKey) {
+        map.set(cKey, cardData);
+      }
     }
 
     return map;
-  }, [categories, luykeCategories, categoryTargets, staffCount, staffMatrix, dropdownCategories, daysPassed, totalDays]);
+  }, [categories, luykeCategories, categoryTargets, staffCount, staffMatrix, dropdownCategories, daysPassed, totalDays, categoryConfig]);
 
   // Restore selection from localStorage (chuẩn theo bản backup, chạy đúng 1 lần khi dữ liệu sẵn sàng)
   React.useEffect(() => {
@@ -1332,7 +1383,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
           if (Array.isArray(parsed) && parsed.length > 0) {
             const validSaved = dropdownCategories.filter(cat => {
               const clean = cleanCategoryName(cat);
-              return parsed.some((p: string) => p === cat || cleanCategoryName(p) === clean);
+              return parsed.some((p: string) => p === cat || cleanCategoryName(p) === clean || isSameCategoryByConfig(p, cat, categoryConfig));
             });
             if (validSaved.length > 0) {
               setSelectedCategories(validSaved);
@@ -1354,7 +1405,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
           if (Array.isArray(parsedThiDua) && parsedThiDua.length > 0) {
             const validThiDua = dropdownCategories.filter(cat => {
               const clean = cleanCategoryName(cat);
-              return parsedThiDua.some((p: string) => p === cat || cleanCategoryName(p) === clean);
+              return parsedThiDua.some((p: string) => p === cat || cleanCategoryName(p) === clean || isSameCategoryByConfig(p, cat, categoryConfig));
             });
             if (validThiDua.length > 0) {
               setSelectedCategories(validThiDua);
@@ -1370,8 +1421,21 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
       // 3. Mặc định chọn tất cả
       setSelectedCategories(dropdownCategories);
       initializedRef.current = true;
+    } else if (dropdownCategories.length > 0 && initializedRef.current) {
+      // Đồng bộ tên mới khi Admin đổi tên ngành hàng ở TNB LEADER
+      setSelectedCategories(prev => {
+        if (prev.length === 0) return prev;
+        const mapped = dropdownCategories.filter(cat => {
+          const clean = cleanCategoryName(cat);
+          return prev.some(p => p === cat || cleanCategoryName(p) === clean || isSameCategoryByConfig(p, cat, categoryConfig));
+        });
+        if (mapped.length > 0 && !areArraysEqual(mapped, prev)) {
+          return mapped;
+        }
+        return prev;
+      });
     }
-  }, [dropdownCategories, activeStore]);
+  }, [dropdownCategories, activeStore, categoryConfig]);
 
   // Debounced save to localStorage (chuẩn theo bản backup, triệt tiêu 100% tình trạng nhấp nháy dữ liệu)
   React.useEffect(() => {
@@ -1406,7 +1470,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
         if (Array.isArray(parsed) && parsed.length > 0) {
           const valid = dropdownCategories.filter(cat => {
             const clean = cleanCategoryName(cat);
-            return parsed.some(p => p === cat || cleanCategoryName(p) === clean);
+            return parsed.some(p => p === cat || cleanCategoryName(p) === clean || isSameCategoryByConfig(p, cat, categoryConfig));
           });
           if (valid.length > 0) {
             setSelectedCategories(valid);
@@ -1418,7 +1482,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
       }
     }
     setSelectedCategories([...dropdownCategories]);
-  }, [activeStore, dropdownCategories]);
+  }, [activeStore, dropdownCategories, categoryConfig]);
 
   // Chọn nhanh theo nhóm ngành hàng
   const handleSelectGroup = useCallback((group: 'ALL' | 'ICT' | 'DỊCH VỤ' | 'CE' | 'THI_DUA') => {

@@ -91,6 +91,13 @@ import { useNotification } from '../contexts/NotificationContext';
 import { useMarket } from '../contexts/MarketContext';
 import { useStore } from '../contexts/StoreContext';
 import { useRealtimeData } from './RTST/hooks/useRealtimeData';
+import {
+  useCategoryConfig,
+  getCanonicalCategoryKey,
+  getCategoryDisplayName,
+  getCategoryOrderIndex,
+  resolveCategoryMaster
+} from '../hooks/useCategoryConfig';
 import { ImagePreviewModal } from '../components/ImagePreviewModal';
 import { CaptureLoadingOverlay } from '../components/CaptureLoadingOverlay';
 import { ConfigNhomHangModal } from '../components/ConfigNhomHangModal';
@@ -1642,6 +1649,7 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
   const [isProcessingData, setIsProcessingData] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const { showNotification } = useNotification();
+  const { categoryConfig } = useCategoryConfig();
   const { marketFilter, setMarketFilter, availableMarkets: filteredMarkets } = useMarket();
   const { isStoreReady, activeRealtimeTab: activeTab, setActiveRealtimeTab: setActiveTab } = useStore();
   const [selectedStaffs, setSelectedStaffs] = useState<string[]>([]);
@@ -2463,22 +2471,36 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
     const map = new Map<string, number>();
     if (!luykeProcessedData?.categories) return map;
 
+    const bucketByPrimaryKey = new Map<string, { val: number; aliases: Set<string> }>();
+
     luykeProcessedData.categories
       .filter((cat: any) => marketFilter === 'ALL' || !cat.marketName ||
         normalize(cat.marketName).includes(normalize(marketFilter)) ||
         normalize(marketFilter).includes(normalize(cat.marketName))
       )
       .forEach((cat: any) => {
-        const name = cat.name.trim().toUpperCase();
+        const rawName = (cat.rawName || cat.name || '').trim();
+        const nameUpper = rawName.toUpperCase();
+        const displayUpper = getCategoryDisplayName(rawName, categoryConfig).trim().toUpperCase();
+        const canonKey = getCanonicalCategoryKey(rawName, categoryConfig);
         const type = cat.type;
-        const key = `${name}_${type}`;
+        const primaryKey = `${canonKey}_${type}`;
         const remaining = cat.revenue - cat.target;
         if (remaining < 0) {
-          map.set(key, (map.get(key) || 0) + remaining);
+          const existing = bucketByPrimaryKey.get(primaryKey) || { val: 0, aliases: new Set<string>() };
+          existing.val += remaining;
+          existing.aliases.add(primaryKey);
+          existing.aliases.add(`${nameUpper}_${type}`);
+          existing.aliases.add(`${displayUpper}_${type}`);
+          bucketByPrimaryKey.set(primaryKey, existing);
         }
       });
+
+    bucketByPrimaryKey.forEach(({ val, aliases }) => {
+      aliases.forEach(k => map.set(k, val));
+    });
     return map;
-  }, [luykeProcessedData?.categories, marketFilter]);
+  }, [luykeProcessedData?.categories, marketFilter, categoryConfig]);
 
   // Map for MỤC TIÊU 100%: stores { target, revenue } from BC THÁNG per category
   const luykeCatMap = useMemo(() => {
@@ -2491,19 +2513,30 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
         normalize(marketFilter).includes(normalize(cat.marketName))
       )
       .forEach((cat: any) => {
-        const name = cat.name.trim().toUpperCase();
+        const rawName = (cat.rawName || cat.name || '').trim();
+        const nameUpper = rawName.toUpperCase();
+        const displayUpper = getCategoryDisplayName(rawName, categoryConfig).trim().toUpperCase();
+        const canonKey = getCanonicalCategoryKey(rawName, categoryConfig);
         const type = cat.type;
-        const key = `${name}_${type}`;
-        const existing = map.get(key);
+        const primaryKey = `${canonKey}_${type}`;
+        const legacyKey = `${nameUpper}_${type}`;
+        const displayKey = `${displayUpper}_${type}`;
+        const existing = map.get(primaryKey) || map.get(legacyKey) || map.get(displayKey);
         if (existing) {
           existing.target += cat.target;
           existing.revenue += cat.revenue;
+          map.set(primaryKey, existing);
+          map.set(legacyKey, existing);
+          map.set(displayKey, existing);
         } else {
-          map.set(key, { target: cat.target, revenue: cat.revenue });
+          const entry = { target: cat.target, revenue: cat.revenue };
+          map.set(primaryKey, entry);
+          map.set(legacyKey, entry);
+          map.set(displayKey, entry);
         }
       });
     return map;
-  }, [luykeProcessedData?.categories, marketFilter]);
+  }, [luykeProcessedData?.categories, marketFilter, categoryConfig]);
 
   // Calculate days in current month and days passed for MỤC TIÊU 100%
   const mucTieu100Info = useMemo(() => {
@@ -6342,10 +6375,29 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
 
     const aggregated: Record<string, any> = {};
 
-    visibleCats.forEach(cat => {
-      const key = `${cat.name}_${cat.type}`;
+    visibleCats.forEach((cat: any, idx: number) => {
+      const rawName = cat.rawName || cat.name || '';
+      const resolved = resolveCategoryMaster(rawName, categoryConfig, {
+        recordUnmapped: true,
+        source: 'BC_NGAY'
+      });
+      if (resolved.item && resolved.item.isActive === false) {
+        return;
+      }
+      const canonicalKey = resolved.canonicalKey || getCanonicalCategoryKey(rawName, categoryConfig);
+      const displayName = resolved.displayName || getCategoryDisplayName(rawName, categoryConfig) || rawName;
+      const orderIndex = resolved.orderIndex ?? getCategoryOrderIndex(rawName, categoryConfig);
+      const key = `${canonicalKey}_${cat.type}`;
       if (!aggregated[key]) {
-        aggregated[key] = { ...cat };
+        aggregated[key] = {
+          ...cat,
+          rawName,
+          name: displayName,
+          canonicalKey,
+          orderIndex,
+          categoryGroup: resolved.group,
+          _firstIdx: idx
+        };
       } else {
         aggregated[key].target += cat.target;
         aggregated[key].actual = (aggregated[key].actual || 0) + (cat.actual || 0);
@@ -6353,14 +6405,20 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
       }
     });
 
-    return Object.values(aggregated).map(cat => {
-      const rate = cat.target > 0 ? (cat.revenue / cat.target) * 100 : 0;
-      return {
-        ...cat,
-        rate: Math.round(rate * 10) / 10
-      };
-    });
-  }, [processedData.categories, marketFilter]);
+    return Object.values(aggregated)
+      .map(cat => {
+        const rate = cat.target > 0 ? (cat.revenue / cat.target) * 100 : 0;
+        return {
+          ...cat,
+          rate: Math.round(rate * 10) / 10
+        };
+      })
+      .sort((a: any, b: any) => {
+        const orderDiff = (a.orderIndex ?? 999999) - (b.orderIndex ?? 999999);
+        if (orderDiff !== 0) return orderDiff;
+        return (a._firstIdx ?? 0) - (b._firstIdx ?? 0);
+      });
+  }, [processedData.categories, marketFilter, categoryConfig]);
 
   // Raw lists for SL & DT in BC Ngày > Tổng quan
   const rawCategoriesSL = useMemo(() => {
@@ -6375,21 +6433,34 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
   const visibleCategoriesSL = useMemo(() => {
     if (hiddenCatsSL.length === 0) return rawCategoriesSL;
     const hiddenSet = new Set(hiddenCatsSL.map(s => s.trim().toUpperCase()));
-    return rawCategoriesSL.filter((c: any) => !hiddenSet.has((c.name || '').trim().toUpperCase()));
-  }, [rawCategoriesSL, hiddenCatsSL]);
+    const hiddenCanonSet = new Set(hiddenCatsSL.map(s => getCanonicalCategoryKey(s, categoryConfig)));
+    return rawCategoriesSL.filter((c: any) => {
+      const upperName = (c.name || '').trim().toUpperCase();
+      const rawUpper = (c.rawName || '').trim().toUpperCase();
+      const canonKey = c.canonicalKey || getCanonicalCategoryKey(c.name, categoryConfig);
+      return !hiddenSet.has(upperName) && !hiddenSet.has(rawUpper) && !hiddenCanonSet.has(canonKey);
+    });
+  }, [rawCategoriesSL, hiddenCatsSL, categoryConfig]);
 
   const visibleCategoriesDT = useMemo(() => {
     if (hiddenCatsDT.length === 0) return rawCategoriesDT;
     const hiddenSet = new Set(hiddenCatsDT.map(s => s.trim().toUpperCase()));
-    return rawCategoriesDT.filter((c: any) => !hiddenSet.has((c.name || '').trim().toUpperCase()));
-  }, [rawCategoriesDT, hiddenCatsDT]);
+    const hiddenCanonSet = new Set(hiddenCatsDT.map(s => getCanonicalCategoryKey(s, categoryConfig)));
+    return rawCategoriesDT.filter((c: any) => {
+      const upperName = (c.name || '').trim().toUpperCase();
+      const rawUpper = (c.rawName || '').trim().toUpperCase();
+      const canonKey = c.canonicalKey || getCanonicalCategoryKey(c.name, categoryConfig);
+      return !hiddenSet.has(upperName) && !hiddenSet.has(rawUpper) && !hiddenCanonSet.has(canonKey);
+    });
+  }, [rawCategoriesDT, hiddenCatsDT, categoryConfig]);
 
   const toggleHideCategorySL = (name: string) => {
     const key = (name || '').trim().toUpperCase();
+    const canonKey = getCanonicalCategoryKey(name, categoryConfig);
     setHiddenCatsSL(prev => {
-      const exists = prev.some(s => s.trim().toUpperCase() === key);
+      const exists = prev.some(s => s.trim().toUpperCase() === key || getCanonicalCategoryKey(s, categoryConfig) === canonKey);
       const nextSL = exists
-        ? prev.filter(s => s.trim().toUpperCase() !== key)
+        ? prev.filter(s => s.trim().toUpperCase() !== key && getCanonicalCategoryKey(s, categoryConfig) !== canonKey)
         : [...prev, key];
       hiddenCatsSLRef.current = nextSL;
       queueSaveCategoryFilter(nextSL, hiddenCatsDTRef.current);
@@ -6399,10 +6470,11 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
 
   const toggleHideCategoryDT = (name: string) => {
     const key = (name || '').trim().toUpperCase();
+    const canonKey = getCanonicalCategoryKey(name, categoryConfig);
     setHiddenCatsDT(prev => {
-      const exists = prev.some(s => s.trim().toUpperCase() === key);
+      const exists = prev.some(s => s.trim().toUpperCase() === key || getCanonicalCategoryKey(s, categoryConfig) === canonKey);
       const nextDT = exists
-        ? prev.filter(s => s.trim().toUpperCase() !== key)
+        ? prev.filter(s => s.trim().toUpperCase() !== key && getCanonicalCategoryKey(s, categoryConfig) !== canonKey)
         : [...prev, key];
       hiddenCatsDTRef.current = nextDT;
       queueSaveCategoryFilter(hiddenCatsSLRef.current, nextDT);
@@ -7893,10 +7965,12 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
                                       </tr>
                                     ) : (
                                       [...visibleCategoriesSL]
-                                        .sort((a, b) => (b.rate || 0) - (a.rate || 0))
+                                        .sort((a: any, b: any) => (a.orderIndex ?? getCategoryOrderIndex(a.rawName || a.name, categoryConfig)) - (b.orderIndex ?? getCategoryOrderIndex(b.rawName || b.name, categoryConfig)))
                                         .map((cat, idx) => {
-                                        const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type}`;
-                                        const lkRemaining = luykeRemainingMap.get(lkKey);
+                                        const canonKey = cat.canonicalKey || getCanonicalCategoryKey(cat.rawName || cat.name, categoryConfig);
+                                        const lkKey = `${canonKey}_${cat.type}`;
+                                        const legacyLkKey = `${cat.name.trim().toUpperCase()}_${cat.type}`;
+                                        const lkRemaining = luykeRemainingMap.get(lkKey) ?? luykeRemainingMap.get(legacyLkKey);
                                         const remaining = cat.target - cat.revenue;
                                         const rate = Math.round(cat.rate || 0);
                                         const isReached = rate >= 100;
@@ -7957,7 +8031,7 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
 
                                             {/* M.TIÊU / NGÀY */}
                                             {showOrangeCols && (() => {
-                                              const lkCat = luykeCatMap.get(lkKey);
+                                              const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(legacyLkKey);
                                               if (!lkCat || lkCat.target === 0) return <td className="px-0.5 sm:px-1.5 py-1 sm:py-1.5 text-center font-semibold text-[10.5px] sm:text-[13px] text-slate-400 whitespace-nowrap">-</td>;
                                               const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
                                               return (
@@ -8165,10 +8239,13 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
                                       </tr>
                                     ) : (
                                       [...visibleCategoriesDT]
-                                        .sort((a, b) => (b.rate || 0) - (a.rate || 0))
+                                        .sort((a: any, b: any) => (a.orderIndex ?? getCategoryOrderIndex(a.rawName || a.name, categoryConfig)) - (b.orderIndex ?? getCategoryOrderIndex(b.rawName || b.name, categoryConfig)))
                                         .map((cat, idx) => {
-                                        const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type === 'ALL' ? 'DT' : cat.type}`;
-                                        const lkRemaining = luykeRemainingMap.get(lkKey) || luykeRemainingMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
+                                        const effectiveType = cat.type === 'ALL' ? 'DT' : cat.type;
+                                        const canonKey = cat.canonicalKey || getCanonicalCategoryKey(cat.rawName || cat.name, categoryConfig);
+                                        const lkKey = `${canonKey}_${effectiveType}`;
+                                        const legacyLkKey = `${cat.name.trim().toUpperCase()}_${effectiveType}`;
+                                        const lkRemaining = luykeRemainingMap.get(lkKey) ?? luykeRemainingMap.get(`${canonKey}_ALL`) ?? luykeRemainingMap.get(legacyLkKey) ?? luykeRemainingMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
                                         const remaining = cat.target - cat.revenue;
                                         const rate = Math.round(cat.rate || 0);
                                         const isReached = rate >= 100;
@@ -8229,7 +8306,7 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
 
                                             {/* M.TIÊU / NGÀY */}
                                             {showOrangeCols && (() => {
-                                              const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
+                                              const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(`${canonKey}_ALL`) || luykeCatMap.get(legacyLkKey) || luykeCatMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
                                               if (!lkCat || lkCat.target === 0) return <td className="px-0.5 sm:px-1.5 py-1 sm:py-1.5 text-center font-semibold text-[10.5px] sm:text-[13px] text-slate-400 whitespace-nowrap">-</td>;
                                               const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
                                               return (
@@ -8407,10 +8484,12 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
                                         </tr>
                                       ) : (
                                         [...visibleCategoriesSL]
-                                          .sort((a, b) => (b.rate || 0) - (a.rate || 0))
+                                          .sort((a: any, b: any) => (a.orderIndex ?? getCategoryOrderIndex(a.rawName || a.name, categoryConfig)) - (b.orderIndex ?? getCategoryOrderIndex(b.rawName || b.name, categoryConfig)))
                                           .map((cat, idx) => {
-                                          const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type}`;
-                                          const lkRemaining = luykeRemainingMap.get(lkKey);
+                                          const canonKey = cat.canonicalKey || getCanonicalCategoryKey(cat.rawName || cat.name, categoryConfig);
+                                          const lkKey = `${canonKey}_${cat.type}`;
+                                          const legacyLkKey = `${cat.name.trim().toUpperCase()}_${cat.type}`;
+                                          const lkRemaining = luykeRemainingMap.get(lkKey) ?? luykeRemainingMap.get(legacyLkKey);
                                           const remaining = cat.target - cat.revenue;
                                           return (
                                             <tr key={idx} className="hover:bg-indigo-50/50 transition-colors h-[40px]">
@@ -8424,7 +8503,7 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
                                                 <td className="px-2 py-0 text-[14.5px] font-bold text-center border-r border-b border-slate-200 text-purple-700">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
                                               )}
                                               {showOrangeCols && (() => {
-                                                const lkCat = luykeCatMap.get(lkKey);
+                                                const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(legacyLkKey);
                                                 if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[14.5px] font-black text-center border-r border-slate-200 text-slate-400"></td>;
                                                 const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
                                                 return <td className={`px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
@@ -8535,10 +8614,13 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
                                         </tr>
                                       ) : (
                                         [...visibleCategoriesDT]
-                                          .sort((a, b) => (b.rate || 0) - (a.rate || 0))
+                                          .sort((a: any, b: any) => (a.orderIndex ?? getCategoryOrderIndex(a.rawName || a.name, categoryConfig)) - (b.orderIndex ?? getCategoryOrderIndex(b.rawName || b.name, categoryConfig)))
                                           .map((cat, idx) => {
-                                          const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type === 'ALL' ? 'DT' : cat.type}`;
-                                          const lkRemaining = luykeRemainingMap.get(lkKey) || luykeRemainingMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
+                                          const effectiveType = cat.type === 'ALL' ? 'DT' : cat.type;
+                                          const canonKey = cat.canonicalKey || getCanonicalCategoryKey(cat.rawName || cat.name, categoryConfig);
+                                          const lkKey = `${canonKey}_${effectiveType}`;
+                                          const legacyLkKey = `${cat.name.trim().toUpperCase()}_${effectiveType}`;
+                                          const lkRemaining = luykeRemainingMap.get(lkKey) ?? luykeRemainingMap.get(`${canonKey}_ALL`) ?? luykeRemainingMap.get(legacyLkKey) ?? luykeRemainingMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
                                           const remaining = cat.target - cat.revenue;
                                           return (
                                             <tr key={idx} className="hover:bg-indigo-50/50 transition-colors h-[40px]">
@@ -8552,7 +8634,7 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
                                                 <td className="px-2 py-0 text-[14.5px] font-bold text-center border-r border-b border-slate-200 text-purple-700">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
                                               )}
                                               {showOrangeCols && (() => {
-                                                const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
+                                                const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(`${canonKey}_ALL`) || luykeCatMap.get(legacyLkKey) || luykeCatMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
                                                 if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 text-slate-400"></td>;
                                                 const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
                                                 return <td className={`px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
@@ -11507,7 +11589,11 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {filteredList.map((cat: any, idx: number) => {
-                      const isHidden = currentHidden.includes((cat.name || '').trim().toUpperCase());
+                      const catUpper = (cat.name || '').trim().toUpperCase();
+                      const catCanon = cat.canonicalKey || getCanonicalCategoryKey(cat.name, categoryConfig);
+                      const isHidden = currentHidden.some(
+                        h => h.trim().toUpperCase() === catUpper || getCanonicalCategoryKey(h, categoryConfig) === catCanon
+                      );
                       const rate = cat.rate != null ? cat.rate : (cat.target > 0 ? (cat.revenue / cat.target) * 100 : 0);
 
                       return (

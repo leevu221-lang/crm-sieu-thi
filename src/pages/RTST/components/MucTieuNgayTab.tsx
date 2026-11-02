@@ -34,6 +34,13 @@ import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
 import { useNotification } from '../../../contexts/NotificationContext';
 import { normalize, normalizeStoreId } from '../utils';
+import {
+  useCategoryConfig,
+  getCanonicalCategoryKey,
+  getCategoryDisplayName,
+  getCategoryOrderIndex,
+  resolveCategoryMaster
+} from '../../../hooks/useCategoryConfig';
 
 interface MucTieuNgayTabProps {
   marketFilter: string;
@@ -82,6 +89,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
   mucTieu100Info,
 }) => {
   const { showNotification } = useNotification();
+  const { categoryConfig, activeCategoryConfig } = useCategoryConfig();
   const captureRef = useRef<HTMLDivElement | null>(null);
 
   // Check if current user is 43751
@@ -418,11 +426,35 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
     saveTargetsDebounced(next, categoryTargets, selectedCategoryKeys);
   };
 
-  const handleCategoryTargetChange = (catKey: string, value: number) => {
-    const next = { ...categoryTargets, [catKey.toUpperCase()]: value };
+  const handleCategoryTargetChange = (catKey: string, value: number, canonicalKey?: string) => {
+    const next: Record<string, number> = {
+      ...categoryTargets,
+      [catKey.toUpperCase()]: value
+    };
+    if (canonicalKey) {
+      next[canonicalKey] = value;
+    }
     setCategoryTargets(next);
     saveTargetsDebounced(overviewTargets, next, selectedCategoryKeys);
   };
+
+  const resolveSavedCategoryTarget = useCallback((item: {
+    name: string;
+    rawNameUpper?: string;
+    canonicalKey?: string;
+    defaultTarget?: number;
+  }): number => {
+    if (item.canonicalKey && categoryTargets[item.canonicalKey] !== undefined) {
+      return categoryTargets[item.canonicalKey];
+    }
+    if (categoryTargets[item.name] !== undefined) {
+      return categoryTargets[item.name];
+    }
+    if (item.rawNameUpper && categoryTargets[item.rawNameUpper] !== undefined) {
+      return categoryTargets[item.rawNameUpper];
+    }
+    return item.defaultTarget || 0;
+  }, [categoryTargets]);
 
   // Realtime values for Table 1
   const dtlk = (parsedMarket as any).actualReal || 0;
@@ -464,28 +496,37 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
         normalize(currentStoreName).includes(normalize(cat.marketName))
       )
       .forEach((cat: any) => {
-        const name = cat.name.trim().toUpperCase();
+        const rawName = (cat.rawName || cat.name || '').trim();
+        const name = rawName.toUpperCase();
         const type = cat.type || 'DT';
-        const key = `${name}_${type}`;
-        const existing = map.get(key);
+        const canonKey = getCanonicalCategoryKey(rawName, categoryConfig);
+        const primaryKey = `${canonKey}_${type}`;
+        const legacyKey = `${name}_${type}`;
+        const existing = map.get(primaryKey) || map.get(legacyKey);
         if (existing) {
           existing.target += (cat.target || 0);
           existing.revenue += (cat.revenue || cat.actual || 0);
         } else {
-          map.set(key, { target: (cat.target || 0), revenue: (cat.revenue || cat.actual || 0) });
+          const entry = { target: (cat.target || 0), revenue: (cat.revenue || cat.actual || 0) };
+          map.set(primaryKey, entry);
+          map.set(legacyKey, entry);
         }
       });
     return map;
-  }, [luykeCatMap, luykeProcessedData?.categories, marketFilter, currentStoreName]);
+  }, [luykeCatMap, luykeProcessedData?.categories, marketFilter, currentStoreName, categoryConfig]);
 
   // ── 3. Helper lấy giá trị cột "M.tiêu/ngày" từ bảng Tổng Quan chuẩn xác 100% ──
   const getMucTieuNgayFromTongQuan = useCallback((catName: string, catType: string): number => {
     const rawName = (catName || '').trim().toUpperCase();
     const typeKey = (catType === 'ALL' || !catType) ? 'DT' : catType;
     const cleanName = rawName.replace(/^T\d{1,2}\s*[-–]\s*/i, '').trim();
+    const canonKey = getCanonicalCategoryKey(catName, categoryConfig);
 
-    // 1. Khớp chính xác key trong map
-    let lkCat = effectiveLuykeCatMap.get(`${rawName}_${typeKey}`)
+    // 1. Khớp chính xác key chuẩn SSOT hoặc key tên trong map
+    let lkCat = effectiveLuykeCatMap.get(`${canonKey}_${typeKey}`)
+      || effectiveLuykeCatMap.get(`${canonKey}_ALL`)
+      || effectiveLuykeCatMap.get(canonKey)
+      || effectiveLuykeCatMap.get(`${rawName}_${typeKey}`)
       || effectiveLuykeCatMap.get(`${rawName}_ALL`)
       || effectiveLuykeCatMap.get(rawName)
       || effectiveLuykeCatMap.get(`${cleanName}_${typeKey}`)
@@ -497,10 +538,13 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
       const normRaw = normalize(rawName);
       const normClean = normalize(cleanName);
       for (const [k, v] of effectiveLuykeCatMap.entries()) {
-        const [kName, kType] = k.split('_');
+        const lastUnderscoreIdx = k.lastIndexOf('_');
+        const kName = lastUnderscoreIdx > 0 ? k.slice(0, lastUnderscoreIdx) : k;
+        const kType = lastUnderscoreIdx > 0 ? k.slice(lastUnderscoreIdx + 1) : '';
+        const kCanon = getCanonicalCategoryKey(kName, categoryConfig);
         const normK = normalize(kName);
         const normKClean = normalize(kName.replace(/^T\d{1,2}\s*[-–]\s*/i, ''));
-        const matchesName = normK === normRaw || normK === normClean || normKClean === normRaw || normKClean === normClean;
+        const matchesName = (canonKey && kCanon === canonKey) || normK === normRaw || normK === normClean || normKClean === normRaw || normKClean === normClean;
         const matchesType = !kType || kType === typeKey || kType === 'ALL' || typeKey === 'ALL';
         if (matchesName && matchesType) {
           lkCat = v;
@@ -513,69 +557,135 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
     const { totalDaysInMonth, daysPassed } = effectiveMucTieu100Info;
     const rawMucTieu = Math.round((lkCat.target / totalDaysInMonth) * daysPassed - (lkCat.revenue || 0));
     return rawMucTieu > 0 ? rawMucTieu : 0;
-  }, [effectiveLuykeCatMap, effectiveMucTieu100Info]);
+  }, [effectiveLuykeCatMap, effectiveMucTieu100Info, categoryConfig]);
 
-  // ── Build Category List Synchronized 100% with Tab "TỔNG QUAN" (Both DT and SL categories) ──
+  // ── Build Category List Synchronized 100% with Tab "TỔNG QUAN" & SSOT Master Config ──
   const allAvailableCategoryList = useMemo(() => {
     if (filteredCategories && filteredCategories.length > 0) {
-      return filteredCategories.map(cat => {
-        const catType = cat.type || 'DT';
-        return {
-          key: `${cat.name.toUpperCase()}__${catType}`,
-          name: cat.name.toUpperCase(),
-          type: catType,
-          realtimeRevenue: cat.revenue || cat.actual || 0,
-          defaultTarget: 0, // Chỉ đồng bộ khi người dùng nhấn nút đồng bộ
-          rate: cat.rate || 0,
-        };
-      });
+      return filteredCategories
+        .map((cat: any, idx: number) => {
+          const rawName = cat.rawName || cat.name || '';
+          const resolved = resolveCategoryMaster(rawName, categoryConfig, {
+            recordUnmapped: true,
+            source: 'BC_NGAY_MUC_TIEU_NGAY'
+          });
+          if (resolved.item && resolved.item.isActive === false) {
+            return null;
+          }
+          const catType = cat.type || 'DT';
+          const displayName = (resolved.displayName || getCategoryDisplayName(rawName, categoryConfig) || rawName).toUpperCase();
+          const rawNameUpper = rawName.toUpperCase();
+          const canonicalKey = resolved.canonicalKey || getCanonicalCategoryKey(rawName, categoryConfig);
+          const orderIndex = resolved.orderIndex ?? getCategoryOrderIndex(rawName, categoryConfig);
+          return {
+            key: `${displayName}__${catType}`,
+            canonicalSelectionKey: `${canonicalKey}__${catType}`,
+            rawSelectionKey: `${rawNameUpper}__${catType}`,
+            name: displayName,
+            rawNameUpper,
+            canonicalKey,
+            orderIndex,
+            type: catType,
+            realtimeRevenue: cat.revenue || cat.actual || 0,
+            defaultTarget: 0, // Chỉ đồng bộ khi người dùng nhấn nút đồng bộ
+            rate: cat.rate || 0,
+            _idx: idx
+          };
+        })
+        .filter(Boolean)
+        .sort((a: any, b: any) => (a.orderIndex ?? 999999) - (b.orderIndex ?? 999999) || (a._idx ?? 0) - (b._idx ?? 0)) as Array<{
+          key: string;
+          canonicalSelectionKey: string;
+          rawSelectionKey: string;
+          name: string;
+          rawNameUpper: string;
+          canonicalKey: string;
+          orderIndex: number;
+          type: string;
+          realtimeRevenue: number;
+          defaultTarget: number;
+          rate: number;
+        }>;
     }
 
-    return DEFAULT_DT_CATEGORIES.map(c => {
+    const fallbackSource = (activeCategoryConfig && activeCategoryConfig.length > 0)
+      ? activeCategoryConfig.map(c => ({ name: c.name, type: 'DT', defaultTarget: 0, id: c.id, order: c.order }))
+      : DEFAULT_DT_CATEGORIES.map((c, idx) => ({ ...c, id: undefined, order: idx }));
+
+    return fallbackSource.map((c, idx) => {
+      const displayName = getCategoryDisplayName(c.name, categoryConfig).toUpperCase();
+      const canonicalKey = c.id || getCanonicalCategoryKey(c.name, categoryConfig);
+      const orderIndex = c.order ?? getCategoryOrderIndex(c.name, categoryConfig);
       return {
-        key: `${c.name.toUpperCase()}__${c.type}`,
-        name: c.name.toUpperCase(),
+        key: `${displayName}__${c.type}`,
+        canonicalSelectionKey: `${canonicalKey}__${c.type}`,
+        rawSelectionKey: `${c.name.toUpperCase()}__${c.type}`,
+        name: displayName,
+        rawNameUpper: c.name.toUpperCase(),
+        canonicalKey,
+        orderIndex,
         type: c.type,
         realtimeRevenue: 0,
         defaultTarget: 0,
         rate: 0,
+        _idx: idx
       };
     });
-  }, [filteredCategories]);
+  }, [filteredCategories, categoryConfig, activeCategoryConfig]);
+
+  const isCategoryItemSelected = useCallback((item: {
+    key: string;
+    canonicalSelectionKey?: string;
+    rawSelectionKey?: string;
+  }, keys: string[]): boolean => {
+    if (keys.length === 0) return true;
+    if (keys.includes('__NONE__')) return false;
+    return Boolean(
+      keys.includes(item.key) ||
+      (item.canonicalSelectionKey && keys.includes(item.canonicalSelectionKey)) ||
+      (item.rawSelectionKey && keys.includes(item.rawSelectionKey))
+    );
+  }, []);
 
   // Selected Count (Safe calculation)
   const selectedCount = useMemo(() => {
     if (selectedCategoryKeys.length === 0) return allAvailableCategoryList.length;
     if (selectedCategoryKeys.includes('__NONE__')) return 0;
-    return allAvailableCategoryList.filter(c => selectedCategoryKeys.includes(c.key)).length;
-  }, [allAvailableCategoryList, selectedCategoryKeys]);
+    return allAvailableCategoryList.filter(c => isCategoryItemSelected(c, selectedCategoryKeys)).length;
+  }, [allAvailableCategoryList, selectedCategoryKeys, isCategoryItemSelected]);
 
   // Filtered list to display based on selectedCategoryKeys
   const displayedCategoryList = useMemo(() => {
     let list = allAvailableCategoryList;
     if (selectedCategoryKeys.length > 0) {
       if (selectedCategoryKeys.includes('__NONE__')) return [];
-      list = allAvailableCategoryList.filter(r => selectedCategoryKeys.includes(r.key));
+      list = allAvailableCategoryList.filter(r => isCategoryItemSelected(r, selectedCategoryKeys));
     }
     // Sort by C.LẠI if active
     if (sortConLai !== 'none') {
       list = [...list].sort((a, b) => {
-        const targetA = categoryTargets[a.name] !== undefined ? categoryTargets[a.name] : (a.defaultTarget || 0);
-        const targetB = categoryTargets[b.name] !== undefined ? categoryTargets[b.name] : (b.defaultTarget || 0);
+        const targetA = resolveSavedCategoryTarget(a);
+        const targetB = resolveSavedCategoryTarget(b);
         const remainA = targetA > 0 ? targetA - (a.realtimeRevenue || 0) : 0;
         const remainB = targetB > 0 ? targetB - (b.realtimeRevenue || 0) : 0;
         return sortConLai === 'desc' ? remainB - remainA : remainA - remainB;
       });
     }
     return list;
-  }, [allAvailableCategoryList, selectedCategoryKeys, sortConLai, categoryTargets]);
+  }, [allAvailableCategoryList, selectedCategoryKeys, sortConLai, resolveSavedCategoryTarget, isCategoryItemSelected]);
 
   // Handler: Remove a single category from view
   const handleRemoveCategory = useCallback((catKey: string) => {
+    const targetItem = allAvailableCategoryList.find(c => c.key === catKey);
+    const keysToRemove = new Set([
+      catKey,
+      targetItem?.canonicalSelectionKey || '',
+      targetItem?.rawSelectionKey || ''
+    ].filter(Boolean));
     let currentSelected = selectedCategoryKeys.length > 0 
       ? [...selectedCategoryKeys] 
       : allAvailableCategoryList.map(c => c.key); // If showing all, init with all keys
-    const newSelected = currentSelected.filter(k => k !== catKey);
+    const newSelected = currentSelected.filter(k => !keysToRemove.has(k));
     if (newSelected.length === 0) newSelected.push('__NONE__');
     setSelectedCategoryKeys(newSelected);
     saveTargetsDebounced(overviewTargets, categoryTargets, newSelected);
@@ -624,8 +734,11 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
     let syncCount = 0;
 
     displayedCategoryList.forEach(item => {
-      const mtNgay = getMucTieuNgayFromTongQuan(item.name, item.type);
+      const mtNgay = getMucTieuNgayFromTongQuan(item.rawNameUpper || item.name, item.type);
       newCatTargets[item.name.toUpperCase()] = mtNgay;
+      if (item.canonicalKey) {
+        newCatTargets[item.canonicalKey] = mtNgay;
+      }
       if (mtNgay > 0) syncCount++;
     });
 
@@ -664,16 +777,16 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
   // ── Comment Templates Generator ──
   const commentTemplates = useMemo(() => {
     const doneCats = displayedCategoryList.filter(c => {
-      const t = categoryTargets[c.name] !== undefined ? categoryTargets[c.name] : (c.defaultTarget || 0);
+      const t = resolveSavedCategoryTarget(c);
       return t > 0 && c.realtimeRevenue >= t;
     });
 
     const pendingCats = displayedCategoryList.filter(c => {
-      const t = categoryTargets[c.name] !== undefined ? categoryTargets[c.name] : (c.defaultTarget || 0);
+      const t = resolveSavedCategoryTarget(c);
       return t > 0 && c.realtimeRevenue < t;
     }).sort((a, b) => {
-      const targetA = categoryTargets[a.name] !== undefined ? categoryTargets[a.name] : (a.defaultTarget || 0);
-      const targetB = categoryTargets[b.name] !== undefined ? categoryTargets[b.name] : (b.defaultTarget || 0);
+      const targetA = resolveSavedCategoryTarget(a);
+      const targetB = resolveSavedCategoryTarget(b);
       return (targetB - b.realtimeRevenue) - (targetA - a.realtimeRevenue);
     });
 
@@ -690,7 +803,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
     t1 += `✅ ĐÃ ĐẠT TARGET (${doneCats.length}/${displayedCategoryList.length}):\n`;
     if (doneCats.length > 0) {
       doneCats.forEach(c => {
-        const t = categoryTargets[c.name] !== undefined ? categoryTargets[c.name] : (c.defaultTarget || 0);
+        const t = resolveSavedCategoryTarget(c);
         const rate = (c.realtimeRevenue / t) * 100;
         t1 += `  + ${c.name} (${c.type}): ${c.realtimeRevenue} / ${t} (${rate.toFixed(1)}%)\n`;
       });
@@ -701,7 +814,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
     t1 += `\n🔥 CẦN BỨT PHÁ HOÀN THÀNH:\n`;
     if (pendingCats.length > 0) {
       pendingCats.forEach(c => {
-        const t = categoryTargets[c.name] !== undefined ? categoryTargets[c.name] : (c.defaultTarget || 0);
+        const t = resolveSavedCategoryTarget(c);
         const remain = t - c.realtimeRevenue;
         const rate = (c.realtimeRevenue / t) * 100;
         t1 += `  - ${c.name} (${c.type}): ${c.realtimeRevenue} / ${t} (${rate.toFixed(1)}%) - Còn lại: ${Math.round(remain * 10) / 10}\n`;
@@ -717,7 +830,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
     if (pendingCats.length > 0) {
       t2 += `🚨 Top cần dí số:\n`;
       pendingCats.slice(0, 3).forEach(c => {
-        const targetVal = categoryTargets[c.name] !== undefined ? categoryTargets[c.name] : (c.defaultTarget || 0);
+        const targetVal = resolveSavedCategoryTarget(c);
         const remain = Math.round((targetVal - c.realtimeRevenue) * 10) / 10;
         t2 += `• ${c.name} (còn ${remain})\n`;
       });
@@ -728,7 +841,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
       { id: 0, title: 'Báo cáo chi tiết', icon: '📊', text: t1 },
       { id: 1, title: 'Tóm tắt gửi Zalo', icon: '⚡', text: t2 },
     ];
-  }, [currentStoreName, timeStr, dateStr, dtlk, overviewTargets, dtThucRate, dtThucRemaining, dtqd, dtQdRate, dtQdRemaining, actualEff, diffEff, actualInstallment, diffInstallment, displayedCategoryList, categoryTargets]);
+  }, [currentStoreName, timeStr, dateStr, dtlk, overviewTargets, dtThucRate, dtThucRemaining, dtqd, dtQdRate, dtQdRemaining, actualEff, diffEff, actualInstallment, diffInstallment, displayedCategoryList, resolveSavedCategoryTarget]);
 
   const openCommentModal = () => {
     setSelectedCommentTemplate(0);
@@ -1163,7 +1276,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                 {displayedCategoryList.map((item, idx) => {
                   const isEven = idx % 2 === 0;
                   const thucHien = item.realtimeRevenue || 0;
-                  const savedTarget = categoryTargets[item.name] !== undefined ? categoryTargets[item.name] : (item.defaultTarget || 0);
+                  const savedTarget = resolveSavedCategoryTarget(item);
                   const hasTarget = savedTarget > 0;
                   const rate = hasTarget ? (thucHien / savedTarget) * 100 : 0;
                   const remaining = hasTarget ? (savedTarget - thucHien) : 0;
@@ -1198,7 +1311,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                         <input
                           type="number"
                           value={savedTarget > 0 ? savedTarget : ''}
-                          onChange={(e) => handleCategoryTargetChange(item.name, Number(e.target.value))}
+                          onChange={(e) => handleCategoryTargetChange(item.name, Number(e.target.value), item.canonicalKey)}
                           className={`w-full text-center bg-transparent font-black focus:outline-none ${theme.inputFocusBg} rounded py-0.5 text-[11.5px] sm:text-[13.5px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
                           placeholder="0"
                           title={`Nhập mục tiêu cho ${item.name}`}
@@ -1328,7 +1441,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                 {allAvailableCategoryList
                   .filter(cat => normalize(cat.name).includes(normalize(filterSearchTerm)))
                   .map(cat => {
-                    const isChecked = selectedCategoryKeys.length === 0 || selectedCategoryKeys.includes(cat.key);
+                    const isChecked = isCategoryItemSelected(cat, selectedCategoryKeys);
                     return (
                       <div
                         key={cat.key}
@@ -1338,10 +1451,15 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                             : selectedCategoryKeys.filter(k => k !== '__NONE__');
                           let nextKeys: string[];
                           if (isChecked) {
-                            nextKeys = currentSelected.filter(k => k !== cat.key);
+                            const keysToRemove = new Set([
+                              cat.key,
+                              cat.canonicalSelectionKey || '',
+                              cat.rawSelectionKey || ''
+                            ].filter(Boolean));
+                            nextKeys = currentSelected.filter(k => !keysToRemove.has(k));
                             if (nextKeys.length === 0) nextKeys = ['__NONE__'];
                           } else {
-                            nextKeys = [...currentSelected, cat.key];
+                            nextKeys = Array.from(new Set([...currentSelected, cat.key, cat.canonicalSelectionKey || ''].filter(Boolean)));
                           }
                           setSelectedCategoryKeys(nextKeys);
                           saveTargetsDebounced(overviewTargets, categoryTargets, nextKeys);

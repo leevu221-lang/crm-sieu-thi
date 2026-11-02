@@ -47,6 +47,13 @@ import { useNotification } from '../../../contexts/NotificationContext';
 import { doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
 import { safeSetDoc } from '../../../firebaseAdapter';
+import {
+  useCategoryConfig,
+  getCategoryDisplayName,
+  getCategoryOrderIndex,
+  resolveCategoryMaster,
+  isSameCategoryByConfig
+} from '../../../hooks/useCategoryConfig';
 
 
 interface InputSectionProps {
@@ -557,6 +564,7 @@ const InputSection: React.FC<InputSectionProps> = ({
   allStoresCache
 }) => {
   const { showNotification } = useNotification();
+  const { categoryConfig } = useCategoryConfig();
   const [innerTab, setInnerTab] = useState<'DU_LIEU_NGUON' | 'TARGET_DOANH_THU' | 'TARGET_THI_DUA'>('DU_LIEU_NGUON');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -1970,7 +1978,18 @@ const InputSection: React.FC<InputSectionProps> = ({
                           )}
                           {/* Tables */}
                           {['SL', 'DT'].map(type => {
-                            const items = cardCategoryTargets.filter(item => type === 'SL' ? item.type === 'SL' : item.type !== 'SL');
+                            const items = cardCategoryTargets
+                              .filter(item => {
+                                const matchesType = type === 'SL' ? item.type === 'SL' : item.type !== 'SL';
+                                if (!matchesType) return false;
+                                const resolved = resolveCategoryMaster(item.name, categoryConfig, {
+                                  recordUnmapped: true,
+                                  source: 'BC_NGAY_INPUT_TARGETS'
+                                });
+                                if (resolved.item && resolved.item.isActive === false) return false;
+                                return true;
+                              })
+                              .sort((a, b) => getCategoryOrderIndex(a.name, categoryConfig) - getCategoryOrderIndex(b.name, categoryConfig));
                             if (items.length === 0) return null;
                             return (
                               <div key={type} className="bg-white rounded-[12px] border border-slate-200 p-[10px] overflow-x-auto">
@@ -1985,9 +2004,11 @@ const InputSection: React.FC<InputSectionProps> = ({
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {items.map(item => (
-                                      <tr key={item.name} className="border-t border-slate-50">
-                                        <td className="p-[6px] text-[11.5px] font-black text-slate-800">{item.name}</td>
+                                    {items.map(item => {
+                                      const displayCatName = getCategoryDisplayName(item.name, categoryConfig);
+                                      return (
+                                      <tr key={`${item.name}_${item.type || type}`} className="border-t border-slate-50">
+                                        <td className="p-[6px] text-[11.5px] font-black text-slate-800" title={item.name}>{displayCatName}</td>
                                         <td className="p-[6px] text-[11.5px] text-slate-600">{item.target.toLocaleString()}</td>
                                         <td className="p-[6px] text-[11.5px] font-black text-indigo-600">{item.adjustedTarget.toLocaleString()}</td>
                                         <td className="p-[6px] text-center">
@@ -1997,7 +2018,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                                             onChange={(e) => { 
                                               if (!isActiveCard) return; 
                                               const nv = Number(e.target.value); 
-                                              const nt = categoryTargets.map(t => t.name === item.name ? { ...t, percent: nv, adjustedTarget: t.target * (nv / 100) } : t); 
+                                              const nt = categoryTargets.map(t => (t.name === item.name || isSameCategoryByConfig(t.name, item.name, categoryConfig)) && (t.type || 'DT') === (item.type || 'DT') ? { ...t, percent: nv, adjustedTarget: t.target * (nv / 100) } : t); 
                                               setCategoryTargets(nt); 
                                             }} 
                                             onBlur={() => {
@@ -2011,7 +2032,8 @@ const InputSection: React.FC<InputSectionProps> = ({
                                           />
                                         </td>
                                       </tr>
-                                    ))}
+                                      );
+                                    })}
                                   </tbody>
                                 </table>
                               </div>

@@ -4,11 +4,16 @@
  * CategoryTable v2.1 - Red name for < 100% HT
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Camera, Check, Calendar, Clock, MessageSquare } from 'lucide-react';
 import { CategoryData } from '../types';
 import { formatRealtimeDate, formatLuyKeDate, getWorkingDayProgress, getLuyKeProgress, cn } from '../utils';
 import { useNotification } from '../../../contexts/NotificationContext';
+import {
+  useCategoryConfig,
+  resolveCategoryMaster,
+  getCategoryOrderIndex
+} from '../../../hooks/useCategoryConfig';
 
 interface CategoryTableProps {
   categories: CategoryData[];
@@ -38,8 +43,33 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
   totalDays = 0
 }) => {
   const { showNotification } = useNotification();
+  const { categoryConfig } = useCategoryConfig();
   const [comment, setComment] = useState('');
   const [showComment, setShowComment] = useState(false);
+
+  const normalizedCategories = useMemo(() => {
+    if (!categories || categories.length === 0) return [];
+    return categories
+      .map((cat: any, idx: number) => {
+        const rawName = cat.rawName || cat.name || '';
+        const resolved = resolveCategoryMaster(rawName, categoryConfig, {
+          recordUnmapped: true,
+          source: 'BC_NGAY_CATEGORY_TABLE'
+        });
+        if (resolved.item && resolved.item.isActive === false) {
+          return null;
+        }
+        return {
+          ...cat,
+          rawName,
+          name: resolved.displayName || rawName,
+          canonicalKey: resolved.canonicalKey,
+          orderIndex: resolved.orderIndex,
+          _idx: idx
+        };
+      })
+      .filter(Boolean) as CategoryData[];
+  }, [categories, categoryConfig]);
 
   const generateAndCopyComment = () => {
     if (filteredCats.length === 0) return;
@@ -71,10 +101,18 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
     });
   };
 
-  const [sortMode, setSortMode] = useState<'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC'>('HT_DESC');
+  const [sortMode, setSortMode] = useState<'CONFIG_ORDER' | 'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC'>('CONFIG_ORDER');
 
   const sortCatList = (list: CategoryData[]) => {
-    return [...list].sort((a, b) => {
+    return [...list].sort((a: any, b: any) => {
+      const orderA = a.orderIndex ?? getCategoryOrderIndex(a.rawName || a.name, categoryConfig);
+      const orderB = b.orderIndex ?? getCategoryOrderIndex(b.rawName || b.name, categoryConfig);
+
+      if (sortMode === 'CONFIG_ORDER') {
+        if (orderA !== orderB) return orderA - orderB;
+        return (a._idx ?? 0) - (b._idx ?? 0);
+      }
+
       let rateA = 0;
       let rateB = 0;
       if (mode === 'luyke') {
@@ -89,29 +127,29 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
       const remB = b.target - b.revenue;
 
       if (sortMode === 'CONLAI_DESC') {
-        if (remA > 0 && remB > 0) return remB - remA;
+        if (remA > 0 && remB > 0) return remB - remA || orderA - orderB;
         if (remA > 0 && remB <= 0) return -1;
         if (remA <= 0 && remB > 0) return 1;
-        return remB - remA;
+        return remB - remA || orderA - orderB;
       }
 
       if (sortMode === 'CONLAI_ASC') {
         if (remA <= 0 && remB > 0) return -1;
         if (remA > 0 && remB <= 0) return 1;
-        return remA - remB;
+        return remA - remB || orderA - orderB;
       }
 
       if (sortMode === 'HT_ASC') {
-        return rateA - rateB;
+        return rateA - rateB || orderA - orderB;
       }
 
-      return rateB - rateA;
+      return rateB - rateA || orderA - orderB;
     });
   };
 
   const groups = ['ALL', 'SLLK', 'DTLK'];
   
-  const filteredCats = categories
+  const filteredCats = normalizedCategories
     .filter(c => {
       const matchesMarket = catMarketFilter === 'ALL' || c.marketName === catMarketFilter;
       

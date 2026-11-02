@@ -29,6 +29,12 @@ import {
 import { cleanBiReportText } from '../utils/rtstHelpers';
 import { mergeStaffCategoryReportSections } from '../pages/EmployeeHealth/components/SummaryThiDuaTable';
 import { invalidateEmployeeHealthCache } from '../pages/EmployeeHealth/hooks/useEmployeeHealth';
+import {
+  useCategoryConfig,
+  resolveCategoryMaster,
+  getCanonicalCategoryKey,
+  getCategoryGroupByConfig,
+} from '../hooks/useCategoryConfig';
 const initGlobalAllStoresCache = (): Record<string, any> => {
   try {
     const saved = localStorage.getItem('crm_all_stores_cache_v2');
@@ -213,14 +219,24 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => { tragopMatranRef.current = tragopMatran; }, [tragopMatran]);
   useEffect(() => { tragopNvRef.current = tragopNv; }, [tragopNv]);
   useEffect(() => { banKemNvRef.current = banKemNv; }, [banKemNv]);
+  const { categoryConfig } = useCategoryConfig();
+  const categoryConfigRef = useRef(categoryConfig);
+  useEffect(() => {
+    categoryConfigRef.current = categoryConfig;
+  }, [categoryConfig]);
+
   useEffect(() => { 
     categoryTargetsRef.current = categoryTargets; 
     categoryTargets.forEach(t => {
       if (t.percent !== undefined) {
         percentCacheRef.current.set(cleanCategoryName(t.name), t.percent);
+        const canonKey = getCanonicalCategoryKey(t.name, categoryConfigRef.current);
+        if (canonKey) {
+          percentCacheRef.current.set(canonKey, t.percent);
+        }
       }
     });
-  }, [categoryTargets]);
+  }, [categoryTargets, categoryConfig]);
 
   const setBanKemNvSync = useCallback((val: string) => {
     if (val === banKemNvRef.current) return;
@@ -736,7 +752,15 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           const savedGlobalPercent = localStorage.getItem('rtst_global_percent');
           const defaultPercent = savedGlobalPercent ? Number(savedGlobalPercent) : 100;
           
-          const percentMap = new Map(currentTargets.map((item: any) => [normalize(item.name || ''), item.percent]));
+          const percentMap = new Map<string, number>();
+          currentTargets.forEach((item: any) => {
+            if (!item || !item.name || item.percent === undefined) return;
+            percentMap.set(normalize(item.name), item.percent);
+            const canon = getCanonicalCategoryKey(item.name, categoryConfigRef.current);
+            if (canon && !canon.startsWith('ambiguous:') && !percentMap.has(canon)) {
+              percentMap.set(canon, item.percent);
+            }
+          });
           
           // Filter categories to only include those belonging to the active store
           const normActiveStore = normalize(effectiveActiveStore || '');
@@ -804,8 +828,32 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               });
             }
 
+            // Pass 3: SSOT canonicalKey / Alias match (safe against ambiguous alias conflicts)
+            if (!matchedKey) {
+              const resItem = resolveCategoryMaster(item.name, categoryConfigRef.current);
+              if (resItem.isMapped && !resItem.isAmbiguous && resItem.canonicalKey) {
+                uniqueParsed.forEach((data, key) => {
+                  if (matchedKey || processedKeys.has(key)) return;
+                  if (currentTargetNormNames.has(normalize(data.name))) return;
+                  const resData = resolveCategoryMaster(data.name, categoryConfigRef.current);
+                  if (
+                    resData.isMapped &&
+                    !resData.isAmbiguous &&
+                    resData.canonicalKey === resItem.canonicalKey &&
+                    (!item.type || data.type === item.type)
+                  ) {
+                    matchedKey = key;
+                    matchedData = data;
+                  }
+                });
+              }
+            }
+
             if (matchedKey && matchedData && !processedKeys.has(matchedKey)) {
-              const cachedPercent = percentCacheRef.current.get(cleanCategoryName(matchedData.name));
+              const canonKey = getCanonicalCategoryKey(matchedData.name, categoryConfigRef.current);
+              const cachedPercent =
+                percentCacheRef.current.get(cleanCategoryName(matchedData.name)) ??
+                (canonKey && !canonKey.startsWith('ambiguous:') ? percentCacheRef.current.get(canonKey) : undefined);
               const percent = item.percent !== undefined ? item.percent : (cachedPercent !== undefined ? cachedPercent : defaultPercent);
               
               newTargets.push({
@@ -822,8 +870,13 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           // 2. Then append any remaining items from uniqueParsed that were not in currentTargets
           uniqueParsed.forEach((data, key) => {
             if (!processedKeys.has(key)) {
-              const existingPercent = percentMap.get(normalize(data.name));
-              const cachedPercent = percentCacheRef.current.get(cleanCategoryName(data.name));
+              const canonKey = getCanonicalCategoryKey(data.name, categoryConfigRef.current);
+              const existingPercent =
+                percentMap.get(normalize(data.name)) ??
+                (canonKey && !canonKey.startsWith('ambiguous:') ? percentMap.get(canonKey) : undefined);
+              const cachedPercent =
+                percentCacheRef.current.get(cleanCategoryName(data.name)) ??
+                (canonKey && !canonKey.startsWith('ambiguous:') ? percentCacheRef.current.get(canonKey) : undefined);
               const percent = existingPercent !== undefined ? existingPercent : (cachedPercent !== undefined ? cachedPercent : defaultPercent);
               
               newTargets.push({
@@ -1976,6 +2029,44 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setBanKemNvSync
   ]);
 
+  const synchronizedProcessedData = useMemo(() => {
+    const rawCats = processedData.categories || [];
+    if (rawCats.length === 0) return processedData;
+
+    const mappedCats = rawCats.map((c: any, idx: number) => {
+      const rawName = c.rawName || c.name || '';
+      const res = resolveCategoryMaster(rawName, categoryConfig, {
+        recordUnmapped: true,
+        source: 'BC_THANG',
+      });
+      const displayName =
+        res.isMapped && !res.isAmbiguous && res.displayName
+          ? res.displayName
+          : c.name;
+      return {
+        ...c,
+        rawName,
+        name: displayName,
+        canonicalKey: res.canonicalKey,
+        orderIndex: res.orderIndex,
+        isMapped: res.isMapped,
+        isAmbiguous: res.isAmbiguous,
+        configGroup: getCategoryGroupByConfig(rawName, categoryConfig),
+        _origIdx: idx,
+      };
+    });
+
+    mappedCats.sort((a: any, b: any) => {
+      const diff = (a.orderIndex ?? 999999) - (b.orderIndex ?? 999999);
+      return diff !== 0 ? diff : a._origIdx - b._origIdx;
+    });
+
+    return {
+      ...processedData,
+      categories: mappedCats,
+    };
+  }, [processedData, categoryConfig]);
+
   const value = useMemo(() => ({
     clusterSummaryInput, setClusterSummaryInput: setClusterSummaryInputSync,
     clusterCategoryInput, setClusterCategoryInput: setClusterCategoryInputSync,
@@ -1990,7 +2081,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     banKemNv, setBanKemNv: setBanKemNvSync,
     categoryTargets, setCategoryTargets,
     allStoresCache,
-    processedData,
+    processedData: synchronizedProcessedData,
     isProcessingSave,
     isSavingStaff,
     isSavingTargets,
@@ -2016,7 +2107,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     banKemNv, setBanKemNvSync,
     categoryTargets,
     allStoresCache,
-    processedData,
+    synchronizedProcessedData,
     isProcessingSave,
     isSavingStaff,
     isSavingTargets,

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { db } from '../../../firebaseConfig';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
@@ -11,6 +11,7 @@ import { getCachedDoc } from '../../../services/cachedFirestore';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useNotification } from '../../../contexts/NotificationContext';
 import { useStore, getStoreItem, setStoreItem } from '../../../contexts/StoreContext';
+import { useCategoryConfig, resolveCategoryMaster } from '../../../hooks/useCategoryConfig';
 import { 
   MarketInfo, 
   CategoryData, 
@@ -245,6 +246,7 @@ function computeProcessedRealtimeBundle(params: {
 export const useRealtimeData = (maKho: string) => {
   const { showNotification } = useNotification();
   const { isStoreReady, currentStoreId, availableStores } = useStore();
+  const { categoryConfig } = useCategoryConfig();
   
   // Normalize maKho: trim and remove leading zeros for consistency
   const normalizedMaKho = maKho ? maKho.trim().replace(/^0+/, '') : '';
@@ -1699,6 +1701,46 @@ export const useRealtimeData = (maKho: string) => {
     }, 30000);
   }, [normalizedMaKho, clearData]);
 
+  // Synchronize processedData.categories with SSOT master configuration (TNB LEADER -> CẤU HÌNH)
+  // while keeping all Target, Real, %HT, C.Lại values 100% unchanged.
+  const synchronizedProcessedData = useMemo(() => {
+    if (!processedData?.categories || processedData.categories.length === 0) {
+      return processedData;
+    }
+
+    const mappedCategories = processedData.categories
+      .map((cat: any, originalIdx: number) => {
+        const rawName = cat.rawName || cat.name || '';
+        const resolved = resolveCategoryMaster(rawName, categoryConfig, {
+          recordUnmapped: true,
+          source: 'BC_NGAY_RTST'
+        });
+        if (resolved.item && resolved.item.isActive === false) {
+          return null;
+        }
+        return {
+          ...cat,
+          rawName,
+          name: resolved.displayName || rawName,
+          canonicalKey: resolved.canonicalKey,
+          orderIndex: resolved.orderIndex,
+          categoryGroup: resolved.group,
+          _originalIdx: originalIdx
+        };
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => {
+        const orderDiff = (a.orderIndex ?? 999999) - (b.orderIndex ?? 999999);
+        if (orderDiff !== 0) return orderDiff;
+        return (a._originalIdx ?? 0) - (b._originalIdx ?? 0);
+      });
+
+    return {
+      ...processedData,
+      categories: mappedCategories
+    };
+  }, [processedData, categoryConfig]);
+
   return {
     marketInput, setMarketInput: setMarketInputSync,
     realtimeDtThuc, setRealtimeDtThuc,
@@ -1711,7 +1753,7 @@ export const useRealtimeData = (maKho: string) => {
     categoryTargetInput, setCategoryTargetInput: setCategoryTargetInputSync,
     activeStore, setActiveStore,
     excludedYcxStaffNames, setExcludedYcxStaffNames,
-    processedData,
+    processedData: synchronizedProcessedData,
     isSavingRealtime,
     isLoadingRealtime,
     isProcessingRealtime,

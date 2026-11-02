@@ -64,7 +64,15 @@ const removeAccentsLocal = (str: string): string => {
     .replace(/Đ/g, 'D');
 };
 
-import { CategoryConfigItem } from '../../../hooks/useCategoryConfig';
+import {
+  CategoryConfigItem,
+  useCategoryConfig,
+  resolveCategoryMaster,
+  getCanonicalCategoryKey,
+  getCategoryOrderIndex,
+  getCategoryGroupByConfig,
+  isSameCategoryByConfig,
+} from '../../../hooks/useCategoryConfig';
 
 const EXACT_ONLY_CLEAN_KEYS = new Set([
   'tivi',
@@ -92,7 +100,16 @@ export const isSameCategoryClean = (cleanA: string, cleanB: string): boolean => 
   return cleanA.includes(cleanB) || cleanB.includes(cleanA);
 };
 
-export const isSameCategory = (nameA: string, nameB: string): boolean => {
+export const isSameCategory = (nameA: string, nameB: string, categoryConfig?: CategoryConfigItem[]): boolean => {
+  if (!nameA || !nameB) return false;
+  const resA = resolveCategoryMaster(nameA, categoryConfig);
+  const resB = resolveCategoryMaster(nameB, categoryConfig);
+  if (resA.isAmbiguous || resB.isAmbiguous) {
+    return cleanCategoryName(nameA) === cleanCategoryName(nameB);
+  }
+  if (!resA.isUnmapped && !resB.isUnmapped && resA.canonicalKey && resA.canonicalKey === resB.canonicalKey) {
+    return true;
+  }
   return isSameCategoryClean(cleanCategoryName(nameA), cleanCategoryName(nameB));
 };
 
@@ -101,11 +118,18 @@ export const findMatchingCategoryConfig = (
   categoryConfig?: CategoryConfigItem[]
 ): CategoryConfigItem | undefined => {
   if (!categoryConfig || categoryConfig.length === 0 || !catName) return undefined;
+  const resolved = resolveCategoryMaster(catName, categoryConfig);
+  if (resolved.isAmbiguous) return undefined;
+  if (resolved.item) return resolved.item;
+
   const cleanCat = cleanCategoryName(catName);
   if (!cleanCat) return undefined;
 
-  // 1. Exact match on canonical clean name
-  let match = categoryConfig.find(c => cleanCategoryName(c.name) === cleanCat);
+  // 1. Exact match on canonical clean name or alias
+  let match = categoryConfig.find(c =>
+    cleanCategoryName(c.name) === cleanCat ||
+    (Array.isArray(c.aliases) && c.aliases.some(a => cleanCategoryName(a) === cleanCat))
+  );
   if (match) return match;
 
   // 2. Safe fuzzy substring match (guarded against false-positive generic root collisions)
@@ -116,18 +140,39 @@ export const findMatchingCategoryConfig = (
 export const resolveCategoryBaseTarget = (
   catName: string,
   categoryTargets?: any[],
-  luykeCategories?: CategoryData[]
+  luykeCategories?: CategoryData[],
+  categoryConfig?: CategoryConfigItem[]
 ): number => {
   const clean = cleanCategoryName(catName);
   if (!clean) return 0;
 
-  let matchingTarget = categoryTargets?.find((t: any) => t?.name && cleanCategoryName(t.name) === clean);
-  let lkCat = luykeCategories?.find((c: any) => c?.name && cleanCategoryName(c.name) === clean);
+  const resolved = resolveCategoryMaster(catName, categoryConfig);
+  const canonicalKey = (!resolved.isAmbiguous && !resolved.isUnmapped) ? resolved.canonicalKey : '';
 
-  if (!matchingTarget) {
+  let matchingTarget = categoryTargets?.find((t: any) => {
+    if (!t?.name) return false;
+    if (cleanCategoryName(t.name) === clean) return true;
+    if (canonicalKey) {
+      const tRes = resolveCategoryMaster(t.name, categoryConfig);
+      if (!tRes.isAmbiguous && !tRes.isUnmapped && tRes.canonicalKey === canonicalKey) return true;
+    }
+    return false;
+  });
+
+  let lkCat = luykeCategories?.find((c: any) => {
+    if (!c?.name) return false;
+    if (cleanCategoryName(c.name) === clean) return true;
+    if (canonicalKey) {
+      const cRes = resolveCategoryMaster(c.name, categoryConfig);
+      if (!cRes.isAmbiguous && !cRes.isUnmapped && cRes.canonicalKey === canonicalKey) return true;
+    }
+    return false;
+  });
+
+  if (!matchingTarget && !resolved.isAmbiguous) {
     matchingTarget = categoryTargets?.find((t: any) => t?.name && isSameCategoryClean(cleanCategoryName(t.name), clean));
   }
-  if (!lkCat) {
+  if (!lkCat && !resolved.isAmbiguous) {
     lkCat = luykeCategories?.find((c: any) => c?.name && isSameCategoryClean(cleanCategoryName(c.name), clean));
   }
 
@@ -342,7 +387,7 @@ const parseReportSections = (rawText: string) => {
     const startIdx = sectionHeaders[s].headerStartIdx;
     const endIdx = s + 1 < sectionHeaders.length ? sectionHeaders[s + 1].headerStartIdx : lines.length;
     const blockLines = lines.slice(startIdx, endIdx);
-    const key = cleanCategoryName(sectionHeaders[s].catName);
+    const key = getCanonicalCategoryKey(sectionHeaders[s].catName) || cleanCategoryName(sectionHeaders[s].catName);
     if (key) {
       sections.push({
         key,
@@ -421,67 +466,7 @@ export const mergeStaffCategoryReportSections = (prevRaw: string, nextRaw: strin
 
 export const getCategoryGroupType = (catName: string, categoryConfig?: CategoryConfigItem[]): 'ICT' | 'DỊCH VỤ' | 'CE' => {
   if (!catName) return 'CE';
-  
-  if (categoryConfig && categoryConfig.length > 0) {
-    const match = findMatchingCategoryConfig(catName, categoryConfig);
-    if (match) {
-      if (match.group === 'ICT') return 'ICT';
-      if (match.group === 'DỊCH VỤ' || match.group === 'DICH_VU') return 'DỊCH VỤ';
-      return 'CE';
-    }
-  }
-
-  const norm = removeAccentsLocal(catName).toLowerCase().trim();
-
-  // 1. NHÓM DỊCH VỤ / VAS / TRẢ CHẬM
-  if (
-    norm.includes('credit') ||
-    norm.includes('shinhan') ||
-    norm.includes('finance') ||
-    norm.includes('vi tra sau') ||
-    norm.includes('cake') ||
-    norm.includes('ngan hang') ||
-    norm.includes('vpbank') ||
-    norm.includes('tpbank') ||
-    norm.includes('bao hiem') ||
-    norm.includes('sim') ||
-    norm.includes('vas') ||
-    norm.includes('tra cham') ||
-    norm.includes('vay tien') ||
-    norm.includes('nap rut') ||
-    norm.includes('dich vu') ||
-    norm.includes('mango') ||
-    norm.includes('icallme') ||
-    norm.includes('icall')
-  ) {
-    return 'DỊCH VỤ';
-  }
-
-  // 2. NHÓM ICT (Điện thoại, Smartphone, Tablet, Laptop, Đồng hồ, Phụ kiện, Camera, Tai nghe, Pin...)
-  if (
-    norm.includes('dien thoai') ||
-    norm.includes('smartphone') ||
-    norm.includes('tablet') ||
-    norm.includes('vivo') ||
-    norm.includes('realme') ||
-    norm.includes('phu kien') ||
-    norm.includes('dong ho') ||
-    norm.includes('camera') ||
-    norm.includes('pin du phong') ||
-    norm.includes('pin sac') ||
-    norm.includes('tai nghe') ||
-    norm.includes('bluetooth') ||
-    norm.includes('laptop') ||
-    norm.includes('macbook') ||
-    norm === 'loa' ||
-    norm.startsWith('loa ') ||
-    norm.includes(' am thanh')
-  ) {
-    return 'ICT';
-  }
-
-  // 3. NHÓM CE (Gia dụng, Nồi cơm, Quạt, Máy lọc nước, Máy lạnh, Tủ lạnh, Máy giặt, Máy sấy, Điện tử...)
-  return 'CE';
+  return getCategoryGroupByConfig(catName, categoryConfig);
 };
 
 export const EXACT_CATEGORY_ORDER: string[] = [
@@ -525,26 +510,16 @@ export const EXACT_CATEGORY_ORDER: string[] = [
 ];
 
 export const getCustomCategoryIndex = (catName: string, categoryConfig?: CategoryConfigItem[]): number => {
-  if (!catName) return 999;
-  
-  if (categoryConfig && categoryConfig.length > 0) {
-    const match = findMatchingCategoryConfig(catName, categoryConfig);
-    if (match) {
-      const groupOrder = getCategoryGroupSortOrder(catName, categoryConfig);
-      const idx = categoryConfig.indexOf(match);
-      if (idx !== -1) return groupOrder * 1000 + idx;
-    }
+  if (!catName) return 9999;
+  const res = resolveCategoryMaster(catName, categoryConfig);
+  if (!res.isAmbiguous && !res.isUnmapped && typeof res.order === 'number') {
+    return res.order;
   }
-  
-  const clean = removeAccentsLocal(catName).toLowerCase().replace(/[^a-z0-9]/g, '');
-  
-  const idx = EXACT_CATEGORY_ORDER.findIndex(k => clean === k || clean.includes(k) || k.includes(clean));
-  if (idx !== -1) {
-    const groupOrder = getCategoryGroupSortOrder(catName, categoryConfig);
-    return groupOrder * 1000 + idx;
+  const orderIdx = getCategoryOrderIndex(catName, categoryConfig);
+  if (orderIdx < 9000) {
+    return orderIdx;
   }
-  
-  return 5000 + getCategoryGroupSortOrder(catName, categoryConfig) * 10;
+  return 5000 + getCategoryGroupSortOrder(catName, categoryConfig) * 100 + (orderIdx % 1000);
 };
 
 export const getCategoryGroupSortOrder = (catName: string, categoryConfig?: CategoryConfigItem[]): number => {
@@ -689,10 +664,22 @@ export const parseStaffMatrixDataRefined = (
       const cleanCat = cleanCategoryName(catName);
       if (!cleanCat) continue;
 
+      const catRes = resolveCategoryMaster(catName, categoryConfig, { recordUnmapped: true, source: 'SUC_KHOE_NV' });
+      const canonicalKey = getCanonicalCategoryKey(catName, categoryConfig);
+
       if (!inputCategories.some(existing => cleanCategoryName(existing) === cleanCat)) {
         inputCategories.push(catName);
       }
       categoryTypes[cleanCat] = sec.type;
+      if (canonicalKey) {
+        categoryTypes[canonicalKey] = sec.type;
+      }
+      if (!catRes.isAmbiguous && catRes.displayName) {
+        const displayClean = cleanCategoryName(catRes.displayName);
+        if (displayClean && !categoryTypes[displayClean]) {
+          categoryTypes[displayClean] = sec.type;
+        }
+      }
 
       const startLine = sec.dataStartIdx;
       const endLine = s + 1 < sectionIndices.length ? sectionIndices[s + 1].headerStartIdx : lines.length;
@@ -801,7 +788,16 @@ export const parseStaffMatrixDataRefined = (
           // Ghi nhận giá trị chuẩn theo ngành hàng (không cộng dồn trùng khi báo cáo được dán/merge lại)
           const roundedVal = Math.round(val * 1000) / 1000;
           staffObj.values[cleanCat] = roundedVal;
-          if (categoryConfig && categoryConfig.length > 0) {
+          if (canonicalKey && !catRes.isAmbiguous) {
+            staffObj.values[canonicalKey] = roundedVal;
+          }
+          if (!catRes.isAmbiguous && catRes.displayName) {
+            const matchClean = cleanCategoryName(catRes.displayName);
+            if (matchClean && matchClean !== cleanCat) {
+              staffObj.values[matchClean] = roundedVal;
+            }
+          }
+          if (categoryConfig && categoryConfig.length > 0 && !catRes.isAmbiguous) {
             const matchingCfg = findMatchingCategoryConfig(catName, categoryConfig);
             if (matchingCfg) {
               const matchClean = cleanCategoryName(matchingCfg.name);
@@ -821,35 +817,81 @@ export const parseStaffMatrixDataRefined = (
     if (luykeCategories && luykeCategories.length > 0) {
       luykeCategories.forEach(c => {
         const clean = cleanCategoryName(c.name);
-        if (clean && (c.type === 'SL' || c.type === 'DT') && !categoryTypes[clean]) {
-          categoryTypes[clean] = c.type;
+        const cKey = getCanonicalCategoryKey(c.name, categoryConfig);
+        if (c.type === 'SL' || c.type === 'DT') {
+          if (clean && !categoryTypes[clean]) categoryTypes[clean] = c.type;
+          if (cKey && !categoryTypes[cKey]) categoryTypes[cKey] = c.type;
         }
       });
     }
     if (categoryTargets && categoryTargets.length > 0) {
       categoryTargets.forEach((t: any) => {
         const clean = cleanCategoryName(t?.name || '');
-        if (clean && (t?.type === 'SL' || t?.type === 'DT') && !categoryTypes[clean]) {
-          categoryTypes[clean] = t.type;
+        const tKey = getCanonicalCategoryKey(t?.name || '', categoryConfig);
+        if (t?.type === 'SL' || t?.type === 'DT') {
+          if (clean && !categoryTypes[clean]) categoryTypes[clean] = t.type;
+          if (tKey && !categoryTypes[tKey]) categoryTypes[tKey] = t.type;
         }
       });
     }
 
     // Resolve categories across all valid sources (categoryConfig, luykeCategories, categoryTargets, inputCategories)
     let resolvedCategories: string[] = [];
-    const addUniqueCategory = (catName: string) => {
-      if (!catName || isNonCategoryNoiseLine(catName)) return;
-      const clean = cleanCategoryName(catName);
+    const seenCanonicalKeys = new Set<string>();
+    const addUniqueCategory = (rawCatName: string, isFromMasterConfig: boolean = false) => {
+      if (!rawCatName || isNonCategoryNoiseLine(rawCatName)) return;
+      if (!/[a-zA-Zà-ỹÀ-Ỹ]/.test(rawCatName) || /^[\d\s,.\-+/%:()]+$/.test(rawCatName)) return;
+      const clean = cleanCategoryName(rawCatName);
       if (!clean) return;
-      const alreadyCovered = resolvedCategories.some(rc => isSameCategoryClean(cleanCategoryName(rc), clean));
+
+      const res = resolveCategoryMaster(rawCatName, categoryConfig, {
+        recordUnmapped: !isFromMasterConfig,
+        source: 'SUC_KHOE_NV',
+      });
+
+      if (categoryConfig && categoryConfig.length > 0 && res.item && res.item.isActive === false) {
+        return;
+      }
+
+      if (res.isAmbiguous) {
+        const ambKey = `ambiguous:${clean}`;
+        if (!seenCanonicalKeys.has(ambKey)) {
+          seenCanonicalKeys.add(ambKey);
+          resolvedCategories.push(rawCatName.trim());
+        }
+        return;
+      }
+
+      const cKey = (!res.isUnmapped && res.canonicalKey) ? res.canonicalKey : clean;
+      if (seenCanonicalKeys.has(cKey)) return;
+
+      const displayToUse = (categoryConfig && categoryConfig.length > 0 && !res.isUnmapped)
+        ? res.displayName
+        : rawCatName.trim();
+      const displayClean = cleanCategoryName(displayToUse);
+
+      const alreadyCovered = resolvedCategories.some(rc => {
+        const rcRes = resolveCategoryMaster(rc, categoryConfig);
+        if (rcRes.isAmbiguous) return false;
+        if (!res.isUnmapped && !rcRes.isUnmapped && res.canonicalKey && rcRes.canonicalKey === res.canonicalKey) {
+          return true;
+        }
+        return isSameCategoryClean(cleanCategoryName(rc), displayClean) || isSameCategoryClean(cleanCategoryName(rc), clean);
+      });
+
       if (!alreadyCovered) {
-        resolvedCategories.push(catName);
+        seenCanonicalKeys.add(cKey);
+        resolvedCategories.push(displayToUse);
       }
     };
 
     if (categoryConfig && categoryConfig.length > 0) {
       // MASTER LIST from TNB Leader: Tên ngành hàng và thứ tự chuẩn theo cấu hình bên TNB Leader
-      categoryConfig.forEach(c => addUniqueCategory(c.name));
+      const activeMaster = categoryConfig
+        .filter(c => c.isActive !== false)
+        .slice()
+        .sort((a, b) => getCustomCategoryIndex(a.name, categoryConfig) - getCustomCategoryIndex(b.name, categoryConfig));
+      activeMaster.forEach(c => addUniqueCategory(c.name, true));
       // Bổ sung các ngành hàng hợp lệ từ luykeCategories, categoryTargets và Thi Đua NV chưa có trong categoryConfig để không bao giờ bị sót ngành hàng
       if (luykeCategories && luykeCategories.length > 0) {
         luykeCategories.forEach(c => addUniqueCategory(c.name));
@@ -866,22 +908,23 @@ export const parseStaffMatrixDataRefined = (
         categoryTargets.forEach((t: any) => addUniqueCategory(t?.name || ''));
       }
       inputCategories.forEach(catName => addUniqueCategory(catName));
-
-      // Loại bỏ các ngành hàng rác, chuỗi thuần số hoặc không chứa chữ cái
-      resolvedCategories = resolvedCategories.filter(catName => {
-        if (!catName || !/[a-zA-Zà-ỹÀ-Ỹ]/.test(catName)) return false;
-        if (/^[\d\s,.\-+/%:()]+$/.test(catName)) return false;
-        return true;
-      });
     }
 
-    // Ensure categoryTypes has canonical clean keys for all resolvedCategories
+    // Ensure categoryTypes has canonical & clean keys for all resolvedCategories
     resolvedCategories.forEach(catName => {
       const clean = cleanCategoryName(catName);
+      const cKey = getCanonicalCategoryKey(catName, categoryConfig);
+      if (cKey && categoryTypes[cKey] && clean && !categoryTypes[clean]) {
+        categoryTypes[clean] = categoryTypes[cKey];
+        return;
+      }
       if (!clean || categoryTypes[clean]) return;
+      const res = resolveCategoryMaster(catName, categoryConfig);
+      if (res.isAmbiguous) return;
       for (const [k, v] of Object.entries(categoryTypes)) {
         if (isSameCategoryClean(clean, k)) {
           categoryTypes[clean] = v;
+          if (cKey && !categoryTypes[cKey]) categoryTypes[cKey] = v;
           break;
         }
       }
@@ -889,15 +932,18 @@ export const parseStaffMatrixDataRefined = (
 
     if (sortAlpha) {
       resolvedCategories.sort((a, b) => a.localeCompare(b, 'vi'));
-    } else if (!categoryConfig || categoryConfig.length === 0) {
+    } else {
       resolvedCategories.sort((a, b) => getCustomCategoryIndex(a, categoryConfig) - getCustomCategoryIndex(b, categoryConfig));
     }
 
     const targetPerStaffPerCat: Record<string, number> = {};
     resolvedCategories.forEach(catName => {
       const clean = cleanCategoryName(catName);
-      const baseTarget = resolveCategoryBaseTarget(catName, categoryTargets, luykeCategories);
-      targetPerStaffPerCat[clean] = staffCount > 0 ? baseTarget / staffCount : baseTarget;
+      const cKey = getCanonicalCategoryKey(catName, categoryConfig);
+      const baseTarget = resolveCategoryBaseTarget(catName, categoryTargets, luykeCategories, categoryConfig);
+      const perStaff = staffCount > 0 ? baseTarget / staffCount : baseTarget;
+      targetPerStaffPerCat[clean] = perStaff;
+      if (cKey) targetPerStaffPerCat[cKey] = perStaff;
     });
 
     const staffMatrixResults: StaffMatrixData[] = Array.from(staffMap.values())
@@ -910,8 +956,13 @@ export const parseStaffMatrixDataRefined = (
 
       resolvedCategories.forEach(catName => {
         const cleanName = cleanCategoryName(catName);
-        let accumulated = staff.values[cleanName];
+        const catRes = resolveCategoryMaster(catName, categoryConfig);
+        const cKey = getCanonicalCategoryKey(catName, categoryConfig);
+        let accumulated = (!catRes.isAmbiguous && cKey) ? staff.values[cKey] : undefined;
         if (accumulated === undefined) {
+          accumulated = staff.values[cleanName];
+        }
+        if (accumulated === undefined && !catRes.isAmbiguous) {
           for (const [k, v] of Object.entries(staff.values)) {
             if (isSameCategoryClean(cleanName, k)) {
               accumulated = v;
@@ -920,9 +971,15 @@ export const parseStaffMatrixDataRefined = (
           }
         }
         accumulated = accumulated ?? 0;
+        staff.values[cleanName] = accumulated;
+        if (cKey && !catRes.isAmbiguous) {
+          staff.values[cKey] = accumulated;
+        }
         values.push(accumulated);
 
-        const target = targetPerStaffPerCat[cleanName] || 0;
+        const target = (cKey && !catRes.isAmbiguous && targetPerStaffPerCat[cKey] !== undefined)
+          ? targetPerStaffPerCat[cKey]
+          : (targetPerStaffPerCat[cleanName] || 0);
         let actualRate = 0;
         if (target > 0) {
           actualRate = (accumulated / target) * 100;
@@ -959,7 +1016,22 @@ export const parseStaffMatrixDataRefined = (
       } as any;
     });
 
-    return { staffMatrix: staffMatrixResults, categories: resolvedCategories, results: staffMatrixResults, categoryTypes };
+    const format1Result = { staffMatrix: staffMatrixResults, categories: resolvedCategories, results: staffMatrixResults, categoryTypes };
+    staffMatrixParseCache.unshift({
+      input: raw,
+      staffCount,
+      categoryTargets,
+      luykeCategories,
+      daysPassed,
+      totalDays,
+      sortAlpha,
+      categoryConfig,
+      result: format1Result
+    });
+    if (staffMatrixParseCache.length > 8) {
+      staffMatrixParseCache.pop();
+    }
+    return format1Result;
   }
 
   // ========================================================
@@ -1054,11 +1126,22 @@ export const parseStaffMatrixDataRefined = (
       if (targetMatch) catName = targetMatch[1].trim();
 
       const cleanName = cleanCategoryName(catName);
+      const catRes = resolveCategoryMaster(catName, categoryConfig, { recordUnmapped: true, source: 'SUC_KHOE_NV' });
+      const cKey = getCanonicalCategoryKey(catName, categoryConfig);
       if (cleanName && !categoryToColIdx.has(cleanName)) {
         categoryToColIdx.set(cleanName, colPos);
         inputCategories.push(catName);
       }
-      if (categoryConfig && categoryConfig.length > 0) {
+      if (!catRes.isAmbiguous && cKey && !categoryToColIdx.has(cKey)) {
+        categoryToColIdx.set(cKey, colPos);
+      }
+      if (!catRes.isAmbiguous && catRes.displayName) {
+        const matchClean = cleanCategoryName(catRes.displayName);
+        if (matchClean && !categoryToColIdx.has(matchClean)) {
+          categoryToColIdx.set(matchClean, colPos);
+        }
+      }
+      if (categoryConfig && categoryConfig.length > 0 && !catRes.isAmbiguous) {
         const match = findMatchingCategoryConfig(catName, categoryConfig);
         if (match) {
           const matchClean = cleanCategoryName(match.name);
@@ -1122,8 +1205,19 @@ export const parseStaffMatrixDataRefined = (
         if (targetMatch) catName = targetMatch[1].trim();
         
         const cleanName = cleanCategoryName(catName);
+        const catRes = resolveCategoryMaster(catName, categoryConfig, { recordUnmapped: true, source: 'SUC_KHOE_NV' });
+        const cKey = getCanonicalCategoryKey(catName, categoryConfig);
         if (!categoryToColIdx.has(cleanName)) {
           categoryToColIdx.set(cleanName, colPosition);
+        }
+        if (!catRes.isAmbiguous && cKey && !categoryToColIdx.has(cKey)) {
+          categoryToColIdx.set(cKey, colPosition);
+        }
+        if (!catRes.isAmbiguous && catRes.displayName) {
+          const matchClean = cleanCategoryName(catRes.displayName);
+          if (matchClean && !categoryToColIdx.has(matchClean)) {
+            categoryToColIdx.set(matchClean, colPosition);
+          }
         }
         inputCategories.push(catName);
         colPosition++;
@@ -1157,70 +1251,92 @@ export const parseStaffMatrixDataRefined = (
   }
 
   let resolvedCategories: string[] = [];
-  if (categoryConfig && categoryConfig.length > 0) {
-    // MASTER LIST from TNB Leader: Tên ngành hàng và thứ tự chuẩn theo cấu hình bên TNB Leader
-    resolvedCategories = categoryConfig.map(c => c.name);
-  } else {
-    const seenCat = new Set<string>();
-    if (luykeCategories && luykeCategories.length > 0) {
-      luykeCategories.forEach(c => {
-        const clean = cleanCategoryName(c.name);
-        if (clean && !seenCat.has(clean)) {
-          seenCat.add(clean);
-          resolvedCategories.push(c.name);
-        }
-      });
-      inputCategories.forEach(catName => {
-        const clean = cleanCategoryName(catName);
-        if (clean && !seenCat.has(clean)) {
-          seenCat.add(clean);
-          resolvedCategories.push(catName);
-        }
-      });
-    } else if (categoryTargets && categoryTargets.length > 0) {
-      categoryTargets.forEach(t => {
-        const clean = cleanCategoryName(t.name);
-        if (clean && !seenCat.has(clean)) {
-          seenCat.add(clean);
-          resolvedCategories.push(t.name);
-        }
-      });
-      inputCategories.forEach(catName => {
-        const clean = cleanCategoryName(catName);
-        if (clean && !seenCat.has(clean)) {
-          seenCat.add(clean);
-          resolvedCategories.push(catName);
-        }
-      });
-    } else {
-      inputCategories.forEach(catName => {
-        const clean = cleanCategoryName(catName);
-        if (clean && !seenCat.has(clean)) {
-          seenCat.add(clean);
-          resolvedCategories.push(catName);
-        }
-      });
+  const seenCanonicalKeys = new Set<string>();
+  const addUniqueCategory = (rawCatName: string, isFromMasterConfig: boolean = false) => {
+    if (!rawCatName || isNonCategoryNoiseLine(rawCatName)) return;
+    if (!/[a-zA-Zà-ỹÀ-Ỹ]/.test(rawCatName) || /^[\d\s,.\-+/%:()]+$/.test(rawCatName)) return;
+    const clean = cleanCategoryName(rawCatName);
+    if (!clean) return;
+
+    const res = resolveCategoryMaster(rawCatName, categoryConfig, {
+      recordUnmapped: !isFromMasterConfig,
+      source: 'SUC_KHOE_NV',
+    });
+
+    if (categoryConfig && categoryConfig.length > 0 && res.item && res.item.isActive === false) {
+      return;
     }
 
-    // Loại bỏ các ngành hàng rác, chuỗi thuần số hoặc không chứa chữ cái
-    resolvedCategories = resolvedCategories.filter(catName => {
-      if (!catName || !/[a-zA-Zà-ỹÀ-Ỹ]/.test(catName)) return false;
-      if (/^[\d\s,.\-+/%:()]+$/.test(catName)) return false;
-      return true;
+    if (res.isAmbiguous) {
+      const ambKey = `ambiguous:${clean}`;
+      if (!seenCanonicalKeys.has(ambKey)) {
+        seenCanonicalKeys.add(ambKey);
+        resolvedCategories.push(rawCatName.trim());
+      }
+      return;
+    }
+
+    const cKey = (!res.isUnmapped && res.canonicalKey) ? res.canonicalKey : clean;
+    if (seenCanonicalKeys.has(cKey)) return;
+
+    const displayToUse = (categoryConfig && categoryConfig.length > 0 && !res.isUnmapped)
+      ? res.displayName
+      : rawCatName.trim();
+    const displayClean = cleanCategoryName(displayToUse);
+
+    const alreadyCovered = resolvedCategories.some(rc => {
+      const rcRes = resolveCategoryMaster(rc, categoryConfig);
+      if (rcRes.isAmbiguous) return false;
+      if (!res.isUnmapped && !rcRes.isUnmapped && res.canonicalKey && rcRes.canonicalKey === res.canonicalKey) {
+        return true;
+      }
+      return isSameCategoryClean(cleanCategoryName(rc), displayClean) || isSameCategoryClean(cleanCategoryName(rc), clean);
     });
+
+    if (!alreadyCovered) {
+      seenCanonicalKeys.add(cKey);
+      resolvedCategories.push(displayToUse);
+    }
+  };
+
+  if (categoryConfig && categoryConfig.length > 0) {
+    // MASTER LIST from TNB Leader: Tên ngành hàng và thứ tự chuẩn theo cấu hình bên TNB Leader
+    const activeMaster = categoryConfig
+      .filter(c => c.isActive !== false)
+      .slice()
+      .sort((a, b) => getCustomCategoryIndex(a.name, categoryConfig) - getCustomCategoryIndex(b.name, categoryConfig));
+    activeMaster.forEach(c => addUniqueCategory(c.name, true));
+    if (luykeCategories && luykeCategories.length > 0) {
+      luykeCategories.forEach(c => addUniqueCategory(c.name));
+    }
+    if (categoryTargets && categoryTargets.length > 0) {
+      categoryTargets.forEach((t: any) => addUniqueCategory(t?.name || ''));
+    }
+    inputCategories.forEach(catName => addUniqueCategory(catName));
+  } else {
+    if (luykeCategories && luykeCategories.length > 0) {
+      luykeCategories.forEach(c => addUniqueCategory(c.name));
+    }
+    if (categoryTargets && categoryTargets.length > 0) {
+      categoryTargets.forEach((t: any) => addUniqueCategory(t?.name || ''));
+    }
+    inputCategories.forEach(catName => addUniqueCategory(catName));
   }
 
   if (sortAlpha) {
     resolvedCategories.sort((a, b) => a.localeCompare(b, 'vi'));
-  } else if (!categoryConfig || categoryConfig.length === 0) {
+  } else {
     resolvedCategories.sort((a, b) => getCustomCategoryIndex(a, categoryConfig) - getCustomCategoryIndex(b, categoryConfig));
   }
 
   const targetPerStaffPerCat: Record<string, number> = {};
   resolvedCategories.forEach(catName => {
     const clean = cleanCategoryName(catName);
-    const baseTarget = resolveCategoryBaseTarget(catName, categoryTargets, luykeCategories);
-    targetPerStaffPerCat[clean] = staffCount > 0 ? baseTarget / staffCount : baseTarget;
+    const cKey = getCanonicalCategoryKey(catName, categoryConfig);
+    const baseTarget = resolveCategoryBaseTarget(catName, categoryTargets, luykeCategories, categoryConfig);
+    const perStaff = staffCount > 0 ? baseTarget / staffCount : baseTarget;
+    targetPerStaffPerCat[clean] = perStaff;
+    if (cKey) targetPerStaffPerCat[cKey] = perStaff;
   });
 
   const results: StaffMatrixData[] = [];
@@ -1236,8 +1352,13 @@ export const parseStaffMatrixDataRefined = (
 
     resolvedCategories.forEach((catName) => {
       const cleanName = cleanCategoryName(catName);
-      let colIdx = categoryToColIdx.get(cleanName);
+      const catRes = resolveCategoryMaster(catName, categoryConfig);
+      const cKey = getCanonicalCategoryKey(catName, categoryConfig);
+      let colIdx = (!catRes.isAmbiguous && cKey) ? categoryToColIdx.get(cKey) : undefined;
       if (colIdx === undefined) {
+        colIdx = categoryToColIdx.get(cleanName);
+      }
+      if (colIdx === undefined && !catRes.isAmbiguous) {
         for (const [k, v] of categoryToColIdx.entries()) {
           if (isSameCategoryClean(cleanName, k)) {
             colIdx = v;
@@ -1248,8 +1369,13 @@ export const parseStaffMatrixDataRefined = (
       const accumulated = (colIdx !== undefined && colIdx < rawInputValues.length) ? (rawInputValues[colIdx] || 0) : 0;
       values.push(accumulated);
       valuesMap[cleanName] = accumulated;
+      if (cKey && !catRes.isAmbiguous) {
+        valuesMap[cKey] = accumulated;
+      }
 
-      const target = targetPerStaffPerCat[cleanName] || 0;
+      const target = (cKey && !catRes.isAmbiguous && targetPerStaffPerCat[cKey] !== undefined)
+        ? targetPerStaffPerCat[cKey]
+        : (targetPerStaffPerCat[cleanName] || 0);
       
       let actualRate = 0;
       if (target > 0) {
@@ -1287,7 +1413,36 @@ export const parseStaffMatrixDataRefined = (
     } as any);
   }
 
-  const finalResult = { staffMatrix: results, categories: resolvedCategories, results, categoryTypes: {} };
+  const format2CategoryTypes: Record<string, 'SL' | 'DT'> = {};
+  if (luykeCategories && luykeCategories.length > 0) {
+    luykeCategories.forEach(c => {
+      const clean = cleanCategoryName(c.name);
+      const cKey = getCanonicalCategoryKey(c.name, categoryConfig);
+      if (c.type === 'SL' || c.type === 'DT') {
+        if (clean && !format2CategoryTypes[clean]) format2CategoryTypes[clean] = c.type;
+        if (cKey && !format2CategoryTypes[cKey]) format2CategoryTypes[cKey] = c.type;
+      }
+    });
+  }
+  if (categoryTargets && categoryTargets.length > 0) {
+    categoryTargets.forEach((t: any) => {
+      const clean = cleanCategoryName(t?.name || '');
+      const tKey = getCanonicalCategoryKey(t?.name || '', categoryConfig);
+      if (t?.type === 'SL' || t?.type === 'DT') {
+        if (clean && !format2CategoryTypes[clean]) format2CategoryTypes[clean] = t.type;
+        if (tKey && !format2CategoryTypes[tKey]) format2CategoryTypes[tKey] = t.type;
+      }
+    });
+  }
+  resolvedCategories.forEach(catName => {
+    const clean = cleanCategoryName(catName);
+    const cKey = getCanonicalCategoryKey(catName, categoryConfig);
+    if (cKey && format2CategoryTypes[cKey] && clean && !format2CategoryTypes[clean]) {
+      format2CategoryTypes[clean] = format2CategoryTypes[cKey];
+    }
+  });
+
+  const finalResult = { staffMatrix: results, categories: resolvedCategories, results, categoryTypes: format2CategoryTypes };
   staffMatrixParseCache.unshift({
     input: raw,
     staffCount,
@@ -1386,8 +1541,10 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   selectedStaffIds,
   categoryTargets,
   luykeCategories,
-  categoryConfig
+  categoryConfig: categoryConfigProp
 }) => {
+  const { categoryConfig: hookCategoryConfig } = useCategoryConfig();
+  const categoryConfig = (categoryConfigProp && categoryConfigProp.length > 0) ? categoryConfigProp : hookCategoryConfig;
   const tableRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isCopyingAll, setIsCopyingAll] = useState(false);
@@ -1461,8 +1618,8 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
     const newTargets = [...categoryTargets];
     const sourceClean = cleanCategoryName(sourceCatName);
     const targetClean = cleanCategoryName(targetCatName);
-    const sourceIdx = newTargets.findIndex(t => cleanCategoryName(t.name) === sourceClean);
-    const targetIdx = newTargets.findIndex(t => cleanCategoryName(t.name) === targetClean);
+    const sourceIdx = newTargets.findIndex(t => cleanCategoryName(t.name) === sourceClean || isSameCategoryByConfig(t.name, sourceCatName, categoryConfig));
+    const targetIdx = newTargets.findIndex(t => cleanCategoryName(t.name) === targetClean || isSameCategoryByConfig(t.name, targetCatName, categoryConfig));
     
     if (sourceIdx !== -1 && targetIdx !== -1) {
       const [removed] = newTargets.splice(sourceIdx, 1);
@@ -1585,7 +1742,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   };
 
   const getTargetPerStaff = (catName: string) => {
-    const baseTarget = resolveCategoryBaseTarget(catName, categoryTargets, luykeCategories);
+    const baseTarget = resolveCategoryBaseTarget(catName, categoryTargets, luykeCategories, categoryConfig);
     return staffCount > 0 ? baseTarget / staffCount : 0;
   };
   
@@ -1636,7 +1793,8 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   }, [activeStore]);
 
   React.useEffect(() => {
-    if (categories.length > 0 && !initializedRef.current) {
+    if (categories.length === 0) return;
+    if (!initializedRef.current) {
       const savedKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
       const savedVal = localStorage.getItem(savedKey);
       if (savedVal !== null) {
@@ -1645,7 +1803,11 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
           if (Array.isArray(parsed)) {
             const validSaved = categories.filter(cat => {
               const clean = cleanCategoryName(cat);
-              return parsed.some((p: string) => p === cat || cleanCategoryName(p) === clean);
+              return parsed.some((p: string) =>
+                p === cat ||
+                cleanCategoryName(p) === clean ||
+                isSameCategoryByConfig(p, cat, categoryConfig)
+              );
             });
             if (validSaved.length > 0) {
               setVisibleCategories(validSaved);
@@ -1659,8 +1821,21 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       }
       setVisibleCategories(categories);
       initializedRef.current = true;
+    } else {
+      setVisibleCategories(prev => {
+        if (prev.length === 0) return prev;
+        const mapped = categories.filter(cat => {
+          const clean = cleanCategoryName(cat);
+          return prev.some(p =>
+            p === cat ||
+            cleanCategoryName(p) === clean ||
+            isSameCategoryByConfig(p, cat, categoryConfig)
+          );
+        });
+        return mapped.length > 0 ? mapped : categories;
+      });
     }
-  }, [categories, activeStore]);
+  }, [categories, activeStore, categoryConfig]);
 
   const toggleCategory = (cat: string) => {
     setVisibleCategories(prev => {

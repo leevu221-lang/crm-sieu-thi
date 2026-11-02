@@ -9,7 +9,7 @@ import { parseStaffMatrixDataRefined } from './SummaryThiDuaTable';
 import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay';
 
-import { CategoryConfigItem } from '../../../hooks/useCategoryConfig';
+import { useCategoryConfig, CategoryConfigItem } from '../../../hooks/useCategoryConfig';
 
 const removeAccents = (str: string): string => {
   return str
@@ -51,8 +51,10 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
   luykeCategories,
   marketFilter,
   storeName,
-  categoryConfig
+  categoryConfig: categoryConfigProp
 }) => {
+  const { categoryConfig: masterCategoryConfig } = useCategoryConfig();
+  const categoryConfig = categoryConfigProp ?? masterCategoryConfig;
   const captureRef = useRef<HTMLDivElement>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);

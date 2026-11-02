@@ -10,7 +10,14 @@ import { parseCategoryData, cn, cleanCategoryName as sharedCleanCategoryName, no
 import { CategoryData, StaffMatrixData } from '../../RTST/types';
 import { parseStaffMatrixDataRefined, isSameCategoryClean } from './SummaryThiDuaTable';
 import { extractStaffNameAndId } from '../utils/staffParserHelper';
-import { CategoryConfigItem } from '../../../hooks/useCategoryConfig';
+import {
+  useCategoryConfig,
+  CategoryConfigItem,
+  resolveCategoryMaster,
+  getCanonicalCategoryKey,
+  getCategoryOrderIndex,
+  isSameCategoryByConfig,
+} from '../../../hooks/useCategoryConfig';
 
 export const removeAccents = (str: string): string => {
   return str
@@ -578,6 +585,7 @@ let cachedEffLuykeInput: {
   luyKeNganhHang: string;
   daysPassed: number;
   totalDays: number;
+  categoryConfig: any;
   result: CategoryData[];
 } | null = null;
 
@@ -595,6 +603,9 @@ let cachedStaffMatrixInput: {
 interface PreparedMergedCategory {
   name: string;
   cleanCatName: string;
+  canonicalKey: string;
+  isAmbiguous?: boolean;
+  orderIndex: number;
   type: 'SL' | 'DT' | 'ALL';
   target: number;
   baseTarget: number;
@@ -641,7 +652,7 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
   totalDays,
   categoryTargets,
   luykeCategories = [],
-  categoryConfig,
+  categoryConfig: categoryConfigProp,
   staffTargetQd = 0,
   staffDtqd = 0,
   staffPercentHT = 0,
@@ -651,6 +662,9 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
   onPreviewImage,
   onOpenCompare,
 }) => {
+  const { categoryConfig: masterCategoryConfig } = useCategoryConfig();
+  const categoryConfig = categoryConfigProp ?? masterCategoryConfig;
+
   // Ensure luyKeNganhHang raw store report is also parsed and merged into effectiveLuykeCategories when luykeCategories is empty or partial
   const effectiveLuykeCategories = useMemo(() => {
     if (
@@ -658,7 +672,8 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
       cachedEffLuykeInput.luykeCategories === luykeCategories &&
       cachedEffLuykeInput.luyKeNganhHang === luyKeNganhHang &&
       cachedEffLuykeInput.daysPassed === daysPassed &&
-      cachedEffLuykeInput.totalDays === totalDays
+      cachedEffLuykeInput.totalDays === totalDays &&
+      cachedEffLuykeInput.categoryConfig === categoryConfig
     ) {
       return cachedEffLuykeInput.result;
     }
@@ -668,7 +683,14 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
       parsedFromRaw.forEach(c => {
         const clean = cleanCategoryName(c.name);
         if (!clean) return;
-        if (!base.some(b => normalize(b.name || '') === normalize(c.name || '') && (!b.type || !c.type || b.type === c.type))) {
+        if (
+          !base.some(
+            b =>
+              (normalize(b.name || '') === normalize(c.name || '') ||
+                isSameCategoryByConfig(b.name || '', c.name || '', categoryConfig)) &&
+              (!b.type || !c.type || b.type === c.type)
+          )
+        ) {
           base.push(c);
         }
       });
@@ -678,10 +700,11 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
       luyKeNganhHang,
       daysPassed,
       totalDays,
+      categoryConfig,
       result: base
     };
     return base;
-  }, [luykeCategories, luyKeNganhHang, daysPassed, totalDays]);
+  }, [luykeCategories, luyKeNganhHang, daysPassed, totalDays, categoryConfig]);
 
   // Parse staff matrix using refined unified parser (shared across all cards via cachedStaffMatrixInput)
   const { staffMatrix, categories: detailCategories, categoryTypes: parsedCategoryTypes = {} } = useMemo(() => {
@@ -758,18 +781,25 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
     effectiveLuykeCategories.forEach(cat => {
       const clean = cleanCategoryName(cat.name);
       if (!clean) return;
+      const cKey = getCanonicalCategoryKey(cat.name, categoryConfig);
       if (cat.type && cat.type !== 'ALL') {
         catTypeLookup[clean] = cat.type;
+        if (cKey) catTypeLookup[cKey] = cat.type;
       } else if (!catTypeLookup[clean]) {
         catTypeLookup[clean] = cat.type || 'ALL';
+        if (cKey && !catTypeLookup[cKey]) catTypeLookup[cKey] = cat.type || 'ALL';
       }
     });
     if (Array.isArray(categoryTargets)) {
       categoryTargets.forEach((t: any) => {
         const clean = cleanCategoryName(t?.name || '');
         if (!clean) return;
+        const cKey = getCanonicalCategoryKey(t?.name || '', categoryConfig);
         if ((t?.type === 'SL' || t?.type === 'DT') && (!catTypeLookup[clean] || catTypeLookup[clean] === 'ALL')) {
           catTypeLookup[clean] = t.type;
+        }
+        if (cKey && (t?.type === 'SL' || t?.type === 'DT') && (!catTypeLookup[cKey] || catTypeLookup[cKey] === 'ALL')) {
+          catTypeLookup[cKey] = t.type;
         }
       });
     }
@@ -777,26 +807,52 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
     const resolveCategoryType = (catName: string, explicitType?: string): 'SL' | 'DT' => {
       if (explicitType === 'SL' || explicitType === 'DT') return explicitType;
       const clean = cleanCategoryName(catName);
+      const res = resolveCategoryMaster(catName, categoryConfig, { recordUnmapped: false, source: 'SUC_KHOE_NV' });
+      if (!res.isAmbiguous && res.canonicalKey) {
+        const directKey = catTypeLookup[res.canonicalKey];
+        if (directKey === 'SL' || directKey === 'DT') return directKey;
+      }
       if (clean) {
         const direct = catTypeLookup[clean];
         if (direct === 'SL' || direct === 'DT') return direct;
-        for (const [k, v] of Object.entries(catTypeLookup)) {
-          if ((v === 'SL' || v === 'DT') && isSameCategoryClean(clean, k)) {
-            return v;
+        if (!res.isAmbiguous) {
+          for (const [k, v] of Object.entries(catTypeLookup)) {
+            if ((v === 'SL' || v === 'DT') && isSameCategoryClean(clean, k)) {
+              return v;
+            }
           }
+          const targetMatch = categoryTargets?.find((t: any) => {
+            const tRes = resolveCategoryMaster(t?.name || '', categoryConfig, { recordUnmapped: false, source: 'SUC_KHOE_NV' });
+            if (!tRes.isAmbiguous && tRes.canonicalKey === res.canonicalKey) return true;
+            if (tRes.isAmbiguous) return false;
+            return isSameCategoryClean(cleanCategoryName(t?.name || ''), clean);
+          });
+          if (targetMatch?.type === 'SL' || targetMatch?.type === 'DT') return targetMatch.type;
+          const luykeMatch = effectiveLuykeCategories.find(c => {
+            const lRes = resolveCategoryMaster(c.name, categoryConfig, { recordUnmapped: false, source: 'SUC_KHOE_NV' });
+            if (!lRes.isAmbiguous && lRes.canonicalKey === res.canonicalKey) return true;
+            if (lRes.isAmbiguous) return false;
+            return isSameCategoryClean(cleanCategoryName(c.name), clean);
+          });
+          if (luykeMatch?.type === 'SL' || luykeMatch?.type === 'DT') return luykeMatch.type;
         }
-        const targetMatch = categoryTargets?.find((t: any) => isSameCategoryClean(cleanCategoryName(t?.name || ''), clean));
-        if (targetMatch?.type === 'SL' || targetMatch?.type === 'DT') return targetMatch.type;
-        const luykeMatch = effectiveLuykeCategories.find(c => isSameCategoryClean(cleanCategoryName(c.name), clean));
-        if (luykeMatch?.type === 'SL' || luykeMatch?.type === 'DT') return luykeMatch.type;
       }
-      return isSlCategoryByKeyword(catName) ? 'SL' : 'DT';
+      return isSlCategoryByKeyword(res.displayName || catName) ? 'SL' : 'DT';
     };
 
     const resolveStoreBaseTarget = (catName: string, fallbackTarget: number = 0): number => {
       const clean = cleanCategoryName(catName);
       if (!clean) return fallbackTarget;
-      const matchingTarget = categoryTargets?.find((t: any) => isSameCategoryClean(cleanCategoryName(t?.name || ''), clean));
+      const res = resolveCategoryMaster(catName, categoryConfig, { recordUnmapped: false, source: 'SUC_KHOE_NV' });
+      const matchingTarget = categoryTargets?.find((t: any) => {
+        const tClean = cleanCategoryName(t?.name || '');
+        if (!tClean) return false;
+        if (res.isAmbiguous) return tClean === clean;
+        const tRes = resolveCategoryMaster(t?.name || '', categoryConfig, { recordUnmapped: false, source: 'SUC_KHOE_NV' });
+        if (tRes.isAmbiguous) return tClean === clean;
+        if (tRes.canonicalKey === res.canonicalKey) return true;
+        return isSameCategoryClean(tClean, clean);
+      });
       if (matchingTarget) {
         if (typeof matchingTarget.adjustedTarget === 'number' && !isNaN(matchingTarget.adjustedTarget)) {
           return matchingTarget.adjustedTarget;
@@ -805,31 +861,77 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
           return matchingTarget.target;
         }
       }
-      const matchingLuyke = effectiveLuykeCategories.find(c => isSameCategoryClean(cleanCategoryName(c.name), clean));
+      const matchingLuyke = effectiveLuykeCategories.find(c => {
+        const lClean = cleanCategoryName(c.name);
+        if (!lClean) return false;
+        if (res.isAmbiguous) return lClean === clean;
+        const lRes = resolveCategoryMaster(c.name, categoryConfig, { recordUnmapped: false, source: 'SUC_KHOE_NV' });
+        if (lRes.isAmbiguous) return lClean === clean;
+        if (lRes.canonicalKey === res.canonicalKey) return true;
+        return isSameCategoryClean(lClean, clean);
+      });
       if (matchingLuyke && typeof matchingLuyke.target === 'number' && !isNaN(matchingLuyke.target)) {
         return matchingLuyke.target;
       }
       return fallbackTarget || 0;
     };
 
-    const rawMerged: { name: string; cleanCatName: string; type: 'SL' | 'DT' | 'ALL'; target: number }[] = [];
-    const addMergedCategory = (rawName: string, rawType?: string, rawTarget?: number) => {
+    const rawMerged: {
+      name: string;
+      cleanCatName: string;
+      canonicalKey: string;
+      isAmbiguous?: boolean;
+      orderIndex: number;
+      type: 'SL' | 'DT' | 'ALL';
+      target: number;
+    }[] = [];
+
+    const addMergedCategory = (rawName: string, rawType?: string, rawTarget?: number, isFromMaster: boolean = false) => {
       if (!rawName || !/[a-zA-Zà-ỹÀ-Ỹ]/.test(rawName)) return;
       if (/^[\d\s,.\-+/%:()]+$/.test(rawName)) return;
       const clean = cleanCategoryName(rawName);
       if (!clean) return;
-      const existingIdx = rawMerged.findIndex(mc => isSameCategoryClean(mc.cleanCatName, clean));
+
+      const res = resolveCategoryMaster(rawName, categoryConfig, {
+        recordUnmapped: !isFromMaster,
+        source: 'SUC_KHOE_NV',
+      });
+      if (res.item && res.item.isActive === false) return;
+
+      const displayName =
+        categoryConfig && categoryConfig.length > 0 && res.item && !res.isAmbiguous
+          ? res.displayName
+          : rawName.trim();
+      const displayClean = cleanCategoryName(displayName) || clean;
+      const orderIndex =
+        res.order !== undefined ? res.order : getCategoryOrderIndex(displayName, categoryConfig);
+
+      const existingIdx = rawMerged.findIndex(mc => {
+        if (res.isAmbiguous || mc.isAmbiguous) {
+          return mc.cleanCatName === clean;
+        }
+        return mc.canonicalKey === res.canonicalKey || isSameCategoryClean(mc.cleanCatName, displayClean) || isSameCategoryClean(mc.cleanCatName, clean);
+      });
+
       const resolvedType = resolveCategoryType(rawName, rawType);
       const resolvedTarget = resolveStoreBaseTarget(rawName, rawTarget ?? 0);
       if (existingIdx === -1) {
         rawMerged.push({
-          name: rawName,
-          cleanCatName: clean,
+          name: displayName,
+          cleanCatName: displayClean,
+          canonicalKey: res.canonicalKey,
+          isAmbiguous: res.isAmbiguous,
+          orderIndex,
           type: resolvedType,
           target: resolvedTarget,
         });
       } else {
         const existing = rawMerged[existingIdx];
+        if (res.item && !res.isAmbiguous && existing.name !== res.displayName) {
+          existing.name = res.displayName;
+          existing.cleanCatName = displayClean;
+          existing.canonicalKey = res.canonicalKey;
+        }
         if ((!existing.type || existing.type === 'ALL') && (resolvedType === 'SL' || resolvedType === 'DT')) {
           existing.type = resolvedType;
         }
@@ -840,22 +942,40 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
     };
 
     if (categoryConfig && categoryConfig.length > 0) {
-      categoryConfig.forEach(c => addMergedCategory(c.name));
+      categoryConfig.forEach(c => {
+        if (c.isActive !== false) {
+          addMergedCategory(c.name, undefined, undefined, true);
+        }
+      });
     }
-    effectiveLuykeCategories.forEach(cat => addMergedCategory(cat.name, cat.type, cat.target));
+    effectiveLuykeCategories.forEach(cat => addMergedCategory(cat.name, cat.type, cat.target, false));
     if (Array.isArray(categoryTargets)) {
-      categoryTargets.forEach((t: any) => addMergedCategory(t?.name || '', t?.type, t?.adjustedTarget ?? t?.target ?? 0));
+      categoryTargets.forEach((t: any) => addMergedCategory(t?.name || '', t?.type, t?.adjustedTarget ?? t?.target ?? 0, false));
     }
-    detailCategories.forEach(dcName => addMergedCategory(dcName));
+    detailCategories.forEach(dcName => addMergedCategory(dcName, undefined, undefined, false));
 
-    const cleanDetailCats = detailCategories.map(dc => cleanCategoryName(dc));
+    rawMerged.sort((a, b) => a.orderIndex - b.orderIndex);
+
+    const detailCatsMeta = detailCategories.map(dc => ({
+      clean: cleanCategoryName(dc),
+      res: resolveCategoryMaster(dc, categoryConfig, { recordUnmapped: false, source: 'SUC_KHOE_NV' }),
+    }));
+
     const prepared: PreparedMergedCategory[] = rawMerged.map(mc => ({
       name: mc.name,
       cleanCatName: mc.cleanCatName,
+      canonicalKey: mc.canonicalKey,
+      isAmbiguous: mc.isAmbiguous,
+      orderIndex: mc.orderIndex,
       type: mc.type,
       target: mc.target,
       baseTarget: resolveStoreBaseTarget(mc.name, mc.target || 0),
-      detailIdx: cleanDetailCats.findIndex(dc => isSameCategoryClean(dc, mc.cleanCatName))
+      detailIdx: detailCatsMeta.findIndex(dc => {
+        if (mc.isAmbiguous || dc.res.isAmbiguous) {
+          return dc.clean === mc.cleanCatName;
+        }
+        return dc.res.canonicalKey === mc.canonicalKey || isSameCategoryClean(dc.clean, mc.cleanCatName);
+      })
     }));
 
     cachedMergedCategoriesInput = {
@@ -878,10 +998,13 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
       let accumulated = 0;
       let foundVal = false;
       const valuesMap = staffData.valuesMap;
-      if (valuesMap && valuesMap[cleanCatName] !== undefined) {
+      if (valuesMap && !cat.isAmbiguous && cat.canonicalKey && valuesMap[cat.canonicalKey] !== undefined) {
+        accumulated = valuesMap[cat.canonicalKey];
+        foundVal = true;
+      } else if (valuesMap && valuesMap[cleanCatName] !== undefined) {
         accumulated = valuesMap[cleanCatName];
         foundVal = true;
-      } else if (valuesMap) {
+      } else if (valuesMap && !cat.isAmbiguous) {
         for (const [k, v] of Object.entries(valuesMap)) {
           if (isSameCategoryClean(k, cleanCatName)) {
             accumulated = v;
@@ -909,19 +1032,20 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
         accumulated,
         percentHT,
         remainingVal,
-        catType
+        catType,
+        orderIndex: cat.orderIndex,
       };
     }) : [];
 
     const sllk = rows
       .filter(r => r.catType === 'SL')
-      .sort((a, b) => b.percentHT - a.percentHT);
+      .sort((a, b) => (b.percentHT - a.percentHT) || (a.orderIndex - b.orderIndex));
     const dtlk = rows
       .filter(r => r.catType === 'DT')
-      .sort((a, b) => b.percentHT - a.percentHT);
+      .sort((a, b) => (b.percentHT - a.percentHT) || (a.orderIndex - b.orderIndex));
     const other = rows
       .filter(r => r.catType === 'ALL')
-      .sort((a, b) => b.percentHT - a.percentHT);
+      .sort((a, b) => (b.percentHT - a.percentHT) || (a.orderIndex - b.orderIndex));
 
     const reached = rows.filter(r => r.percentHT >= 100).length;
     return {
@@ -973,10 +1097,13 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
 
         let accumulated = 0;
         let foundSVal = false;
-        if (sValuesMap && sValuesMap[cleanCatName] !== undefined) {
+        if (sValuesMap && !cat.isAmbiguous && cat.canonicalKey && sValuesMap[cat.canonicalKey] !== undefined) {
+          accumulated = sValuesMap[cat.canonicalKey];
+          foundSVal = true;
+        } else if (sValuesMap && sValuesMap[cleanCatName] !== undefined) {
           accumulated = sValuesMap[cleanCatName];
           foundSVal = true;
-        } else if (sValuesMap) {
+        } else if (sValuesMap && !cat.isAmbiguous) {
           for (const [k, v] of Object.entries(sValuesMap)) {
             if (isSameCategoryClean(k, cleanCatName)) {
               accumulated = v;

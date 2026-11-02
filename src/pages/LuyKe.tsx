@@ -31,8 +31,16 @@ import { BonusCalculatorForm } from './BonusCalculatorForm';
 import { EnterpriseCategoryAnalytics } from '../components/EnterpriseCategoryAnalytics';
 
 import { ConfirmationModal } from './RTST/components/Modals';
-import { getCustomCategoryIndex } from './EmployeeHealth/components/SummaryThiDuaTable';
-import { normalize, isKhoLuuDong, cleanNum, resolveLuykeTraChamRate, isValidStoreName } from './RTST/utils';
+import {
+  useCategoryConfig,
+  resolveCategoryMaster,
+  getCanonicalCategoryKey,
+  getCategoryDisplayName,
+  getCategoryOrderIndex,
+  getCategoryGroupByConfig,
+  type CategoryConfigItem,
+} from '../hooks/useCategoryConfig';
+import { normalize, isKhoLuuDong, cleanNum, resolveLuykeTraChamRate, isValidStoreName, cleanCategoryName } from './RTST/utils';
 import BcDtNganhHang from './BcDtNganhHang';
 import SSGBoss from './SSGBoss';
 import ClusterReportTab from './ClusterReportTab';
@@ -105,50 +113,18 @@ class TabErrorBoundary extends React.Component<TabErrorBoundaryProps, TabErrorBo
   }
 }
 
-const getCategoryGroup = (name: string): 'yellow' | 'green' | 'blue' => {
-  const normalized = name.toLowerCase().trim();
-  
-  if (
-    normalized.includes('credit') ||
-    normalized.includes('shin') ||
-    normalized.includes('finance') ||
-    normalized.includes('ví trả sau') ||
-    normalized.includes('cake') ||
-    normalized.includes('ngân hàng') ||
-    normalized.includes('vpbank') ||
-    normalized.includes('tpbank') ||
-    normalized.includes('bảo hiểm') ||
-    normalized.includes('sim') ||
-    normalized.includes('vas') ||
-    normalized.includes('mango') ||
-    normalized.includes('icallme') ||
-    normalized.includes('icall')
-  ) {
-    return 'green';
-  }
-  
-  if (
-    normalized.includes('điện thoại') ||
-    normalized.includes('vivo') ||
-    normalized.includes('realme') ||
-    normalized.includes('phụ kiện') ||
-    normalized.includes('đồng hồ') ||
-    normalized.includes('camera') ||
-    normalized.includes('pin sạc') ||
-    normalized === 'loa' ||
-    normalized.startsWith('loa ')
-  ) {
-    return 'yellow';
-  }
-  
+const getCategoryGroup = (name: string, config?: CategoryConfigItem[]): 'yellow' | 'green' | 'blue' => {
+  const grp = getCategoryGroupByConfig(name, config);
+  if (grp === 'ICT') return 'yellow';
+  if (grp === 'DỊCH VỤ') return 'green';
   return 'blue';
 };
 
-const getCategoryGroupOrder = (name: string): number => {
-  const group = getCategoryGroup(name);
+const getCategoryGroupOrder = (name: string, config?: CategoryConfigItem[]): number => {
+  const group = getCategoryGroup(name, config);
   if (group === 'yellow') return 1; // ICT
   if (group === 'green') return 2;  // DỊCH VỤ
-  return 3;                         // ĐMX
+  return 3;                         // ĐMX / CE
 };
 
 const parseNumericValue = (val: any): number => {
@@ -497,18 +473,27 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     saveExcelThuongStData
   } = useRTSTSharedData(maKho);
 
+  const { categoryConfig } = useCategoryConfig();
+
   const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>(() => {
     return localStorage.getItem('rtst_selected_store_filter') || 'ALL';
   });
   const [isProcessingData, setIsProcessingData] = useState(false);
 
   // Sort modes for Category tables in BC Tháng:
-  // 'HT_DESC' (%HT giảm dần - mặc định) | 'HT_ASC' (%HT tăng dần) | 'CONLAI_DESC' (C.Lại giảm dần - thiếu nhiều nhất lên đầu) | 'CONLAI_ASC' (C.Lại tăng dần)
-  const [sortModeSL, setSortModeSL] = useState<'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC'>('HT_DESC');
-  const [sortModeDT, setSortModeDT] = useState<'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC'>('HT_DESC');
+  // 'CONFIG_ORDER' (Theo thứ tự cấu hình TNB LEADER - mặc định) | 'HT_DESC' (%HT giảm dần) | 'HT_ASC' (%HT tăng dần) | 'CONLAI_DESC' (C.Lại giảm dần) | 'CONLAI_ASC' (C.Lại tăng dần)
+  const [sortModeSL, setSortModeSL] = useState<'CONFIG_ORDER' | 'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC'>('CONFIG_ORDER');
+  const [sortModeDT, setSortModeDT] = useState<'CONFIG_ORDER' | 'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC'>('CONFIG_ORDER');
 
-  const sortCategoryList = (list: any[], mode: 'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC') => {
+  const sortCategoryList = (list: any[], mode: 'CONFIG_ORDER' | 'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC') => {
     return [...list].sort((a: any, b: any) => {
+      const orderA = typeof a.orderIndex === 'number' ? a.orderIndex : getCategoryOrderIndex(a.rawName || a.name || '', categoryConfig);
+      const orderB = typeof b.orderIndex === 'number' ? b.orderIndex : getCategoryOrderIndex(b.rawName || b.name || '', categoryConfig);
+
+      if (mode === 'CONFIG_ORDER') {
+        return orderA - orderB;
+      }
+
       let rateA = 0, rateB = 0;
       if (a.target > 0 && daysPassed > 0) rateA = (((a.revenue / daysPassed) * totalDays) / a.target) * 100;
       if (b.target > 0 && daysPassed > 0) rateB = (((b.revenue / daysPassed) * totalDays) / b.target) * 100;
@@ -518,25 +503,25 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
 
       if (mode === 'CONLAI_DESC') {
         // C.LẠI GIẢM DẦN: Ngành thiếu nhiều nhất lên trước
-        if (remA > 0 && remB > 0) return remB - remA;
+        if (remA > 0 && remB > 0) return (remB - remA) || (orderA - orderB);
         if (remA > 0 && remB <= 0) return -1;
         if (remA <= 0 && remB > 0) return 1;
-        return remB - remA;
+        return (remB - remA) || (orderA - orderB);
       }
 
       if (mode === 'CONLAI_ASC') {
         // C.LẠI TĂNG DẦN: Đạt rồi (0) hoặc thiếu ít nhất lên trước
         if (remA <= 0 && remB > 0) return -1;
         if (remA > 0 && remB <= 0) return 1;
-        return remA - remB;
+        return (remA - remB) || (orderA - orderB);
       }
 
       if (mode === 'HT_ASC') {
-        return rateA - rateB;
+        return (rateA - rateB) || (orderA - orderB);
       }
 
-      // Default: HT_DESC (%HT cao nhất)
-      return rateB - rateA;
+      // HT_DESC (%HT cao nhất)
+      return (rateB - rateA) || (orderA - orderB);
     });
   };
 
@@ -1093,17 +1078,33 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     const currentRows = selectedStoreExcelData.rows || [];
     const oldRows = selectedStoreExcelData.oldRows || [];
 
-    // Create normalized lookup map for yesterday
+    // Create normalized & canonicalKey lookup map for yesterday
     const oldMap = new Map<string, any>();
     oldRows.forEach((r: any) => {
       if (r.categoryName) {
         oldMap.set(normalize(r.categoryName), r);
+        const resOld = resolveCategoryMaster(r.categoryName, categoryConfig);
+        if (resOld.isMapped && !resOld.isAmbiguous && resOld.canonicalKey && !oldMap.has(resOld.canonicalKey)) {
+          oldMap.set(resOld.canonicalKey, r);
+        }
       }
     });
 
-    const enriched = currentRows.map((curRow: any) => {
-      const normName = normalize(curRow.categoryName || '');
-      const oldRow = oldMap.get(normName);
+    const enriched = currentRows.map((curRow: any, idx: number) => {
+      const rawCatName = curRow.rawCategoryName || curRow.categoryName || '';
+      const resCur = resolveCategoryMaster(rawCatName, categoryConfig, {
+        recordUnmapped: true,
+        source: 'BC_THANG_THUONG_ST',
+      });
+      const displayCategoryName =
+        resCur.isMapped && !resCur.isAmbiguous && resCur.displayName
+          ? resCur.displayName
+          : rawCatName;
+
+      const normName = normalize(rawCatName);
+      const oldRow =
+        oldMap.get(normName) ||
+        (!resCur.isAmbiguous && resCur.canonicalKey ? oldMap.get(resCur.canonicalKey) : undefined);
 
       const bonusCurrent = curRow.bonus || 0;
       const bonusOld = oldRow ? (oldRow.bonus || 0) : 0;
@@ -1133,6 +1134,11 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
 
       return {
         ...curRow,
+        rawCategoryName: rawCatName,
+        categoryName: displayCategoryName,
+        canonicalKey: resCur.canonicalKey,
+        orderIndex: resCur.orderIndex,
+        _origIdx: idx,
         oldRow,
         bonusCurrent,
         bonusOld,
@@ -1156,7 +1162,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     });
 
     return enriched;
-  }, [selectedStoreExcelData.rows, selectedStoreExcelData.oldRows]);
+  }, [selectedStoreExcelData.rows, selectedStoreExcelData.oldRows, categoryConfig]);
 
   // Overall Statistics for today vs yesterday + SaaS KPI cards
   const thuongStStats = React.useMemo(() => {
@@ -1404,20 +1410,30 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
 
     // 2. Category group filter
     if (thuongStGroupFilter !== 'ALL') {
-      rows = rows.filter((r: any) => getCategoryGroup(r.categoryName) === thuongStGroupFilter);
+      rows = rows.filter((r: any) => getCategoryGroup(r.rawCategoryName || r.categoryName, categoryConfig) === thuongStGroupFilter);
     }
 
     // 3. Search query filter
     if (thuongStSearchQuery.trim() !== '') {
       const q = normalize(thuongStSearchQuery.trim());
-      rows = rows.filter((r: any) => normalize(r.categoryName || '').includes(q));
+      rows = rows.filter(
+        (r: any) =>
+          normalize(r.categoryName || '').includes(q) ||
+          normalize(r.rawCategoryName || '').includes(q)
+      );
     }
 
-    // 4. Optional sorting modes
+    // 4. Optional sorting modes (default to TNB LEADER config order)
     if (thuongStViewMode === 'SORT_HT_DESC') {
       rows.sort((a: any, b: any) => (b.completionCurrent || 0) - (a.completionCurrent || 0));
     } else if (thuongStViewMode === 'SORT_BONUS_DESC') {
       rows.sort((a: any, b: any) => (b.bonusCurrent || 0) - (a.bonusCurrent || 0) || (b.completionCurrent || 0) - (a.completionCurrent || 0));
+    } else {
+      rows.sort((a: any, b: any) => {
+        const orderA = typeof a.orderIndex === 'number' ? a.orderIndex : getCategoryOrderIndex(a.rawCategoryName || a.categoryName || '', categoryConfig);
+        const orderB = typeof b.orderIndex === 'number' ? b.orderIndex : getCategoryOrderIndex(b.rawCategoryName || b.categoryName || '', categoryConfig);
+        return (orderA - orderB) || ((a._origIdx ?? 0) - (b._origIdx ?? 0));
+      });
     }
 
     const yellowGroup: any[] = [];
@@ -1425,7 +1441,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     const blueGroup: any[] = [];
 
     rows.forEach((row: any) => {
-      const group = getCategoryGroup(row.categoryName);
+      const group = getCategoryGroup(row.rawCategoryName || row.categoryName, categoryConfig);
       if (group === 'yellow') yellowGroup.push(row);
       else if (group === 'green') greenGroup.push(row);
       else blueGroup.push(row);
@@ -1443,7 +1459,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       greenAvg: calcAvg(greenGroup),
       blueAvg: calcAvg(blueGroup)
     };
-  }, [comparedThuongStRows, bonusFilterTab, thuongStGroupFilter, thuongStSearchQuery, thuongStViewMode, selectedStoreExcelData.limit]);
+  }, [comparedThuongStRows, bonusFilterTab, thuongStGroupFilter, thuongStSearchQuery, thuongStViewMode, selectedStoreExcelData.limit, categoryConfig]);
 
   const handleExportThuongStExcel = () => {
     const rowsToExport = filteredThuongStRows.all;
@@ -1459,7 +1475,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     };
 
     const sheetData = rowsToExport.map((row: any, idx: number) => {
-      const grp = getCategoryGroup(row.categoryName);
+      const grp = getCategoryGroup(row.rawCategoryName || row.categoryName, categoryConfig);
       const baseRecord: Record<string, any> = {
         'STT': idx + 1,
         'Siêu thị': row.storeName || selectedStoreFilter,
@@ -1945,31 +1961,64 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
         return true;
       });
     }
-    // Dedup by normalized name + type (prevent duplicate category rows from broad matching)
+    // Resolve each category via SSOT Master Config (TNB LEADER -> CẤU HÌNH)
+    // and deduplicate by canonicalKey + type (without merging ambiguous aliases)
     const seen = new Set<string>();
-    const deduped = cats.filter((c: any) => {
-      const key = `${normalize(c.name || '')}__${c.type || ''}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    const deduped: any[] = [];
+    for (const c of cats) {
+      const rawName = c.rawName || c.name || '';
+      const res = resolveCategoryMaster(rawName, categoryConfig, {
+        recordUnmapped: true,
+        source: 'BC_THANG'
+      });
+      const dedupKey = res.isAmbiguous
+        ? `ambig:${normalize(rawName)}__${c.type || ''}`
+        : `${res.canonicalKey}__${c.type || ''}`;
+      if (seen.has(dedupKey)) continue;
+      seen.add(dedupKey);
+      deduped.push({
+        ...c,
+        rawName,
+        name: res.displayName || c.name,
+        canonicalKey: res.canonicalKey,
+        orderIndex: res.orderIndex,
+        isMapped: res.isMapped,
+        isAmbiguous: res.isAmbiguous,
+        configGroup: res.group
+      });
+    }
 
-    // Sort categories by exact custom order specified by user
-    deduped.sort((a: any, b: any) => getCustomCategoryIndex(a.name || '') - getCustomCategoryIndex(b.name || ''));
+    // Sort categories by SSOT Master Config order (TNB LEADER -> CẤU HÌNH)
+    deduped.sort(
+      (a: any, b: any) =>
+        (typeof a.orderIndex === 'number' ? a.orderIndex : getCategoryOrderIndex(a.rawName || a.name || '', categoryConfig)) -
+        (typeof b.orderIndex === 'number' ? b.orderIndex : getCategoryOrderIndex(b.rawName || b.name || '', categoryConfig))
+    );
 
-    // Fast O(1) Map lookup for TARGET THI ĐUA matching
+    // Fast O(1) Map lookup for TARGET THI ĐUA matching (by canonicalKey, normalized name, and cleaned name)
     const targetMap = new Map<string, { adjustedTarget: number; percent?: number }>();
     (categoryTargets || []).forEach((t: any) => {
       if (typeof t.adjustedTarget === 'number') {
-        targetMap.set(`${normalize(t.name)}__${t.type}`, {
+        const val = {
           adjustedTarget: t.adjustedTarget,
           percent: t.percent
-        });
+        };
+        const tRaw = t.rawName || t.name || '';
+        const tRes = resolveCategoryMaster(tRaw, categoryConfig);
+        if (!tRes.isAmbiguous) {
+          targetMap.set(`${tRes.canonicalKey}__${t.type}`, val);
+        }
+        targetMap.set(`${normalize(t.name)}__${t.type}`, val);
+        targetMap.set(`${cleanCategoryName(t.name)}__${t.type}`, val);
       }
     });
 
     return deduped.map((cat: any) => {
-      const entry = targetMap.get(`${normalize(cat.name)}__${cat.type}`);
+      const entry =
+        (!cat.isAmbiguous && cat.canonicalKey ? targetMap.get(`${cat.canonicalKey}__${cat.type}`) : undefined) ||
+        targetMap.get(`${normalize(cat.name)}__${cat.type}`) ||
+        (cat.rawName ? targetMap.get(`${normalize(cat.rawName)}__${cat.type}`) : undefined) ||
+        targetMap.get(`${cleanCategoryName(cat.name)}__${cat.type}`);
       if (entry && (entry.adjustedTarget > 0 || entry.percent === 0)) {
         return {
           ...cat,
@@ -1978,7 +2027,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       }
       return cat;
     });
-  }, [adjustedCategories, marketFilter, filteredDisplayData.markets, categoryTargets]);
+  }, [adjustedCategories, marketFilter, filteredDisplayData.markets, categoryTargets, categoryConfig]);
 
   // Removed window focus re-processing to improve performance
 
@@ -2050,23 +2099,39 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
   const visibleCategoriesSL = useMemo(() => {
     if (hiddenCatsSL.length === 0) return rawCategoriesSL;
     const hiddenSet = new Set(hiddenCatsSL.map(s => s.trim().toUpperCase()));
-    return rawCategoriesSL.filter((c: any) => !hiddenSet.has((c.name || '').trim().toUpperCase()));
-  }, [rawCategoriesSL, hiddenCatsSL]);
+    const hiddenCanonicalSet = new Set(
+      hiddenCatsSL.map(s => getCanonicalCategoryKey(s, categoryConfig)).filter(k => !k.startsWith('ambiguous:'))
+    );
+    return rawCategoriesSL.filter((c: any) => {
+      const nameUpper = (c.name || '').trim().toUpperCase();
+      const rawUpper = (c.rawName || '').trim().toUpperCase();
+      const cKey = c.canonicalKey || getCanonicalCategoryKey(c.rawName || c.name || '', categoryConfig);
+      return !hiddenSet.has(nameUpper) && (!rawUpper || !hiddenSet.has(rawUpper)) && !hiddenCanonicalSet.has(cKey);
+    });
+  }, [rawCategoriesSL, hiddenCatsSL, categoryConfig]);
 
   const visibleCategoriesDT = useMemo(() => {
     if (hiddenCatsDT.length === 0) return rawCategoriesDT;
     const hiddenSet = new Set(hiddenCatsDT.map(s => s.trim().toUpperCase()));
-    return rawCategoriesDT.filter((c: any) => !hiddenSet.has((c.name || '').trim().toUpperCase()));
-  }, [rawCategoriesDT, hiddenCatsDT]);
+    const hiddenCanonicalSet = new Set(
+      hiddenCatsDT.map(s => getCanonicalCategoryKey(s, categoryConfig)).filter(k => !k.startsWith('ambiguous:'))
+    );
+    return rawCategoriesDT.filter((c: any) => {
+      const nameUpper = (c.name || '').trim().toUpperCase();
+      const rawUpper = (c.rawName || '').trim().toUpperCase();
+      const cKey = c.canonicalKey || getCanonicalCategoryKey(c.rawName || c.name || '', categoryConfig);
+      return !hiddenSet.has(nameUpper) && (!rawUpper || !hiddenSet.has(rawUpper)) && !hiddenCanonicalSet.has(cKey);
+    });
+  }, [rawCategoriesDT, hiddenCatsDT, categoryConfig]);
 
   // Memoized sorted lists for SLLK and DTLK tables — prevents sorting inside JSX on every render
   const sortedCategoriesSL = useMemo(() => {
     return sortCategoryList(visibleCategoriesSL, sortModeSL);
-  }, [visibleCategoriesSL, sortModeSL, daysPassed, totalDays]);
+  }, [visibleCategoriesSL, sortModeSL, daysPassed, totalDays, categoryConfig]);
 
   const sortedCategoriesDT = useMemo(() => {
     return sortCategoryList(visibleCategoriesDT, sortModeDT);
-  }, [visibleCategoriesDT, sortModeDT, daysPassed, totalDays]);
+  }, [visibleCategoriesDT, sortModeDT, daysPassed, totalDays, categoryConfig]);
 
   const toggleHideCategorySL = (name: string) => {
     const key = (name || '').trim().toUpperCase();
@@ -3307,6 +3372,20 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                         </span>
                         <button
                           onClick={() => {
+                            setSortModeSL('CONFIG_ORDER');
+                            setSortModeDT('CONFIG_ORDER');
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            sortModeSL === 'CONFIG_ORDER' && sortModeDT === 'CONFIG_ORDER'
+                              ? 'bg-gradient-to-r from-[#0284C7] to-[#0EA5E9] text-white shadow-xs'
+                              : 'text-slate-600 hover:text-sky-900 hover:bg-sky-50/60'
+                          }`}
+                          title="Sắp xếp theo thứ tự danh mục TNB LEADER → CẤU HÌNH"
+                        >
+                          📋 THEO CẤU HÌNH
+                        </button>
+                        <button
+                          onClick={() => {
                             setSortModeSL('HT_DESC');
                             setSortModeDT('HT_DESC');
                           }}
@@ -3317,7 +3396,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                           }`}
                           title="Sắp xếp theo % hoàn thành cao nhất"
                         >
-                          📊 MẶC ĐỊNH (%HT)
+                          📊 THEO %HT
                         </button>
                         <button
                           onClick={() => {
@@ -4862,7 +4941,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                 </>
                               ) : (
                                 filteredThuongStRows.all.map((row: any, idx: number) =>
-                                  renderThuongStRow(row, idx, getCategoryGroup(row.categoryName), idx + 1)
+                                  renderThuongStRow(row, idx, getCategoryGroup(row.rawCategoryName || row.categoryName, categoryConfig), idx + 1)
                                 )
                               )}
 

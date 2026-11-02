@@ -14,7 +14,17 @@ import { ImagePreviewModal } from '../components/ImagePreviewModal';
 import { CaptureLoadingOverlay } from '../components/CaptureLoadingOverlay';
 import { LineExportPanel } from '../components/LineExportPanel';
 import { cn, cleanCategoryName } from './RTST/utils';
-import { DEFAULT_TNB_LEADER_CATEGORIES } from '../hooks/useCategoryConfig';
+import {
+  DEFAULT_TNB_LEADER_CATEGORIES,
+  useCategoryConfig,
+  type CategoryConfigItem,
+  normalizeCategoryConfigList,
+  reconcileCategoryConfigOnSave,
+  detectCategoryConflicts,
+  toggleCategoryActiveStatus,
+  generateStableCategoryId,
+  recordUnmappedCategory,
+} from '../hooks/useCategoryConfig';
 
 // Helper function to linearly interpolate between two hex colors
 function interpolateColor(color1: string, color2: string, factor: number): string {
@@ -357,7 +367,7 @@ const WEST_PROVINCES = [
 ];
 
 // Smart line splitter for both Tab-separated Excel data and Space-separated Web BI data
-const splitSmartLine = (line: string, categories: { name: string; group: string }[] = DEFAULT_CATEGORIES): string[] => {
+const splitSmartLine = (line: string, categories: CategoryConfigItem[] = DEFAULT_CATEGORIES): string[] => {
   if (!line || !line.trim()) return [];
   const trimmed = line.trim();
 
@@ -366,13 +376,16 @@ const splitSmartLine = (line: string, categories: { name: string; group: string 
     return line.split('\t').map(c => c.trim());
   }
 
-  // Check category header line from space copy
+  // Check category header line from space copy (match current display name OR any historical alias)
   for (const cat of categories) {
-    if (trimmed.toLowerCase().startsWith(cat.name.toLowerCase())) {
-      const rest = trimmed.substring(cat.name.length).trim();
-      const restLower = rest.toLowerCase();
-      if (restLower.includes('target') || restLower.includes('dt') || restLower.includes('realtime') || restLower.includes('xếp hạng')) {
-        return [cat.name, '', 'DT', 'Target', '% HT', 'Xếp hạng'];
+    const namesToCheck = [cat.name, ...(cat.aliases || [])].filter(Boolean);
+    for (const candidateName of namesToCheck) {
+      if (trimmed.toLowerCase().startsWith(candidateName.toLowerCase())) {
+        const rest = trimmed.substring(candidateName.length).trim();
+        const restLower = rest.toLowerCase();
+        if (restLower.includes('target') || restLower.includes('dt') || restLower.includes('realtime') || restLower.includes('xếp hạng')) {
+          return [cat.name, '', 'DT', 'Target', '% HT', 'Xếp hạng'];
+        }
       }
     }
   }
@@ -1531,29 +1544,49 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
   const [bossModalSearch, setBossModalSearch] = useState('');
   const [bossModalPage, setBossModalPage] = useState(1);
 
-  // Category Configuration State (Tab CẤU HÌNH)
-  const [categoryConfig, setCategoryConfig] = useState<{name: string, group: string}[]>(DEFAULT_CATEGORIES);
-  const [categoryConfigText, setCategoryConfigText] = useState(() => 
-    DEFAULT_CATEGORIES.map(c => `${c.name}\t${c.group}`).join('\n')
+  // Category Configuration State (Tab CẤU HÌNH - Connected to SSOT useCategoryConfig)
+  const {
+    categoryConfig: ssotCategoryConfig,
+    unmappedCategories,
+  } = useCategoryConfig();
+
+  const [categoryConfig, setCategoryConfig] = useState<CategoryConfigItem[]>(() =>
+    normalizeCategoryConfigList(ssotCategoryConfig)
+  );
+  const [categoryConfigText, setCategoryConfigText] = useState(() =>
+    normalizeCategoryConfigList(ssotCategoryConfig).map(c => `${c.name}\t${c.group}`).join('\n')
   );
   const [isSavingConfig, setIsSavingConfig] = useState(false);
-  const [previewConfig, setPreviewConfig] = useState<{name: string, group: string}[]>(DEFAULT_CATEGORIES);
-  
+  const [previewConfig, setPreviewConfig] = useState<CategoryConfigItem[]>(() =>
+    normalizeCategoryConfigList(ssotCategoryConfig)
+  );
+  const isEditingConfigRef = useRef(false);
+
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
 
-  // One-time cached read (shared cache key with useCategoryConfig.ts) instead of a
-  // permanent onSnapshot — see src/services/cachedFirestore.ts. Short TTL since this
-  // page is also where the config gets edited (own edits refresh via setCachedDoc
-  // right after save, so the shorter TTL here only affects picking up OTHER admins'
-  // concurrent edits).
+  // Sync local state whenever SSOT useCategoryConfig updates from Firestore / cache
+  useEffect(() => {
+    if (ssotCategoryConfig && ssotCategoryConfig.length > 0) {
+      const normalized = normalizeCategoryConfigList(ssotCategoryConfig);
+      setCategoryConfig(normalized);
+      if (!isEditingConfigRef.current) {
+        setPreviewConfig(normalized);
+        setCategoryConfigText(normalized.map(c => `${c.name}\t${c.group}`).join('\n'));
+      }
+    }
+  }, [ssotCategoryConfig]);
+
+  // One-time cached read (shared cache key with useCategoryConfig.ts) to sync metadata timestamps
   const loadTnbLeaderConfig = React.useCallback((force = false) => {
     getCachedDoc<any>('app_settings', 'TNB_LEADER_DATA', force ? 0 : 5 * 60 * 1000).then((data) => {
       if (!data) return;
       if (data.categories && Array.isArray(data.categories)) {
-        setCategoryConfig(data.categories);
-        setPreviewConfig(data.categories);
-        const text = data.categories.map((c: any) => `${c.name}\t${c.group}`).join('\n');
+        const normalized = normalizeCategoryConfigList(data.categories);
+        setCategoryConfig(normalized);
+        setPreviewConfig(normalized);
+        isEditingConfigRef.current = false;
+        const text = normalized.map((c) => `${c.name}\t${c.group}`).join('\n');
         setCategoryConfigText(text);
       }
       if (data.updated_at) {
@@ -1678,15 +1711,53 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
     return filteredBossRows.slice(start, start + bossRowsPerPage);
   }, [filteredBossRows, bossModalPage]);
 
-  // Memoized Fast Category Lookup Map (O(1) lookups instead of 1,000,000 array searches across 24k rows)
+  // Memoized Fast Category Lookup Map (O(1) lookups across 24k rows)
+  // Supports exact name, aliases (when renamed), and non-conflicting cleanCategoryName
   const categoryMap = useMemo(() => {
     const map = new Map<string, string>();
-    const allCats = [...DEFAULT_CATEGORIES, ...previewConfig, ...categoryConfig];
-    for (const cat of allCats) {
+    const cleanCandidates = new Map<string, Set<string>>();
+
+    const registerClean = (cleanKey: string, canonicalDisplay: string) => {
+      if (!cleanKey) return;
+      const set = cleanCandidates.get(cleanKey) || new Set<string>();
+      set.add(canonicalDisplay);
+      cleanCandidates.set(cleanKey, set);
+    };
+
+    for (const cat of DEFAULT_CATEGORIES) {
       if (cat.name) {
-        map.set(cat.name.trim().toLowerCase(), cat.name.trim());
+        const display = cat.name.trim();
+        map.set(display.toLowerCase(), display);
       }
     }
+
+    const masterList = [...previewConfig, ...categoryConfig];
+    for (const cat of masterList) {
+      if (cat.name) {
+        const canonicalDisplay = cat.name.trim();
+        map.set(canonicalDisplay.toLowerCase(), canonicalDisplay);
+        registerClean(cleanCategoryName(canonicalDisplay), canonicalDisplay);
+
+        if (Array.isArray(cat.aliases)) {
+          for (const alias of cat.aliases) {
+            const aliasTrim = String(alias || '').trim();
+            if (aliasTrim) {
+              map.set(aliasTrim.toLowerCase(), canonicalDisplay);
+              registerClean(cleanCategoryName(aliasTrim), canonicalDisplay);
+            }
+          }
+        }
+      }
+    }
+
+    // Chỉ ánh xạ khóa clean khi xác định duy nhất 1 ngành hàng (không tự ý gộp khi xung đột)
+    cleanCandidates.forEach((displays, cleanKey) => {
+      if (displays.size === 1) {
+        const [onlyDisplay] = Array.from(displays);
+        map.set(`clean:${cleanKey}`, onlyDisplay);
+      }
+    });
+
     return map;
   }, [categoryConfig, previewConfig]);
 
@@ -1724,11 +1795,12 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
 
       // Cố định đúng 10 cột cho mỗi dòng dữ liệu và trích xuất COL7, COL8, COL9, COL10
       let currentActiveCategory = '';
+      const provinceLowerSet = new Set(WEST_PROVINCES.map(p => p.toLowerCase()));
 
       return dataRows.map((r) => {
         const row10 = Array.from({ length: 10 }, (_, i) => r[i] || '');
         
-        // COL1 (Index 0): So sánh với Tab CẤU HÌNH (O(1) Map Lookup)
+        // COL1 (Index 0): So sánh với Tab CẤU HÌNH (O(1) Map Lookup, hỗ trợ Alias khi đổi tên)
         const col1Val = (row10[0] || '').trim();
         const col1Lower = col1Val.toLowerCase();
 
@@ -1738,9 +1810,25 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
           row10[9] = '-';
         } else {
           if (col1Val && col1Val !== '-') {
-            const matchedCat = categoryMap.get(col1Lower);
+            const matchedCat =
+              categoryMap.get(col1Lower) ||
+              categoryMap.get(`clean:${cleanCategoryName(col1Val)}`);
             if (matchedCat) {
               currentActiveCategory = matchedCat;
+            } else {
+              // Bảo toàn ngành hàng BI chưa ánh xạ: Nếu là dòng tiêu đề ngành hàng (có chữ Target ở cột 4)
+              const col4Lower = (row10[3] || '').trim().toLowerCase();
+              const isHeaderLine =
+                col4Lower.includes('target') &&
+                !provinceLowerSet.has(col1Lower) &&
+                col1Lower !== 'tỉnh' &&
+                col1Lower !== 'đơn vị' &&
+                !col1Lower.startsWith('tổng') &&
+                !col1Lower.startsWith('tong');
+              if (isHeaderLine) {
+                currentActiveCategory = col1Val;
+                recordUnmappedCategory(col1Val, 'TNB_LEADER_RT');
+              }
             }
           }
 
@@ -1827,11 +1915,12 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
 
       // Cố định đúng 10 cột cho mỗi dòng dữ liệu và trích xuất COL7, COL8, COL9, COL10
       let currentActiveCategory = '';
+      const provinceLowerSet = new Set(WEST_PROVINCES.map(p => p.toLowerCase()));
 
       return dataRows.map((r) => {
         const row10 = Array.from({ length: 10 }, (_, i) => r[i] || '');
         
-        // COL1 (Index 0): So sánh với Tab CẤU HÌNH (O(1) Map Lookup)
+        // COL1 (Index 0): So sánh với Tab CẤU HÌNH (O(1) Map Lookup, hỗ trợ Alias khi đổi tên)
         const col1Val = (row10[0] || '').trim();
         const col1Lower = col1Val.toLowerCase();
 
@@ -1841,9 +1930,25 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
           row10[9] = '-';
         } else {
           if (col1Val && col1Val !== '-') {
-            const matchedCat = categoryMap.get(col1Lower);
+            const matchedCat =
+              categoryMap.get(col1Lower) ||
+              categoryMap.get(`clean:${cleanCategoryName(col1Val)}`);
             if (matchedCat) {
               currentActiveCategory = matchedCat;
+            } else {
+              // Bảo toàn ngành hàng BI chưa ánh xạ: Nếu là dòng tiêu đề ngành hàng (có chữ Target ở cột 4)
+              const col4Lower = (row10[3] || '').trim().toLowerCase();
+              const isHeaderLine =
+                col4Lower.includes('target') &&
+                !provinceLowerSet.has(col1Lower) &&
+                col1Lower !== 'tỉnh' &&
+                col1Lower !== 'đơn vị' &&
+                !col1Lower.startsWith('tổng') &&
+                !col1Lower.startsWith('tong');
+              if (isHeaderLine) {
+                currentActiveCategory = col1Val;
+                recordUnmappedCategory(col1Val, 'TNB_LEADER_LK');
+              }
             }
           }
 
@@ -2101,12 +2206,19 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
 
 
 
+  const previewConflicts = useMemo(
+    () => detectCategoryConflicts(previewConfig),
+    [previewConfig]
+  );
+
   const handleCategoryTextChange = (val: string) => {
+    isEditingConfigRef.current = true;
     setCategoryConfigText(val);
     if (val && val.trim().length > 0) {
       const parsed = parseCategoryInput(val, categoryConfig);
       if (parsed && parsed.length > 0) {
-        setPreviewConfig(parsed);
+        const { items } = reconcileCategoryConfigOnSave(parsed, categoryConfig);
+        setPreviewConfig(items);
       }
     }
   };
@@ -2114,14 +2226,16 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
   const handleCategoryPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const text = e.clipboardData.getData('text');
     if (text && text.trim()) {
+      isEditingConfigRef.current = true;
       const isBiReport = extractCategoriesFromRawInput(text).length > 0;
       const parsed = parseCategoryInput(text, categoryConfig);
       if (parsed && parsed.length > 0) {
-        setPreviewConfig(parsed);
+        const { items } = reconcileCategoryConfigOnSave(parsed, categoryConfig);
+        setPreviewConfig(items);
         if (isBiReport) {
-          showNotification(`Đã tự động trích xuất ${parsed.length} ngành hàng nằm dưới ĐƠN VỊ và trên MIỀN NAM!`, 'success');
+          showNotification(`Đã tự động trích xuất ${items.length} ngành hàng nằm dưới ĐƠN VỊ và trên MIỀN NAM!`, 'success');
         } else {
-          showNotification(`Bảng bên phải đã tự động nhận diện ${parsed.length} ngành hàng!`, 'info');
+          showNotification(`Bảng bên phải đã tự động nhận diện ${items.length} ngành hàng (Đã bảo toàn ID & Alias)!`, 'info');
         }
       }
     }
@@ -2139,27 +2253,36 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
       return;
     }
 
-    // Gom nhóm theo thứ tự ICT -> DỊCH VỤ -> CE
+    // Gom nhóm theo thứ tự ICT -> DỊCH VỤ -> CE và bảo toàn ID / Alias ổn định
     const ict = parsed.filter(c => c.group === 'ICT');
     const dv = parsed.filter(c => c.group === 'DỊCH VỤ');
     const ce = parsed.filter(c => c.group === 'CE');
     const grouped = [...ict, ...dv, ...ce];
+    const { items } = reconcileCategoryConfigOnSave(grouped, categoryConfig);
 
-    setPreviewConfig(grouped);
-    showNotification(`Đã gom nhóm thành công ${grouped.length} ngành hàng (ICT ➔ DỊCH VỤ ➔ CE)!`, 'success');
+    isEditingConfigRef.current = true;
+    setPreviewConfig(items);
+    showNotification(`Đã gom nhóm thành công ${items.length} ngành hàng (ICT ➔ DỊCH VỤ ➔ CE)!`, 'success');
   };
 
   const handleUpdateItemName = (index: number, newName: string) => {
+    isEditingConfigRef.current = true;
     setPreviewConfig(prev => {
       const copy = [...prev];
       if (copy[index]) {
-        copy[index] = { ...copy[index], name: newName };
+        // Giữ nguyên tuyệt đối ID, aliases, isActive; khi Lưu sẽ tự động đối chiếu với bản gốc để đẩy tên cũ vào aliases
+        copy[index] = {
+          ...copy[index],
+          id: copy[index].id || generateStableCategoryId(copy[index].name || newName),
+          name: newName,
+        };
       }
       return copy;
     });
   };
 
   const handleUpdateItemGroup = (index: number, newGroup: string) => {
+    isEditingConfigRef.current = true;
     setPreviewConfig(prev => {
       const copy = [...prev];
       if (copy[index]) {
@@ -2169,57 +2292,98 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
     });
   };
 
+  const handleToggleItemActive = (index: number) => {
+    isEditingConfigRef.current = true;
+    setPreviewConfig(prev => toggleCategoryActiveStatus(prev, index));
+  };
+
   const handleRemoveItem = (index: number) => {
-    setPreviewConfig(prev => prev.filter((_, i) => i !== index));
+    const target = previewConfig[index];
+    if (!target) return;
+    isEditingConfigRef.current = true;
+    // Ưu tiên cơ chế ngừng hoạt động (soft-delete) nếu ngành hàng đang active để bảo toàn lịch sử
+    if (target.isActive !== false) {
+      setPreviewConfig(prev => toggleCategoryActiveStatus(prev, index, false));
+      showNotification(
+        `Đã chuyển "${target.name}" sang trạng thái Ngừng hoạt động (Bảo toàn dữ liệu lịch sử). Bấm lần nữa nếu muốn xóa hẳn khỏi danh sách.`,
+        'info'
+      );
+      return;
+    }
+    if (window.confirm(`Ngành hàng "${target.name}" đang ở trạng thái Ngừng hoạt động. Bạn có chắc muốn xóa khỏi danh sách cấu hình?`)) {
+      setPreviewConfig(prev => prev.filter((_, i) => i !== index));
+    }
   };
 
   const handleAddNewItem = () => {
-    setPreviewConfig(prev => [...prev, { name: 'Ngành hàng mới', group: 'CE' }]);
+    isEditingConfigRef.current = true;
+    setPreviewConfig(prev => {
+      const usedIds = new Set(prev.map(p => p.id || '').filter(Boolean));
+      const newId = generateStableCategoryId(`nganhhangmoi_${prev.length + 1}`, usedIds);
+      return [
+        ...prev,
+        {
+          id: newId,
+          name: 'Ngành hàng mới',
+          group: 'CE',
+          order: prev.length,
+          isActive: true,
+          aliases: [],
+        },
+      ];
+    });
   };
 
   const handleSortByGroup = () => {
+    isEditingConfigRef.current = true;
     const ict = previewConfig.filter(c => c.group === 'ICT');
     const dv = previewConfig.filter(c => c.group === 'DỊCH VỤ');
     const ce = previewConfig.filter(c => c.group === 'CE');
-    setPreviewConfig([...ict, ...dv, ...ce]);
+    const sorted = [...ict, ...dv, ...ce].map((item, idx) => ({ ...item, order: idx }));
+    setPreviewConfig(sorted);
     showNotification('Đã sắp xếp thứ tự gom nhóm: ICT ➔ DỊCH VỤ ➔ CE!', 'info');
   };
 
   const handleResetDefaultCategories = () => {
     if (window.confirm('Khôi phục danh mục 40 ngành hàng mặc định theo chuẩn TNB Leader?')) {
-      setPreviewConfig(DEFAULT_CATEGORIES);
-      setCategoryConfigText(DEFAULT_CATEGORIES.map(c => `${c.name}\t${c.group}`).join('\n'));
+      isEditingConfigRef.current = true;
+      const defaults = normalizeCategoryConfigList(DEFAULT_CATEGORIES);
+      setPreviewConfig(defaults);
+      setCategoryConfigText(defaults.map(c => `${c.name}\t${c.group}`).join('\n'));
       showNotification('Đã khôi phục 40 ngành hàng mặc định!', 'info');
     }
   };
 
   const handleSort = () => {
     if (dragItem.current !== null && dragOverItem.current !== null && dragItem.current !== dragOverItem.current) {
+      isEditingConfigRef.current = true;
       const _previewConfig = [...previewConfig];
       const draggedItemContent = _previewConfig.splice(dragItem.current, 1)[0];
       _previewConfig.splice(dragOverItem.current, 0, draggedItemContent);
       dragItem.current = null;
       dragOverItem.current = null;
-      setPreviewConfig(_previewConfig);
+      setPreviewConfig(_previewConfig.map((item, idx) => ({ ...item, order: idx })));
     }
   };
 
   const moveItemUp = (index: number) => {
     if (index === 0) return;
+    isEditingConfigRef.current = true;
     const _previewConfig = [...previewConfig];
     const temp = _previewConfig[index - 1];
     _previewConfig[index - 1] = _previewConfig[index];
     _previewConfig[index] = temp;
-    setPreviewConfig(_previewConfig);
+    setPreviewConfig(_previewConfig.map((item, idx) => ({ ...item, order: idx })));
   };
 
   const moveItemDown = (index: number) => {
     if (index === previewConfig.length - 1) return;
+    isEditingConfigRef.current = true;
     const _previewConfig = [...previewConfig];
     const temp = _previewConfig[index + 1];
     _previewConfig[index + 1] = _previewConfig[index];
     _previewConfig[index] = temp;
-    setPreviewConfig(_previewConfig);
+    setPreviewConfig(_previewConfig.map((item, idx) => ({ ...item, order: idx })));
   };
 
   const handleSaveCategoryConfig = async () => {
@@ -2227,11 +2391,26 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
       showNotification('Danh sách ngành hàng trống, không thể lưu!', 'error');
       return;
     }
+
+    // Đối chiếu với cấu hình đã lưu trước đó để bảo toàn ID ổn định và tự động thêm tên cũ vào Alias
+    const { items: reconciledConfig, conflicts } = reconcileCategoryConfigOnSave(
+      previewConfig,
+      categoryConfig
+    );
+
+    if (conflicts.length > 0) {
+      const conflictMessages = conflicts.map((c, idx) => `${idx + 1}. ${c.message}`).join('\n');
+      const proceed = window.confirm(
+        `⚠️ PHÁT HIỆN XUNG ĐỘT TÊN / ALIAS NGÀNH HÀNG:\n\n${conflictMessages}\n\nHệ thống KHÔNG tự ý gộp các ngành hàng bị xung đột. Bạn có muốn tiếp tục lưu không?`
+      );
+      if (!proceed) return;
+    }
+
     setIsSavingConfig(true);
     try {
       const nowStr = new Date().toLocaleString('vi-VN');
       const payload = {
-        categories: previewConfig,
+        categories: reconciledConfig,
         updated_at: nowStr,
         updated_source: 'ADMIN'
       };
@@ -2239,17 +2418,20 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
       // Update memory & local storage cache immediately
       setCachedDoc('app_settings', 'TNB_LEADER_DATA', payload);
       try {
-        localStorage.setItem('CRM_CATEGORY_CONFIG_LOCAL', JSON.stringify(previewConfig));
+        localStorage.setItem('CRM_CATEGORY_CONFIG_LOCAL', JSON.stringify(reconciledConfig));
         localStorage.setItem('TNB_LEADER_DATA_CACHE', JSON.stringify({ data: payload, timestamp: Date.now() }));
       } catch (e) {
         console.error('LocalStorage write error:', e);
       }
+      isEditingConfigRef.current = false;
+      setCategoryConfig(reconciledConfig);
+      setPreviewConfig(reconciledConfig);
       // Broadcast event so any mounted component (SummaryThiDuaTable, SucKhoeNhanVien, etc.) updates instantly
-      window.dispatchEvent(new CustomEvent('category_config_updated', { detail: previewConfig }));
+      window.dispatchEvent(new CustomEvent('category_config_updated', { detail: reconciledConfig }));
 
       loadTnbLeaderConfig(true);
-      setCategoryConfigText(previewConfig.map(c => `${c.name}\t${c.group}`).join('\n'));
-      showNotification('Lưu cấu hình ngành hàng thành công vào toàn bộ hệ thống!', 'success');
+      setCategoryConfigText(reconciledConfig.map(c => `${c.name}\t${c.group}`).join('\n'));
+      showNotification('Lưu cấu hình ngành hàng (SSOT - Bảo toàn ID & Alias) thành công vào toàn bộ hệ thống!', 'success');
     } catch (error) {
       console.error('Error saving config:', error);
       showNotification('Lỗi khi lưu cấu hình. Vui lòng thử lại!', 'error');
@@ -3499,6 +3681,35 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
                   </div>
                 </div>
 
+                {/* Conflict & Unmapped Alerts */}
+                {previewConflicts.length > 0 && (
+                  <div className="mx-3 mt-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 space-y-1">
+                    <div className="font-black flex items-center gap-1.5 text-rose-700">
+                      <AlertTriangle size={14} />
+                      <span>Phát hiện {previewConflicts.length} xung đột tên / Alias (Hệ thống không tự ý gộp):</span>
+                    </div>
+                    {previewConflicts.map((w, wIdx) => (
+                      <div key={wIdx} className="pl-5 font-medium text-[11.5px]">• {w.message}</div>
+                    ))}
+                  </div>
+                )}
+
+                {unmappedCategories.length > 0 && (
+                  <div className="mx-3 mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-1">
+                    <div className="font-black flex items-center gap-1.5 text-amber-800">
+                      <AlertCircle size={14} />
+                      <span>Phát hiện {unmappedCategories.length} ngành hàng từ BI chưa ánh xạ (Đang giữ nguyên tên gốc & số liệu):</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pl-5 pt-0.5">
+                      {unmappedCategories.map((u, uIdx) => (
+                        <span key={uIdx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-amber-300 rounded-md font-bold text-[11px] text-amber-900">
+                          {u.rawName}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Table Body */}
                 <div className="flex-1 overflow-auto p-1">
                   <table className="w-full text-left border-collapse text-[13px] min-w-[480px]">
@@ -3507,88 +3718,134 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
                         <th className="px-3 py-2.5 font-black text-slate-600 uppercase border-b border-slate-200 text-center w-12">#</th>
                         <th className="px-3 py-2.5 font-black text-slate-600 uppercase border-b border-slate-200">Ngành hàng (Chỉnh sửa trực tiếp)</th>
                         <th className="px-3 py-2.5 font-black text-slate-600 uppercase border-b border-slate-200 text-center w-36">Nhóm</th>
-                        <th className="px-3 py-2.5 font-black text-slate-600 uppercase border-b border-slate-200 text-center w-24">Thao tác</th>
+                        <th className="px-3 py-2.5 font-black text-slate-600 uppercase border-b border-slate-200 text-center w-28">Thao tác</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
-                      {previewConfig.map((c, i) => (
-                        <tr 
-                          key={i} 
-                          className="hover:bg-indigo-50/40 group transition-colors"
-                          draggable
-                          onDragStart={() => (dragItem.current = i)}
-                          onDragEnter={() => (dragOverItem.current = i)}
-                          onDragEnd={handleSort}
-                          onDragOver={(e) => e.preventDefault()}
-                        >
-                          {/* Row Number & Grip */}
-                          <td className="px-2 py-1.5 text-slate-400 text-center w-12 select-none">
-                            <div className="flex items-center justify-center gap-1">
-                              <GripVertical size={13} className="opacity-30 group-hover:opacity-100 cursor-grab active:cursor-grabbing text-slate-500" />
-                              <span className="font-bold text-xs text-slate-500">{i + 1}</span>
-                            </div>
-                          </td>
+                      {previewConfig.map((c, i) => {
+                        const isInactive = c.isActive === false;
+                        const savedOrigin = c.id ? categoryConfig.find(orig => orig.id === c.id) : undefined;
+                        const hasPendingRename =
+                          savedOrigin &&
+                          savedOrigin.name.trim().toLowerCase().normalize('NFC') !==
+                            c.name.trim().toLowerCase().normalize('NFC');
+                        const displayAliases = Array.from(
+                          new Set([
+                            ...(c.aliases || []),
+                            ...(hasPendingRename && savedOrigin ? [savedOrigin.name] : []),
+                          ])
+                        );
 
-                          {/* Editable Category Name */}
-                          <td className="px-3 py-1.5">
-                            <input
-                              type="text"
-                              value={c.name}
-                              onChange={(e) => handleUpdateItemName(i, e.target.value)}
-                              placeholder="Nhập tên ngành hàng..."
-                              className="w-full px-2.5 py-1 text-[13px] font-bold text-slate-800 bg-transparent hover:bg-slate-50 focus:bg-white border border-transparent hover:border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg outline-none transition-all"
-                            />
-                          </td>
+                        return (
+                          <tr 
+                            key={c.id || i} 
+                            className={`hover:bg-indigo-50/40 group transition-colors ${isInactive ? 'opacity-55 bg-slate-50/70' : ''}`}
+                            draggable
+                            onDragStart={() => (dragItem.current = i)}
+                            onDragEnter={() => (dragOverItem.current = i)}
+                            onDragEnd={handleSort}
+                            onDragOver={(e) => e.preventDefault()}
+                          >
+                            {/* Row Number & Grip */}
+                            <td className="px-2 py-1.5 text-slate-400 text-center w-12 select-none" title={c.id ? `ID ổn định: ${c.id}` : undefined}>
+                              <div className="flex items-center justify-center gap-1">
+                                <GripVertical size={13} className="opacity-30 group-hover:opacity-100 cursor-grab active:cursor-grabbing text-slate-500" />
+                                <span className="font-bold text-xs text-slate-500">{i + 1}</span>
+                              </div>
+                            </td>
 
-                          {/* Editable Group Dropdown */}
-                          <td className="px-3 py-1.5 text-center w-36">
-                            <select
-                              value={c.group}
-                              onChange={(e) => handleUpdateItemGroup(i, e.target.value)}
-                              className={`w-full px-2.5 py-1 text-xs font-black rounded-lg border shadow-xs transition-all cursor-pointer outline-none ${
-                                c.group === 'ICT'
-                                  ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
-                                  : c.group === 'DỊCH VỤ'
-                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                                    : 'bg-blue-50 text-blue-800 border-blue-300 hover:bg-blue-100'
-                              }`}
-                            >
-                              <option value="ICT" className="bg-white text-amber-800 font-bold">ICT</option>
-                              <option value="DỊCH VỤ" className="bg-white text-emerald-800 font-bold">DỊCH VỤ</option>
-                              <option value="CE" className="bg-white text-blue-800 font-bold">CE</option>
-                            </select>
-                          </td>
+                            {/* Editable Category Name + Alias Metadata */}
+                            <td className="px-3 py-1.5">
+                              <input
+                                type="text"
+                                value={c.name}
+                                onChange={(e) => handleUpdateItemName(i, e.target.value)}
+                                placeholder="Nhập tên ngành hàng..."
+                                className={`w-full px-2.5 py-1 text-[13px] font-bold bg-transparent hover:bg-slate-50 focus:bg-white border border-transparent hover:border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg outline-none transition-all ${
+                                  isInactive ? 'line-through text-slate-400' : 'text-slate-800'
+                                }`}
+                              />
+                              {(displayAliases.length > 0 || isInactive) && (
+                                <div className="flex flex-wrap items-center gap-1.5 px-2.5 mt-0.5">
+                                  {isInactive && (
+                                    <span className="text-[10px] font-bold px-1.5 py-0.2 bg-slate-200 text-slate-600 rounded">
+                                      Ngừng HĐ (Bảo toàn lịch sử)
+                                    </span>
+                                  )}
+                                  {displayAliases.length > 0 && (
+                                    <span
+                                      className="text-[10.5px] font-semibold text-indigo-600 truncate max-w-[340px]"
+                                      title={`ID: ${c.id} | Tên cũ (Alias) được bảo toàn liên kết: ${displayAliases.join(', ')}`}
+                                    >
+                                      🔗 Alias: {displayAliases.join(', ')}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </td>
 
-                          {/* Actions: Up, Down, Delete */}
-                          <td className="px-2 py-1.5 text-center w-24">
-                            <div className="flex items-center justify-center gap-1">
-                              <button 
-                                onClick={() => moveItemUp(i)} 
-                                disabled={i === 0} 
-                                title="Di chuyển lên"
-                                className="p-1 hover:bg-slate-200 rounded text-slate-500 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                            {/* Editable Group Dropdown */}
+                            <td className="px-3 py-1.5 text-center w-36">
+                              <select
+                                value={c.group}
+                                onChange={(e) => handleUpdateItemGroup(i, e.target.value)}
+                                className={`w-full px-2.5 py-1 text-xs font-black rounded-lg border shadow-xs transition-all cursor-pointer outline-none ${
+                                  c.group === 'ICT'
+                                    ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                                    : c.group === 'DỊCH VỤ'
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                                      : 'bg-blue-50 text-blue-800 border-blue-300 hover:bg-blue-100'
+                                }`}
                               >
-                                <ArrowUp size={13} />
-                              </button>
-                              <button 
-                                onClick={() => moveItemDown(i)} 
-                                disabled={i === previewConfig.length - 1} 
-                                title="Di chuyển xuống"
-                                className="p-1 hover:bg-slate-200 rounded text-slate-500 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                              >
-                                <ArrowDown size={13} />
-                              </button>
-                              <button 
-                                onClick={() => handleRemoveItem(i)} 
-                                title="Xóa ngành hàng này"
-                                className="p-1 hover:bg-rose-100 text-slate-400 hover:text-rose-600 rounded cursor-pointer transition-colors"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                                <option value="ICT" className="bg-white text-amber-800 font-bold">ICT</option>
+                                <option value="DỊCH VỤ" className="bg-white text-emerald-800 font-bold">DỊCH VỤ</option>
+                                <option value="CE" className="bg-white text-blue-800 font-bold">CE</option>
+                              </select>
+                            </td>
+
+                            {/* Actions: Active Toggle, Up, Down, Soft-Delete */}
+                            <td className="px-2 py-1.5 text-center w-28">
+                              <div className="flex items-center justify-center gap-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleItemActive(i)}
+                                  title={isInactive ? 'Kích hoạt lại ngành hàng này' : 'Ngừng sử dụng (Bảo toàn dữ liệu lịch sử)'}
+                                  className={`p-1 rounded cursor-pointer transition-colors ${
+                                    isInactive
+                                      ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                                      : 'hover:bg-slate-200 text-emerald-600'
+                                  }`}
+                                >
+                                  <Eye size={13} />
+                                </button>
+                                <button 
+                                  onClick={() => moveItemUp(i)} 
+                                  disabled={i === 0} 
+                                  title="Di chuyển lên"
+                                  className="p-1 hover:bg-slate-200 rounded text-slate-500 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                                >
+                                  <ArrowUp size={13} />
+                                </button>
+                                <button 
+                                  onClick={() => moveItemDown(i)} 
+                                  disabled={i === previewConfig.length - 1} 
+                                  title="Di chuyển xuống"
+                                  className="p-1 hover:bg-slate-200 rounded text-slate-500 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                                >
+                                  <ArrowDown size={13} />
+                                </button>
+                                <button 
+                                  onClick={() => handleRemoveItem(i)} 
+                                  title={isInactive ? 'Xóa khỏi danh sách' : 'Ngừng hoạt động ngành hàng này (Bảo toàn lịch sử)'}
+                                  className="p-1 hover:bg-rose-100 text-slate-400 hover:text-rose-600 rounded cursor-pointer transition-colors"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                       {previewConfig.length === 0 && (
                         <tr>
                           <td colSpan={4} className="px-4 py-12 text-center text-slate-400">
