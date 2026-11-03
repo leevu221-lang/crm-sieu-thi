@@ -560,6 +560,47 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
   }, [effectiveLuykeCatMap, effectiveMucTieu100Info, categoryConfig]);
 
   // ── Build Category List Synchronized 100% with Tab "TỔNG QUAN" & SSOT Master Config ──
+  const inferMasterCategoryMetricType = useCallback((masterName: string, masterId?: string): 'SL' | 'DT' => {
+    const idLower = (masterId || '').trim().toLowerCase();
+    const SL_MASTER_IDS = new Set([
+      'cat_napruttientaikhoannganhang',
+      'cat_simtong',
+      'cat_vas',
+      'cat_simmobifonesimdmx',
+      'cat_mothetindungtpbankevovpbankmwg',
+      'cat_ottmangoicallme',
+      'cat_maylanh'
+    ]);
+    if (idLower && SL_MASTER_IDS.has(idLower)) return 'SL';
+
+    const clean = (masterName || '')
+      .toUpperCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/Đ/g, 'D')
+      .replace(/^T\d+\s*-\s*/i, '')
+      .trim();
+    if (clean.includes('(DT)') || clean.includes('DOANH THU')) return 'DT';
+    if (
+      clean.includes('(SL)') ||
+      clean.includes('SO LUONG') ||
+      clean.includes('NAP RUT') ||
+      clean === 'SIM' ||
+      clean.startsWith('SIM ') ||
+      clean === 'VAS' ||
+      clean.startsWith('VAS ') ||
+      clean.includes('MO THE TIN DUNG') ||
+      clean.includes('OTT') ||
+      clean.includes('MANGO') ||
+      clean.includes('ICALLME') ||
+      clean === 'MAY LANH' ||
+      clean.startsWith('MAY LANH')
+    ) {
+      return 'SL';
+    }
+    return 'DT';
+  }, []);
+
   const allAvailableCategoryList = useMemo(() => {
     if (filteredCategories && filteredCategories.length > 0) {
       return filteredCategories
@@ -577,6 +618,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
           const rawNameUpper = rawName.toUpperCase();
           const canonicalKey = resolved.canonicalKey || getCanonicalCategoryKey(rawName, categoryConfig);
           const orderIndex = resolved.orderIndex ?? getCategoryOrderIndex(rawName, categoryConfig);
+          const group = resolved.group || cat.group || cat.categoryGroup || '';
           return {
             key: `${displayName}__${catType}`,
             canonicalSelectionKey: `${canonicalKey}__${catType}`,
@@ -585,6 +627,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
             rawNameUpper,
             canonicalKey,
             orderIndex,
+            group,
             type: catType,
             realtimeRevenue: cat.revenue || cat.actual || 0,
             defaultTarget: 0, // Chỉ đồng bộ khi người dùng nhấn nút đồng bộ
@@ -601,6 +644,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
           rawNameUpper: string;
           canonicalKey: string;
           orderIndex: number;
+          group?: string;
           type: string;
           realtimeRevenue: number;
           defaultTarget: number;
@@ -609,8 +653,15 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
     }
 
     const fallbackSource = (activeCategoryConfig && activeCategoryConfig.length > 0)
-      ? activeCategoryConfig.map(c => ({ name: c.name, type: 'DT', defaultTarget: 0, id: c.id, order: c.order }))
-      : DEFAULT_DT_CATEGORIES.map((c, idx) => ({ ...c, id: undefined, order: idx }));
+      ? activeCategoryConfig.map(c => ({
+          name: c.name,
+          type: inferMasterCategoryMetricType(c.name, c.id),
+          defaultTarget: 0,
+          id: c.id,
+          order: c.order,
+          group: c.group
+        }))
+      : DEFAULT_DT_CATEGORIES.map((c, idx) => ({ ...c, id: undefined, order: idx, group: undefined }));
 
     return fallbackSource.map((c, idx) => {
       const displayName = getCategoryDisplayName(c.name, categoryConfig).toUpperCase();
@@ -624,6 +675,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
         rawNameUpper: c.name.toUpperCase(),
         canonicalKey,
         orderIndex,
+        group: c.group || '',
         type: c.type,
         realtimeRevenue: 0,
         defaultTarget: 0,
@@ -631,7 +683,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
         _idx: idx
       };
     });
-  }, [filteredCategories, categoryConfig, activeCategoryConfig]);
+  }, [filteredCategories, categoryConfig, activeCategoryConfig, inferMasterCategoryMetricType]);
 
   const isCategoryItemSelected = useCallback((item: {
     key: string;

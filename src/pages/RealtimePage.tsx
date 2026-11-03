@@ -118,7 +118,7 @@ import * as RadixTooltip from '@radix-ui/react-tooltip';
 import * as XLSX from 'xlsx';
 import { domToPng } from 'modern-screenshot';
 import { addWhiteBorderToDataUrl } from '../utils/imageBorderUtil';
-import { isValidStoreName, normalize, normalizeStoreId, cleanNum, parseMarketData, resolveRealtimeTraChamRate } from './RTST/utils';
+import { isValidStoreName, normalize, normalizeStoreId, cleanNum, parseMarketData, resolveRealtimeTraChamRate, cleanCategoryName } from './RTST/utils';
 import { AutoFitTable } from '../components/AutoFitTable';
 
 const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: boolean, onClick: () => void, icon: any, label: string, count?: number }) => (
@@ -6364,16 +6364,54 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
     return totalRow || processedData.markets[0];
   }, [processedData.markets, marketFilter]);
 
-  const filteredCategories = useMemo(() => {
-    if (!processedData.categories || processedData.categories.length === 0) return [];
+  const inferMasterCategoryMetricType = useCallback((masterName: string, masterId?: string): 'SL' | 'DT' => {
+    const idLower = (masterId || '').trim().toLowerCase();
+    const SL_MASTER_IDS = new Set([
+      'cat_napruttientaikhoannganhang',
+      'cat_simtong',
+      'cat_vas',
+      'cat_simmobifonesimdmx',
+      'cat_mothetindungtpbankevovpbankmwg',
+      'cat_ottmangoicallme',
+      'cat_maylanh'
+    ]);
+    if (idLower && SL_MASTER_IDS.has(idLower)) return 'SL';
 
-    const visibleCats = processedData.categories.filter(cat =>
+    const norm = normalize(masterName || '');
+    const cleaned = cleanCategoryName(masterName || '');
+    if (norm.includes('(dt)') || norm.includes('doanh thu')) return 'DT';
+    if (
+      norm.includes('(sl)') ||
+      norm.includes('so luong') ||
+      cleaned === 'naprut' ||
+      cleaned.includes('napruttien') ||
+      cleaned === 'sim' ||
+      cleaned === 'simtong' ||
+      cleaned === 'simdmx' ||
+      cleaned.startsWith('simmobifone') ||
+      cleaned === 'vas' ||
+      cleaned.includes('mothetindung') ||
+      cleaned.includes('ott') ||
+      cleaned.includes('mango') ||
+      cleaned.includes('icallme') ||
+      cleaned === 'maylanh'
+    ) {
+      return 'SL';
+    }
+    return 'DT';
+  }, []);
+
+  const filteredCategories = useMemo(() => {
+    const rawCats = Array.isArray(processedData.categories) ? processedData.categories : [];
+
+    const visibleCats = rawCats.filter(cat =>
       marketFilter === 'ALL' || !cat.marketName ||
       normalize(cat.marketName).includes(normalize(marketFilter)) ||
       normalize(marketFilter).includes(normalize(cat.marketName))
     );
 
     const aggregated: Record<string, any> = {};
+    const matchedMasterIds = new Set<string>();
 
     visibleCats.forEach((cat: any, idx: number) => {
       const rawName = cat.rawName || cat.name || '';
@@ -6384,18 +6422,32 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
       if (resolved.item && resolved.item.isActive === false) {
         return;
       }
+      const masterId = resolved.item?.id || resolved.id;
       const canonicalKey = resolved.canonicalKey || getCanonicalCategoryKey(rawName, categoryConfig);
-      const displayName = resolved.displayName || getCategoryDisplayName(rawName, categoryConfig) || rawName;
+      if (resolved.isMapped && !resolved.isAmbiguous) {
+        if (masterId) matchedMasterIds.add(masterId);
+        if (canonicalKey) matchedMasterIds.add(canonicalKey);
+      }
+      const displayName =
+        resolved.isMapped && !resolved.isAmbiguous && resolved.displayName
+          ? resolved.displayName
+          : (resolved.displayName || getCategoryDisplayName(rawName, categoryConfig) || rawName);
       const orderIndex = resolved.orderIndex ?? getCategoryOrderIndex(rawName, categoryConfig);
       const key = `${canonicalKey}_${cat.type}`;
       if (!aggregated[key]) {
         aggregated[key] = {
           ...cat,
+          id: resolved.id,
+          masterId,
           rawName,
           name: displayName,
           canonicalKey,
+          order: resolved.order,
           orderIndex,
+          group: resolved.group,
           categoryGroup: resolved.group,
+          isActive: resolved.isActive,
+          isMapped: resolved.isMapped,
           _firstIdx: idx
         };
       } else {
@@ -6404,6 +6456,47 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
         aggregated[key].revenue = (aggregated[key].revenue || 0) + (cat.revenue || 0);
       }
     });
+
+    // Đồng bộ đầy đủ 40 ngành hàng Master Config (TNB LEADER -> CẤU HÌNH) vào lớp hiển thị BC NGÀY
+    if (Array.isArray(categoryConfig) && categoryConfig.length > 0) {
+      for (let idx = 0; idx < categoryConfig.length; idx++) {
+        const masterItem = categoryConfig[idx];
+        if (!masterItem || !masterItem.name || masterItem.isActive === false) continue;
+        const masterRes = resolveCategoryMaster(masterItem.name, categoryConfig);
+        const masterId = masterItem.id || masterRes.id;
+        const canonicalKey = masterRes.canonicalKey || masterId;
+        if (matchedMasterIds.has(masterId) || matchedMasterIds.has(canonicalKey)) {
+          continue;
+        }
+        const inferredType = inferMasterCategoryMetricType(masterItem.name, masterId);
+        const key = `${canonicalKey}_${inferredType}`;
+        if (aggregated[key]) continue;
+        matchedMasterIds.add(masterId);
+        matchedMasterIds.add(canonicalKey);
+
+        const orderVal = typeof masterItem.order === 'number' ? masterItem.order : idx;
+        aggregated[key] = {
+          id: masterId,
+          masterId,
+          rawName: masterItem.name,
+          name: masterItem.name,
+          canonicalKey,
+          type: inferredType,
+          target: 0,
+          actual: 0,
+          revenue: 0,
+          rate: 0,
+          order: orderVal,
+          orderIndex: orderVal,
+          group: masterItem.group || masterRes.group,
+          categoryGroup: masterItem.group || masterRes.group,
+          isActive: true,
+          isMapped: true,
+          isMasterPlaceholder: true,
+          _firstIdx: 10000 + idx
+        };
+      }
+    }
 
     return Object.values(aggregated)
       .map(cat => {
@@ -6418,7 +6511,7 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
         if (orderDiff !== 0) return orderDiff;
         return (a._firstIdx ?? 0) - (b._firstIdx ?? 0);
       });
-  }, [processedData.categories, marketFilter, categoryConfig]);
+  }, [processedData.categories, marketFilter, categoryConfig, inferMasterCategoryMetricType]);
 
   // Raw lists for SL & DT in BC Ngày > Tổng quan
   const rawCategoriesSL = useMemo(() => {
@@ -6792,14 +6885,14 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
     const valQd = resolveQdPercent(parsedMarket, activeDeclared?.name || parsedMarket?.name || '');
     const percentQdStr = `${valQd >= 0 ? '+' : ''}${valQd.toFixed(1)}%`;
 
-    // SL Categories
-    const slCats = visibleCategoriesSL;
+    // SL Categories (chỉ xét các ngành hàng có target > 0 || revenue > 0 để không lẫn dòng trống 0/0)
+    const slCats = visibleCategoriesSL.filter((c: any) => (Number(c.target) || 0) > 0 || (Number(c.revenue) || 0) > 0);
     const slDone = slCats.filter(c => Math.round(c.rate || 0) >= 100);
     const slNotDone = slCats.filter(c => Math.round(c.rate || 0) < 100).sort((a, b) => (b.target - b.revenue) - (a.target - a.revenue));
     const slTop = [...slCats].sort((a, b) => (b.rate || 0) - (a.rate || 0));
 
-    // DT Categories
-    const dtCats = visibleCategoriesDT;
+    // DT Categories (chỉ xét các ngành hàng có target > 0 || revenue > 0 để không lẫn dòng trống 0/0)
+    const dtCats = visibleCategoriesDT.filter((c: any) => (Number(c.target) || 0) > 0 || (Number(c.revenue) || 0) > 0);
     const dtDone = dtCats.filter(c => Math.round(c.rate || 0) >= 100);
     const dtNotDone = dtCats.filter(c => Math.round(c.rate || 0) < 100).sort((a, b) => (b.target - b.revenue) - (a.target - a.revenue));
     const dtTop = [...dtCats].sort((a, b) => (b.rate || 0) - (a.rate || 0));
