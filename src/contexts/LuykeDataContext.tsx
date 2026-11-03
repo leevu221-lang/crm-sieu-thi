@@ -2045,13 +2045,19 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           : c.name;
       return {
         ...c,
+        id: res.id,
+        masterId: res.item?.id || res.id,
         rawName,
         name: displayName,
         canonicalKey: res.canonicalKey,
+        order: res.order,
         orderIndex: res.orderIndex,
+        isActive: res.isActive,
         isMapped: res.isMapped,
+        isUnmapped: res.isUnmapped,
         isAmbiguous: res.isAmbiguous,
-        configGroup: getCategoryGroupByConfig(rawName, categoryConfig),
+        group: res.group,
+        configGroup: res.group,
         _origIdx: idx,
       };
     });
@@ -2067,6 +2073,40 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
   }, [processedData, categoryConfig]);
 
+  const synchronizedCategoryTargets = useMemo(() => {
+    if (!Array.isArray(categoryTargets) || categoryTargets.length === 0) return categoryTargets;
+    const mapped = categoryTargets.map((t: any, idx: number) => {
+      if (!t || !t.name) return t;
+      const rawName = t.rawName || t.name || '';
+      const res = resolveCategoryMaster(rawName, categoryConfig);
+      const displayName =
+        res.isMapped && !res.isAmbiguous && res.displayName
+          ? res.displayName
+          : t.name;
+      return {
+        ...t,
+        id: res.id,
+        masterId: res.item?.id || res.id,
+        rawName,
+        name: displayName,
+        canonicalKey: res.canonicalKey,
+        order: res.order,
+        orderIndex: res.orderIndex,
+        group: res.group,
+        configGroup: res.group,
+        isMapped: res.isMapped,
+        isUnmapped: res.isUnmapped,
+        isAmbiguous: res.isAmbiguous,
+        _origIdx: idx,
+      };
+    });
+    mapped.sort((a: any, b: any) => {
+      const diff = (a.orderIndex ?? 999999) - (b.orderIndex ?? 999999);
+      return diff !== 0 ? diff : (a._origIdx ?? 0) - (b._origIdx ?? 0);
+    });
+    return mapped;
+  }, [categoryTargets, categoryConfig]);
+
   const value = useMemo(() => ({
     clusterSummaryInput, setClusterSummaryInput: setClusterSummaryInputSync,
     clusterCategoryInput, setClusterCategoryInput: setClusterCategoryInputSync,
@@ -2079,7 +2119,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     tragopMatran, setTragopMatran: setTragopMatranSync,
     tragopNv, setTragopNv: setTragopNvSync,
     banKemNv, setBanKemNv: setBanKemNvSync,
-    categoryTargets, setCategoryTargets,
+    categoryTargets: synchronizedCategoryTargets, setCategoryTargets,
     allStoresCache,
     processedData: synchronizedProcessedData,
     isProcessingSave,
@@ -2105,7 +2145,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     tragopMatran, setTragopMatranSync,
     tragopNv, setTragopNvSync,
     banKemNv, setBanKemNvSync,
-    categoryTargets,
+    synchronizedCategoryTargets,
     allStoresCache,
     synchronizedProcessedData,
     isProcessingSave,

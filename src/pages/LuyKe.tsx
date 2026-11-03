@@ -1976,14 +1976,24 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
         : `${res.canonicalKey}__${c.type || ''}`;
       if (seen.has(dedupKey)) continue;
       seen.add(dedupKey);
+      const displayName =
+        res.isMapped && !res.isAmbiguous && res.displayName
+          ? res.displayName
+          : (res.displayName || c.name);
       deduped.push({
         ...c,
+        id: res.id,
+        masterId: res.item?.id || res.id,
         rawName,
-        name: res.displayName || c.name,
+        name: displayName,
         canonicalKey: res.canonicalKey,
+        order: res.order,
         orderIndex: res.orderIndex,
+        isActive: res.isActive,
         isMapped: res.isMapped,
+        isUnmapped: res.isUnmapped,
         isAmbiguous: res.isAmbiguous,
+        group: res.group,
         configGroup: res.group
       });
     }
@@ -2005,11 +2015,14 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
         };
         const tRaw = t.rawName || t.name || '';
         const tRes = resolveCategoryMaster(tRaw, categoryConfig);
-        if (!tRes.isAmbiguous) {
+        if (!tRes.isAmbiguous && tRes.canonicalKey) {
           targetMap.set(`${tRes.canonicalKey}__${t.type}`, val);
         }
         targetMap.set(`${normalize(t.name)}__${t.type}`, val);
-        targetMap.set(`${cleanCategoryName(t.name)}__${t.type}`, val);
+        if (t.rawName) {
+          targetMap.set(`${normalize(t.rawName)}__${t.type}`, val);
+        }
+        targetMap.set(`${cleanCategoryName(tRaw)}__${t.type}`, val);
       }
     });
 
@@ -2018,7 +2031,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
         (!cat.isAmbiguous && cat.canonicalKey ? targetMap.get(`${cat.canonicalKey}__${cat.type}`) : undefined) ||
         targetMap.get(`${normalize(cat.name)}__${cat.type}`) ||
         (cat.rawName ? targetMap.get(`${normalize(cat.rawName)}__${cat.type}`) : undefined) ||
-        targetMap.get(`${cleanCategoryName(cat.name)}__${cat.type}`);
+        targetMap.get(`${cleanCategoryName(cat.rawName || cat.name || '')}__${cat.type}`);
       if (entry && (entry.adjustedTarget > 0 || entry.percent === 0)) {
         return {
           ...cat,
@@ -2095,34 +2108,37 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     return filteredCategories.filter((c: any) => c.type === 'DT' || c.type === 'ALL');
   }, [filteredCategories]);
 
+  const isCategoryHiddenByConfig = useCallback(
+    (cat: any, hiddenList: string[]) => {
+      if (!hiddenList || hiddenList.length === 0) return false;
+      const hiddenSet = new Set(hiddenList.map(s => s.trim().toUpperCase()));
+      const hiddenCanonicalSet = new Set(
+        hiddenList
+          .map(s => getCanonicalCategoryKey(s, categoryConfig))
+          .filter(k => k && !k.startsWith('ambiguous:'))
+      );
+      const nameUpper = (cat.name || '').trim().toUpperCase();
+      const rawUpper = (cat.rawName || '').trim().toUpperCase();
+      const cKey = cat.canonicalKey || getCanonicalCategoryKey(cat.rawName || cat.name || '', categoryConfig);
+      return (
+        hiddenSet.has(nameUpper) ||
+        (Boolean(rawUpper) && hiddenSet.has(rawUpper)) ||
+        (Boolean(cKey) && !cKey.startsWith('ambiguous:') && hiddenCanonicalSet.has(cKey))
+      );
+    },
+    [categoryConfig]
+  );
+
   // Filtered lists with hidden items removed ONLY for BC THÁNG > TỔNG QUAN
   const visibleCategoriesSL = useMemo(() => {
     if (hiddenCatsSL.length === 0) return rawCategoriesSL;
-    const hiddenSet = new Set(hiddenCatsSL.map(s => s.trim().toUpperCase()));
-    const hiddenCanonicalSet = new Set(
-      hiddenCatsSL.map(s => getCanonicalCategoryKey(s, categoryConfig)).filter(k => !k.startsWith('ambiguous:'))
-    );
-    return rawCategoriesSL.filter((c: any) => {
-      const nameUpper = (c.name || '').trim().toUpperCase();
-      const rawUpper = (c.rawName || '').trim().toUpperCase();
-      const cKey = c.canonicalKey || getCanonicalCategoryKey(c.rawName || c.name || '', categoryConfig);
-      return !hiddenSet.has(nameUpper) && (!rawUpper || !hiddenSet.has(rawUpper)) && !hiddenCanonicalSet.has(cKey);
-    });
-  }, [rawCategoriesSL, hiddenCatsSL, categoryConfig]);
+    return rawCategoriesSL.filter((c: any) => !isCategoryHiddenByConfig(c, hiddenCatsSL));
+  }, [rawCategoriesSL, hiddenCatsSL, isCategoryHiddenByConfig]);
 
   const visibleCategoriesDT = useMemo(() => {
     if (hiddenCatsDT.length === 0) return rawCategoriesDT;
-    const hiddenSet = new Set(hiddenCatsDT.map(s => s.trim().toUpperCase()));
-    const hiddenCanonicalSet = new Set(
-      hiddenCatsDT.map(s => getCanonicalCategoryKey(s, categoryConfig)).filter(k => !k.startsWith('ambiguous:'))
-    );
-    return rawCategoriesDT.filter((c: any) => {
-      const nameUpper = (c.name || '').trim().toUpperCase();
-      const rawUpper = (c.rawName || '').trim().toUpperCase();
-      const cKey = c.canonicalKey || getCanonicalCategoryKey(c.rawName || c.name || '', categoryConfig);
-      return !hiddenSet.has(nameUpper) && (!rawUpper || !hiddenSet.has(rawUpper)) && !hiddenCanonicalSet.has(cKey);
-    });
-  }, [rawCategoriesDT, hiddenCatsDT, categoryConfig]);
+    return rawCategoriesDT.filter((c: any) => !isCategoryHiddenByConfig(c, hiddenCatsDT));
+  }, [rawCategoriesDT, hiddenCatsDT, isCategoryHiddenByConfig]);
 
   // Memoized sorted lists for SLLK and DTLK tables — prevents sorting inside JSX on every render
   const sortedCategoriesSL = useMemo(() => {
@@ -2133,26 +2149,52 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     return sortCategoryList(visibleCategoriesDT, sortModeDT);
   }, [visibleCategoriesDT, sortModeDT, daysPassed, totalDays, categoryConfig]);
 
-  const toggleHideCategorySL = (name: string) => {
-    const key = (name || '').trim().toUpperCase();
+  const toggleHideCategorySL = (catOrName: any) => {
+    const nameStr = typeof catOrName === 'string' ? catOrName : (catOrName?.name || '');
+    const rawStr = typeof catOrName === 'string' ? '' : (catOrName?.rawName || '');
+    const keyUpper = nameStr.trim().toUpperCase();
+    const rawUpper = rawStr.trim().toUpperCase();
+    const cKey =
+      (typeof catOrName === 'object' && catOrName?.canonicalKey) ||
+      getCanonicalCategoryKey(rawStr || nameStr, categoryConfig);
     setHiddenCatsSL(prev => {
-      const exists = prev.some(s => s.trim().toUpperCase() === key);
-      if (exists) {
-        return prev.filter(s => s.trim().toUpperCase() !== key);
+      const matchesEntry = (s: string) => {
+        const sUpper = s.trim().toUpperCase();
+        if (sUpper === keyUpper || (rawUpper && sUpper === rawUpper)) return true;
+        if (cKey && !cKey.startsWith('ambiguous:')) {
+          return getCanonicalCategoryKey(s, categoryConfig) === cKey;
+        }
+        return false;
+      };
+      if (prev.some(matchesEntry)) {
+        return prev.filter(s => !matchesEntry(s));
       } else {
-        return [...prev, key];
+        return [...prev, keyUpper];
       }
     });
   };
 
-  const toggleHideCategoryDT = (name: string) => {
-    const key = (name || '').trim().toUpperCase();
+  const toggleHideCategoryDT = (catOrName: any) => {
+    const nameStr = typeof catOrName === 'string' ? catOrName : (catOrName?.name || '');
+    const rawStr = typeof catOrName === 'string' ? '' : (catOrName?.rawName || '');
+    const keyUpper = nameStr.trim().toUpperCase();
+    const rawUpper = rawStr.trim().toUpperCase();
+    const cKey =
+      (typeof catOrName === 'object' && catOrName?.canonicalKey) ||
+      getCanonicalCategoryKey(rawStr || nameStr, categoryConfig);
     setHiddenCatsDT(prev => {
-      const exists = prev.some(s => s.trim().toUpperCase() === key);
-      if (exists) {
-        return prev.filter(s => s.trim().toUpperCase() !== key);
+      const matchesEntry = (s: string) => {
+        const sUpper = s.trim().toUpperCase();
+        if (sUpper === keyUpper || (rawUpper && sUpper === rawUpper)) return true;
+        if (cKey && !cKey.startsWith('ambiguous:')) {
+          return getCanonicalCategoryKey(s, categoryConfig) === cKey;
+        }
+        return false;
+      };
+      if (prev.some(matchesEntry)) {
+        return prev.filter(s => !matchesEntry(s));
       } else {
-        return [...prev, key];
+        return [...prev, keyUpper];
       }
     });
   };
@@ -5338,7 +5380,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {filteredList.map((cat: any, idx: number) => {
-                      const isHidden = currentHidden.includes((cat.name || '').trim().toUpperCase());
+                      const isHidden = isCategoryHiddenByConfig(cat, currentHidden);
                       let rate = 0;
                       if (cat.target > 0 && daysPassed > 0) {
                         rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
@@ -5346,8 +5388,8 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
 
                       return (
                         <div
-                          key={idx}
-                          onClick={() => toggleFn(cat.name)}
+                          key={cat.canonicalKey || idx}
+                          onClick={() => toggleFn(cat)}
                           className={`p-2.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-2.5 select-none ${
                             !isHidden
                               ? 'bg-white hover:bg-emerald-50/40 border-emerald-200 shadow-2xs'

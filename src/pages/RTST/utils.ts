@@ -57,6 +57,11 @@ const CANONICAL_CATEGORY_ALIASES: Record<string, string> = {
   loa: 'audio',
   mangoplusicallme: 'ottmangoicallme',
   mangoicallme: 'ottmangoicallme',
+  bhthoict: 'bhtho',
+  baohiemthoict: 'bhtho',
+  bhthotgdd: 'bhtho',
+  laptoptruapple: 'laptop',
+  noicom: 'noicomnoichien',
 };
 
 export const cleanCategoryName = (name: string): string => {
