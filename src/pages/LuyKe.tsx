@@ -481,9 +481,9 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
   const [isProcessingData, setIsProcessingData] = useState(false);
 
   // Sort modes for Category tables in BC Tháng:
-  // 'CONFIG_ORDER' (Theo thứ tự cấu hình TNB LEADER - mặc định) | 'HT_DESC' (%HT giảm dần) | 'HT_ASC' (%HT tăng dần) | 'CONLAI_DESC' (C.Lại giảm dần) | 'CONLAI_ASC' (C.Lại tăng dần)
-  const [sortModeSL, setSortModeSL] = useState<'CONFIG_ORDER' | 'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC'>('CONFIG_ORDER');
-  const [sortModeDT, setSortModeDT] = useState<'CONFIG_ORDER' | 'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC'>('CONFIG_ORDER');
+  // 'HT_DESC' (%HT giảm dần - mặc định) | 'HT_ASC' (%HT tăng dần) | 'CONFIG_ORDER' (Theo thứ tự cấu hình TNB LEADER) | 'CONLAI_DESC' (C.Lại giảm dần) | 'CONLAI_ASC' (C.Lại tăng dần)
+  const [sortModeSL, setSortModeSL] = useState<'CONFIG_ORDER' | 'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC'>('HT_DESC');
+  const [sortModeDT, setSortModeDT] = useState<'CONFIG_ORDER' | 'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC'>('HT_DESC');
 
   const sortCategoryList = (list: any[], mode: 'CONFIG_ORDER' | 'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC') => {
     return [...list].sort((a: any, b: any) => {
@@ -507,6 +507,8 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       let rateA = 0, rateB = 0;
       if (a.target > 0 && daysPassed > 0) rateA = (((a.revenue / daysPassed) * totalDays) / a.target) * 100;
       if (b.target > 0 && daysPassed > 0) rateB = (((b.revenue / daysPassed) * totalDays) / b.target) * 100;
+      const roundedRateA = Math.round(rateA);
+      const roundedRateB = Math.round(rateB);
 
       const remA = a.target - a.revenue;
       const remB = b.target - b.revenue;
@@ -527,11 +529,11 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       }
 
       if (mode === 'HT_ASC') {
-        return (rateA - rateB) || (orderA - orderB);
+        return (roundedRateA - roundedRateB) || (orderA - orderB);
       }
 
-      // HT_DESC (%HT cao nhất)
-      return (rateB - rateA) || (orderA - orderB);
+      // HT_DESC (%HT cao nhất -> thấp nhất; các ngành cùng %HT sắp xếp theo order Master Config)
+      return (roundedRateB - roundedRateA) || (orderA - orderB);
     });
   };
 
@@ -2255,6 +2257,35 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     return sortCategoryList(visibleCategoriesDT, sortModeDT);
   }, [visibleCategoriesDT, sortModeDT, daysPassed, totalDays, categoryConfig]);
 
+  const exportCategoriesToExcel = useCallback(() => {
+    const buildSheetRows = (list: any[]) =>
+      list.map((cat: any, idx: number) => {
+        let rate = 0;
+        if (cat.target > 0 && daysPassed > 0) {
+          rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
+        }
+        const roundedRate = Math.round(rate);
+        const remaining = (cat.target || 0) - (cat.revenue || 0);
+        return {
+          'STT': idx + 1,
+          'NGÀNH HÀNG': cat.name || '',
+          'NHÓM': cat.group || '',
+          'TARGET': cat.target > 0 ? Math.round(cat.target) : '-',
+          'LŨY KẾ': cat.revenue > 0 ? Math.round(cat.revenue) : '-',
+          '%HT': `${roundedRate}%`,
+          'C.LẠI': remaining > 0 ? Math.round(remaining) : '-'
+        };
+      });
+
+    const wb = XLSX.utils.book_new();
+    const wsSL = XLSX.utils.json_to_sheet(buildSheetRows(sortedCategoriesSL));
+    const wsDT = XLSX.utils.json_to_sheet(buildSheetRows(sortedCategoriesDT));
+    XLSX.utils.book_append_sheet(wb, wsSL, 'NGANH_HANG_SL');
+    XLSX.utils.book_append_sheet(wb, wsDT, 'NGANH_HANG_DT');
+    const safeStore = String(marketFilter !== 'ALL' ? marketFilter : (maKho || 'SieuThi')).replace(/[^a-zA-Z0-9_-]/g, '_');
+    XLSX.writeFile(wb, `BC_Thang_NganhHang_${safeStore}.xlsx`);
+  }, [sortedCategoriesSL, sortedCategoriesDT, daysPassed, totalDays, marketFilter, maKho]);
+
   const toggleHideCategorySL = (catOrName: any) => {
     const nameStr = typeof catOrName === 'string' ? catOrName : (catOrName?.name || '');
     const rawStr = typeof catOrName === 'string' ? '' : (catOrName?.rawName || '');
@@ -3539,17 +3570,18 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                         </button>
                         <button
                           onClick={() => {
-                            setSortModeSL('HT_DESC');
-                            setSortModeDT('HT_DESC');
+                            const nextMode = sortModeSL === 'HT_DESC' && sortModeDT === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC';
+                            setSortModeSL(nextMode);
+                            setSortModeDT(nextMode);
                           }}
                           className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                            sortModeSL === 'HT_DESC' && sortModeDT === 'HT_DESC'
+                            sortModeSL.startsWith('HT') && sortModeDT.startsWith('HT')
                               ? 'bg-gradient-to-r from-[#0284C7] to-[#0EA5E9] text-white shadow-xs'
                               : 'text-slate-600 hover:text-sky-900 hover:bg-sky-50/60'
                           }`}
-                          title="Sắp xếp theo % hoàn thành cao nhất"
+                          title="Sắp xếp theo % hoàn thành (Nhấn để đảo chiều Giảm dần / Tăng dần)"
                         >
-                          📊 THEO %HT
+                          📊 THEO %HT {sortModeSL === 'HT_ASC' && sortModeDT === 'HT_ASC' ? '↑' : '↓'}
                         </button>
                         <button
                           onClick={() => {
@@ -3598,6 +3630,15 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                               Ẩn {hiddenCatsSL.length + hiddenCatsDT.length}
                             </span>
                           )}
+                        </button>
+
+                        <button
+                          onClick={exportCategoriesToExcel}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-wider bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 transition-all duration-300 active:scale-95 cursor-pointer border border-emerald-400/30"
+                          title="Xuất Excel 2 bảng Ngành hàng (SL & DT) theo đúng thứ tự đang hiển thị"
+                        >
+                          <FileSpreadsheet size={14} className="text-white shrink-0" />
+                          <span>XUẤT EXCEL</span>
                         </button>
 
                         <button
