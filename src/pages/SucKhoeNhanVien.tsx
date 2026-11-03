@@ -56,11 +56,6 @@ const isCategoryForMarket = (c: any, marketFilter: string): boolean => {
   // Exclude Kho bán hàng lưu động
   if (isKhoLuuDong(c.marketName)) return false;
 
-  // Exclude categories with no target and no actual (inactive categories)
-  if ((typeof c.target === 'number' && c.target <= 0) && (typeof c.actual === 'number' && c.actual <= 0)) {
-    return false;
-  }
-  
   const rawFilterNorm = removeAccents(marketFilter).toLowerCase().trim();
   const rawMarketNorm = removeAccents(c.marketName).toLowerCase().trim();
 
@@ -1595,6 +1590,30 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   }, [luyKeNganhHang, daysPassed, totalDays, allowedMarkets, fallbackStoreNameForParse]);
 
   const filteredLuykeCategories = useMemo(() => {
+    const targetMap = new Map<string, { adjustedTarget: number; percent?: number }>();
+    (luykeCategoryTargets || []).forEach((t: any) => {
+      if (t && typeof t.adjustedTarget === 'number') {
+        const val = {
+          adjustedTarget: t.adjustedTarget,
+          percent: t.percent,
+        };
+        const tRaw = t.rawName || t.name || '';
+        const tType = t.type === 'ALL' ? 'DT' : (t.type || 'DT');
+        const tRes = resolveCategoryMaster(tRaw, categoryConfig);
+        if (!tRes.isAmbiguous && tRes.canonicalKey) {
+          targetMap.set(`${tRes.canonicalKey}__${tType}`, val);
+        }
+        targetMap.set(`${normalize(t.name || '')}__${tType}`, val);
+        if (t.rawName) {
+          targetMap.set(`${normalize(t.rawName)}__${tType}`, val);
+        }
+        const tClean = cleanCategoryName(tRaw);
+        if (tClean) {
+          targetMap.set(`${tClean}__${tType}`, val);
+        }
+      }
+    });
+
     const mapCatToMaster = (c: any) => {
       if (!c || !c.name) return null;
       const res = resolveCategoryMaster(c.name, categoryConfig, {
@@ -1606,9 +1625,22 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         categoryConfig && categoryConfig.length > 0 && res.item && !res.isAmbiguous
           ? res.displayName
           : c.name;
+      const catType: 'SL' | 'DT' = c.type === 'SL' ? 'SL' : 'DT';
+      const entry =
+        (!res.isAmbiguous && res.canonicalKey ? targetMap.get(`${res.canonicalKey}__${catType}`) : undefined) ||
+        targetMap.get(`${normalize(displayName)}__${catType}`) ||
+        targetMap.get(`${normalize(c.name)}__${catType}`) ||
+        targetMap.get(`${cleanCategoryName(c.name)}__${catType}`);
+      const resolvedTarget =
+        entry && (entry.adjustedTarget > 0 || entry.percent === 0)
+          ? entry.adjustedTarget
+          : c.target;
       return {
         ...c,
+        type: catType,
+        target: resolvedTarget,
         name: displayName,
+        rawName: c.name,
         canonicalKey: res.canonicalKey,
         isAmbiguous: res.isAmbiguous,
       };
@@ -1627,7 +1659,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const matchingFromStoreRaw = parsedFromStoreRaw.filter((c: any) => {
       if (!marketFilter || marketFilter === 'ALL') return true;
       if (!c?.marketName) return true;
-      return isCategoryForMarket({ ...c, target: Math.max(c.target || 0, 1) }, marketFilter);
+      return isCategoryForMarket(c, marketFilter);
     });
     const sourceToMerge = (matchingFromStoreRaw.length > 0 ? matchingFromStoreRaw : parsedFromStoreRaw)
       .map(mapCatToMaster)
@@ -1656,7 +1688,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     return merged.sort(
       (a: any, b: any) => getCategoryOrderIndex(a.name, categoryConfig) - getCategoryOrderIndex(b.name, categoryConfig)
     );
-  }, [processedData?.categories, marketFilter, parsedFromStoreRaw, categoryConfig]);
+  }, [processedData?.categories, marketFilter, parsedFromStoreRaw, categoryConfig, luykeCategoryTargets]);
 
   const currentMarket = useMemo(() => {
     if (!marketFilter || marketFilter === 'ALL') {

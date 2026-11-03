@@ -99,12 +99,7 @@ const EXACT_ONLY_CLEAN_KEYS = new Set([
 
 export const isSameCategoryClean = (cleanA: string, cleanB: string): boolean => {
   if (!cleanA || !cleanB) return false;
-  if (cleanA === cleanB) return true;
-  if (cleanA.length < 3 || cleanB.length < 3) return false;
-  if (EXACT_ONLY_CLEAN_KEYS.has(cleanA) || EXACT_ONLY_CLEAN_KEYS.has(cleanB)) {
-    return false;
-  }
-  return cleanA.includes(cleanB) || cleanB.includes(cleanA);
+  return cleanA === cleanB;
 };
 
 export const isSameCategory = (nameA: string, nameB: string, categoryConfig?: CategoryConfigItem[]): boolean => {
@@ -132,23 +127,19 @@ export const findMatchingCategoryConfig = (
   const cleanCat = cleanCategoryName(catName);
   if (!cleanCat) return undefined;
 
-  // 1. Exact match on canonical clean name or alias
-  let match = categoryConfig.find(c =>
+  // Exact match on canonical clean name or alias
+  return categoryConfig.find(c =>
     cleanCategoryName(c.name) === cleanCat ||
     (Array.isArray(c.aliases) && c.aliases.some(a => cleanCategoryName(a) === cleanCat))
   );
-  if (match) return match;
-
-  // 2. Safe fuzzy substring match (guarded against false-positive generic root collisions)
-  match = categoryConfig.find(c => isSameCategoryClean(cleanCategoryName(c.name), cleanCat));
-  return match;
 };
 
 export const resolveCategoryBaseTarget = (
   catName: string,
   categoryTargets?: any[],
   luykeCategories?: CategoryData[],
-  categoryConfig?: CategoryConfigItem[]
+  categoryConfig?: CategoryConfigItem[],
+  expectedType?: 'SL' | 'DT'
 ): number => {
   const clean = cleanCategoryName(catName);
   if (!clean) return 0;
@@ -156,31 +147,39 @@ export const resolveCategoryBaseTarget = (
   const resolved = resolveCategoryMaster(catName, categoryConfig);
   const canonicalKey = (!resolved.isAmbiguous && !resolved.isUnmapped) ? resolved.canonicalKey : '';
 
-  let matchingTarget = categoryTargets?.find((t: any) => {
-    if (!t?.name) return false;
-    if (cleanCategoryName(t.name) === clean) return true;
+  const isCategoryKeyMatch = (itemName?: string): boolean => {
+    if (!itemName) return false;
+    if (cleanCategoryName(itemName) === clean) return true;
     if (canonicalKey) {
-      const tRes = resolveCategoryMaster(t.name, categoryConfig);
-      if (!tRes.isAmbiguous && !tRes.isUnmapped && tRes.canonicalKey === canonicalKey) return true;
+      const iRes = resolveCategoryMaster(itemName, categoryConfig);
+      if (!iRes.isAmbiguous && !iRes.isUnmapped && iRes.canonicalKey === canonicalKey) return true;
     }
     return false;
-  });
+  };
 
-  let lkCat = luykeCategories?.find((c: any) => {
-    if (!c?.name) return false;
-    if (cleanCategoryName(c.name) === clean) return true;
-    if (canonicalKey) {
-      const cRes = resolveCategoryMaster(c.name, categoryConfig);
-      if (!cRes.isAmbiguous && !cRes.isUnmapped && cRes.canonicalKey === canonicalKey) return true;
+  // Bước 2: Ưu tiên tuyệt đối Target ngành hàng từ Bảng 2 (luykeCategories: Ngành hàng SL & Ngành hàng DT)
+  if (luykeCategories && luykeCategories.length > 0) {
+    let lkCat: CategoryData | undefined;
+    if (expectedType === 'SL' || expectedType === 'DT') {
+      lkCat = luykeCategories.find((c: any) => c?.type === expectedType && isCategoryKeyMatch(c?.name));
     }
-    return false;
-  });
-
-  if (!matchingTarget && !resolved.isAmbiguous) {
-    matchingTarget = categoryTargets?.find((t: any) => t?.name && isSameCategoryClean(cleanCategoryName(t.name), clean));
+    if (!lkCat) {
+      lkCat = luykeCategories.find((c: any) => isCategoryKeyMatch(c?.name));
+    }
+    if (lkCat) {
+      return typeof lkCat.target === 'number' && lkCat.target > 0 ? lkCat.target : 0;
+    }
   }
-  if (!lkCat && !resolved.isAmbiguous) {
-    lkCat = luykeCategories?.find((c: any) => c?.name && isSameCategoryClean(cleanCategoryName(c.name), clean));
+
+  // Fallback sang categoryTargets chỉ khi chưa có trong luykeCategories (khớp đúng mã ngành & loại SL/DT)
+  let matchingTarget: any;
+  if (categoryTargets && categoryTargets.length > 0) {
+    if (expectedType === 'SL' || expectedType === 'DT') {
+      matchingTarget = categoryTargets.find((t: any) => t?.type === expectedType && isCategoryKeyMatch(t?.name));
+    }
+    if (!matchingTarget) {
+      matchingTarget = categoryTargets.find((t: any) => isCategoryKeyMatch(t?.name));
+    }
   }
 
   if (matchingTarget && typeof matchingTarget.adjustedTarget === 'number' && matchingTarget.adjustedTarget > 0) {
@@ -189,9 +188,6 @@ export const resolveCategoryBaseTarget = (
   if (matchingTarget && typeof matchingTarget.target === 'number' && matchingTarget.target > 0) {
     const pct = typeof matchingTarget.percent === 'number' ? matchingTarget.percent : 100;
     return matchingTarget.target * (pct / 100);
-  }
-  if (lkCat && typeof lkCat.target === 'number' && lkCat.target > 0) {
-    return lkCat.target;
   }
   return 0;
 };
@@ -411,6 +407,28 @@ const parseReportSections = (rawText: string) => {
   return { preambleLines, sections, staffIds };
 };
 
+const extractReportMonthNumber = (sections: { catName: string }[]): number | null => {
+  const counts = new Map<number, number>();
+  for (const s of sections) {
+    const m = (s.catName || '').match(/^(?:t|tháng|thang)\s*(\d{1,2})\b/i);
+    if (m) {
+      const monthNum = parseInt(m[1], 10);
+      if (monthNum >= 1 && monthNum <= 12) {
+        counts.set(monthNum, (counts.get(monthNum) || 0) + 1);
+      }
+    }
+  }
+  let bestMonth: number | null = null;
+  let bestCount = 0;
+  counts.forEach((cnt, mNum) => {
+    if (cnt > bestCount) {
+      bestCount = cnt;
+      bestMonth = mNum;
+    }
+  });
+  return bestMonth;
+};
+
 export const mergeStaffCategoryReportSections = (prevRaw: string, nextRaw: string): string => {
   if (!nextRaw || !nextRaw.trim()) return '';
   if (!prevRaw || !prevRaw.trim()) return nextRaw;
@@ -421,6 +439,13 @@ export const mergeStaffCategoryReportSections = (prevRaw: string, nextRaw: strin
 
   // Only merge if both are multi-section Format 1 BI reports
   if (prevParsed.sections.length === 0 || nextParsed.sections.length === 0) {
+    return nextRaw;
+  }
+
+  // Prevent merging sections across different months (e.g. T10 vs T11)
+  const prevMonth = extractReportMonthNumber(prevParsed.sections);
+  const nextMonth = extractReportMonthNumber(nextParsed.sections);
+  if (prevMonth !== null && nextMonth !== null && prevMonth !== nextMonth) {
     return nextRaw;
   }
 
@@ -952,9 +977,12 @@ export const parseStaffMatrixDataRefined = (
         .slice()
         .sort((a, b) => getCustomCategoryIndex(a.name, categoryConfig) - getCustomCategoryIndex(b.name, categoryConfig));
       activeMaster.forEach(c => addUniqueCategory(c.name, true));
-      // Ghi nhận các ngành hàng chưa ánh xạ từ BI vào unmappedCategories để Admin kiểm tra (KHÔNG đẩy ngành cũ vào bảng làm sai danh mục Master)
+      // Đồng bộ toàn bộ ngành hàng đang hiển thị ở Bảng 2 (luykeCategories) sang Bảng 1 để không sót ngành hàng (VD: Điện tử Samsung)
       if (luykeCategories && luykeCategories.length > 0) {
-        luykeCategories.forEach(c => recordBiCategoryAudit(c.name));
+        luykeCategories.forEach(c => {
+          recordBiCategoryAudit(c.name);
+          addUniqueCategory(c.name);
+        });
       }
       if (categoryTargets && categoryTargets.length > 0) {
         categoryTargets.forEach((t: any) => recordBiCategoryAudit(t?.name || ''));
@@ -996,19 +1024,23 @@ export const parseStaffMatrixDataRefined = (
       resolvedCategories.sort((a, b) => getCustomCategoryIndex(a, categoryConfig) - getCustomCategoryIndex(b, categoryConfig));
     }
 
+    const validStaffEntries = Array.from(staffMap.values())
+      .filter(staff => !isNonStaffName(staff.displayName) && !isNonStaffName(staff.name) && !isNonStaffName(staff.id));
+    const effectiveCount = staffCount > 0 ? staffCount : validStaffEntries.length;
+
     const targetPerStaffPerCat: Record<string, number> = {};
     resolvedCategories.forEach(catName => {
       const clean = cleanCategoryName(catName);
       const cKey = getCanonicalCategoryKey(catName, categoryConfig);
-      const baseTarget = resolveCategoryBaseTarget(catName, categoryTargets, luykeCategories, categoryConfig);
-      const perStaff = staffCount > 0 ? baseTarget / staffCount : baseTarget;
+      const catType = (cKey && categoryTypes[cKey]) || (clean && categoryTypes[clean]) || undefined;
+      const baseTarget = resolveCategoryBaseTarget(catName, categoryTargets, luykeCategories, categoryConfig, catType);
+      // Bước 3: Target nhân viên = Target ngành hàng Bảng 2 / Số nhân viên hiển thị (Không làm tròn trung gian)
+      const perStaff = (baseTarget > 0 && effectiveCount > 0) ? (baseTarget / effectiveCount) : 0;
       targetPerStaffPerCat[clean] = perStaff;
       if (cKey) targetPerStaffPerCat[cKey] = perStaff;
     });
 
-    const staffMatrixResults: StaffMatrixData[] = Array.from(staffMap.values())
-      .filter(staff => !isNonStaffName(staff.displayName) && !isNonStaffName(staff.name) && !isNonStaffName(staff.id))
-      .map(staff => {
+    const staffMatrixResults: StaffMatrixData[] = validStaffEntries.map(staff => {
       const values: number[] = [];
       const projectedRates: number[] = [];
       const actualPercentHTs: number[] = [];
@@ -1040,24 +1072,23 @@ export const parseStaffMatrixDataRefined = (
         const target = (cKey && !catRes.isAmbiguous && targetPerStaffPerCat[cKey] !== undefined)
           ? targetPerStaffPerCat[cKey]
           : (targetPerStaffPerCat[cleanName] || 0);
-        let actualRate = 0;
+
+        // Bước 4 & Mục 4:
+        // - Target = 0 hoặc null: không thực hiện phép chia, hiển thị trạng thái thiếu dữ liệu (NaN -> '-')
+        // - Không có doanh số (accumulated === 0 khi target > 0): hiển thị 0%
+        // - %HT nhân viên = Doanh số thực tế của nhân viên / Target bình quân nhân viên * 100
+        let actualRate = Number.NaN;
         if (target > 0) {
-          actualRate = (accumulated / target) * 100;
-        } else if (accumulated > 0) {
-          actualRate = 100;
+          actualRate = accumulated === 0 ? 0 : (accumulated / target) * 100;
         }
         actualPercentHTs.push(actualRate);
 
-        let projectedRate = 0;
-        if (target > 0 && daysPassed > 0) {
-          projectedRate = ((accumulated / daysPassed) * totalDays) / target * 100;
-        } else {
-          projectedRate = actualRate;
-        }
+        const projectedRate = actualRate;
         projectedRates.push(projectedRate);
 
-        const effectiveRate = daysPassed > 0 ? projectedRate : actualRate;
-        if (Math.round(effectiveRate) >= 100) achievedCount++;
+        if (!Number.isNaN(projectedRate) && Math.round(projectedRate) >= 100) {
+          achievedCount++;
+        }
       });
 
       return {
@@ -1262,7 +1293,11 @@ export const parseStaffMatrixDataRefined = (
         const isExcluded = excludedKeywords.some(ex => lowerCatName.includes(ex)) ||
           ((lowerCatName.includes('tổng') || lowerCatName.includes('tong')) && cleanCategoryName(catName) !== 'simtong');
 
-        if (isColumnTypesLine || isOnlyNumbers || isExcluded) {
+        if (isColumnTypesLine) {
+          // Dòng loại chỉ số (DTLK/SLLK/SL/DT/Realtime) là nhãn phụ của cột ngành hàng liền trước, KHÔNG làm lệch vị trí cột dữ liệu
+          continue;
+        }
+        if (isOnlyNumbers || isExcluded) {
           colPosition++;
           continue;
         }
@@ -1382,7 +1417,10 @@ export const parseStaffMatrixDataRefined = (
       .sort((a, b) => getCustomCategoryIndex(a.name, categoryConfig) - getCustomCategoryIndex(b.name, categoryConfig));
     activeMaster.forEach(c => addUniqueCategory(c.name, true));
     if (luykeCategories && luykeCategories.length > 0) {
-      luykeCategories.forEach(c => recordBiCategoryAudit(c.name));
+      luykeCategories.forEach(c => {
+        recordBiCategoryAudit(c.name);
+        addUniqueCategory(c.name);
+      });
     }
     if (categoryTargets && categoryTargets.length > 0) {
       categoryTargets.forEach((t: any) => recordBiCategoryAudit(t?.name || ''));
@@ -1404,20 +1442,54 @@ export const parseStaffMatrixDataRefined = (
     resolvedCategories.sort((a, b) => getCustomCategoryIndex(a, categoryConfig) - getCustomCategoryIndex(b, categoryConfig));
   }
 
+  const format2CategoryTypes: Record<string, 'SL' | 'DT'> = {};
+  if (luykeCategories && luykeCategories.length > 0) {
+    luykeCategories.forEach(c => {
+      const clean = cleanCategoryName(c.name);
+      const cKey = getCanonicalCategoryKey(c.name, categoryConfig);
+      if (c.type === 'SL' || c.type === 'DT') {
+        if (clean && !format2CategoryTypes[clean]) format2CategoryTypes[clean] = c.type;
+        if (cKey && !format2CategoryTypes[cKey]) format2CategoryTypes[cKey] = c.type;
+      }
+    });
+  }
+  if (categoryTargets && categoryTargets.length > 0) {
+    categoryTargets.forEach((t: any) => {
+      const clean = cleanCategoryName(t?.name || '');
+      const tKey = getCanonicalCategoryKey(t?.name || '', categoryConfig);
+      if (t?.type === 'SL' || t?.type === 'DT') {
+        if (clean && !format2CategoryTypes[clean]) format2CategoryTypes[clean] = t.type;
+        if (tKey && !format2CategoryTypes[tKey]) format2CategoryTypes[tKey] = t.type;
+      }
+    });
+  }
+  resolvedCategories.forEach(catName => {
+    const clean = cleanCategoryName(catName);
+    const cKey = getCanonicalCategoryKey(catName, categoryConfig);
+    if (cKey && format2CategoryTypes[cKey] && clean && !format2CategoryTypes[clean]) {
+      format2CategoryTypes[clean] = format2CategoryTypes[cKey];
+    }
+  });
+
+  const validRawStaffResults = rawStaffResults.filter(
+    staffRow => !isNonStaffName(staffRow.name) && !isNonStaffName(staffRow.id) && !isNonStaffName(staffRow.shortName)
+  );
+  const effectiveFormat2Count = staffCount > 0 ? staffCount : validRawStaffResults.length;
+
   const targetPerStaffPerCat: Record<string, number> = {};
   resolvedCategories.forEach(catName => {
     const clean = cleanCategoryName(catName);
     const cKey = getCanonicalCategoryKey(catName, categoryConfig);
-    const baseTarget = resolveCategoryBaseTarget(catName, categoryTargets, luykeCategories, categoryConfig);
-    const perStaff = staffCount > 0 ? baseTarget / staffCount : baseTarget;
+    const catType = (cKey && format2CategoryTypes[cKey]) || (clean && format2CategoryTypes[clean]) || undefined;
+    const baseTarget = resolveCategoryBaseTarget(catName, categoryTargets, luykeCategories, categoryConfig, catType);
+    const perStaff = (baseTarget > 0 && effectiveFormat2Count > 0) ? (baseTarget / effectiveFormat2Count) : 0;
     targetPerStaffPerCat[clean] = perStaff;
     if (cKey) targetPerStaffPerCat[cKey] = perStaff;
   });
 
   const results: StaffMatrixData[] = [];
 
-  for (const staffRow of rawStaffResults) {
-    if (isNonStaffName(staffRow.name) || isNonStaffName(staffRow.id) || isNonStaffName(staffRow.shortName)) continue;
+  for (const staffRow of validRawStaffResults) {
     const rawInputValues = staffRow.parts || [];
     const values: number[] = [];
     const valuesMap: Record<string, number> = {};
@@ -1452,24 +1524,18 @@ export const parseStaffMatrixDataRefined = (
         ? targetPerStaffPerCat[cKey]
         : (targetPerStaffPerCat[cleanName] || 0);
       
-      let actualRate = 0;
+      let actualRate = Number.NaN;
       if (target > 0) {
-        actualRate = (accumulated / target) * 100;
-      } else if (accumulated > 0) {
-        actualRate = 100;
+        actualRate = accumulated === 0 ? 0 : (accumulated / target) * 100;
       }
       actualPercentHTs.push(actualRate);
       
-      let projectedRate = 0;
-      if (target > 0 && daysPassed > 0) {
-        projectedRate = ((accumulated / daysPassed) * totalDays) / target * 100;
-      } else {
-        projectedRate = actualRate;
-      }
+      const projectedRate = actualRate;
       projectedRates.push(projectedRate);
       
-      const effectiveRate = daysPassed > 0 ? projectedRate : actualRate;
-      if (Math.round(effectiveRate) >= 100) achievedCount++;
+      if (!Number.isNaN(projectedRate) && Math.round(projectedRate) >= 100) {
+        achievedCount++;
+      }
     });
 
     results.push({
@@ -1487,35 +1553,6 @@ export const parseStaffMatrixDataRefined = (
       actualPercentHTs
     } as any);
   }
-
-  const format2CategoryTypes: Record<string, 'SL' | 'DT'> = {};
-  if (luykeCategories && luykeCategories.length > 0) {
-    luykeCategories.forEach(c => {
-      const clean = cleanCategoryName(c.name);
-      const cKey = getCanonicalCategoryKey(c.name, categoryConfig);
-      if (c.type === 'SL' || c.type === 'DT') {
-        if (clean && !format2CategoryTypes[clean]) format2CategoryTypes[clean] = c.type;
-        if (cKey && !format2CategoryTypes[cKey]) format2CategoryTypes[cKey] = c.type;
-      }
-    });
-  }
-  if (categoryTargets && categoryTargets.length > 0) {
-    categoryTargets.forEach((t: any) => {
-      const clean = cleanCategoryName(t?.name || '');
-      const tKey = getCanonicalCategoryKey(t?.name || '', categoryConfig);
-      if (t?.type === 'SL' || t?.type === 'DT') {
-        if (clean && !format2CategoryTypes[clean]) format2CategoryTypes[clean] = t.type;
-        if (tKey && !format2CategoryTypes[tKey]) format2CategoryTypes[tKey] = t.type;
-      }
-    });
-  }
-  resolvedCategories.forEach(catName => {
-    const clean = cleanCategoryName(catName);
-    const cKey = getCanonicalCategoryKey(catName, categoryConfig);
-    if (cKey && format2CategoryTypes[cKey] && clean && !format2CategoryTypes[clean]) {
-      format2CategoryTypes[clean] = format2CategoryTypes[cKey];
-    }
-  });
 
   const finalResult = {
     staffMatrix: results,
@@ -1726,10 +1763,10 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   });
 
   // Use passed luykeCategories (BC THÁNG displayed data) for staffMatrix calculation
-  const { staffMatrix, categories } = React.useMemo(() => {
+  const { staffMatrix: rawStaffMatrix, categories, categoryTypes } = React.useMemo(() => {
     return parseStaffMatrixDataRefined(
       thiDuaNv || '', 
-      staffCount, 
+      0, 
       categoryTargets, 
       luykeCategories, 
       daysPassed, 
@@ -1737,75 +1774,142 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       false,
       categoryConfig
     );
-  }, [thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays, categoryConfig]);
+  }, [thiDuaNv, categoryTargets, luykeCategories, daysPassed, totalDays, categoryConfig]);
+
+  // Helper: Tính lại đồng thời toàn bộ các cột ngành hàng theo đúng số lượng nhân viên hiển thị (count)
+  // Công thức bắt buộc:
+  // - Bước 1: count = Số nhân viên thực tế đang hiển thị sau lọc
+  // - Bước 2: baseTarget = Target ngành hàng tương ứng từ Bảng 2 (SL -> Ngành hàng SL, DT -> Ngành hàng DT)
+  // - Bước 3: targetPerStaff = baseTarget / count (KHÔNG làm tròn trung gian)
+  // - Bước 4: %HT = (Doanh số thực tế / targetPerStaff) * 100 (Target <= 0 hoặc null -> NaN để hiển thị '-', Doanh số = 0 -> 0%)
+  const recalculateStaffRowsForCount = React.useCallback(
+    (rows: StaffMatrixData[], count: number): StaffMatrixData[] => {
+      if (rows.length === 0) return [];
+      const effectiveCount = count > 0 ? count : rows.length;
+      const perStaffTargets = categories.map(catName => {
+        const clean = cleanCategoryName(catName);
+        const cKey = getCanonicalCategoryKey(catName, categoryConfig);
+        const catType = (cKey && categoryTypes?.[cKey]) || (clean && categoryTypes?.[clean]) || undefined;
+        const baseTarget = resolveCategoryBaseTarget(catName, categoryTargets, luykeCategories, categoryConfig, catType);
+        return baseTarget > 0 && effectiveCount > 0 ? baseTarget / effectiveCount : 0;
+      });
+
+      return rows.map(staff => {
+        const projectedRates: number[] = [];
+        const actualPercentHTs: number[] = [];
+        let achievedCount = 0;
+
+        categories.forEach((_, idx) => {
+          const accumulated = staff.rawValues[idx] ?? 0;
+          const targetPerStaff = perStaffTargets[idx] || 0;
+          let rate = Number.NaN;
+          if (targetPerStaff > 0) {
+            rate = accumulated === 0 ? 0 : (accumulated / targetPerStaff) * 100;
+          }
+          actualPercentHTs.push(rate);
+          projectedRates.push(rate);
+          if (!Number.isNaN(rate) && Math.round(rate) >= 100) {
+            achievedCount++;
+          }
+        });
+
+        return {
+          ...staff,
+          achieved: achievedCount,
+          achievedCount,
+          totalCats: categories.length,
+          rate: categories.length > 0 ? achievedCount / categories.length : 0,
+          projectedRates,
+          actualPercentHTs,
+        };
+      });
+    },
+    [categories, categoryTypes, categoryTargets, luykeCategories, categoryConfig]
+  );
+
+  const sortStaffRows = React.useCallback(
+    (matrix: StaffMatrixData[]): StaffMatrixData[] => {
+      if (sortColumn.type === 'default') {
+        return [...matrix].sort((a, b) => b.rate - a.rate);
+      }
+
+      if (sortColumn.type === 'id') {
+        return [...matrix].sort((a, b) => {
+          const numA = parseInt((a.fullId || '').replace(/\D/g, ''), 10) || 0;
+          const numB = parseInt((b.fullId || '').replace(/\D/g, ''), 10) || 0;
+          const cmp = numA !== numB ? numA - numB : (a.fullId || '').localeCompare(b.fullId || '', 'vi');
+          return sortColumn.ascending ? cmp : -cmp;
+        });
+      }
+
+      if (sortColumn.type === 'name') {
+        return [...matrix].sort((a, b) => {
+          const nameA = (a.name || a.displayName || '').trim();
+          const nameB = (b.name || b.displayName || '').trim();
+          const cmp = nameA.localeCompare(nameB, 'vi');
+          return sortColumn.ascending ? cmp : -cmp;
+        });
+      }
+
+      if (sortColumn.type === 'achieved') {
+        return [...matrix].sort((a, b) => {
+          const getAchieved = (staff: StaffMatrixData) => {
+            return categories.reduce((count, catName, idx) => {
+              if (!visibleCategories.includes(catName)) return count;
+              const projectedRate = staff.projectedRates[idx];
+              if (projectedRate === undefined || projectedRate === null || Number.isNaN(projectedRate)) return count;
+              return Math.round(projectedRate) >= 100 ? count + 1 : count;
+            }, 0);
+          };
+          const valA = getAchieved(a);
+          const valB = getAchieved(b);
+          return sortColumn.ascending ? valA - valB : valB - valA;
+        });
+      }
+
+      if (sortColumn.type === 'rate') {
+        return [...matrix].sort((a, b) => {
+          const getRate = (staff: StaffMatrixData) => {
+            const visibleAchieved = categories.reduce((count, catName, idx) => {
+              if (!visibleCategories.includes(catName)) return count;
+              const projectedRate = staff.projectedRates[idx];
+              if (projectedRate === undefined || projectedRate === null || Number.isNaN(projectedRate)) return count;
+              return Math.round(projectedRate) >= 100 ? count + 1 : count;
+            }, 0);
+            return visibleCategories.length > 0 ? visibleAchieved / visibleCategories.length : 0;
+          };
+          const valA = getRate(a);
+          const valB = getRate(b);
+          return sortColumn.ascending ? valA - valB : valB - valA;
+        });
+      }
+
+      if (sortColumn.type === 'category' && sortColumn.catName) {
+        const catIdx = categories.indexOf(sortColumn.catName);
+        return [...matrix].sort((a, b) => {
+          const rawA = catIdx !== -1 ? a.projectedRates[catIdx] : undefined;
+          const rawB = catIdx !== -1 ? b.projectedRates[catIdx] : undefined;
+          const valA = rawA !== undefined && rawA !== null && !Number.isNaN(rawA) ? rawA : -Infinity;
+          const valB = rawB !== undefined && rawB !== null && !Number.isNaN(rawB) ? rawB : -Infinity;
+          return sortColumn.ascending ? valA - valB : valB - valA;
+        });
+      }
+
+      return matrix;
+    },
+    [sortColumn, categories, visibleCategories]
+  );
+
+  const staffMatrix = React.useMemo(() => {
+    const valid = rawStaffMatrix.filter(
+      s => !isNonStaffName(s.displayName) && !isNonStaffName(s.name) && !isNonStaffName(s.fullId)
+    );
+    return recalculateStaffRowsForCount(valid, valid.length);
+  }, [rawStaffMatrix, recalculateStaffRowsForCount]);
 
   const sortedStaffMatrix = React.useMemo(() => {
-    const matrix = staffMatrix.filter(s => !isNonStaffName(s.displayName) && !isNonStaffName(s.name) && !isNonStaffName(s.fullId));
-    
-    if (sortColumn.type === 'default') {
-      return [...matrix].sort((a, b) => b.rate - a.rate);
-    }
-
-    if (sortColumn.type === 'id') {
-      return [...matrix].sort((a, b) => {
-        const numA = parseInt((a.fullId || '').replace(/\D/g, ''), 10) || 0;
-        const numB = parseInt((b.fullId || '').replace(/\D/g, ''), 10) || 0;
-        const cmp = numA !== numB ? numA - numB : (a.fullId || '').localeCompare(b.fullId || '', 'vi');
-        return sortColumn.ascending ? cmp : -cmp;
-      });
-    }
-    
-    if (sortColumn.type === 'name') {
-      return [...matrix].sort((a, b) => {
-        const nameA = (a.name || a.displayName || '').trim();
-        const nameB = (b.name || b.displayName || '').trim();
-        const cmp = nameA.localeCompare(nameB, 'vi');
-        return sortColumn.ascending ? cmp : -cmp;
-      });
-    }
-    
-    if (sortColumn.type === 'achieved') {
-      return [...matrix].sort((a, b) => {
-        const getAchieved = (staff: StaffMatrixData) => {
-          return categories.reduce((count, catName, idx) => {
-            if (!visibleCategories.includes(catName)) return count;
-            const projectedRate = staff.projectedRates[idx] || 0;
-            return Math.round(projectedRate) >= 100 ? count + 1 : count;
-          }, 0);
-        };
-        const valA = getAchieved(a);
-        const valB = getAchieved(b);
-        return sortColumn.ascending ? valA - valB : valB - valA;
-      });
-    }
-    
-    if (sortColumn.type === 'rate') {
-      return [...matrix].sort((a, b) => {
-        const getRate = (staff: StaffMatrixData) => {
-          const visibleAchieved = categories.reduce((count, catName, idx) => {
-            if (!visibleCategories.includes(catName)) return count;
-            const projectedRate = staff.projectedRates[idx] || 0;
-            return Math.round(projectedRate) >= 100 ? count + 1 : count;
-          }, 0);
-          return visibleCategories.length > 0 ? visibleAchieved / visibleCategories.length : 0;
-        };
-        const valA = getRate(a);
-        const valB = getRate(b);
-        return sortColumn.ascending ? valA - valB : valB - valA;
-      });
-    }
-    
-    if (sortColumn.type === 'category' && sortColumn.catName) {
-      const catIdx = categories.indexOf(sortColumn.catName);
-      return [...matrix].sort((a, b) => {
-        const valA = catIdx !== -1 ? (a.projectedRates[catIdx] || 0) : 0;
-        const valB = catIdx !== -1 ? (b.projectedRates[catIdx] || 0) : 0;
-        return sortColumn.ascending ? valA - valB : valB - valA;
-      });
-    }
-    
-    return matrix;
-  }, [staffMatrix, sortColumn, categories, visibleCategories]);
+    return sortStaffRows(staffMatrix);
+  }, [staffMatrix, sortStaffRows]);
 
   const handleHeaderClick = (type: 'default' | 'id' | 'name' | 'achieved' | 'rate' | 'category', catName?: string) => {
     setSortColumn(prev => {
@@ -1820,11 +1924,6 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
     const isActive = sortColumn.type === type && sortColumn.catName === catName;
     if (!isActive) return <span className="opacity-40 ml-0.5 text-[9.5px] select-none">↕</span>;
     return sortColumn.ascending ? <span className="ml-0.5 text-[9.5px] text-amber-300 select-none">▲</span> : <span className="ml-0.5 text-[9.5px] text-amber-300 select-none">▼</span>;
-  };
-
-  const getTargetPerStaff = (catName: string) => {
-    const baseTarget = resolveCategoryBaseTarget(catName, categoryTargets, luykeCategories, categoryConfig);
-    return staffCount > 0 ? baseTarget / staffCount : 0;
   };
   
   // Group computations for quick filtering
@@ -1991,10 +2090,23 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
     cat.toLowerCase().includes(catSearchTerm.toLowerCase())
   );
 
-  // Base staff list (respecting top-level store staff selection, NEVER mutated by local search)
+  // Helper to compute visible achieved count & rate for any staff row
+  const getStaffVisibleStats = React.useCallback((staff: StaffMatrixData) => {
+    const activeCatCount = visibleCategories.length;
+    const visibleAchieved = categories.reduce((count, catName, idx) => {
+      if (!visibleCategories.includes(catName)) return count;
+      const projectedRate = staff.projectedRates[idx];
+      if (projectedRate === undefined || projectedRate === null || Number.isNaN(projectedRate)) return count;
+      return Math.round(projectedRate) >= 100 ? count + 1 : count;
+    }, 0);
+    const visibleRate = activeCatCount > 0 ? visibleAchieved / activeCatCount : 0;
+    return { visibleAchieved, activeCatCount, visibleRate };
+  }, [categories, visibleCategories]);
+
+  // Base staff list (respecting top-level store staff selection, recalculated for filtered count)
   const filteredStaffMatrix = React.useMemo(() => {
-    return (selectedStaffIds && selectedStaffIds.length > 0 
-      ? sortedStaffMatrix.filter(s => {
+    const matched = (selectedStaffIds && selectedStaffIds.length > 0 
+      ? staffMatrix.filter(s => {
           const sId = (s.fullId || '').trim().toLowerCase();
           const sName = (s.name || '').trim().toLowerCase();
           return selectedStaffIds.some(sel => {
@@ -2002,25 +2114,43 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
             return cleanSel === sId || sId.includes(cleanSel) || cleanSel.includes(sId) || sName.includes(cleanSel);
           });
         })
-      : sortedStaffMatrix
+      : staffMatrix
     ).filter(s => !isNonStaffName(s.displayName) && !isNonStaffName(s.name) && !isNonStaffName(s.fullId));
-  }, [sortedStaffMatrix, selectedStaffIds]);
 
-  // Helper to compute visible achieved count & rate for any staff row
-  const getStaffVisibleStats = React.useCallback((staff: StaffMatrixData) => {
-    const activeCatCount = visibleCategories.length;
-    const visibleAchieved = categories.reduce((count, catName, idx) => {
-      if (!visibleCategories.includes(catName)) return count;
-      const projectedRate = staff.projectedRates[idx] || 0;
-      return Math.round(projectedRate) >= 100 ? count + 1 : count;
-    }, 0);
-    const visibleRate = activeCatCount > 0 ? visibleAchieved / activeCatCount : 0;
-    return { visibleAchieved, activeCatCount, visibleRate };
-  }, [categories, visibleCategories]);
+    const recalculated = recalculateStaffRowsForCount(matched, matched.length);
+    return sortStaffRows(recalculated);
+  }, [staffMatrix, selectedStaffIds, recalculateStaffRowsForCount, sortStaffRows]);
 
-  // Overview KPI statistics computed from filteredStaffMatrix (the store's active staff list)
+  // Local search & status filter — recalculates per-staff Target & %HT whenever displayed staff count changes
+  const displayedStaffMatrix = React.useMemo(() => {
+    const q = removeAccentsLocal(staffSearchQuery).toLowerCase().trim();
+    let list = filteredStaffMatrix.filter(staff => {
+      if (q) {
+        const hay = removeAccentsLocal(`${staff.fullId || ''} ${staff.name || ''} ${staff.displayName || ''}`).toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (staffStatusFilter !== 'ALL') {
+        const { visibleRate } = getStaffVisibleStats(staff);
+        const isAchieved = visibleRate >= 0.5;
+        if (staffStatusFilter === 'ACHIEVED' && !isAchieved) return false;
+        if (staffStatusFilter === 'UNACHIEVED' && isAchieved) return false;
+      }
+      return true;
+    });
+
+    if (displayLimit !== 'ALL' && typeof displayLimit === 'number') {
+      list = list.slice(0, displayLimit);
+    }
+
+    if (list.length !== filteredStaffMatrix.length) {
+      return sortStaffRows(recalculateStaffRowsForCount(list, list.length));
+    }
+    return list;
+  }, [filteredStaffMatrix, staffSearchQuery, staffStatusFilter, displayLimit, getStaffVisibleStats, recalculateStaffRowsForCount, sortStaffRows]);
+
+  // Overview KPI statistics computed from displayedStaffMatrix so KPI cards always match displayed staff rows
   const kpiStats = React.useMemo(() => {
-    const totalStaff = filteredStaffMatrix.length;
+    const totalStaff = displayedStaffMatrix.length;
     const activeCatCount = visibleCategories.length;
     const totalCatSlots = totalStaff * activeCatCount;
     let achievedStaff = 0;      // >= 50%
@@ -2029,7 +2159,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
     let weakStaff = 0;          // < 20% (Nhân viên yếu)
     let totalAchievedCats = 0;
 
-    filteredStaffMatrix.forEach(staff => {
+    displayedStaffMatrix.forEach(staff => {
       const { visibleAchieved, visibleRate } = getStaffVisibleStats(staff);
       totalAchievedCats += visibleAchieved;
       if (visibleRate >= 0.5) {
@@ -2069,41 +2199,22 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       achievedCatsPct,
       unachievedCatsPct,
     };
-  }, [filteredStaffMatrix, visibleCategories.length, getStaffVisibleStats]);
-
-  // Local search & status filter (ONLY affects displayed rows, preserves original staff list)
-  const displayedStaffMatrix = React.useMemo(() => {
-    const q = removeAccentsLocal(staffSearchQuery).toLowerCase().trim();
-    let list = filteredStaffMatrix.filter(staff => {
-      if (q) {
-        const hay = removeAccentsLocal(`${staff.fullId || ''} ${staff.name || ''} ${staff.displayName || ''}`).toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      if (staffStatusFilter !== 'ALL') {
-        const { visibleRate } = getStaffVisibleStats(staff);
-        const isAchieved = visibleRate >= 0.5;
-        if (staffStatusFilter === 'ACHIEVED' && !isAchieved) return false;
-        if (staffStatusFilter === 'UNACHIEVED' && isAchieved) return false;
-      }
-      return true;
-    });
-
-    if (displayLimit !== 'ALL' && typeof displayLimit === 'number') {
-      list = list.slice(0, displayLimit);
-    }
-    return list;
-  }, [filteredStaffMatrix, staffSearchQuery, staffStatusFilter, displayLimit, getStaffVisibleStats]);
+  }, [displayedStaffMatrix, visibleCategories.length, getStaffVisibleStats]);
 
   const handleCopyStaff = (staff: StaffMatrixData) => {
     let text = `📊 BÁO CÁO THI ĐUA: ${staff.shortName}\n`;
     text += `✅ ĐẠT: ${staff.achieved}/${staff.totalCats} chỉ tiêu\n`;
     text += `📈 TỶ LỆ: ${(staff.rate * 100).toFixed(1)}%\n\n`;
-    text += `CHI TIẾT % DỰ KIẾN:\n`;
+    text += `CHI TIẾT %HT:\n`;
 
     categories.forEach((catName, idx) => {
       const rate = staff.projectedRates[idx];
-      const roundedRate = Math.round(rate);
-      text += `- ${catName}: ${roundedRate}% ${roundedRate >= 100 ? '✅' : '⚠️'}\n`;
+      if (rate === undefined || rate === null || Number.isNaN(rate)) {
+        text += `- ${catName}: -\n`;
+      } else {
+        const roundedRate = Math.round(rate);
+        text += `- ${catName}: ${roundedRate}% ${roundedRate >= 100 ? '✅' : '⚠️'}\n`;
+      }
     });
 
     navigator.clipboard.writeText(text).then(() => {
@@ -2234,7 +2345,10 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
 
       const catCells = visibleCats.map(catName => {
         const catIdx = categories.indexOf(catName);
-        const projectedRate = catIdx !== -1 ? (staff.projectedRates[catIdx] || 0) : 0;
+        const projectedRate = catIdx !== -1 ? staff.projectedRates[catIdx] : undefined;
+        if (projectedRate === undefined || projectedRate === null || Number.isNaN(projectedRate)) {
+          return '-';
+        }
         return `${Math.round(projectedRate)}%`;
       });
 

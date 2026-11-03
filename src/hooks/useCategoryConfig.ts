@@ -153,10 +153,11 @@ const RAW_DEFAULT_TNB_LEADER_CATEGORIES: Array<{ id: string; name: string; group
   { id: 'cat_vitrasau', name: 'T11 - Ví trả sau', group: 'DỊCH VỤ' },
   { id: 'cat_ottmangoicallme', name: 'T11 - OTT (Mango+, iCallMe)', group: 'DỊCH VỤ' },
 
-  // CE (13 ngành hàng)
+  // CE (14 ngành hàng)
   { id: 'cat_celg', name: 'T11 - CE LG', group: 'CE' },
   { id: 'cat_dientutcl', name: 'T11 - Tivi TCL', group: 'CE' },
   { id: 'cat_dientu', name: 'T11 - Điện tử', group: 'CE' },
+  { id: 'cat_dientusamsung', name: 'T11 - Điện tử Samsung', group: 'CE' },
   { id: 'cat_maylocnuoc', name: 'T11 - Máy lọc nước', group: 'CE' },
   { id: 'cat_maygiat', name: 'T11 - Máy giặt', group: 'CE' },
   { id: 'cat_maysaymayruachen', name: 'T11 - Máy sấy / Máy rửa chén', group: 'CE' },
