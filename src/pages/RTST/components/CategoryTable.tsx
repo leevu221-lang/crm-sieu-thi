@@ -101,14 +101,25 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
     });
   };
 
-  const [sortMode, setSortMode] = useState<'CONFIG_ORDER' | 'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC'>('CONFIG_ORDER');
+  const [sortModeSL, setSortModeSL] = useState<'CONFIG_ORDER' | 'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC'>('HT_DESC');
+  const [sortModeDT, setSortModeDT] = useState<'CONFIG_ORDER' | 'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC'>('HT_DESC');
 
-  const sortCatList = (list: CategoryData[]) => {
+  const sortCatList = (list: CategoryData[], currentSortMode: 'CONFIG_ORDER' | 'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC') => {
     return [...list].sort((a: any, b: any) => {
       const orderA = a.orderIndex ?? getCategoryOrderIndex(a.rawName || a.name, categoryConfig);
       const orderB = b.orderIndex ?? getCategoryOrderIndex(b.rawName || b.name, categoryConfig);
 
-      if (sortMode === 'CONFIG_ORDER') {
+      if (currentSortMode === 'CONFIG_ORDER') {
+        if (orderA !== orderB) return orderA - orderB;
+        return (a._idx ?? 0) - (b._idx ?? 0);
+      }
+
+      const hasDataA = (Number(a.target) || 0) > 0 || (Number(a.revenue) || 0) > 0;
+      const hasDataB = (Number(b.target) || 0) > 0 || (Number(b.revenue) || 0) > 0;
+      if (hasDataA !== hasDataB) {
+        return hasDataA ? -1 : 1;
+      }
+      if (!hasDataA && !hasDataB) {
         if (orderA !== orderB) return orderA - orderB;
         return (a._idx ?? 0) - (b._idx ?? 0);
       }
@@ -122,28 +133,30 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
         if (a.target > 0) rateA = (a.revenue / a.target) * 100;
         if (b.target > 0) rateB = (b.revenue / b.target) * 100;
       }
+      const roundedRateA = Math.round(rateA);
+      const roundedRateB = Math.round(rateB);
 
       const remA = a.target - a.revenue;
       const remB = b.target - b.revenue;
 
-      if (sortMode === 'CONLAI_DESC') {
+      if (currentSortMode === 'CONLAI_DESC') {
         if (remA > 0 && remB > 0) return remB - remA || orderA - orderB;
         if (remA > 0 && remB <= 0) return -1;
         if (remA <= 0 && remB > 0) return 1;
         return remB - remA || orderA - orderB;
       }
 
-      if (sortMode === 'CONLAI_ASC') {
+      if (currentSortMode === 'CONLAI_ASC') {
         if (remA <= 0 && remB > 0) return -1;
         if (remA > 0 && remB <= 0) return 1;
         return remA - remB || orderA - orderB;
       }
 
-      if (sortMode === 'HT_ASC') {
-        return rateA - rateB || orderA - orderB;
+      if (currentSortMode === 'HT_ASC') {
+        return roundedRateA - roundedRateB || orderA - orderB;
       }
 
-      return rateB - rateA || orderA - orderB;
+      return roundedRateB - roundedRateA || orderA - orderB;
     });
   };
 
@@ -167,10 +180,12 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
   const dtCats = filteredCats.filter(c => c.type === 'DT');
   const showSplit = catGroupFilter === 'ALL' && (slCats.length > 0 || dtCats.length > 0);
 
-  const sortedSlCats = sortCatList(slCats);
-  const sortedDtCats = sortCatList(dtCats);
+  const sortedSlCats = sortCatList(slCats, sortModeSL);
+  const sortedDtCats = sortCatList(dtCats, sortModeDT);
 
   const renderTable = (cats: CategoryData[], typeLabel: string) => {
+    const activeSortMode = typeLabel === 'SL' ? sortModeSL : sortModeDT;
+    const setActiveSortMode = typeLabel === 'SL' ? setSortModeSL : setSortModeDT;
     const achievedCount = cats.filter(c => {
       let rate = 0;
       if (mode === 'luyke') {
@@ -207,22 +222,22 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
                   <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-[60px]">TARGET</th>
                   <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">LUỸ KẾ</th>
                   <th 
-                    onClick={() => setSortMode(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
+                    onClick={() => setActiveSortMode(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
                     className={`px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 cursor-pointer select-none ${
-                      sortMode.startsWith('HT') ? 'bg-[#eab308]' : 'bg-[#facc15]'
+                      activeSortMode.startsWith('HT') ? 'bg-[#eab308]' : 'bg-[#facc15]'
                     } w-[60px]`}
                     title="Bấm để sắp xếp %HT"
                   >
-                    %HT {sortMode === 'HT_DESC' ? '▼' : (sortMode === 'HT_ASC' ? '▲' : '')}
+                    %HT {activeSortMode === 'HT_DESC' ? '▼' : (activeSortMode === 'HT_ASC' ? '▲' : '')}
                   </th>
                   <th 
-                    onClick={() => setSortMode(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
+                    onClick={() => setActiveSortMode(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
                     className={`px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 cursor-pointer select-none ${
-                      sortMode.startsWith('CONLAI') ? 'bg-[#ea580c] text-white' : 'bg-[#f97316]'
+                      activeSortMode.startsWith('CONLAI') ? 'bg-[#ea580c] text-white' : 'bg-[#f97316]'
                     } w-[60px]`}
                     title="Bấm để sắp xếp theo C.LẠI (Còn lại)"
                   >
-                    C.LẠI {sortMode === 'CONLAI_DESC' ? '▼' : (sortMode === 'CONLAI_ASC' ? '▲' : '')}
+                    C.LẠI {activeSortMode === 'CONLAI_DESC' ? '▼' : (activeSortMode === 'CONLAI_ASC' ? '▲' : '')}
                   </th>
                 </tr>
               </thead>
@@ -230,7 +245,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
                 {cats.length === 0 ? (
                   <tr><td colSpan={6} className="py-8 text-center text-slate-400 text-sm border-r border-b border-slate-300">Chưa có dữ liệu</td></tr>
                 ) : (
-                  sortCatList(cats).map((cat, idx) => {
+                  sortCatList(cats, activeSortMode).map((cat, idx) => {
                     let rate = 0;
                     if (cat.target > 0) {
                       if (mode === 'luyke' && daysPassed > 0 && totalDays > 0) {

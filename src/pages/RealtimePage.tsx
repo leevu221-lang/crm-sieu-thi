@@ -6547,6 +6547,67 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
     });
   }, [rawCategoriesDT, hiddenCatsDT, categoryConfig]);
 
+  // Chế độ sắp xếp độc lập cho 2 bảng NGÀNH HÀNG (SL) và NGÀNH HÀNG (DT) — mặc định %HT giảm dần (HT_DESC)
+  type CategorySortMode = 'CONFIG_ORDER' | 'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC';
+  const [sortModeSL, setSortModeSL] = useState<CategorySortMode>('HT_DESC');
+  const [sortModeDT, setSortModeDT] = useState<CategorySortMode>('HT_DESC');
+
+  const sortRealtimeCategoryList = useCallback((list: any[], mode: CategorySortMode) => {
+    return [...list].sort((a: any, b: any) => {
+      const orderA = a.orderIndex ?? getCategoryOrderIndex(a.rawName || a.name, categoryConfig);
+      const orderB = b.orderIndex ?? getCategoryOrderIndex(b.rawName || b.name, categoryConfig);
+
+      if (mode === 'CONFIG_ORDER') {
+        if (orderA !== orderB) return orderA - orderB;
+        return (a._firstIdx ?? 0) - (b._firstIdx ?? 0);
+      }
+
+      // Bảo vệ ngành chưa có dữ liệu: target = 0 và revenue/real = 0 luôn nằm cuối bảng theo Master Order
+      const hasDataA = (Number(a.target) || 0) > 0 || (Number(a.revenue) || 0) > 0;
+      const hasDataB = (Number(b.target) || 0) > 0 || (Number(b.revenue) || 0) > 0;
+      if (hasDataA !== hasDataB) {
+        return hasDataA ? -1 : 1;
+      }
+      if (!hasDataA && !hasDataB) {
+        if (orderA !== orderB) return orderA - orderB;
+        return (a._firstIdx ?? 0) - (b._firstIdx ?? 0);
+      }
+
+      const roundedRateA = Math.round(a.rate || 0);
+      const roundedRateB = Math.round(b.rate || 0);
+      const remA = (Number(a.target) || 0) - (Number(a.revenue) || 0);
+      const remB = (Number(b.target) || 0) - (Number(b.revenue) || 0);
+
+      if (mode === 'CONLAI_DESC') {
+        if (remA > 0 && remB > 0) return (remB - remA) || (orderA - orderB);
+        if (remA > 0 && remB <= 0) return -1;
+        if (remA <= 0 && remB > 0) return 1;
+        return (remB - remA) || (orderA - orderB);
+      }
+
+      if (mode === 'CONLAI_ASC') {
+        if (remA <= 0 && remB > 0) return -1;
+        if (remA > 0 && remB <= 0) return 1;
+        return (remA - remB) || (orderA - orderB);
+      }
+
+      if (mode === 'HT_ASC') {
+        return (roundedRateA - roundedRateB) || (orderA - orderB);
+      }
+
+      // Mặc định HT_DESC (%HT cao nhất -> thấp nhất; cùng %HT giữ nguyên Master Order)
+      return (roundedRateB - roundedRateA) || (orderA - orderB);
+    });
+  }, [categoryConfig]);
+
+  const sortedCategoriesSL = useMemo(() => {
+    return sortRealtimeCategoryList(visibleCategoriesSL, sortModeSL);
+  }, [visibleCategoriesSL, sortModeSL, sortRealtimeCategoryList]);
+
+  const sortedCategoriesDT = useMemo(() => {
+    return sortRealtimeCategoryList(visibleCategoriesDT, sortModeDT);
+  }, [visibleCategoriesDT, sortModeDT, sortRealtimeCategoryList]);
+
   const toggleHideCategorySL = (name: string) => {
     const key = (name || '').trim().toUpperCase();
     const canonKey = getCanonicalCategoryKey(name, categoryConfig);
@@ -7805,7 +7866,72 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
                     {isV2Active ? (
                       /* ===== V2 GRADIENT CATEGORY UI ===== */
                       <>
-                        <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2.5 no-capture">
+                        <div className="flex flex-wrap items-center justify-between gap-2 no-capture">
+                          {/* Quick Sort Category Controls (Unified with BC THÁNG) */}
+                          <div className="flex items-center gap-1.5 bg-white/80 backdrop-blur-md p-1 rounded-2xl border border-sky-100 shadow-xs flex-wrap">
+                            <span className="text-[11px] font-black uppercase text-sky-800/80 px-2 hidden sm:inline">
+                              SẮP XẾP:
+                            </span>
+                            <button
+                              onClick={() => {
+                                setSortModeSL('CONFIG_ORDER');
+                                setSortModeDT('CONFIG_ORDER');
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                sortModeSL === 'CONFIG_ORDER' && sortModeDT === 'CONFIG_ORDER'
+                                  ? 'bg-gradient-to-r from-[#0284C7] to-[#0EA5E9] text-white shadow-xs'
+                                  : 'text-slate-600 hover:text-sky-900 hover:bg-sky-50/60'
+                              }`}
+                              title="Sắp xếp theo thứ tự danh mục TNB LEADER → CẤU HÌNH"
+                            >
+                              📋 THEO CẤU HÌNH
+                            </button>
+                            <button
+                              onClick={() => {
+                                const nextMode = sortModeSL === 'HT_DESC' && sortModeDT === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC';
+                                setSortModeSL(nextMode);
+                                setSortModeDT(nextMode);
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                sortModeSL.startsWith('HT') && sortModeDT.startsWith('HT')
+                                  ? 'bg-gradient-to-r from-[#0284C7] to-[#0EA5E9] text-white shadow-xs'
+                                  : 'text-slate-600 hover:text-sky-900 hover:bg-sky-50/60'
+                              }`}
+                              title="Sắp xếp theo % hoàn thành (Nhấn để đảo chiều Giảm dần / Tăng dần)"
+                            >
+                              📊 THEO %HT {sortModeSL === 'HT_ASC' && sortModeDT === 'HT_ASC' ? '↑' : '↓'}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSortModeSL('CONLAI_DESC');
+                                setSortModeDT('CONLAI_DESC');
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                sortModeSL === 'CONLAI_DESC' && sortModeDT === 'CONLAI_DESC'
+                                  ? 'bg-rose-500 text-white shadow-xs'
+                                  : 'text-slate-600 hover:text-rose-700 hover:bg-rose-50/50'
+                              }`}
+                              title="Sắp xếp theo số lượng/doanh thu Còn Lại cần đạt nhiều nhất"
+                            >
+                              <span>🔥 C.LẠI GIẢM DẦN</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSortModeSL('CONLAI_ASC');
+                                setSortModeDT('CONLAI_ASC');
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                sortModeSL === 'CONLAI_ASC' && sortModeDT === 'CONLAI_ASC'
+                                  ? 'bg-amber-500 text-white shadow-xs'
+                                  : 'text-slate-600 hover:text-amber-700 hover:bg-amber-50/50'
+                              }`}
+                              title="Sắp xếp theo Còn Lại tăng dần (Đã đạt / thiếu ít lên trước)"
+                            >
+                              <span>✨ C.LẠI TĂNG DẦN</span>
+                            </button>
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2.5">
                           <button
                             onClick={() => setShowTargetCols(!showTargetCols)}
                             className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-[9.5px] sm:text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 cursor-pointer ${showTargetCols
@@ -7869,6 +7995,7 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
                             <Camera size={14} />
                             <span>Chụp ảnh</span>
                           </button>
+                          </div>
                         </div>
 
                         <div ref={categoriesRef} className="w-full">
@@ -8031,11 +8158,31 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
                                       <th className="px-0.5 sm:px-1 py-0 text-[7.2px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] whitespace-nowrap">
                                         <span className="inline-flex items-center justify-center gap-[2px] sm:gap-1"><BarChart3 className="w-[8.5px] h-[8.5px] sm:w-3 sm:h-3 text-white/90 shrink-0" />REAL</span>
                                       </th>
-                                      <th className="px-0.5 sm:px-1 py-0 text-[7.2px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] rounded-tr-md sm:rounded-tr-lg whitespace-nowrap">
-                                        <span className="inline-flex items-center justify-center gap-[2px] sm:gap-1"><PieChart className="w-[8.5px] h-[8.5px] sm:w-3 sm:h-3 text-white/90 shrink-0" />%HT</span>
+                                      <th
+                                        onClick={() => setSortModeSL(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
+                                        className={`px-0.5 sm:px-1 py-0 text-[7.2px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 cursor-pointer select-none transition-colors rounded-tr-md sm:rounded-tr-lg whitespace-nowrap ${
+                                          sortModeSL.startsWith('HT') ? 'bg-gradient-to-b from-[#14437A] to-[#09274A]' : 'bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] hover:brightness-110'
+                                        }`}
+                                        title="Bấm để sắp xếp %HT (Giảm dần / Tăng dần)"
+                                      >
+                                        <span className="inline-flex items-center justify-center gap-[2px] sm:gap-1">
+                                          <PieChart className="w-[8.5px] h-[8.5px] sm:w-3 sm:h-3 text-white/90 shrink-0" />
+                                          <span>%HT</span>
+                                          <span className="text-[7px] sm:text-[9px] opacity-80">{sortModeSL === 'HT_DESC' ? '▼' : (sortModeSL === 'HT_ASC' ? '▲' : '⇅')}</span>
+                                        </span>
                                       </th>
-                                      <th className="px-0.5 sm:px-1 py-0 text-[7.2px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] rounded-t-md sm:rounded-t-lg whitespace-nowrap">
-                                        <span className="inline-flex items-center justify-center gap-[2px] sm:gap-1"><FileText className="w-[8.5px] h-[8.5px] sm:w-3 sm:h-3 text-white/90 shrink-0" />C.LẠI</span>
+                                      <th
+                                        onClick={() => setSortModeSL(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
+                                        className={`px-0.5 sm:px-1 py-0 text-[7.2px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 cursor-pointer select-none transition-colors rounded-t-md sm:rounded-t-lg whitespace-nowrap ${
+                                          sortModeSL.startsWith('CONLAI') ? 'bg-amber-700/90' : 'bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] hover:brightness-110'
+                                        }`}
+                                        title="Bấm để sắp xếp theo C.LẠI (Còn lại nhiều nhất / ít nhất)"
+                                      >
+                                        <span className="inline-flex items-center justify-center gap-[2px] sm:gap-1">
+                                          <FileText className="w-[8.5px] h-[8.5px] sm:w-3 sm:h-3 text-white/90 shrink-0" />
+                                          <span>C.LẠI</span>
+                                          <span className="text-[7px] sm:text-[9px] opacity-80">{sortModeSL === 'CONLAI_DESC' ? '▼' : (sortModeSL === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
+                                        </span>
                                       </th>
                                       {showOrangeCols && showLuykeColumn && (
                                         <th className="px-0.5 sm:px-1 py-0 text-[6.8px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#184E8A] via-[#113F73] to-[#0A2E57] rounded-t-md sm:rounded-t-lg whitespace-nowrap">
@@ -8057,9 +8204,7 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
                                         </td>
                                       </tr>
                                     ) : (
-                                      [...visibleCategoriesSL]
-                                        .sort((a: any, b: any) => (a.orderIndex ?? getCategoryOrderIndex(a.rawName || a.name, categoryConfig)) - (b.orderIndex ?? getCategoryOrderIndex(b.rawName || b.name, categoryConfig)))
-                                        .map((cat, idx) => {
+                                      sortedCategoriesSL.map((cat, idx) => {
                                         const canonKey = cat.canonicalKey || getCanonicalCategoryKey(cat.rawName || cat.name, categoryConfig);
                                         const lkKey = `${canonKey}_${cat.type}`;
                                         const legacyLkKey = `${cat.name.trim().toUpperCase()}_${cat.type}`;
@@ -8305,11 +8450,31 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
                                       <th className="px-0.5 sm:px-1 py-0 text-[7.2px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] whitespace-nowrap">
                                         <span className="inline-flex items-center justify-center gap-[2px] sm:gap-1"><BarChart3 className="w-[8.5px] h-[8.5px] sm:w-3 sm:h-3 text-white/90 shrink-0" />REAL</span>
                                       </th>
-                                      <th className="px-0.5 sm:px-1 py-0 text-[7.2px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] rounded-tr-md sm:rounded-tr-lg whitespace-nowrap">
-                                        <span className="inline-flex items-center justify-center gap-[2px] sm:gap-1"><PieChart className="w-[8.5px] h-[8.5px] sm:w-3 sm:h-3 text-white/90 shrink-0" />%HT</span>
+                                      <th
+                                        onClick={() => setSortModeDT(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
+                                        className={`px-0.5 sm:px-1 py-0 text-[7.2px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 cursor-pointer select-none transition-colors rounded-tr-md sm:rounded-tr-lg whitespace-nowrap ${
+                                          sortModeDT.startsWith('HT') ? 'bg-gradient-to-b from-[#14437A] to-[#09274A]' : 'bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] hover:brightness-110'
+                                        }`}
+                                        title="Bấm để sắp xếp %HT (Giảm dần / Tăng dần)"
+                                      >
+                                        <span className="inline-flex items-center justify-center gap-[2px] sm:gap-1">
+                                          <PieChart className="w-[8.5px] h-[8.5px] sm:w-3 sm:h-3 text-white/90 shrink-0" />
+                                          <span>%HT</span>
+                                          <span className="text-[7px] sm:text-[9px] opacity-80">{sortModeDT === 'HT_DESC' ? '▼' : (sortModeDT === 'HT_ASC' ? '▲' : '⇅')}</span>
+                                        </span>
                                       </th>
-                                      <th className="px-0.5 sm:px-1 py-0 text-[7.2px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] rounded-t-md sm:rounded-t-lg whitespace-nowrap">
-                                        <span className="inline-flex items-center justify-center gap-[2px] sm:gap-1"><FileText className="w-[8.5px] h-[8.5px] sm:w-3 sm:h-3 text-white/90 shrink-0" />C.LẠI</span>
+                                      <th
+                                        onClick={() => setSortModeDT(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
+                                        className={`px-0.5 sm:px-1 py-0 text-[7.2px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 cursor-pointer select-none transition-colors rounded-t-md sm:rounded-t-lg whitespace-nowrap ${
+                                          sortModeDT.startsWith('CONLAI') ? 'bg-amber-700/90' : 'bg-gradient-to-b from-[#1B5799] via-[#13457D] to-[#0C3360] hover:brightness-110'
+                                        }`}
+                                        title="Bấm để sắp xếp theo C.LẠI (Còn lại nhiều nhất / ít nhất)"
+                                      >
+                                        <span className="inline-flex items-center justify-center gap-[2px] sm:gap-1">
+                                          <FileText className="w-[8.5px] h-[8.5px] sm:w-3 sm:h-3 text-white/90 shrink-0" />
+                                          <span>C.LẠI</span>
+                                          <span className="text-[7px] sm:text-[9px] opacity-80">{sortModeDT === 'CONLAI_DESC' ? '▼' : (sortModeDT === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
+                                        </span>
                                       </th>
                                       {showOrangeCols && showLuykeColumn && (
                                         <th className="px-0.5 sm:px-1 py-0 text-[6.8px] sm:text-[11px] font-black uppercase text-center border-r border-white/15 bg-gradient-to-b from-[#184E8A] via-[#113F73] to-[#0A2E57] rounded-t-md sm:rounded-t-lg whitespace-nowrap">
@@ -8331,9 +8496,7 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
                                         </td>
                                       </tr>
                                     ) : (
-                                      [...visibleCategoriesDT]
-                                        .sort((a: any, b: any) => (a.orderIndex ?? getCategoryOrderIndex(a.rawName || a.name, categoryConfig)) - (b.orderIndex ?? getCategoryOrderIndex(b.rawName || b.name, categoryConfig)))
-                                        .map((cat, idx) => {
+                                      sortedCategoriesDT.map((cat, idx) => {
                                         const effectiveType = cat.type === 'ALL' ? 'DT' : cat.type;
                                         const canonKey = cat.canonicalKey || getCanonicalCategoryKey(cat.rawName || cat.name, categoryConfig);
                                         const lkKey = `${canonKey}_${effectiveType}`;
@@ -8562,8 +8725,22 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
                                         <th className="px-3 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-slate-800 bg-[#0F172A]">NGÀNH HÀNG</th>
                                         {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">TARGET</th>}
                                         {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">REAL</th>}
-                                        {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">%HT</th>}
-                                        {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">CÒN LẠI</th>}
+                                        {showTargetCols && (
+                                          <th
+                                            onClick={() => setSortModeSL(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
+                                            className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px] cursor-pointer select-none"
+                                          >
+                                            %HT {sortModeSL === 'HT_DESC' ? '▼' : (sortModeSL === 'HT_ASC' ? '▲' : '⇅')}
+                                          </th>
+                                        )}
+                                        {showTargetCols && (
+                                          <th
+                                            onClick={() => setSortModeSL(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
+                                            className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px] cursor-pointer select-none"
+                                          >
+                                            CÒN LẠI {sortModeSL === 'CONLAI_DESC' ? '▼' : (sortModeSL === 'CONLAI_ASC' ? '▲' : '⇅')}
+                                          </th>
+                                        )}
                                         {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[12px] font-black uppercase text-center border-r border-b border-purple-900 bg-gradient-to-r from-[#6366F1] to-[#7C3AED] w-[65px] leading-tight">L.KẾ<br />CÒN LẠI</th>}
                                         {showOrangeCols && <th className="px-2 py-0 text-[12px] font-black uppercase text-center border-r border-b border-purple-900 bg-gradient-to-r from-[#7C3AED] to-[#EC4899] w-[75px] leading-tight">MỤC TIÊU<br />100%/NGÀY</th>}
                                       </tr>
@@ -8576,9 +8753,7 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
                                           </td>
                                         </tr>
                                       ) : (
-                                        [...visibleCategoriesSL]
-                                          .sort((a: any, b: any) => (a.orderIndex ?? getCategoryOrderIndex(a.rawName || a.name, categoryConfig)) - (b.orderIndex ?? getCategoryOrderIndex(b.rawName || b.name, categoryConfig)))
-                                          .map((cat, idx) => {
+                                        sortedCategoriesSL.map((cat, idx) => {
                                           const canonKey = cat.canonicalKey || getCanonicalCategoryKey(cat.rawName || cat.name, categoryConfig);
                                           const lkKey = `${canonKey}_${cat.type}`;
                                           const legacyLkKey = `${cat.name.trim().toUpperCase()}_${cat.type}`;
@@ -8692,8 +8867,22 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
                                         <th className="px-3 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-slate-800 bg-[#0F172A]">NGÀNH HÀNG</th>
                                         {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">TARGET</th>}
                                         {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">REAL</th>}
-                                        {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">%HT</th>}
-                                        {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">CÒN LẠI</th>}
+                                        {showTargetCols && (
+                                          <th
+                                            onClick={() => setSortModeDT(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
+                                            className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px] cursor-pointer select-none"
+                                          >
+                                            %HT {sortModeDT === 'HT_DESC' ? '▼' : (sortModeDT === 'HT_ASC' ? '▲' : '⇅')}
+                                          </th>
+                                        )}
+                                        {showTargetCols && (
+                                          <th
+                                            onClick={() => setSortModeDT(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
+                                            className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px] cursor-pointer select-none"
+                                          >
+                                            CÒN LẠI {sortModeDT === 'CONLAI_DESC' ? '▼' : (sortModeDT === 'CONLAI_ASC' ? '▲' : '⇅')}
+                                          </th>
+                                        )}
                                         {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[12px] font-black uppercase text-center border-r border-b border-purple-900 bg-gradient-to-r from-[#6366F1] to-[#7C3AED] w-[65px] leading-tight">L.KẾ<br />CÒN LẠI</th>}
                                         {showOrangeCols && <th className="px-2 py-0 text-[12px] font-black uppercase text-center border-r border-b border-purple-900 bg-gradient-to-r from-[#7C3AED] to-[#EC4899] w-[75px] leading-tight">MỤC TIÊU<br />100%/NGÀY</th>}
                                       </tr>
@@ -8706,9 +8895,7 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
                                           </td>
                                         </tr>
                                       ) : (
-                                        [...visibleCategoriesDT]
-                                          .sort((a: any, b: any) => (a.orderIndex ?? getCategoryOrderIndex(a.rawName || a.name, categoryConfig)) - (b.orderIndex ?? getCategoryOrderIndex(b.rawName || b.name, categoryConfig)))
-                                          .map((cat, idx) => {
+                                        sortedCategoriesDT.map((cat, idx) => {
                                           const effectiveType = cat.type === 'ALL' ? 'DT' : cat.type;
                                           const canonKey = cat.canonicalKey || getCanonicalCategoryKey(cat.rawName || cat.name, categoryConfig);
                                           const lkKey = `${canonKey}_${effectiveType}`;
