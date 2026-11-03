@@ -494,6 +494,16 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
         return orderA - orderB;
       }
 
+      // Chốt chặn 4: Khi sắp xếp theo %HT hoặc C.LẠI, ngành chưa có dữ liệu (target = 0 && revenue = 0) luôn nằm cuối bảng
+      const hasDataA = (Number(a.target) || 0) > 0 || (Number(a.revenue) || 0) > 0;
+      const hasDataB = (Number(b.target) || 0) > 0 || (Number(b.revenue) || 0) > 0;
+      if (hasDataA !== hasDataB) {
+        return hasDataA ? -1 : 1;
+      }
+      if (!hasDataA && !hasDataB) {
+        return orderA - orderB;
+      }
+
       let rateA = 0, rateB = 0;
       if (a.target > 0 && daysPassed > 0) rateA = (((a.revenue / daysPassed) * totalDays) / a.target) * 100;
       if (b.target > 0 && daysPassed > 0) rateB = (((b.revenue / daysPassed) * totalDays) / b.target) * 100;
@@ -1925,6 +1935,47 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
   // No adjustment needed — pass through raw parsed values directly.
   const adjustedCategories = filteredDisplayData.categories;
 
+  // Helper to classify Master Category into SL vs DT when BI data does not yet contain a row for it.
+  // Verified against all 69 stores in MWG BI (lk_nh_sieu_thi / rt_nh_cum / lk_td_nv):
+  // - 7 SL categories: Nạp rút, Sim, VAS, Sim ĐMX, Mở thẻ tín dụng VPBank MWG và TPBank EVO, OTT (Mango+, iCallMe), Máy Lạnh.
+  // - 33 DT categories: all remaining ICT (13), DỊCH VỤ (8), and CE (12) categories.
+  const inferMasterCategoryMetricType = React.useCallback((masterName: string, masterId?: string): 'SL' | 'DT' => {
+    const idLower = (masterId || '').trim().toLowerCase();
+    const SL_MASTER_IDS = new Set([
+      'cat_napruttientaikhoannganhang',
+      'cat_simtong',
+      'cat_vas',
+      'cat_simmobifonesimdmx',
+      'cat_mothetindungtpbankevovpbankmwg',
+      'cat_ottmangoicallme',
+      'cat_maylanh'
+    ]);
+    if (idLower && SL_MASTER_IDS.has(idLower)) return 'SL';
+
+    const norm = normalize(masterName || '');
+    const cleaned = cleanCategoryName(masterName || '');
+    if (norm.includes('(dt)') || norm.includes('doanh thu')) return 'DT';
+    if (
+      norm.includes('(sl)') ||
+      norm.includes('so luong') ||
+      cleaned === 'naprut' ||
+      cleaned.includes('napruttien') ||
+      cleaned === 'sim' ||
+      cleaned === 'simtong' ||
+      cleaned === 'simdmx' ||
+      cleaned.startsWith('simmobifone') ||
+      cleaned === 'vas' ||
+      cleaned.includes('mothetindung') ||
+      cleaned.includes('ott') ||
+      cleaned.includes('mango') ||
+      cleaned.includes('icallme') ||
+      cleaned === 'maylanh'
+    ) {
+      return 'SL';
+    }
+    return 'DT';
+  }, []);
+
   // Filter categories by marketFilter (store button selection)
   const filteredCategories = React.useMemo(() => {
     let cats = adjustedCategories;
@@ -1964,6 +2015,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     // Resolve each category via SSOT Master Config (TNB LEADER -> CẤU HÌNH)
     // and deduplicate by canonicalKey + type (without merging ambiguous aliases)
     const seen = new Set<string>();
+    const matchedMasterIds = new Set<string>();
     const deduped: any[] = [];
     for (const c of cats) {
       const rawName = c.rawName || c.name || '';
@@ -1976,6 +2028,13 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
         : `${res.canonicalKey}__${c.type || ''}`;
       if (seen.has(dedupKey)) continue;
       seen.add(dedupKey);
+      const masterId = res.item?.id || res.id;
+      if (res.isMapped && !res.isAmbiguous && masterId) {
+        matchedMasterIds.add(masterId);
+      }
+      if (res.isMapped && !res.isAmbiguous && res.canonicalKey) {
+        matchedMasterIds.add(res.canonicalKey);
+      }
       const displayName =
         res.isMapped && !res.isAmbiguous && res.displayName
           ? res.displayName
@@ -1983,7 +2042,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       deduped.push({
         ...c,
         id: res.id,
-        masterId: res.item?.id || res.id,
+        masterId,
         rawName,
         name: displayName,
         canonicalKey: res.canonicalKey,
@@ -1996,6 +2055,51 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
         group: res.group,
         configGroup: res.group
       });
+    }
+
+    // Phương án B (SSOT Display Expansion):
+    // Bổ sung các ngành hàng Master Config (isActive !== false) chưa phát sinh dữ liệu BI vào lớp hiển thị.
+    // Tuyệt đối không ghi vào category_targets hay dữ liệu tính thưởng nhân viên.
+    if (Array.isArray(categoryConfig) && categoryConfig.length > 0) {
+      for (let idx = 0; idx < categoryConfig.length; idx++) {
+        const masterItem = categoryConfig[idx];
+        if (!masterItem || !masterItem.name || masterItem.isActive === false) continue;
+        const masterRes = resolveCategoryMaster(masterItem.name, categoryConfig);
+        const masterId = masterItem.id || masterRes.id;
+        const canonicalKey = masterRes.canonicalKey || masterId;
+        if (matchedMasterIds.has(masterId) || matchedMasterIds.has(canonicalKey)) {
+          continue;
+        }
+        const inferredType = inferMasterCategoryMetricType(masterItem.name, masterId);
+        const dedupKey = `${canonicalKey}__${inferredType}`;
+        if (seen.has(dedupKey)) continue;
+        seen.add(dedupKey);
+        matchedMasterIds.add(masterId);
+        matchedMasterIds.add(canonicalKey);
+
+        const orderVal = typeof masterItem.order === 'number' ? masterItem.order : idx;
+        deduped.push({
+          id: masterId,
+          masterId,
+          rawName: masterItem.name,
+          name: masterItem.name,
+          canonicalKey,
+          type: inferredType,
+          target: 0,
+          actual: 0,
+          revenue: 0,
+          rate: 0,
+          order: orderVal,
+          orderIndex: orderVal,
+          isActive: true,
+          isMapped: true,
+          isUnmapped: false,
+          isAmbiguous: false,
+          isMasterPlaceholder: true,
+          group: masterItem.group || masterRes.group,
+          configGroup: masterItem.group || masterRes.group
+        });
+      }
     }
 
     // Sort categories by SSOT Master Config order (TNB LEADER -> CẤU HÌNH)
@@ -2027,6 +2131,8 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     });
 
     return deduped.map((cat: any) => {
+      // Chốt chặn 2: Ngành hàng chưa phát sinh dữ liệu BI (isMasterPlaceholder) giữ nguyên target = 0, revenue = 0
+      if (cat.isMasterPlaceholder) return cat;
       const entry =
         (!cat.isAmbiguous && cat.canonicalKey ? targetMap.get(`${cat.canonicalKey}__${cat.type}`) : undefined) ||
         targetMap.get(`${normalize(cat.name)}__${cat.type}`) ||
@@ -2040,7 +2146,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       }
       return cat;
     });
-  }, [adjustedCategories, marketFilter, filteredDisplayData.markets, categoryTargets, categoryConfig]);
+  }, [adjustedCategories, marketFilter, filteredDisplayData.markets, categoryTargets, categoryConfig, inferMasterCategoryMetricType]);
 
   // Removed window focus re-processing to improve performance
 
@@ -2401,24 +2507,29 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     const actualVirtualStr = formatCurrencyUnit(actualVirtual || 0);
     const percentQdStr = `${percentQDVal >= 0 ? '+' : ''}${percentQDVal.toFixed(1)}%`;
 
+    // Chốt chặn 5: Cả 3 mẫu nhận xét tự động chỉ xét các ngành hàng có target > 0 || revenue > 0
     // SL Categories (BC THÁNG > TỔNG QUAN)
-    const slCats = visibleCategoriesSL.map((c: any) => {
-      let rate = 0;
-      if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
-      const remaining = c.target - c.revenue;
-      return { ...c, rate, remaining };
-    });
+    const slCats = visibleCategoriesSL
+      .filter((c: any) => (Number(c.target) || 0) > 0 || (Number(c.revenue) || 0) > 0)
+      .map((c: any) => {
+        let rate = 0;
+        if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
+        const remaining = c.target - c.revenue;
+        return { ...c, rate, remaining };
+      });
     const slDone = slCats.filter(c => Math.round(c.rate) >= 100);
     const slNotDone = slCats.filter(c => Math.round(c.rate) < 100).sort((a, b) => b.remaining - a.remaining);
     const slTop = [...slCats].sort((a, b) => b.rate - a.rate);
 
     // DT Categories (BC THÁNG > TỔNG QUAN)
-    const dtCats = visibleCategoriesDT.map((c: any) => {
-      let rate = 0;
-      if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
-      const remaining = c.target - c.revenue;
-      return { ...c, rate, remaining };
-    });
+    const dtCats = visibleCategoriesDT
+      .filter((c: any) => (Number(c.target) || 0) > 0 || (Number(c.revenue) || 0) > 0)
+      .map((c: any) => {
+        let rate = 0;
+        if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
+        const remaining = c.target - c.revenue;
+        return { ...c, rate, remaining };
+      });
     const dtDone = dtCats.filter(c => Math.round(c.rate) >= 100);
     const dtNotDone = dtCats.filter(c => Math.round(c.rate) < 100).sort((a, b) => b.remaining - a.remaining);
     const dtTop = [...dtCats].sort((a, b) => b.rate - a.rate);
