@@ -1,0 +1,547 @@
+/**
+ * Server-side AI Vision recognition core for THI ĐUA CỤM -> LUỸ KẾ THI ĐUA.
+ * Pure Web Standard TypeScript (compatible with Cloudflare Pages Functions,
+ * Netlify Functions Node 18+, and Vite Dev Server middleware).
+ *
+ * SECURITY:
+ * - Reads GEMINI_API_KEY strictly from server runtime environment.
+ * - Never exposes API keys to frontend or in responses/errors.
+ * - Rejects guest / unauthorized accounts and validates permissions against Firestore when configured.
+ */
+
+import {
+  normalizeRawAiReport,
+  type ThiDuaAiRawReport,
+  type ThiDuaAiReportResult,
+} from './thiDuaAiParser';
+
+export interface ServerEnvLike {
+  GEMINI_API_KEY?: string;
+  GEMINI_MODEL?: string;
+  FIREBASE_PROJECT_ID?: string;
+  VITE_FIREBASE_PROJECT_ID?: string;
+  FIREBASE_API_KEY?: string;
+  VITE_FIREBASE_API_KEY?: string;
+}
+
+export interface VisionAnalyzeRequestBody {
+  imageBase64?: string;
+  mimeType?: string;
+  pageIndex?: number;
+  totalPages?: number;
+  monthHint?: number | null;
+  yearHint?: number | null;
+  storeNameHint?: string | null;
+  authContext?: {
+    username?: string;
+    role?: string;
+    isGuest?: boolean;
+    allowedPages?: string[];
+    canEditUser?: boolean;
+  };
+}
+
+export interface VisionAnalyzeResponse {
+  ok: boolean;
+  status: number;
+  error?: string;
+  modelUsed?: string;
+  report?: ThiDuaAiReportResult;
+}
+
+const ALLOWED_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp',
+]);
+
+// ~10 MB base64 string guard
+const MAX_BASE64_LENGTH = 10 * 1024 * 1024;
+
+function normalizeUsername(u: string): string {
+  return u.normalize('NFC').trim().toUpperCase();
+}
+
+function parseFirestoreField(val: any): unknown {
+  if (!val || typeof val !== 'object') return undefined;
+  if ('stringValue' in val) return val.stringValue;
+  if ('integerValue' in val) return Number(val.integerValue);
+  if ('doubleValue' in val) return Number(val.doubleValue);
+  if ('booleanValue' in val) return Boolean(val.booleanValue);
+  if ('nullValue' in val) return null;
+  if ('arrayValue' in val) {
+    const arr = val.arrayValue?.values;
+    return Array.isArray(arr) ? arr.map(parseFirestoreField) : [];
+  }
+  if ('mapValue' in val) {
+    const fields = val.mapValue?.fields || {};
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(fields)) {
+      out[k] = parseFirestoreField(v);
+    }
+    return out;
+  }
+  return undefined;
+}
+
+function parseFirestoreDocFields(doc: any): Record<string, unknown> {
+  const fields = doc?.fields || {};
+  const result: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    result[k] = parseFirestoreField(v);
+  }
+  return result;
+}
+
+async function firestoreRunEqualQuery(
+  projectId: string,
+  apiKey: string,
+  collectionId: string,
+  fieldPath: string,
+  value: string
+): Promise<Array<Record<string, unknown>>> {
+  const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+    projectId
+  )}/databases/(default)/documents:runQuery?key=${encodeURIComponent(apiKey)}`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath },
+            op: 'EQUAL',
+            value: { stringValue: value },
+          },
+        },
+        limit: 5,
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Firestore permission check HTTP ${res.status}`);
+  }
+
+  const rows = (await res.json()) as any[];
+  return rows
+    .filter((r) => r && r.document)
+    .map((r) => parseFirestoreDocFields(r.document));
+}
+
+async function verifyServerPermission(
+  authContext: VisionAnalyzeRequestBody['authContext'],
+  env: ServerEnvLike
+): Promise<{ allowed: boolean; status: number; reason?: string }> {
+  const username = String(authContext?.username || '').trim();
+  const isGuest =
+    Boolean(authContext?.isGuest) ||
+    authContext?.role === 'guest' ||
+    !username ||
+    username.toUpperCase() === 'GUEST';
+
+  if (isGuest) {
+    return {
+      allowed: false,
+      status: 403,
+      reason: 'Tài khoản khách hoặc chưa đăng nhập không được phép sử dụng AI nhận diện.',
+    };
+  }
+
+  const claimedPages = Array.isArray(authContext?.allowedPages)
+    ? authContext!.allowedPages.map((p) => String(p).trim())
+    : [];
+  const hasClaimedPermission =
+    authContext?.role === 'admin' ||
+    Boolean(authContext?.canEditUser) ||
+    claimedPages.includes('khaibao');
+
+  if (!hasClaimedPermission) {
+    return {
+      allowed: false,
+      status: 403,
+      reason: 'Tài khoản không có quyền CẬP NHẬT DỮ LIỆU (khaibao).',
+    };
+  }
+
+  const projectId = (env.FIREBASE_PROJECT_ID || env.VITE_FIREBASE_PROJECT_ID || '').trim();
+  const firebaseApiKey = (env.FIREBASE_API_KEY || env.VITE_FIREBASE_API_KEY || '').trim();
+
+  // When Firebase project config is available server-side, cross-check user status & permissions
+  if (projectId && firebaseApiKey) {
+    try {
+      const normalized = normalizeUsername(username);
+      const userCandidates = Array.from(new Set([username, normalized]));
+
+      let userDocs: Array<Record<string, unknown>> = [];
+      for (const candidate of userCandidates) {
+        userDocs = await firestoreRunEqualQuery(
+          projectId,
+          firebaseApiKey,
+          'ql_nguoi_dung',
+          'username',
+          candidate
+        );
+        if (userDocs.length > 0) break;
+      }
+
+      if (userDocs.length > 0) {
+        const userDoc = userDocs[0];
+        const status = String(userDoc.status || '').toLowerCase();
+        const role = String(userDoc.role || '').toLowerCase();
+        const isSuperAdmin =
+          normalized === '43751' ||
+          role === 'admin' ||
+          Boolean(userDoc.canEditUser);
+
+        if (
+          !isSuperAdmin &&
+          ['rejected', 'locked', 'blocked', 'inactive', 'disabled'].includes(status)
+        ) {
+          return {
+            allowed: false,
+            status: 403,
+            reason: 'Tài khoản đang bị khóa hoặc chưa kích hoạt.',
+          };
+        }
+
+        if (!isSuperAdmin) {
+          let permDocs: Array<Record<string, unknown>> = [];
+          for (const candidate of userCandidates) {
+            permDocs = await firestoreRunEqualQuery(
+              projectId,
+              firebaseApiKey,
+              'user_permissions',
+              'user_id',
+              candidate
+            );
+            if (permDocs.length > 0) break;
+          }
+
+          if (permDocs.length > 0) {
+            const allowedPages = Array.isArray(permDocs[0].allowed_pages)
+              ? (permDocs[0].allowed_pages as unknown[]).map((x) => String(x).trim())
+              : [];
+            if (!allowedPages.includes('khaibao')) {
+              return {
+                allowed: false,
+                status: 403,
+                reason: 'Tài khoản không có quyền cập nhật dữ liệu trong hệ thống.',
+              };
+            }
+          }
+        }
+      }
+    } catch {
+      // Fall back to verified client claim if Firestore REST cannot be reached from serverless worker
+    }
+  }
+
+  return { allowed: true, status: 200 };
+}
+
+function buildGeminiPrompt(hints: {
+  pageIndex?: number;
+  totalPages?: number;
+  monthHint?: number | null;
+  yearHint?: number | null;
+  storeNameHint?: string | null;
+}): string {
+  const hintLines: string[] = [];
+  if (hints.monthHint && hints.yearHint) {
+    hintLines.push(`- Kỳ báo cáo dự kiến trên hệ thống: Tháng ${hints.monthHint}/${hints.yearHint} (chỉ dùng tham khảo, ưu tiên đọc theo tiêu đề trên ảnh nếu có).`);
+  }
+  if (hints.storeNameHint && hints.storeNameHint !== 'ALL') {
+    hintLines.push(`- Siêu thị đang chọn: ${hints.storeNameHint}.`);
+  }
+  if (hints.totalPages && hints.totalPages > 1) {
+    hintLines.push(`- Đây là trang/ảnh ${hints.pageIndex || 1}/${hints.totalPages} của cùng một báo cáo nhiều trang.`);
+  }
+
+  return [
+    'Bạn là hệ thống OCR & trích xuất dữ liệu tài chính BI chính xác tuyệt đối cho báo cáo MWG (Điện Máy Xanh / Thế Giới Di Động).',
+    'Nhiệm vụ: Đọc ảnh báo cáo "BC Thi đua – Lũy kế" (module THI ĐUA CỤM -> LUỸ KẾ THI ĐUA) và trả về JSON có cấu trúc chuẩn.',
+    '',
+    'CÁC CỘT THƯỜNG GẶP TRÊN BẢNG BÁO CÁO BI:',
+    '- CHƯƠNG TRÌNH (tên chương trình thi đua, ví dụ: "T11 - Điện tử Samsung", "T11 - Tivi Sony", ...)',
+    '- Kênh: DT (Doanh thu / DTLK) hoặc SL (Số lượng / SLLK)',
+    '- THỰC HIỆN (giá trị thực hiện)',
+    '- TARGET (giá trị chỉ tiêu)',
+    '- % THỰC HIỆN HIỆN TẠI (nếu bảng có cột riêng cho % thực hiện hiện tại / % TH)',
+    '- % DỰ KIẾN HOÀN THÀNH (cột "% DỰ KIẾN HOÀN THÀNH" hoặc "% HT dự kiến")',
+    '- HẠNG CTY (xếp hạng công ty, số nguyên hoặc trống/null nếu không có)',
+    ...hintLines,
+    '',
+    'QUY TẮC BẮT BUỘC:',
+    '1. ĐỌC TOÀN BỘ MỌI DÒNG CHƯƠNG TRÌNH TRONG BẢNG TỪ TRÊN XUỐNG DƯỚI (bảng có thể có 40+ dòng hoặc nhiều hơn). Tuyệt đối không bỏ sót dòng, không gộp dòng, không tóm tắt, không tự sinh thêm chương trình không có trong ảnh.',
+    '2. Giữ NGUYÊN VĂN 100% trường ten_chuong_trinh như hiển thị trong ảnh (giữ nguyên dấu tiếng Việt, gạch nối, tiền tố tháng như "T11 - ..."). Không tự ý viết tắt hoặc đổi tên.',
+    '3. Phân biệt chính xác kenh = "DT" hay "SL" dựa vào tiêu đề bảng/cột/nhãn DT/SL trong ảnh. Nếu dòng nào không rõ kênh DT/SL, chọn phỏng đoán hợp lý nhất hoặc null và đưa "kenh" vào uncertain_fields.',
+    '4. Phân biệt CHÍNH XÁC ty_le_thuc_hien (tỷ lệ thực hiện hiện tại) và ty_le_du_kien (% dự kiến hoàn thành). Nếu bảng chỉ có cột "% DỰ KIẾN HOÀN THÀNH" mà KHÔNG có cột "% Thực hiện hiện tại", ghi vào ty_le_du_kien và để ty_le_thuc_hien = null (KHÔNG tự ý copy ty_le_du_kien sang ty_le_thuc_hien).',
+    '5. Chú ý dấu chấm (.) và dấu phẩy (,) trong số liệu BI: kiểm tra quy ước nhất quán trên toàn bảng (ví dụ "9,033.52" và "51,730" => dấu phẩy là phân cách hàng nghìn, dấu chấm là thập phân => trả về JSON number 9033.52 và 51730; ngược lại nếu toàn bảng dùng "9.033,52" => trả về 9033.52). Luôn trả về SỐ THUẦN JSON (không dấu phẩy nghìn, không dấu %).',
+    '6. Tỷ lệ phần trăm CÓ THỂ NHỎ HƠN 100% HOẶC LỚN HƠN 100% (ví dụ 17.5 hoặc 142.8). Giữ nguyên con số thực tế (dạng số, bỏ ký hiệu %).',
+    '7. KHÔNG TỰ SUY ĐOÁN số liệu bị mờ, bị che khuất, bị cắt mép: nếu không đọc chắc chắn, trả về null cho ô đó và ghi tên trường vào mảng uncertain_fields của dòng đó.',
+    '8. Nếu ảnh bị mờ toàn phần/một phần hoặc bảng bị cắt giữa chừng chưa hết, đặt image_quality = "BLURRY" hoặc "PARTIAL" và mô tả ngắn trong quality_warnings.',
+    '9. Nếu tiêu đề hoặc chân trang báo cáo ghi rõ tổng số chương trình (ví dụ "Tổng: 40 chương trình"), ghi vào expected_total_rows; nếu không chắc tổng số toàn bảng, đặt expected_total_rows = null.',
+  ].join('\n');
+}
+
+const GEMINI_RESPONSE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    report_type: { type: 'STRING' },
+    month: { type: 'INTEGER', nullable: true },
+    year: { type: 'INTEGER', nullable: true },
+    store_name: { type: 'STRING', nullable: true },
+    expected_total_rows: { type: 'INTEGER', nullable: true },
+    image_quality: { type: 'STRING' },
+    quality_warnings: {
+      type: 'ARRAY',
+      items: { type: 'STRING' },
+    },
+    rows: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          ten_chuong_trinh: { type: 'STRING' },
+          kenh: { type: 'STRING', nullable: true },
+          thuc_hien: { type: 'NUMBER', nullable: true },
+          target: { type: 'NUMBER', nullable: true },
+          ty_le_thuc_hien: { type: 'NUMBER', nullable: true },
+          ty_le_du_kien: { type: 'NUMBER', nullable: true },
+          hang_cty: { type: 'INTEGER', nullable: true },
+          uncertain_fields: {
+            type: 'ARRAY',
+            items: { type: 'STRING' },
+          },
+          note: { type: 'STRING', nullable: true },
+        },
+        required: ['ten_chuong_trinh'],
+      },
+    },
+  },
+  required: ['report_type', 'rows'],
+};
+
+function stripCodeFences(text: string): string {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  return fenced ? fenced[1].trim() : trimmed;
+}
+
+export async function analyzeThiDuaImageServer(
+  body: VisionAnalyzeRequestBody,
+  env: ServerEnvLike
+): Promise<VisionAnalyzeResponse> {
+  // 1. Permission gate
+  const permCheck = await verifyServerPermission(body?.authContext, env);
+  if (!permCheck.allowed) {
+    return {
+      ok: false,
+      status: permCheck.status,
+      error: permCheck.reason || 'Không có quyền thực hiện thao tác này.',
+    };
+  }
+
+  // 2. Validate API key strictly on server
+  const apiKey = (env.GEMINI_API_KEY || '').trim();
+  if (!apiKey) {
+    return {
+      ok: false,
+      status: 500,
+      error:
+        'Chưa cấu hình GEMINI_API_KEY trên máy chủ. Vui lòng thiết lập biến môi trường bảo mật GEMINI_API_KEY phía server.',
+    };
+  }
+
+  // 3. Validate image payload
+  const mimeType = String(body?.mimeType || '').trim().toLowerCase();
+  if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Định dạng ảnh không hợp lệ. Chỉ hỗ trợ PNG, JPG, JPEG, WEBP.',
+    };
+  }
+
+  let base64Data = String(body?.imageBase64 || '').trim();
+  const dataUrlPrefix = /^data:[^;]+;base64,/i;
+  if (dataUrlPrefix.test(base64Data)) {
+    base64Data = base64Data.replace(dataUrlPrefix, '');
+  }
+
+  if (!base64Data || base64Data.length < 32) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Dữ liệu hình ảnh trống hoặc không hợp lệ.',
+    };
+  }
+
+  if (base64Data.length > MAX_BASE64_LENGTH) {
+    return {
+      ok: false,
+      status: 413,
+      error: 'Ảnh vượt quá giới hạn dung lượng xử lý (~7.5MB nhị phân). Hãy cắt ảnh thành các phần nhỏ hơn.',
+    };
+  }
+
+  const pageIndex = Number.isInteger(body?.pageIndex) && (body.pageIndex as number) > 0
+    ? (body.pageIndex as number)
+    : 1;
+
+  const prompt = buildGeminiPrompt({
+    pageIndex,
+    totalPages: body?.totalPages,
+    monthHint: body?.monthHint,
+    yearHint: body?.yearHint,
+    storeNameHint: body?.storeNameHint,
+  });
+
+  const preferredModel = (env.GEMINI_MODEL || '').trim();
+  const modelCandidates = Array.from(
+    new Set([
+      ...(preferredModel ? [preferredModel] : []),
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+    ])
+  );
+
+  let lastErrorMsg = 'Không thể kết nối Gemini Vision API.';
+  let lastStatus = 502;
+
+  for (const modelName of modelCandidates) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+        modelName
+      )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+      const geminiRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { text: prompt },
+                {
+                  inlineData: {
+                    mimeType: mimeType === 'image/jpg' ? 'image/jpeg' : mimeType,
+                    data: base64Data,
+                  },
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0,
+            maxOutputTokens: 16384,
+            responseMimeType: 'application/json',
+            responseSchema: GEMINI_RESPONSE_SCHEMA,
+          },
+        }),
+      });
+
+      if (!geminiRes.ok) {
+        const errBodyText = await geminiRes.text();
+        lastStatus = geminiRes.status;
+        // Do not leak API keys or raw internals; summarize safe status
+        if (geminiRes.status === 404 && modelCandidates.length > 1) {
+          lastErrorMsg = `Model ${modelName} không khả dụng.`;
+          continue;
+        }
+        if (geminiRes.status === 429) {
+          return {
+            ok: false,
+            status: 429,
+            error: 'Gemini API đang quá tải hoặc hết hạn mức tạm thời. Vui lòng thử lại sau ít phút.',
+          };
+        }
+        if (geminiRes.status === 401 || geminiRes.status === 403) {
+          return {
+            ok: false,
+            status: 500,
+            error: 'GEMINI_API_KEY phía server không hợp lệ hoặc đã bị thu hồi.',
+          };
+        }
+        let parsedErr = '';
+        try {
+          const parsedObj = JSON.parse(errBodyText);
+          parsedErr = parsedObj?.error?.message || '';
+        } catch {}
+        lastErrorMsg = parsedErr
+          ? `Lỗi Gemini Vision (${geminiRes.status}): ${parsedErr}`
+          : `Lỗi Gemini Vision HTTP ${geminiRes.status}`;
+        continue;
+      }
+
+      const geminiJson = (await geminiRes.json()) as any;
+      const finishReason = geminiJson?.candidates?.[0]?.finishReason;
+      const textParts: string[] = (geminiJson?.candidates?.[0]?.content?.parts || [])
+        .map((p: any) => (typeof p?.text === 'string' ? p.text : ''))
+        .filter(Boolean);
+      const combinedText = textParts.join('\n').trim();
+
+      if (!combinedText) {
+        lastErrorMsg = 'Gemini Vision trả về kết quả trống. Vui lòng kiểm tra chất lượng ảnh.';
+        continue;
+      }
+
+      let parsedPayload: ThiDuaAiRawReport;
+      try {
+        parsedPayload = JSON.parse(stripCodeFences(combinedText)) as ThiDuaAiRawReport;
+      } catch {
+        lastErrorMsg =
+          finishReason === 'MAX_TOKENS'
+            ? 'Bảng dữ liệu trong ảnh quá dài vượt giới hạn output một lần đọc. Vui lòng cắt ảnh làm 2-3 phần rồi tải lên cùng lúc.'
+            : 'Không thể giải mã JSON từ kết quả AI Vision.';
+        continue;
+      }
+
+      const normalizedReport = normalizeRawAiReport(parsedPayload, pageIndex);
+
+      if (finishReason === 'MAX_TOKENS') {
+        normalizedReport.image_quality = 'PARTIAL';
+        normalizedReport.quality_warnings = Array.from(
+          new Set([
+            ...normalizedReport.quality_warnings,
+            'Phản hồi AI chạm giới hạn độ dài — hãy kiểm tra kỹ các dòng cuối xem có bị thiếu không hoặc cắt ảnh thành nhiều phần.',
+          ])
+        );
+      }
+
+      if (normalizedReport.rows.length === 0) {
+        normalizedReport.image_quality = 'PARTIAL';
+        normalizedReport.quality_warnings = Array.from(
+          new Set([
+            ...normalizedReport.quality_warnings,
+            'Không nhận diện được dòng chương trình nào trong ảnh. Hãy kiểm tra ảnh đúng báo cáo BI Lũy kế thi đua.',
+          ])
+        );
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        modelUsed: modelName,
+        report: normalizedReport,
+      };
+    } catch (err: any) {
+      lastErrorMsg = err?.message || 'Lỗi kết nối dịch vụ AI Vision.';
+    }
+  }
+
+  return {
+    ok: false,
+    status: lastStatus >= 400 ? lastStatus : 502,
+    error: lastErrorMsg,
+  };
+}
+

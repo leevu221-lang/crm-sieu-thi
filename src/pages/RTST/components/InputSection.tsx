@@ -161,6 +161,8 @@ interface InputSectionProps {
   }>;
 }
 
+import { ThiDuaLuyKeAiUploader } from './ThiDuaLuyKeAiUploader';
+
 interface ReportInputBoxProps {
   id: string;
   label: string;
@@ -172,6 +174,7 @@ interface ReportInputBoxProps {
   placeholder?: string;
   onSaveTrigger?: () => void;
   externalLink?: string;
+  footerSlot?: React.ReactNode;
 }
 
 const ReportInputBox: React.FC<ReportInputBoxProps> = ({
@@ -184,7 +187,8 @@ const ReportInputBox: React.FC<ReportInputBoxProps> = ({
   colorTheme = 'emerald',
   placeholder,
   onSaveTrigger,
-  externalLink
+  externalLink,
+  footerSlot
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [tempVal, setTempVal] = useState('');
@@ -484,6 +488,7 @@ const ReportInputBox: React.FC<ReportInputBoxProps> = ({
           </div>
         </div>
       )}
+      {footerSlot}
     </div>
   );
 };
@@ -1497,6 +1502,27 @@ const InputSection: React.FC<InputSectionProps> = ({
                       value={item.value}
                       onChange={item.onChange}
                       onBlur={(item as any).onBlur}
+                      footerSlot={
+                        item.id === 'rt_catlk' ? (
+                          <ThiDuaLuyKeAiUploader
+                            currentValue={item.value}
+                            activeStore={activeStore}
+                            availableMarkets={availableMarkets}
+                            selectedMonth={selectedMonth}
+                            allStoresCache={allStoresCache}
+                            onApplyBiText={item.onChange}
+                            onTriggerSavePipeline={async () => {
+                              await Promise.resolve(onSaveRealtime(false, 'LUỸ KẾ TĐ'));
+                              if (onSaveLuyke) {
+                                await Promise.resolve(
+                                  onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ TĐ')
+                                );
+                              }
+                            }}
+                            showNotification={showNotification}
+                          />
+                        ) : undefined
+                      }
                       colorTheme={item.colorTheme as any}
                       onClear={() => {
                         if (item.label === 'REALTIME DT' || item.label === 'REALTIME DOANH THU QUY ĐỔI') {
