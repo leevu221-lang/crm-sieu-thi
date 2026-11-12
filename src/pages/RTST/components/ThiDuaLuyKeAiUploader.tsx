@@ -9,6 +9,7 @@ import {
   ImagePlus,
   Lock,
   Loader2,
+  RotateCcw,
   Sparkles,
   Trash2,
   Upload,
@@ -160,6 +161,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
   const [status, setStatus] = useState<PipelineStatus>('idle');
   const [progressText, setProgressText] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [errorCode, setErrorCode] = useState<string>('');
   const [expectedRowsHint, setExpectedRowsHint] = useState<string>('');
 
   const [analyzedReport, setAnalyzedReport] = useState<ThiDuaAiReportResult | null>(null);
@@ -294,6 +296,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
 
     if (validFiles.length === 0) {
       setErrorMsg('Chỉ chấp nhận file ảnh định dạng PNG, JPG hoặc JPEG.');
+      setErrorCode('INVALID_IMAGE');
       setStatus('error');
       return;
     }
@@ -301,6 +304,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
     setStatus('loading_images');
     setProgressText(`Đang tải ${validFiles.length} ảnh xem trước...`);
     setErrorMsg('');
+    setErrorCode('');
 
     try {
       const prepared: SelectedImageItem[] = [];
@@ -323,6 +327,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
       setProgressText('');
     } catch (err: any) {
       setErrorMsg(err?.message || 'Không thể tải ảnh đã chọn.');
+      setErrorCode('INVALID_IMAGE');
       setStatus('error');
     }
   };
@@ -349,6 +354,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
     setStatus('idle');
     setProgressText('');
     setErrorMsg('');
+    setErrorCode('');
   };
 
   const handleAnalyzeImages = async () => {
@@ -358,12 +364,14 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
     }
     if (images.length === 0) {
       setErrorMsg('Vui lòng chọn ít nhất 1 ảnh báo cáo BI để phân tích.');
+      setErrorCode('INVALID_IMAGE');
       setStatus('error');
       return;
     }
 
     setStatus('analyzing');
     setErrorMsg('');
+    setErrorCode('');
     const pageReports: ThiDuaAiReportResult[] = [];
     let latestModel = '';
 
@@ -403,11 +411,19 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
           }),
         });
 
-        const json = await res.json();
+        let json: any = null;
+        try {
+          json = await res.json();
+        } catch {
+          throw new Error(`Phân tích ảnh ${i + 1} gặp lỗi phản hồi không hợp lệ (HTTP ${res.status}).`);
+        }
+
         if (!res.ok || !json?.ok || !json?.report) {
-          throw new Error(
+          const err: any = new Error(
             json?.error || `Phân tích ảnh ${i + 1} thất bại (HTTP ${res.status}).`
           );
+          err.errorCode = json?.errorCode || '';
+          throw err;
         }
         if (json.modelUsed) latestModel = String(json.modelUsed);
         pageReports.push(json.report as ThiDuaAiReportResult);
@@ -444,6 +460,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
     } catch (err: any) {
       setStatus('error');
       setProgressText('');
+      setErrorCode(String(err?.errorCode || ''));
       setErrorMsg(err?.message || 'Lỗi khi phân tích hình ảnh báo cáo BI.');
     }
   };
@@ -805,9 +822,40 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
           )}
 
           {status === 'error' && errorMsg && (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 flex items-start gap-2 text-[11px] font-semibold text-rose-700">
-              <AlertCircle size={14} className="shrink-0 mt-0.5" />
-              <span>{errorMsg}</span>
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 space-y-1.5 text-[11px] text-rose-800">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2 font-semibold">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5 text-rose-600" />
+                  <div className="space-y-1">
+                    <div>{errorMsg}</div>
+                    {(errorCode === 'MISSING_API_KEY' || errorCode === 'INVALID_API_KEY') && (
+                      <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1">
+                        <strong>Hướng dẫn Admin:</strong> Vào Cloudflare Pages → chọn project →{' '}
+                        <strong>Settings → Variables and Secrets</strong> → thêm biến{' '}
+                        <code className="px-1 py-0.5 rounded bg-rose-100 font-bold">GEMINI_API_KEY</code>{' '}
+                        (không dùng tiền tố <code>VITE_</code>) và bấm <strong>Redeploy</strong>.
+                      </div>
+                    )}
+                    {images.length > 0 && (
+                      <div className="text-[10px] text-slate-600 font-medium">
+                        {images.length} ảnh đã tải lên vẫn được giữ nguyên; dữ liệu cũ chưa bị thay đổi.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {images.length > 0 && (
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={handleAnalyzeImages}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-rose-600 text-white text-[10.5px] font-extrabold hover:bg-rose-700 disabled:opacity-50 shrink-0 transition-colors"
+                  >
+                    <RotateCcw size={12} />
+                    <span>Thử lại</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

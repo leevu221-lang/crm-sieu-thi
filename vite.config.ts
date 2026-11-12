@@ -3,15 +3,41 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
 import { defineConfig, loadEnv, type Connect, type Plugin } from 'vite';
-import { analyzeThiDuaImageServer, type VisionAnalyzeRequestBody } from './src/utils/thiDuaAiServerCore';
+import {
+  analyzeThiDuaImageServer,
+  resolveGeminiServerStatus,
+  type VisionAnalyzeRequestBody,
+} from './src/utils/thiDuaAiServerCore';
 
 function createThiDuaAiMiddleware(serverEnv: Record<string, string>): Connect.NextHandleFunction {
+  const effectiveEnv = {
+    GEMINI_API_KEY: serverEnv.GEMINI_API_KEY || process.env.GEMINI_API_KEY,
+    GEMINI_MODEL: serverEnv.GEMINI_MODEL || process.env.GEMINI_MODEL,
+    FIREBASE_PROJECT_ID: serverEnv.FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID,
+    VITE_FIREBASE_PROJECT_ID: serverEnv.VITE_FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
+    FIREBASE_API_KEY: serverEnv.FIREBASE_API_KEY || process.env.FIREBASE_API_KEY,
+    VITE_FIREBASE_API_KEY: serverEnv.VITE_FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
+  };
+
   return (req, res, next) => {
     if (req.method === 'OPTIONS') {
       res.statusCode = 204;
-      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-CRM-User');
       res.end();
+      return;
+    }
+    if (req.method === 'GET') {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store');
+      res.end(
+        JSON.stringify({
+          ...resolveGeminiServerStatus(effectiveEnv),
+          endpoint: 'gemini-vision-thi-dua',
+          runtime: 'vite-dev-server',
+        })
+      );
       return;
     }
     if (req.method !== 'POST') {
@@ -24,14 +50,7 @@ function createThiDuaAiMiddleware(serverEnv: Record<string, string>): Connect.Ne
       try {
         const rawBody = Buffer.concat(chunks).toString('utf8');
         const body = (rawBody ? JSON.parse(rawBody) : {}) as VisionAnalyzeRequestBody;
-        const result = await analyzeThiDuaImageServer(body, {
-          GEMINI_API_KEY: serverEnv.GEMINI_API_KEY || process.env.GEMINI_API_KEY,
-          GEMINI_MODEL: serverEnv.GEMINI_MODEL || process.env.GEMINI_MODEL,
-          FIREBASE_PROJECT_ID: serverEnv.FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID,
-          VITE_FIREBASE_PROJECT_ID: serverEnv.VITE_FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
-          FIREBASE_API_KEY: serverEnv.FIREBASE_API_KEY || process.env.FIREBASE_API_KEY,
-          VITE_FIREBASE_API_KEY: serverEnv.VITE_FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
-        });
+        const result = await analyzeThiDuaImageServer(body, effectiveEnv);
         res.statusCode = result.status;
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.setHeader('Cache-Control', 'no-store');
