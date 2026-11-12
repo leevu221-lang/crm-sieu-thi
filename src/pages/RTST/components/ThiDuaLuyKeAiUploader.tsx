@@ -45,7 +45,7 @@ type PipelineStatus = 'idle' | 'loading_images' | 'analyzing' | 'completed' | 'e
 interface ThiDuaLuyKeAiUploaderProps {
   currentValue: string;
   activeStore?: string;
-  availableMarkets?: MarketInfo[];
+  availableMarkets?: Array<MarketInfo | string>;
   maKho?: string;
   selectedMonth?: string;
   allStoresCache?: Record<string, any>;
@@ -201,10 +201,10 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
     if (cleanActive && cleanActive !== 'ALL' && isValidStoreName(cleanActive)) {
       return cleanActive;
     }
-    const candidate = availableMarkets.find(
-      (m) => m?.name && m.name !== 'ALL' && isValidStoreName(m.name)
-    );
-    if (candidate?.name) return candidate.name;
+    const candidateName = availableMarkets
+      .map((m) => (typeof m === 'string' ? m : m?.name || '').trim())
+      .find((name) => name && name !== 'ALL' && isValidStoreName(name));
+    if (candidateName) return candidateName;
     if (userProfile?.ten_sieu_thi && isValidStoreName(userProfile.ten_sieu_thi)) {
       return userProfile.ten_sieu_thi;
     }
@@ -583,7 +583,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
   }, [currentValue, savedMeta]);
 
   return (
-    <div className="mt-2.5 pt-2.5 border-t border-orange-200/70 space-y-2">
+    <div className="relative z-10 mt-2.5 pt-2.5 border-t border-orange-200/70 space-y-2">
       {/* Method Indicator Bar */}
       <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10.5px] sm:text-[11px]">
         <div className="flex flex-wrap items-center gap-1.5">
