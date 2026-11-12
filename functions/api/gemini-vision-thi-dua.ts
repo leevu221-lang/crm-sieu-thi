@@ -14,8 +14,9 @@ const CORS_HEADERS: Record<string, string> = {
 };
 
 function extractCloudflareServerEnv(env?: ServerEnvLike): ServerEnvLike {
+  const apiKey = env?.GEMINI_API_KEY;
   return {
-    GEMINI_API_KEY: env?.GEMINI_API_KEY,
+    GEMINI_API_KEY: apiKey,
     GEMINI_MODEL: env?.GEMINI_MODEL,
     FIREBASE_PROJECT_ID: env?.FIREBASE_PROJECT_ID,
     VITE_FIREBASE_PROJECT_ID: env?.VITE_FIREBASE_PROJECT_ID,
@@ -29,7 +30,8 @@ export async function onRequestOptions() {
 }
 
 export async function onRequestGet(context: { env: ServerEnvLike }) {
-  const statusInfo = resolveGeminiServerStatus(extractCloudflareServerEnv(context.env));
+  const { env } = context;
+  const statusInfo = resolveGeminiServerStatus(extractCloudflareServerEnv(env));
   return new Response(
     JSON.stringify({
       ...statusInfo,
@@ -45,7 +47,8 @@ export async function onRequestPost(context: {
   env: ServerEnvLike;
 }) {
   try {
-    const serverEnv = extractCloudflareServerEnv(context.env);
+    const { env } = context;
+    const serverEnv = extractCloudflareServerEnv(env);
     const body = (await context.request.json()) as VisionAnalyzeRequestBody;
     const result = await analyzeThiDuaImageServer(body, serverEnv);
     return new Response(JSON.stringify(result), {

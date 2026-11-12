@@ -46,6 +46,8 @@ export type VisionErrorCode =
   | 'MISSING_API_KEY'
   | 'INVALID_API_KEY'
   | 'QUOTA_EXCEEDED'
+  | 'MODEL_NOT_SUPPORTED'
+  | 'BAD_REQUEST'
   | 'INVALID_IMAGE'
   | 'TIMEOUT'
   | 'GEMINI_API_ERROR';
@@ -59,9 +61,16 @@ export interface VisionAnalyzeResponse {
   report?: ThiDuaAiReportResult;
 }
 
+export interface ThiDuaAiHealthStatus {
+  configured: boolean;
+  provider: 'gemini';
+  message: string;
+}
+
 export interface GeminiServerConfigStatus {
   ok: boolean;
   configured: boolean;
+  provider: 'gemini';
   errorCode?: 'MISSING_API_KEY';
   message: string;
 }
@@ -82,21 +91,38 @@ export function sanitizeServerApiKey(raw: unknown): string {
   return cleaned;
 }
 
-export function resolveGeminiServerStatus(env: ServerEnvLike): GeminiServerConfigStatus {
+export function resolveThiDuaAiStatus(env: ServerEnvLike): ThiDuaAiHealthStatus {
   const apiKey = sanitizeServerApiKey(env?.GEMINI_API_KEY);
   if (!apiKey) {
     return {
+      configured: false,
+      provider: 'gemini',
+      message: 'GEMINI_API_KEY is missing',
+    };
+  }
+  return {
+    configured: true,
+    provider: 'gemini',
+    message: 'AI service ready',
+  };
+}
+
+export function resolveGeminiServerStatus(env: ServerEnvLike): GeminiServerConfigStatus {
+  const health = resolveThiDuaAiStatus(env);
+  if (!health.configured) {
+    return {
       ok: false,
       configured: false,
+      provider: 'gemini',
       errorCode: 'MISSING_API_KEY',
-      message:
-        'Chưa cấu hình GEMINI_API_KEY trên máy chủ. Vui lòng thiết lập biến môi trường GEMINI_API_KEY phía server.',
+      message: health.message,
     };
   }
   return {
     ok: true,
     configured: true,
-    message: 'GEMINI_API_KEY đã sẵn sàng phía server.',
+    provider: 'gemini',
+    message: health.message,
   };
 }
 
@@ -465,6 +491,19 @@ export async function analyzeThiDuaImageServer(
   });
 
   const preferredModel = (env.GEMINI_MODEL || '').trim();
+  if (
+    preferredModel &&
+    (/(embedding|aqa|bison|imagen|veo|tts)/i.test(preferredModel) ||
+      !/gemini/i.test(preferredModel))
+  ) {
+    return {
+      ok: false,
+      status: 400,
+      errorCode: 'MODEL_NOT_SUPPORTED',
+      error: `Model '${preferredModel}' không hỗ trợ phân tích hình ảnh Gemini Vision. Vui lòng sử dụng gemini-2.5-flash hoặc gemini-2.0-flash.`,
+    };
+  }
+
   const modelCandidates = Array.from(
     new Set([
       ...(preferredModel ? [preferredModel] : []),
@@ -529,37 +568,79 @@ export async function analyzeThiDuaImageServer(
           );
         } catch {}
 
-        // Do not leak API keys or raw internals; summarize safe status
-        if (geminiRes.status === 404 && modelCandidates.length > 1) {
-          lastErrorMsg = `Model ${modelName} không khả dụng.`;
-          lastErrorCode = 'GEMINI_API_ERROR';
-          continue;
-        }
+        // Do not leak API keys or raw internals; classify exact HTTP status
         if (geminiRes.status === 429) {
           return {
             ok: false,
             status: 429,
             errorCode: 'QUOTA_EXCEEDED',
-            error: 'Gemini API đang quá tải hoặc hết hạn mức tạm thời. Vui lòng thử lại sau ít phút.',
+            error:
+              'Gemini API đã vượt hạn mức hoặc tần suất gọi (HTTP 429). Vui lòng thử lại sau ít phút hoặc kiểm tra quota/billing.',
           };
         }
+
         if (
-          geminiRes.status === 401 ||
-          geminiRes.status === 403 ||
           parsedReason.includes('API_KEY_INVALID') ||
-          /api[_\s]?key/i.test(parsedErr)
+          /api[_\s]?key/i.test(parsedErr) ||
+          geminiRes.status === 401
         ) {
           return {
             ok: false,
-            status: 500,
+            status: geminiRes.status === 400 ? 401 : geminiRes.status,
             errorCode: 'INVALID_API_KEY',
-            error:
-              'GEMINI_API_KEY phía server không hợp lệ hoặc đã bị thu hồi. Vui lòng kiểm tra lại giá trị GEMINI_API_KEY trong cấu hình server.',
+            error: `GEMINI_API_KEY phía server không hợp lệ hoặc đã bị thu hồi (HTTP ${geminiRes.status}). Vui lòng kiểm tra lại giá trị GEMINI_API_KEY.`,
           };
         }
+
+        if (geminiRes.status === 403) {
+          return {
+            ok: false,
+            status: 403,
+            errorCode: 'INVALID_API_KEY',
+            error:
+              'GEMINI_API_KEY bị từ chối quyền truy cập Gemini API hoặc bị giới hạn IP/Referer (HTTP 403).',
+          };
+        }
+
+        const isModelIssue =
+          geminiRes.status === 404 ||
+          (/(model|modality|multimodal|image|vision)/i.test(parsedErr) &&
+            /(not found|not supported|unsupported|invalid)/i.test(parsedErr));
+
+        if (isModelIssue) {
+          lastStatus = geminiRes.status;
+          lastErrorCode = 'MODEL_NOT_SUPPORTED';
+          lastErrorMsg = `Model '${modelName}' không khả dụng hoặc không hỗ trợ nhận diện hình ảnh (HTTP ${geminiRes.status}).`;
+          continue;
+        }
+
+        if (geminiRes.status === 400) {
+          return {
+            ok: false,
+            status: 400,
+            errorCode: 'BAD_REQUEST',
+            error: parsedErr
+              ? redactSensitiveSecrets(
+                  `Dữ liệu/ảnh gửi Gemini API không hợp lệ (HTTP 400): ${parsedErr}`
+                )
+              : 'Dữ liệu hoặc định dạng ảnh gửi Gemini API không hợp lệ (HTTP 400).',
+          };
+        }
+
+        if (geminiRes.status >= 500) {
+          lastErrorCode = 'GEMINI_API_ERROR';
+          lastStatus = geminiRes.status;
+          lastErrorMsg = parsedErr
+            ? redactSensitiveSecrets(
+                `Máy chủ Google Gemini API đang gặp sự cố (HTTP ${geminiRes.status}): ${parsedErr}`
+              )
+            : `Máy chủ Google Gemini API đang gặp sự cố tạm thời (HTTP ${geminiRes.status}).`;
+          continue;
+        }
+
         lastErrorCode = 'GEMINI_API_ERROR';
         lastErrorMsg = parsedErr
-          ? redactSensitiveSecrets(`Lỗi Gemini Vision (${geminiRes.status}): ${parsedErr}`)
+          ? redactSensitiveSecrets(`Lỗi Gemini Vision (HTTP ${geminiRes.status}): ${parsedErr}`)
           : `Lỗi Gemini Vision HTTP ${geminiRes.status}`;
         continue;
       }

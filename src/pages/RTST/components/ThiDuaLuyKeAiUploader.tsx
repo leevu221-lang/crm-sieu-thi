@@ -172,6 +172,30 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [aiStatusState, setAiStatusState] = useState<{
+    loading: boolean;
+    configured: boolean | null;
+    message: string;
+  }>({ loading: false, configured: null, message: '' });
+
+  const checkBackendAiStatus = async () => {
+    setAiStatusState((prev) => ({ ...prev, loading: true }));
+    try {
+      const res = await fetch('/api/thi-dua/ai-status', { cache: 'no-store' });
+      const data = await res.json();
+      setAiStatusState({
+        loading: false,
+        configured: Boolean(data?.configured),
+        message: String(data?.message || ''),
+      });
+    } catch {
+      setAiStatusState({
+        loading: false,
+        configured: null,
+        message: 'Không kiểm tra được trạng thái backend',
+      });
+    }
+  };
 
   // Strict RBAC check matching Section 8
   const isGuestUser = useMemo(() => {
@@ -269,6 +293,12 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
       });
     };
   }, []);
+
+  useEffect(() => {
+    if (hasUpdatePermission) {
+      checkBackendAiStatus();
+    }
+  }, [hasUpdatePermission]);
 
   const monthYearHints = useMemo(() => {
     if (selectedMonth && /^\d{4}-\d{1,2}$/.test(selectedMonth)) {
@@ -670,6 +700,39 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
         </div>
       ) : (
         <div className="space-y-2">
+          {/* Server AI Health Check Bar */}
+          {aiStatusState.configured !== null && (
+            <div
+              className={`rounded-lg border px-2.5 py-1 flex flex-wrap items-center justify-between gap-1.5 text-[10px] sm:text-[10.5px] ${
+                aiStatusState.configured
+                  ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800'
+                  : 'border-amber-200 bg-amber-50/80 text-amber-800'
+              }`}
+            >
+              <span className="inline-flex items-center gap-1.5 font-semibold min-w-0">
+                {aiStatusState.configured ? (
+                  <CheckCircle2 size={12} className="shrink-0 text-emerald-600" />
+                ) : (
+                  <AlertCircle size={12} className="shrink-0 text-amber-600" />
+                )}
+                <span className="truncate">
+                  {aiStatusState.configured
+                    ? 'Backend AI: AI service ready (Secret GEMINI_API_KEY đã được phát hiện trên server)'
+                    : `Backend AI: ${aiStatusState.message || 'GEMINI_API_KEY is missing'}`}
+                </span>
+              </span>
+              <button
+                type="button"
+                disabled={aiStatusState.loading}
+                onClick={checkBackendAiStatus}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-600 hover:text-orange-700 hover:border-orange-300 font-bold disabled:opacity-50 shrink-0"
+              >
+                <RotateCcw size={10} className={aiStatusState.loading ? 'animate-spin' : ''} />
+                <span>Kiểm tra lại</span>
+              </button>
+            </div>
+          )}
+
           {/* Drag & Drop Zone + Upload Button */}
           <div
             onDragOver={(e) => {

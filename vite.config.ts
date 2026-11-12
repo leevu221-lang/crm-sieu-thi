@@ -6,8 +6,30 @@ import { defineConfig, loadEnv, type Connect, type Plugin } from 'vite';
 import {
   analyzeThiDuaImageServer,
   resolveGeminiServerStatus,
+  resolveThiDuaAiStatus,
   type VisionAnalyzeRequestBody,
 } from './src/utils/thiDuaAiServerCore';
+
+function createThiDuaAiStatusMiddleware(serverEnv: Record<string, string>): Connect.NextHandleFunction {
+  const apiKey = serverEnv.GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  return (req, res, next) => {
+    if (req.method === 'OPTIONS') {
+      res.statusCode = 204;
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-CRM-User');
+      res.end();
+      return;
+    }
+    if (req.method !== 'GET') {
+      next();
+      return;
+    }
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    res.end(JSON.stringify(resolveThiDuaAiStatus({ GEMINI_API_KEY: apiKey })));
+  };
+}
 
 function createThiDuaAiMiddleware(serverEnv: Record<string, string>): Connect.NextHandleFunction {
   const effectiveEnv = {
@@ -68,9 +90,11 @@ function thiDuaAiApiPlugin(serverEnv: Record<string, string>): Plugin {
   return {
     name: 'thi-dua-ai-api',
     configureServer(server) {
+      server.middlewares.use('/api/thi-dua/ai-status', createThiDuaAiStatusMiddleware(serverEnv));
       server.middlewares.use('/api/gemini-vision-thi-dua', createThiDuaAiMiddleware(serverEnv));
     },
     configurePreviewServer(server) {
+      server.middlewares.use('/api/thi-dua/ai-status', createThiDuaAiStatusMiddleware(serverEnv));
       server.middlewares.use('/api/gemini-vision-thi-dua', createThiDuaAiMiddleware(serverEnv));
     },
   };
