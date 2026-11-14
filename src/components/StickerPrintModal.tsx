@@ -1250,7 +1250,7 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
   }
 
   if (style === 'address_flyer') {
-    const rawHeader = (item.headerTitle || 'ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU').trim();
+    const rawHeader = (item.headerTitle || item.storeName || 'ĐIỆN MÁY XANH').trim();
     const dmxPrefixMatch = rawHeader.match(/^(ĐIỆN\s+MÁY\s+XANH)\s+(.+)$/i);
 
     const rawEventDesc = (item.eventDescription || 'tham gia sự kiện KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN').trim();
@@ -1258,8 +1258,8 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
 
     const footerDisplayTitle = resolveAddressFlyerFooterTitle(
       item.headerTitle,
-      item.headerSubtitle,
-      item.footerTitle
+      item.footerTitle,
+      item.storeName
     );
 
     const headerFontSize = rawHeader.length > 28 ? '16.5px' : '19.5px';
@@ -1368,7 +1368,7 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
               textTransform: 'uppercase',
             }}
           >
-            {item.eventTimeLocation || 'Ngày 28/03 đến ĐMX PHƯỜNG 8'}
+            {item.eventTimeLocation || (item.storeName ? `Ngày 28/03 đến ${item.storeName}` : 'Ngày 28/03 đến ĐIỆN MÁY XANH')}
           </div>
         </div>
 

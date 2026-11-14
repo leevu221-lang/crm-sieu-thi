@@ -17,6 +17,7 @@ export interface AddressFlyerData {
   footerLine2: string;
   footerLine3: string;
   footerLine4: string;
+  storeName?: string;
 }
 
 export const ADDRESS_CATEGORY_OPTIONS = [
@@ -28,11 +29,11 @@ export const ADDRESS_CATEGORY_OPTIONS = [
 ];
 
 export const DEFAULT_ADDRESS_DATA: AddressFlyerData = {
-  headerTitle: 'ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU',
+  headerTitle: 'ĐIỆN MÁY XANH',
   headerSubtitle: '(Ngã tư đèn xanh đèn đỏ đường Nguyễn Tất Thành)',
   invitationTitle: 'THƯ MỜI, THỨ 7 TUẦN NÀY',
   invitationTarget: 'Kính mời: Quý Khách Hàng thân yêu',
-  eventTimeLocation: 'Ngày 28/03 đến ĐMX PHƯỜNG 8',
+  eventTimeLocation: 'Ngày 28/03 đến ĐMX',
   eventDescription: 'tham gia sự kiện KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN',
   discountPercentage: '50%',
   duration: '1 NGÀY DUY NHẤT 28/03',
@@ -41,149 +42,144 @@ export const DEFAULT_ADDRESS_DATA: AddressFlyerData = {
   categoriesLine3: 'MÁY LẠNH - QUẠT ĐIỀU HÒA',
   specialOffer: '➔ RẺ HƠN CÁC ĐIỆN MÁY XANH KHÁC -10%',
   paymentTerm: 'MUA TRẢ CHẬM - 0% LÃI SUẤT - TRẢ TRƯỚC 0đ',
-  footerTitle: 'ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU',
+  footerTitle: 'ĐIỆN MÁY XANH',
   footerLine1: 'CAM KẾT GIÁ RẺ - HÀNG CHÍNH HÃNG',
   footerLine2: 'GIAO HÀNG NHANH - HỖ TRỢ TẬN NHÀ',
   footerLine3: 'NHIỀU SẢN PHẨM GIÁ SỐC BÊN DƯỚI ⬇',
   footerLine4: 'Được giảm thêm 10%'
 };
 
-// Danh sách các tỉnh thành Việt Nam (sắp xếp dài trước ngắn sau để ưu tiên khớp cụm từ đầy đủ)
-const VIETNAM_PROVINCES = [
-  'BÀ RỊA - VŨNG TÀU', 'BÀ RỊA VŨNG TÀU', 'TP HỒ CHÍ MINH', 'TP. HỒ CHÍ MINH', 'TP.HCM', 'TPHCM',
-  'HỒ CHÍ MINH', 'THỪA THIÊN HUẾ', 'BÌNH PHƯỚC', 'BÌNH THUẬN', 'NINH THUẬN', 'LÂM ĐỒNG',
-  'ĐẮK NÔNG', 'ĐẮK LẮK', 'BÌNH DƯƠNG', 'ĐỒNG NAI', 'BÌNH ĐỊNH', 'QUẢNG NGÃI', 'QUẢNG NAM',
-  'QUẢNG BÌNH', 'QUẢNG TRỊ', 'QUẢNG NINH', 'HẢI PHÒNG', 'HẢI DƯƠNG', 'HƯNG YÊN', 'BẮC NINH',
-  'BẮC GIANG', 'LẠNG SƠN', 'THÁI NGUYÊN', 'TUYÊN QUANG', 'VĨNH PHÚC', 'PHÚ THỌ', 'ĐIỆN BIÊN',
-  'LAI CHÂU', 'HÒA BÌNH', 'NINH BÌNH', 'NAM ĐỊNH', 'THÁI BÌNH', 'CÀ MAU', 'BẠC LIÊU',
-  'SÓC TRĂNG', 'CẦN THƠ', 'HẬU GIANG', 'KIÊN GIANG', 'AN GIANG', 'ĐỒNG THÁP', 'VĨNH LONG',
-  'TRÀ VINH', 'BẾN TRE', 'TIỀN GIANG', 'LONG AN', 'TÂY NINH', 'NHA TRANG', 'KHÁNH HÒA',
-  'ĐÀ LẠT', 'PLEIKU', 'GIA LAI', 'KON TUM', 'PHÚ YÊN', 'ĐÀ NẴNG', 'NGHỆ AN', 'HÀ TĨNH',
-  'THANH HÓA', 'HÀ NỘI', 'HÀ GIANG', 'LÀO CAI', 'YÊN BÁI', 'SƠN LA', 'CAO BẰNG', 'BẮC KẠN'
-];
+/**
+ * Tạo dữ liệu mặc định cho tờ rơi / poster theo tên cơ sở đang đăng nhập hoặc đang chọn
+ */
+export function getDefaultAddressData(storeName?: string): AddressFlyerData {
+  const cleanStore = (storeName || '').trim();
+  const title = cleanStore || 'ĐIỆN MÁY XANH';
+  const cleanTitle = resolveAddressFlyerFooterTitle(title, undefined, cleanStore);
+  return {
+    ...DEFAULT_ADDRESS_DATA,
+    headerTitle: cleanTitle,
+    footerTitle: cleanTitle,
+    eventTimeLocation: cleanStore ? `Ngày 28/03 đến ${cleanStore}` : 'Ngày 28/03 đến ĐIỆN MÁY XANH',
+  };
+}
 
 /**
- * Trích xuất tên Tỉnh/Thành hoặc địa phương từ chuỗi tiêu đề siêu thị hoặc địa chỉ
+ * Trích xuất tên Tỉnh/Thành hoặc địa phương từ chuỗi (chỉ dùng khi cần phân tích, KHÔNG tự động ép vào tên siêu thị)
  */
 export function extractProvinceOrLocation(text?: string): string {
   if (!text) return '';
   const clean = text.trim();
 
-  // 1. Phân tách theo dấu gạch ngang: "ĐIỆN MÁY XANH PHƯỜNG 8 - BẠC LIÊU" -> "BẠC LIÊU"
+  // 1. Phân tách theo dấu gạch ngang
   const dashMatch = clean.match(/[-–—]\s*([^–—\-]+)$/);
   if (dashMatch && dashMatch[1].trim()) {
     const candidate = dashMatch[1].trim().replace(/[().,]+$/g, '').trim();
     if (candidate) return candidate.toUpperCase();
   }
 
-  // 2. Phân tách theo dấu phẩy cuối câu: "ĐIỆN MÁY XANH PHƯỜNG 8, BẠC LIÊU" -> "BẠC LIÊU"
+  // 2. Phân tách theo dấu phẩy cuối câu
   const commaMatch = clean.match(/,\s*([^,()]+)$/);
   if (commaMatch && commaMatch[1].trim()) {
     const candidate = commaMatch[1].trim().replace(/[().,]+$/g, '').trim();
     if (candidate) return candidate.toUpperCase();
   }
 
-  // 3. Tra cứu từ danh sách tỉnh thành Việt Nam
-  const upper = clean.toUpperCase();
-  for (const prov of VIETNAM_PROVINCES) {
-    if (upper.includes(prov)) {
-      return prov;
-    }
-  }
-
   return '';
 }
 
 /**
- * Tự động tính toán dòng tiêu đề khung cuối tờ rơi (footerTitle).
- * Đảm bảo từ địa danh (ví dụ CÀ MAU) luôn thay đổi theo dòng ở trên (headerTitle/headerSubtitle).
- * Ví dụ:
- * - headerTitle: "ĐIỆN MÁY XANH PHƯỜNG 8 - BẠC LIÊU" -> "ĐIỆN MÁY XANH PHƯỜNG 8 - BẠC LIÊU"
- * - headerTitle: "ĐIỆN MÁY XANH HỘ PHÒNG - BẠC LIÊU" -> "ĐIỆN MÁY XANH HỘ PHÒNG - BẠC LIÊU"
- * - headerTitle: "PHƯỜNG 8 - BẠC LIÊU" -> "ĐIỆN MÁY XANH PHƯỜNG 8 - BẠC LIÊU"
- * - headerTitle: "ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU" -> "ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU"
+ * Tự động xác định tên siêu thị hiển thị tại Dòng 1 chân trang của poster:
+ * - Lấy trực tiếp từ tên siêu thị cấu hình (hoặc headerTitle người dùng nhập).
+ * - TUYỆT ĐỐI KHÔNG tự động nối thêm hậu tố "- CÀ MAU" hoặc tỉnh/thành.
+ * - Tự động loại bỏ hậu tố "- CÀ MAU" nếu dữ liệu cũ vô tình bị nối sai trong khi tên cấu hình không có Cà Mau.
+ * - Chuẩn hóa tiền tố "ĐIỆN MÁY XANH" nếu người dùng chỉ nhập tên chi nhánh (ví dụ: "AN BIÊN" -> "ĐIỆN MÁY XANH AN BIÊN").
  */
 export function resolveAddressFlyerFooterTitle(
   headerTitle?: string,
-  headerSubtitle?: string,
-  explicitFooterTitle?: string
+  explicitFooterTitle?: string,
+  configuredStoreName?: string
 ): string {
-  const rawHeader = (headerTitle || '').trim();
+  // 1. Xác định tên gốc: ưu tiên headerTitle, kế đến configuredStoreName
+  const rawBase = (headerTitle || configuredStoreName || '').trim();
   const trimmedExplicit = (explicitFooterTitle || '').trim();
 
-  // Kiểm tra nếu explicitFooterTitle là giá trị mặc định cũ hoặc bị lỗi lặp
-  const isStaleDefault =
+  // Nhận diện dữ liệu cũ bị nối sai "- CÀ MAU" từ phiên bản trước
+  const isStaleCorrupted =
     !trimmedExplicit ||
     trimmedExplicit === 'ĐIỆN MÁY XANH PHƯỜNG 8 CÀ MAU' ||
-    trimmedExplicit === 'ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU' ||
     trimmedExplicit.endsWith(' - CÀ MAU - CÀ MAU') ||
     trimmedExplicit.includes(' - BẠC LIÊU - CÀ MAU') ||
-    trimmedExplicit.includes(' - SÓC TRĂNG - CÀ MAU');
+    trimmedExplicit.includes(' - SÓC TRĂNG - CÀ MAU') ||
+    (rawBase && !rawBase.toUpperCase().includes('CÀ MAU') && trimmedExplicit.toUpperCase().endsWith(' - CÀ MAU'));
 
-  // Nếu người dùng đã nhập một footerTitle tùy biến hợp lệ
-  if (trimmedExplicit && !isStaleDefault) {
-    const headerLoc = extractProvinceOrLocation(rawHeader);
-    const explicitLoc = extractProvinceOrLocation(trimmedExplicit);
-
-    // Nếu dòng ở trên có địa danh khác với footer cũ (VD: người dùng đổi tên siêu thị ở trên từ Cà Mau sang Bạc Liêu),
-    // ta ưu tiên đồng bộ theo dòng ở trên:
-    if (headerLoc && explicitLoc && headerLoc !== explicitLoc) {
-      // Cho phép rơi xuống logic bên dưới để cập nhật địa danh theo dòng ở trên
-    } else {
-      return trimmedExplicit.toUpperCase();
-    }
+  // Nếu người dùng chủ động sửa footerTitle trên form và không phải là chuỗi lỗi cũ
+  if (trimmedExplicit && !isStaleCorrupted) {
+    return trimmedExplicit.toUpperCase();
   }
 
-  // 1. Nếu dòng ở trên (headerTitle) có dấu gạch ngang phân cách chi nhánh và tỉnh/thành:
-  if (rawHeader) {
-    const dashMatch = rawHeader.match(/^(.*?)\s*[-–—]\s*(.+)$/);
-    if (dashMatch) {
-      let branchPart = dashMatch[1].trim();
-      const locationPart = dashMatch[2].trim().toUpperCase();
-
-      // Đảm bảo tiền tố "ĐIỆN MÁY XANH "
-      if (/^ĐMX\s+/i.test(branchPart)) {
-        branchPart = branchPart.replace(/^ĐMX\s+/i, 'ĐIỆN MÁY XANH ');
-      } else if (!/^ĐIỆN\s+MÁY\s+XANH/i.test(branchPart)) {
-        branchPart = `ĐIỆN MÁY XANH ${branchPart}`;
-      }
-      return `${branchPart.toUpperCase()} - ${locationPart}`;
-    }
+  if (!rawBase) {
+    return 'ĐIỆN MÁY XANH';
   }
 
-  // 2. Trích xuất địa danh từ headerTitle hoặc headerSubtitle
-  const locationFromHeader = extractProvinceOrLocation(rawHeader);
-  const locationFromSubtitle = extractProvinceOrLocation(headerSubtitle);
-  const detectedLocation = (locationFromHeader || locationFromSubtitle || 'CÀ MAU').toUpperCase();
-
-  // Chuẩn hóa tên siêu thị
-  let branch = rawHeader || 'ĐIỆN MÁY XANH PHƯỜNG 8';
-  if (/^ĐMX\s+/i.test(branch)) {
-    branch = branch.replace(/^ĐMX\s+/i, 'ĐIỆN MÁY XANH ');
-  } else if (!/^ĐIỆN\s+MÁY\s+XANH/i.test(branch)) {
-    branch = `ĐIỆN MÁY XANH ${branch}`;
-  }
-  branch = branch.toUpperCase().replace(/\s*[-–—]\s*$/, '').trim();
-
-  // Nếu tên siêu thị đã kết thúc bằng chính địa danh đó (VD: "ĐIỆN MÁY XANH BẠC LIÊU")
-  if (branch.endsWith(detectedLocation)) {
-    return branch;
+  // Chuẩn hóa tiền tố ĐIỆN MÁY XANH
+  let cleanName = rawBase;
+  if (/^ĐMX\s+/i.test(cleanName)) {
+    cleanName = cleanName.replace(/^ĐMX\s+/i, 'ĐIỆN MÁY XANH ');
+  } else if (!/^ĐIỆN\s+MÁY\s+XANH/i.test(cleanName)) {
+    cleanName = `ĐIỆN MÁY XANH ${cleanName}`;
   }
 
-  return `${branch} - ${detectedLocation}`;
+  // Tẩy sạch "- CÀ MAU" nếu cơ sở này không có chữ Cà Mau trong cấu hình gốc
+  if (configuredStoreName && !configuredStoreName.toUpperCase().includes('CÀ MAU')) {
+    cleanName = cleanName.replace(/\s*[-–—]\s*CÀ\s*MAU$/i, '').trim();
+  } else if (!rawBase.toUpperCase().includes('CÀ MAU')) {
+    cleanName = cleanName.replace(/\s*[-–—]\s*CÀ\s*MAU$/i, '').trim();
+  }
+
+  // Loại bỏ dấu gạch ngang thừa ở cuối (nếu có)
+  cleanName = cleanName.replace(/\s*[-–—]\s*$/, '').trim();
+
+  return cleanName.toUpperCase();
 }
 
-export function normalizeAddressFlyerData(raw?: Partial<AddressFlyerData> | null): AddressFlyerData {
-  if (!raw || typeof raw !== 'object') return { ...DEFAULT_ADDRESS_DATA };
+/**
+ * Chuẩn hóa dữ liệu tờ rơi khi tải từ DB / LocalStorage
+ */
+export function normalizeAddressFlyerData(
+  raw?: Partial<AddressFlyerData> | null,
+  configuredStoreName?: string
+): AddressFlyerData {
+  const fallback = getDefaultAddressData(configuredStoreName);
+  if (!raw || typeof raw !== 'object') return { ...fallback };
+
   const merged: AddressFlyerData = {
-    ...DEFAULT_ADDRESS_DATA,
+    ...fallback,
     ...raw,
   };
+
+  // Nếu headerTitle rỗng hoặc là giá trị mặc định của siêu thị khác trong khi đã có tên siêu thị cụ thể
+  if (
+    configuredStoreName &&
+    (!merged.headerTitle ||
+      merged.headerTitle === 'ĐIỆN MÁY XANH' ||
+      merged.headerTitle === 'ĐIỆN MÁY XANH PHƯỜNG 8' ||
+      merged.headerTitle === 'ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU')
+  ) {
+    merged.headerTitle = configuredStoreName;
+  }
+
+  // Tẩy sạch hậu tố - CÀ MAU nếu siêu thị không thuộc Cà Mau mà bị lưu nhầm từ bản trước
+  if (
+    configuredStoreName &&
+    !configuredStoreName.toUpperCase().includes('CÀ MAU') &&
+    merged.headerTitle.toUpperCase().endsWith(' - CÀ MAU')
+  ) {
+    merged.headerTitle = merged.headerTitle.replace(/\s*[-–—]\s*CÀ\s*MAU$/i, '').trim();
+  }
+
   if (merged.categoriesLine2 === 'TIVI - TỦ LẠNH - MÁY GIẶT- MÁY LỌC NƯỚC') {
     merged.categoriesLine2 = 'TIVI - TỦ LẠNH - MÁY GIẶT - MÁY LỌC NƯỚC';
-  }
-  if (merged.footerTitle === 'ĐIỆN MÁY XANH PHƯỜNG 8 CÀ MAU') {
-    merged.footerTitle = 'ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU';
   }
   if (merged.footerLine1 === 'CAM KẾT GIÁ RẺ NHẤT THỊ TRƯỜNG CÀ MAU') {
     merged.footerLine1 = 'CAM KẾT GIÁ RẺ - HÀNG CHÍNH HÃNG';
@@ -192,11 +188,11 @@ export function normalizeAddressFlyerData(raw?: Partial<AddressFlyerData> | null
     merged.footerLine2 = 'GIAO HÀNG NHANH - HỖ TRỢ TẬN NHÀ';
   }
 
-  // Tự động giải quyết footerTitle theo dòng ở trên nếu chưa được tùy biến riêng
+  // Luôn đồng bộ footerTitle chuẩn xác theo tên siêu thị, không tự động nối thêm tỉnh/thành hay - CÀ MAU
   merged.footerTitle = resolveAddressFlyerFooterTitle(
     merged.headerTitle,
-    merged.headerSubtitle,
-    merged.footerTitle
+    merged.footerTitle,
+    configuredStoreName
   );
 
   return merged;

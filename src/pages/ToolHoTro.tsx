@@ -31,7 +31,7 @@ import BbkqTab from '../components/BbkqTab';
 import GvgsEfficiencyReportTable from './RTST/components/GvgsEfficiencyReportTable';
 
 import { STORAGE_KEYS } from './RTST/types';
-import { normalizeStoreId } from './RTST/utils';
+import { normalizeStoreId, isValidStoreName } from './RTST/utils';
 import { useStore } from '../contexts/StoreContext';
 import type { AddressFlyerData } from '../utils/addressFlyerUtil';
 import {
@@ -39,7 +39,8 @@ import {
   ADDRESS_CATEGORY_OPTIONS,
   resolveAddressFlyerFooterTitle,
   normalizeAddressFlyerData,
-  extractProvinceOrLocation
+  extractProvinceOrLocation,
+  getDefaultAddressData
 } from '../utils/addressFlyerUtil';
 export type { AddressFlyerData };
 export {
@@ -47,7 +48,8 @@ export {
   ADDRESS_CATEGORY_OPTIONS,
   resolveAddressFlyerFooterTitle,
   normalizeAddressFlyerData,
-  extractProvinceOrLocation
+  extractProvinceOrLocation,
+  getDefaultAddressData
 };
 
 export interface PhieuBHData {
@@ -96,17 +98,26 @@ export function renderLineWithBold(text: string) {
   });
 }
 
-export function AddressFlyerPreview({ item, variant = 'preview' }: { item: AddressFlyerData; variant?: 'preview' | 'print' }) {
+export function AddressFlyerPreview({
+  item,
+  variant = 'preview',
+  storeName,
+}: {
+  item: AddressFlyerData;
+  variant?: 'preview' | 'print';
+  storeName?: string;
+}) {
   const isPrint = variant === 'print';
-  const rawHeader = (item.headerTitle || DEFAULT_ADDRESS_DATA.headerTitle).trim();
+  const effectiveStore = (item.storeName || storeName || '').trim();
+  const rawHeader = (item.headerTitle || effectiveStore || 'ĐIỆN MÁY XANH').trim();
   const dmxPrefixMatch = rawHeader.match(/^(ĐIỆN\s+MÁY\s+XANH)\s+(.+)$/i);
 
   const rawEventDesc = (item.eventDescription || "tham gia sự kiện KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN").trim();
   const isDefaultEventDesc = rawEventDesc.toUpperCase() === "THAM GIA SỰ KIỆN KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN";
 
   const footerDisplayTitle = useMemo(() => {
-    return resolveAddressFlyerFooterTitle(item.headerTitle, item.headerSubtitle, item.footerTitle);
-  }, [item.footerTitle, item.headerTitle, item.headerSubtitle]);
+    return resolveAddressFlyerFooterTitle(item.headerTitle, item.footerTitle, effectiveStore);
+  }, [item.footerTitle, item.headerTitle, effectiveStore]);
 
   const headerFontSize = isPrint
     ? (rawHeader.length > 28 ? '16.5px' : '19.5px')
@@ -219,7 +230,7 @@ export function AddressFlyerPreview({ item, variant = 'preview' }: { item: Addre
             textTransform: 'uppercase',
           }}
         >
-          {item.eventTimeLocation || "Ngày 28/03 đến ĐMX PHƯỜNG 8"}
+          {item.eventTimeLocation || (effectiveStore ? `Ngày 28/03 đến ${effectiveStore}` : "Ngày 28/03 đến ĐIỆN MÁY XANH")}
         </div>
       </div>
 
@@ -558,8 +569,20 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   const activeTab = (activeToolHoTroTab === 'bbkq' ? 'all-sticker' : activeToolHoTroTab) || 'all-sticker';
   const setActiveTab = (tab: string) => setActiveToolHoTroTab(tab);
   const { showNotification } = useNotification();
-  
-  const [addressFlyerData, setAddressFlyerData] = useState<AddressFlyerData>(DEFAULT_ADDRESS_DATA);
+
+  const configuredStoreName = useMemo(() => {
+    if (currentStoreId && currentStoreId !== 'ALL' && isValidStoreName(currentStoreId)) {
+      return currentStoreId.trim();
+    }
+    if (userProfile?.ten_sieu_thi && isValidStoreName(userProfile.ten_sieu_thi)) {
+      return userProfile.ten_sieu_thi.trim();
+    }
+    return '';
+  }, [currentStoreId, userProfile?.ten_sieu_thi]);
+
+  const [addressFlyerData, setAddressFlyerData] = useState<AddressFlyerData>(() =>
+    getDefaultAddressData(configuredStoreName)
+  );
   const [addressPreviewMode, setAddressPreviewMode] = useState<'6' | '1'>('6');
   const [addressSingleZoom, setAddressSingleZoom] = useState<number>(1.25);
   const [isAddressGuideOpen, setIsAddressGuideOpen] = useState<boolean>(false);
@@ -638,7 +661,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   };
 
   const handleResetAddressContent = () => {
-    setAddressFlyerData({ ...DEFAULT_ADDRESS_DATA });
+    setAddressFlyerData(getDefaultAddressData(configuredStoreName));
     setIsCustomCategoryChecked(false);
     setCustomCategoryText('');
     showNotification('Đã đặt lại nội dung tờ rơi về mặc định!', 'success');
@@ -1787,32 +1810,43 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     }
   }, [activeTab]);
 
+  const getStoreAddressStorageKey = (stName?: string) => {
+    const s = (stName || configuredStoreName || '').trim();
+    return s ? `${STORAGE_KEYS.STICKER_ADDRESS_DATA}_${normalizeStoreId(s)}` : STORAGE_KEYS.STICKER_ADDRESS_DATA;
+  };
+
   const loadAddressFromLocalStorage = () => {
-    const saved = localStorage.getItem(STORAGE_KEYS.STICKER_ADDRESS_DATA);
+    const key = getStoreAddressStorageKey();
+    const saved = localStorage.getItem(key) || localStorage.getItem(STORAGE_KEYS.STICKER_ADDRESS_DATA);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setAddressFlyerData(normalizeAddressFlyerData(parsed));
+        setAddressFlyerData(normalizeAddressFlyerData(parsed, configuredStoreName));
       } catch (e) {
-        setAddressFlyerData({ ...DEFAULT_ADDRESS_DATA });
+        setAddressFlyerData(getDefaultAddressData(configuredStoreName));
       }
     } else {
-      setAddressFlyerData({ ...DEFAULT_ADDRESS_DATA });
+      setAddressFlyerData(getDefaultAddressData(configuredStoreName));
     }
   };
 
   const saveAddressConfig = async () => {
     setIsSaving(true);
     try {
-      safeLocalStorageSet(STORAGE_KEYS.STICKER_ADDRESS_DATA, JSON.stringify(addressFlyerData));
-      const storeName = currentStoreId !== 'ALL' ? currentStoreId : '';
+      const dataToSave = {
+        ...addressFlyerData,
+        storeName: configuredStoreName || addressFlyerData.storeName || ''
+      };
+      safeLocalStorageSet(getStoreAddressStorageKey(), JSON.stringify(dataToSave));
+      safeLocalStorageSet(STORAGE_KEYS.STICKER_ADDRESS_DATA, JSON.stringify(dataToSave));
+      const storeName = (currentStoreId !== 'ALL' ? currentStoreId : configuredStoreName) || '';
       if (storeName) {
         const cleanStoreCode = maKho.replace(/^0+/, '');
         const record = {
           id: normalizeStoreId(storeName),
           warehouse_code: cleanStoreCode,
           ten_sieu_thi: storeName,
-          in_dia_chi_data: JSON.stringify(addressFlyerData)
+          in_dia_chi_data: JSON.stringify(dataToSave)
         };
         const { error } = await supabase.from('store').upsert(record, { onConflict: 'id' });
         if (error) {
@@ -1880,7 +1914,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   // Fetch address and warranty configurations when activeTab or currentStoreId changes
   useEffect(() => {
     if (activeTab === 'in-dia-chi') {
-      const storeName = currentStoreId !== 'ALL' ? currentStoreId : '';
+      const storeName = (currentStoreId !== 'ALL' ? currentStoreId : configuredStoreName) || '';
       if (storeName) {
         (async () => {
           try {
@@ -1899,11 +1933,12 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 const parsed = typeof data.in_dia_chi_data === 'string'
                   ? JSON.parse(data.in_dia_chi_data)
                   : data.in_dia_chi_data;
-                const normalized = normalizeAddressFlyerData(parsed);
+                const normalized = normalizeAddressFlyerData(parsed, configuredStoreName);
                 setAddressFlyerData(normalized);
-                safeLocalStorageSet(STORAGE_KEYS.STICKER_ADDRESS_DATA, JSON.stringify(normalized));
+                safeLocalStorageSet(getStoreAddressStorageKey(storeName), JSON.stringify(normalized));
               } catch (e) {
                 console.error('Error parsing DB address data:', e);
+                loadAddressFromLocalStorage();
               }
             } else {
               loadAddressFromLocalStorage();
@@ -1988,7 +2023,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         setInventoryData([]);
       }
     }
-  }, [activeTab, currentStoreId]);
+  }, [activeTab, currentStoreId, configuredStoreName]);
 
   const fetchInventoryData = async () => {
     // Disabled database fetching as per user request
@@ -7470,7 +7505,8 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               setAddressFlyerData(prev => {
                                 const nextFooterTitle = resolveAddressFlyerFooterTitle(
                                   newHeaderTitle,
-                                  prev.headerSubtitle
+                                  undefined,
+                                  configuredStoreName
                                 );
                                 return {
                                   ...prev,
@@ -7479,7 +7515,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                 };
                               });
                             }}
-                            placeholder="ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU"
+                            placeholder={configuredStoreName || "ĐIỆN MÁY XANH AN BIÊN"}
                             className="w-full h-[40px] bg-white border border-[#cbd5e1] rounded-[9px] px-3.5 text-[13.5px] font-medium text-[#0f172a] focus:outline-none focus:border-[#0b63f3] focus:ring-2 focus:ring-[#0b63f3]/15 transition-all"
                           />
                         </div>
@@ -7495,10 +7531,6 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               setAddressFlyerData(prev => ({
                                 ...prev,
                                 headerSubtitle: newSubtitle,
-                                footerTitle: resolveAddressFlyerFooterTitle(
-                                  prev.headerTitle,
-                                  newSubtitle
-                                ),
                               }));
                             }}
                             placeholder="(Ngã tư đèn xanh đèn đỏ đường Nguyễn Tất Thành)"
@@ -7523,7 +7555,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                 footerTitle: e.target.value,
                               }))
                             }
-                            placeholder="ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU"
+                            placeholder={configuredStoreName || "ĐIỆN MÁY XANH AN BIÊN"}
                             className="w-full h-[40px] bg-white border border-[#cbd5e1] rounded-[9px] px-3.5 text-[13.5px] font-medium text-[#0f172a] focus:outline-none focus:border-[#0b63f3] focus:ring-2 focus:ring-[#0b63f3]/15 transition-all"
                           />
                         </div>
@@ -7601,7 +7633,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               type="text"
                               value={addressFlyerData.eventTimeLocation}
                               onChange={e => setAddressFlyerData({ ...addressFlyerData, eventTimeLocation: e.target.value })}
-                              placeholder="Ngày 28/03 đến ĐMX PHƯỜNG 8"
+                              placeholder={configuredStoreName ? `Ngày 28/03 đến ${configuredStoreName}` : "Ngày 28/03 đến ĐIỆN MÁY XANH AN BIÊN"}
                               className="w-full h-[40px] bg-white border border-[#cbd5e1] rounded-[9px] pl-9 pr-3.5 text-[13.5px] font-medium text-[#0f172a] focus:outline-none focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/15 transition-all"
                             />
                           </div>
@@ -7862,7 +7894,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                     boxSizing: 'border-box',
                                   }}
                                 >
-                                  <AddressFlyerPreview item={addressFlyerData} variant="preview" />
+                                  <AddressFlyerPreview item={addressFlyerData} variant="preview" storeName={configuredStoreName} />
                                 </div>
                               );
                             })}
@@ -7910,7 +7942,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                 left: 0,
                               }}
                             >
-                              <AddressFlyerPreview item={addressFlyerData} variant="preview" />
+                              <AddressFlyerPreview item={addressFlyerData} variant="preview" storeName={configuredStoreName} />
                             </div>
                           </div>
                         </div>
@@ -8063,7 +8095,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             backgroundColor: '#ffffff',
                           }}
                         >
-                          <AddressFlyerPreview item={addressFlyerData} variant="print" />
+                          <AddressFlyerPreview item={addressFlyerData} variant="print" storeName={configuredStoreName} />
                         </div>
                       ))}
                     </div>
@@ -8343,7 +8375,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           activeTab === 'sticker-dcnb'
             ? Array(24).fill({})
             : activeTab === 'in-dia-chi'
-              ? Array(6).fill(addressFlyerData)
+              ? Array(6).fill({ ...addressFlyerData, storeName: configuredStoreName })
               : activeTab === 'in-phieu-bh'
                 ? (phieuBhPrintLayout === 'right' ? [null, phieuBhData] : Array(parseInt(phieuBhPrintLayout || '2')).fill(phieuBhData))
                 : activeTab === 'sticker-dong-gia-100k'
