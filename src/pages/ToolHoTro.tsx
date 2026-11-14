@@ -33,27 +33,22 @@ import GvgsEfficiencyReportTable from './RTST/components/GvgsEfficiencyReportTab
 import { STORAGE_KEYS } from './RTST/types';
 import { normalizeStoreId } from './RTST/utils';
 import { useStore } from '../contexts/StoreContext';
-
-export interface AddressFlyerData {
-  headerTitle: string;
-  headerSubtitle: string;
-  invitationTitle: string;
-  invitationTarget: string;
-  eventTimeLocation: string;
-  eventDescription: string;
-  discountPercentage: string;
-  duration: string;
-  categoriesLine1: string;
-  categoriesLine2: string;
-  categoriesLine3: string;
-  specialOffer: string;
-  paymentTerm: string;
-  footerTitle: string;
-  footerLine1: string;
-  footerLine2: string;
-  footerLine3: string;
-  footerLine4: string;
-}
+import type { AddressFlyerData } from '../utils/addressFlyerUtil';
+import {
+  DEFAULT_ADDRESS_DATA,
+  ADDRESS_CATEGORY_OPTIONS,
+  resolveAddressFlyerFooterTitle,
+  normalizeAddressFlyerData,
+  extractProvinceOrLocation
+} from '../utils/addressFlyerUtil';
+export type { AddressFlyerData };
+export {
+  DEFAULT_ADDRESS_DATA,
+  ADDRESS_CATEGORY_OPTIONS,
+  resolveAddressFlyerFooterTitle,
+  normalizeAddressFlyerData,
+  extractProvinceOrLocation
+};
 
 export interface PhieuBHData {
   tenSieuThi: string;
@@ -91,59 +86,6 @@ export const DEFAULT_PHIEU_BH: PhieuBHData = {
   row7Text: ""
 };
 
-export const DEFAULT_ADDRESS_DATA: AddressFlyerData = {
-  headerTitle: "ĐIỆN MÁY XANH PHƯỜNG 8",
-  headerSubtitle: "(Ngã tư đèn xanh đèn đỏ đường Nguyễn Tất Thành)",
-  invitationTitle: "THƯ MỜI, THỨ 7 TUẦN NÀY",
-  invitationTarget: "Kính mời: Quý Khách Hàng thân yêu",
-  eventTimeLocation: "Ngày 28/03 đến ĐMX PHƯỜNG 8",
-  eventDescription: "tham gia sự kiện KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN",
-  discountPercentage: "50%",
-  duration: "1 NGÀY DUY NHẤT 28/03",
-  categoriesLine1: "ĐIỆN THOẠI & LAPTOP",
-  categoriesLine2: "TIVI - TỦ LẠNH - MÁY GIẶT - MÁY LỌC NƯỚC",
-  categoriesLine3: "MÁY LẠNH - QUẠT ĐIỀU HÒA",
-  specialOffer: "➔ RẺ HƠN CÁC ĐIỆN MÁY XANH KHÁC -10%",
-  paymentTerm: "MUA TRẢ CHẬM - 0% LÃI SUẤT - TRẢ TRƯỚC 0đ",
-  footerTitle: "ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU",
-  footerLine1: "CAM KẾT GIÁ RẺ - HÀNG CHÍNH HÃNG",
-  footerLine2: "GIAO HÀNG NHANH - HỖ TRỢ TẬN NHÀ",
-  footerLine3: "NHIỀU SẢN PHẨM GIÁ SỐC BÊN DƯỚI ⬇",
-  footerLine4: "Được giảm thêm 10%"
-};
-
-export const ADDRESS_CATEGORY_OPTIONS = [
-  { id: 'cat_phone_laptop', label: 'ĐIỆN THOẠI & LAPTOP', value: 'ĐIỆN THOẠI & LAPTOP' },
-  { id: 'cat_tv_fridge', label: 'TIVI - TỦ LẠNH', value: 'TIVI - TỦ LẠNH' },
-  { id: 'cat_washer_water', label: 'MÁY GIẶT - MÁY LỌC NƯỚC', value: 'MÁY GIẶT - MÁY LỌC NƯỚC' },
-  { id: 'cat_ac_fan', label: 'MÁY LẠNH - QUẠT ĐIỀU HÒA', value: 'MÁY LẠNH - QUẠT ĐIỀU HÒA' },
-  { id: 'cat_appliances', label: 'GIA DỤNG - NHÀ BẾP', value: 'GIA DỤNG - NHÀ BẾP' },
-];
-
-export function normalizeAddressFlyerData(raw?: Partial<AddressFlyerData> | null): AddressFlyerData {
-  if (!raw || typeof raw !== 'object') return { ...DEFAULT_ADDRESS_DATA };
-  const merged: AddressFlyerData = {
-    ...DEFAULT_ADDRESS_DATA,
-    ...raw,
-  };
-  if (merged.categoriesLine2 === 'TIVI - TỦ LẠNH - MÁY GIẶT- MÁY LỌC NƯỚC') {
-    merged.categoriesLine2 = 'TIVI - TỦ LẠNH - MÁY GIẶT - MÁY LỌC NƯỚC';
-  }
-  if (merged.categoriesLine3 === 'MÁY LẠNH – QUẠT ĐIỀU HÒA') {
-    merged.categoriesLine3 = 'MÁY LẠNH - QUẠT ĐIỀU HÒA';
-  }
-  if (merged.footerTitle === 'ĐIỆN MÁY XANH PHƯỜNG 8 CÀ MAU') {
-    merged.footerTitle = 'ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU';
-  }
-  if (merged.footerLine1 === 'CAM KẾT GIÁ RẺ NHẤT THỊ TRƯỜNG CÀ MAU') {
-    merged.footerLine1 = 'CAM KẾT GIÁ RẺ - HÀNG CHÍNH HÃNG';
-  }
-  if (merged.footerLine2 === 'BAO GIÁ HOÀN TIỀN NẾU ĐÂU RẺ HƠN') {
-    merged.footerLine2 = 'GIAO HÀNG NHANH - HỖ TRỢ TẬN NHÀ';
-  }
-  return merged;
-}
-
 export function renderLineWithBold(text: string) {
   if (!text) return "";
   const regex = /(\(HÃNG SẼ THẨM ĐỊNH VÀ ĐỔI MỚI SAU KHI CÓ BIÊN BẢN XÁC NHẬN LỖI\)|Không lỗi|Lỗi|TRỪ \d+%|THÊM \d+%|1900\.23\.24\.65|Tổng đài bảo hành: 1900\.23\.24\.65)/g;
@@ -156,22 +98,23 @@ export function renderLineWithBold(text: string) {
 
 export function AddressFlyerPreview({ item, variant = 'preview' }: { item: AddressFlyerData; variant?: 'preview' | 'print' }) {
   const isPrint = variant === 'print';
-  const rawHeader = (item.headerTitle || "ĐIỆN MÁY XANH PHƯỜNG 8").trim();
+  const rawHeader = (item.headerTitle || DEFAULT_ADDRESS_DATA.headerTitle).trim();
   const dmxPrefixMatch = rawHeader.match(/^(ĐIỆN\s+MÁY\s+XANH)\s+(.+)$/i);
 
   const rawEventDesc = (item.eventDescription || "tham gia sự kiện KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN").trim();
   const isDefaultEventDesc = rawEventDesc.toUpperCase() === "THAM GIA SỰ KIỆN KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN";
 
   const footerDisplayTitle = useMemo(() => {
-    if (item.footerTitle && item.footerTitle !== "ĐIỆN MÁY XANH PHƯỜNG 8 CÀ MAU" && item.footerTitle !== "ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU") {
-      return item.footerTitle;
-    }
-    const baseHeader = (item.headerTitle || "ĐIỆN MÁY XANH PHƯỜNG 8").trim();
-    if (baseHeader.toUpperCase().includes("CÀ MAU")) {
-      return baseHeader;
-    }
-    return `${baseHeader} - CÀ MAU`;
-  }, [item.footerTitle, item.headerTitle]);
+    return resolveAddressFlyerFooterTitle(item.headerTitle, item.headerSubtitle, item.footerTitle);
+  }, [item.footerTitle, item.headerTitle, item.headerSubtitle]);
+
+  const headerFontSize = isPrint
+    ? (rawHeader.length > 28 ? '16.5px' : '19.5px')
+    : (rawHeader.length > 28 ? '13.5px' : '16px');
+
+  const footerFontSize = isPrint
+    ? (footerDisplayTitle.length > 32 ? '9.2px' : '10.4px')
+    : (footerDisplayTitle.length > 32 ? '7.8px' : '8.8px');
 
   return (
     <div
@@ -193,7 +136,7 @@ export function AddressFlyerPreview({ item, variant = 'preview' }: { item: Addre
         <div
           style={{
             fontWeight: 900,
-            fontSize: isPrint ? '19.5px' : '16px',
+            fontSize: headerFontSize,
             lineHeight: 1.08,
             letterSpacing: '-0.02em',
             textTransform: 'uppercase',
@@ -394,7 +337,7 @@ export function AddressFlyerPreview({ item, variant = 'preview' }: { item: Addre
         <div
           style={{
             fontWeight: 900,
-            fontSize: isPrint ? '10.4px' : '8.8px',
+            fontSize: footerFontSize,
             lineHeight: 1.18,
             letterSpacing: '-0.01em',
             textTransform: 'uppercase',
@@ -7525,30 +7468,18 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             onChange={e => {
                               const newHeaderTitle = e.target.value;
                               setAddressFlyerData(prev => {
-                                const oldAutoFooter = prev.headerTitle
-                                  ? (prev.headerTitle.toUpperCase().includes('CÀ MAU')
-                                      ? prev.headerTitle
-                                      : `${prev.headerTitle} - CÀ MAU`)
-                                  : DEFAULT_ADDRESS_DATA.footerTitle;
-                                const shouldSyncFooter =
-                                  !prev.footerTitle ||
-                                  prev.footerTitle === DEFAULT_ADDRESS_DATA.footerTitle ||
-                                  prev.footerTitle === 'ĐIỆN MÁY XANH PHƯỜNG 8 CÀ MAU' ||
-                                  prev.footerTitle.toUpperCase() === oldAutoFooter.toUpperCase();
+                                const nextFooterTitle = resolveAddressFlyerFooterTitle(
+                                  newHeaderTitle,
+                                  prev.headerSubtitle
+                                );
                                 return {
                                   ...prev,
                                   headerTitle: newHeaderTitle,
-                                  footerTitle: shouldSyncFooter
-                                    ? (newHeaderTitle.trim()
-                                        ? (newHeaderTitle.toUpperCase().includes('CÀ MAU')
-                                            ? newHeaderTitle
-                                            : `${newHeaderTitle} - CÀ MAU`)
-                                        : DEFAULT_ADDRESS_DATA.footerTitle)
-                                    : prev.footerTitle,
+                                  footerTitle: nextFooterTitle,
                                 };
                               });
                             }}
-                            placeholder="ĐIỆN MÁY XANH PHƯỜNG 8"
+                            placeholder="ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU"
                             className="w-full h-[40px] bg-white border border-[#cbd5e1] rounded-[9px] px-3.5 text-[13.5px] font-medium text-[#0f172a] focus:outline-none focus:border-[#0b63f3] focus:ring-2 focus:ring-[#0b63f3]/15 transition-all"
                           />
                         </div>
@@ -7559,8 +7490,40 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                           <input
                             type="text"
                             value={addressFlyerData.headerSubtitle}
-                            onChange={e => setAddressFlyerData({ ...addressFlyerData, headerSubtitle: e.target.value })}
+                            onChange={e => {
+                              const newSubtitle = e.target.value;
+                              setAddressFlyerData(prev => ({
+                                ...prev,
+                                headerSubtitle: newSubtitle,
+                                footerTitle: resolveAddressFlyerFooterTitle(
+                                  prev.headerTitle,
+                                  newSubtitle
+                                ),
+                              }));
+                            }}
                             placeholder="(Ngã tư đèn xanh đèn đỏ đường Nguyễn Tất Thành)"
+                            className="w-full h-[40px] bg-white border border-[#cbd5e1] rounded-[9px] px-3.5 text-[13.5px] font-medium text-[#0f172a] focus:outline-none focus:border-[#0b63f3] focus:ring-2 focus:ring-[#0b63f3]/15 transition-all"
+                          />
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-[12px] font-semibold text-[#334155]">
+                              Tiêu đề khung cuối tờ rơi
+                            </label>
+                            <span className="text-[10.5px] text-[#0b63f3] font-medium">
+                              (Tự động đổi theo dòng ở trên)
+                            </span>
+                          </div>
+                          <input
+                            type="text"
+                            value={addressFlyerData.footerTitle}
+                            onChange={e =>
+                              setAddressFlyerData(prev => ({
+                                ...prev,
+                                footerTitle: e.target.value,
+                              }))
+                            }
+                            placeholder="ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU"
                             className="w-full h-[40px] bg-white border border-[#cbd5e1] rounded-[9px] px-3.5 text-[13.5px] font-medium text-[#0f172a] focus:outline-none focus:border-[#0b63f3] focus:ring-2 focus:ring-[#0b63f3]/15 transition-all"
                           />
                         </div>

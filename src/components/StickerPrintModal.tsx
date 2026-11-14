@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import QRCode from 'react-qr-code';
 import { X, Printer, Smartphone, Share2, HelpCircle, ArrowLeft, Download, Check, Sparkles, RotateCw, FileText, Eye } from 'lucide-react';
+import { resolveAddressFlyerFooterTitle } from '../utils/addressFlyerUtil';
 
 interface StickerPrintModalProps {
   isOpen: boolean;
@@ -1249,21 +1250,20 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
   }
 
   if (style === 'address_flyer') {
-    const rawHeader = (item.headerTitle || 'ĐIỆN MÁY XANH PHƯỜNG 8').trim();
+    const rawHeader = (item.headerTitle || 'ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU').trim();
     const dmxPrefixMatch = rawHeader.match(/^(ĐIỆN\s+MÁY\s+XANH)\s+(.+)$/i);
 
     const rawEventDesc = (item.eventDescription || 'tham gia sự kiện KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN').trim();
     const isDefaultEventDesc = rawEventDesc.toUpperCase() === 'THAM GIA SỰ KIỆN KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN';
 
-    const baseHeader = (item.headerTitle || 'ĐIỆN MÁY XANH PHƯỜNG 8').trim();
-    const footerDisplayTitle =
-      item.footerTitle &&
-      item.footerTitle !== 'ĐIỆN MÁY XANH PHƯỜNG 8 CÀ MAU' &&
-      item.footerTitle !== 'ĐIỆN MÁY XANH PHƯỜNG 8 - CÀ MAU'
-        ? item.footerTitle
-        : baseHeader.toUpperCase().includes('CÀ MAU')
-          ? baseHeader
-          : `${baseHeader} - CÀ MAU`;
+    const footerDisplayTitle = resolveAddressFlyerFooterTitle(
+      item.headerTitle,
+      item.headerSubtitle,
+      item.footerTitle
+    );
+
+    const headerFontSize = rawHeader.length > 28 ? '16.5px' : '19.5px';
+    const footerFontSize = footerDisplayTitle.length > 32 ? '9.2px' : '10.4px';
 
     return (
       <div
@@ -1285,7 +1285,7 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
           <div
             style={{
               fontWeight: 900,
-              fontSize: '19.5px',
+              fontSize: headerFontSize,
               lineHeight: 1.08,
               letterSpacing: '-0.02em',
               textTransform: 'uppercase',
@@ -1486,7 +1486,7 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
           <div
             style={{
               fontWeight: 900,
-              fontSize: '10.4px',
+              fontSize: footerFontSize,
               lineHeight: 1.18,
               letterSpacing: '-0.01em',
               textTransform: 'uppercase',
