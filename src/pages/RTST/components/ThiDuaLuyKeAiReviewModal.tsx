@@ -421,7 +421,7 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
     if (field === 'hang_cty') {
       return val !== null && val !== undefined ? String(val) : '-';
     }
-    if (val === null || val === undefined) return '0';
+    if (val === null || val === undefined) return '';
     return String(val);
   };
 

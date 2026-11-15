@@ -559,6 +559,9 @@ export function disambiguateOcrNumberString(raw: string): OcrDisambiguatedNumber
 
   let text = raw.trim().replace(/[%₫đ]/gi, '').trim();
 
+  // Strip trailing & leading noise punctuation (dashes, quotes, bars, etc.)
+  text = text.replace(/[-–—:_~`'"ˆ|/\\]+$/, '').replace(/^[-–—:_~`'"ˆ|/\\]+/, '').trim();
+
   if (/^[+-]?[\d.,]+$/.test(text)) {
     return { cleanedText: text, isUncertain: false };
   }
@@ -588,7 +591,8 @@ export function disambiguateOcrNumberString(raw: string): OcrDisambiguatedNumber
       }
       return match;
     })
-    .replace(/[^0-9.,+-]/g, '');
+    .replace(/[^0-9.,+-]/g, '')
+    .replace(/[-–—+]+$/, ''); // Ensure no trailing sign
 
   return { cleanedText: replaced, isUncertain };
 }
@@ -1483,6 +1487,108 @@ export function mergeWordLists(existing: OcrWordCoord[], incoming: OcrWordCoord[
 }
 
 /**
+ * Robustly extracts numeric values from OCR word coordinates in a table cell.
+ * Filters out noise artifacts like "(", "ˆ", "|", "-", "—" and tests both
+ * combined strings and individual digit tokens.
+ */
+export function extractNumericValueFromWords(
+  words: OcrWordCoord[],
+  options: { isPercentage?: boolean; isIntegerRank?: boolean } = {}
+): { value: number | null; rawText: string; confidence: number; isUncertain: boolean } {
+  if (words.length === 0) {
+    return { value: null, rawText: '', confidence: 0, isUncertain: false };
+  }
+
+  // 1. Filter out pure non-alphanumeric noise tokens
+  const meaningfulWords = words.filter((w) => {
+    const t = w.text.trim();
+    if (!t) return false;
+    if (/^[()ˆ|—–_~`':;\\/\[\]{}*★•#+]+$/.test(t)) return false;
+    return true;
+  });
+
+  const targetWords = meaningfulWords.length > 0 ? meaningfulWords : words;
+  const rawText = targetWords.map((w) => w.text).join(' ').trim();
+  const avgConf = Math.round(targetWords.reduce((s, w) => s + w.conf, 0) / targetWords.length);
+
+  // 2. Try disambiguating and parsing the joined text
+  const cleanDisambig = disambiguateOcrNumberString(rawText);
+  const parsed = parseStrictBiNumber(cleanDisambig.cleanedText, options);
+  if (parsed.value !== null) {
+    return {
+      value: parsed.value,
+      rawText,
+      confidence: avgConf,
+      isUncertain: cleanDisambig.isUncertain || avgConf < 65,
+    };
+  }
+
+  // 3. Fallback: try individual words that contain digits
+  for (const w of targetWords) {
+    const wordClean = disambiguateOcrNumberString(w.text);
+    if (/\d/.test(wordClean.cleanedText)) {
+      const p = parseStrictBiNumber(wordClean.cleanedText, options);
+      if (p.value !== null) {
+        return {
+          value: p.value,
+          rawText: w.text,
+          confidence: Math.round(w.conf),
+          isUncertain: wordClean.isUncertain || w.conf < 65,
+        };
+      }
+    }
+  }
+
+  return { value: null, rawText, confidence: avgConf, isUncertain: true };
+}
+
+/**
+ * Specifically extracts a percentage value from progress bar or percentage column words.
+ * Avoids character contamination from bar graphic artifacts.
+ */
+export function extractPercentageFromBarWords(words: OcrWordCoord[]): {
+  value: number | null;
+  rawText: string;
+  confidence: number;
+} {
+  if (words.length === 0) return { value: null, rawText: '', confidence: 0 };
+
+  // 1. First search for explicit % attached to numbers
+  for (const w of words) {
+    const clean = w.text
+      .replace(')%', '0%')
+      .replace(')%.', '0%')
+      .replace('`', '')
+      .trim();
+    const match = clean.match(/(\d+[.,]?\d*)\s*%/);
+    if (match) {
+      const p = parseStrictBiNumber(match[1], { isPercentage: true });
+      if (p.value !== null) {
+        return { value: p.value, rawText: clean, confidence: Math.round(w.conf) };
+      }
+    }
+  }
+
+  // 2. Second pass: search for isolated number tokens on progress bar
+  for (const w of words) {
+    const clean = w.text
+      .replace(')%', '0%')
+      .replace(')%.', '0%')
+      .replace(/^[^\d]+/, '')
+      .replace(/[^\d.,]+$/, '')
+      .trim();
+    if (/^\d+[.,]?\d*$/.test(clean)) {
+      const p = parseStrictBiNumber(clean, { isPercentage: true });
+      if (p.value !== null) {
+        return { value: p.value, rawText: clean, confidence: Math.round(w.conf) };
+      }
+    }
+  }
+
+  return { value: null, rawText: words.map((w) => w.text).join(' '), confidence: 0 };
+}
+
+/**
  * Recognizes the BI table using Column-Strip Cropping:
  * 1. Reads Header area for Period, Store Name, and KPI Summary (39 CT).
  * 2. Crops 5 vertical column strips:
@@ -1661,25 +1767,9 @@ export async function recognizeBiColumnsGrid(
   }
 
   // 6. Cross-Column Row Anchor Clustering:
-  // Instead of relying strictly on Col 1, collect candidate row anchors from:
-  // - Col 1 (Program words)
-  // - Col 2 (TH) and Col 3 (Target) number pairs
-  // - Col 4 (Bar) and Col 5 (% Dự kiến) percentage pairs
-  const candidateCenters: number[] = [];
-  wordsProg.forEach((w) => candidateCenters.push(w.yCenter));
-  wordsTh.forEach((th) => {
-    const tgt = wordsTgt.find((t) => Math.abs(t.yCenter - th.yCenter) < 25);
-    if (tgt) candidateCenters.push((th.yCenter + tgt.yCenter) / 2);
-    else candidateCenters.push(th.yCenter);
-  });
-  wordsBar.forEach((bar) => {
-    const pct = wordsPct.find((p) => Math.abs(p.yCenter - bar.yCenter) < 25);
-    if (pct) candidateCenters.push((bar.yCenter + pct.yCenter) / 2);
-  });
-
-  candidateCenters.sort((a, b) => a - b);
-  const yTol = Math.max(18, Math.round(H * 0.0085)); // ~28px on 3458px image
-
+  // Col 1 (Program name) provides the primary vertical anchors for the 39 rows.
+  // Cluster words in Col 1 using true median yCenter to eliminate vertical drift.
+  const sortedProg = [...wordsProg].sort((a, b) => a.yCenter - b.yCenter);
   interface RowCluster {
     yCenter: number;
     top: number;
@@ -1688,31 +1778,44 @@ export async function recognizeBiColumnsGrid(
   }
   const rowClusters: RowCluster[] = [];
 
-  for (const yc of candidateCenters) {
-    let cluster = rowClusters.find((c) => Math.abs(c.yCenter - yc) < yTol);
-    if (!cluster) {
-      rowClusters.push({
-        yCenter: yc,
-        top: yc - 15,
-        bottom: yc + 15,
-        words: [],
-      });
-    } else {
-      cluster.yCenter = (cluster.yCenter + yc) / 2;
-      cluster.top = Math.min(cluster.top, yc - 15);
-      cluster.bottom = Math.max(cluster.bottom, yc + 15);
-    }
-  }
+  const yTol = Math.max(22, Math.round(H * 0.0095)); // ~32px on 3458px image
 
-  // Populate program words into row clusters
-  for (const w of wordsProg) {
+  for (const w of sortedProg) {
     let cluster = rowClusters.find((c) => Math.abs(c.yCenter - w.yCenter) < yTol);
-    if (cluster) {
+    if (!cluster) {
+      cluster = {
+        yCenter: w.yCenter,
+        top: w.top,
+        bottom: w.top + w.height,
+        words: [w],
+      };
+      rowClusters.push(cluster);
+    } else {
       cluster.words.push(w);
       cluster.top = Math.min(cluster.top, w.top);
       cluster.bottom = Math.max(cluster.bottom, w.top + w.height);
+      // Keep true median yCenter to prevent rolling average drift
+      const sortedY = cluster.words.map((x) => x.yCenter).sort((a, b) => a - b);
+      cluster.yCenter = sortedY[Math.floor(sortedY.length / 2)];
     }
   }
+
+  // Cross-column fallback: If Col 1 missed a row (e.g. faint text), detect aligned TH+TGT pairs
+  wordsTh.forEach((th) => {
+    const tgt = wordsTgt.find((t) => Math.abs(t.yCenter - th.yCenter) < 20);
+    if (tgt) {
+      const pairY = (th.yCenter + tgt.yCenter) / 2;
+      const nearCluster = rowClusters.find((c) => Math.abs(c.yCenter - pairY) < 45);
+      if (!nearCluster) {
+        rowClusters.push({
+          yCenter: pairY,
+          top: pairY - 18,
+          bottom: pairY + 18,
+          words: [],
+        });
+      }
+    }
+  });
 
   // Targeted Micro-Pass: If a cluster has data in other columns but Col 1 has < 3 characters
   for (const rc of rowClusters) {
@@ -1764,7 +1867,7 @@ export async function recognizeBiColumnsGrid(
   };
 
   // 7. For each row cluster, extract fields across the 6 columns
-  const yMatchWindow = Math.max(25, Math.round(H * 0.010)); // ~35px on 3458px image
+  const yMatchWindow = Math.max(34, Math.round(H * 0.011)); // ~38px on 3458px image
   const extractedRows: ThiDuaAiRow[] = [];
 
   for (let idx = 0; idx < rowClusters.length; idx++) {
@@ -1787,84 +1890,49 @@ export async function recognizeBiColumnsGrid(
     const thWords = wordsTh
       .filter((w) => Math.abs(w.yCenter - rc.yCenter) < yMatchWindow)
       .sort((a, b) => a.left - b.left);
-    const rawTh = thWords.map((w) => w.text).join(' ').trim();
-    const cleanTh = disambiguateOcrNumberString(rawTh);
-    const parsedTh = parseStrictBiNumber(cleanTh.cleanedText);
+    const parsedTh = extractNumericValueFromWords(thWords);
 
     // Col 3: TARGET
     const tgtWords = wordsTgt
       .filter((w) => Math.abs(w.yCenter - rc.yCenter) < yMatchWindow)
       .sort((a, b) => a.left - b.left);
-    const rawTgt = tgtWords.map((w) => w.text).join(' ').trim();
-    const cleanTgt = disambiguateOcrNumberString(rawTgt);
-    const parsedTgt = parseStrictBiNumber(cleanTgt.cleanedText);
+    const parsedTgt = extractNumericValueFromWords(tgtWords);
 
     // Col 4: % THỰC HIỆN TRÊN THANH TIẾN ĐỘ
     const barWords = wordsBar
       .filter((w) => Math.abs(w.yCenter - rc.yCenter) < yMatchWindow)
       .sort((a, b) => a.left - b.left);
-    const barCandidate = barWords.find(
-      (w) => w.text.includes('%') || /^\d+[.,]?\d*%?$/.test(w.text)
-    );
-    let parsedPctThVal: number | null = null;
-    let rawPctThText = '';
-    let pctThConf = 0;
-    let pctThBbox = { x: rectBar.x, y: rc.top, w: rectBar.w, h: rc.bottom - rc.top };
-
-    if (barCandidate) {
-      rawPctThText = barCandidate.text
-        .replace(')%', '0%')
-        .replace(')%.', '0%')
-        .replace('`', '')
-        .replace(/^[^\d]+/, '')
-        .trim();
-      pctThConf = Math.round(barCandidate.conf);
-      pctThBbox = {
-        x: barCandidate.left,
-        y: barCandidate.top,
-        w: barCandidate.width,
-        h: barCandidate.height,
+    let parsedPctTh = extractPercentageFromBarWords(barWords);
+    if (parsedPctTh.value === null && parsedTh.value !== null && parsedTgt.value !== null && parsedTgt.value > 0) {
+      parsedPctTh = {
+        value: Math.round((parsedTh.value / parsedTgt.value) * 1000) / 10,
+        rawText: `${Math.round((parsedTh.value / parsedTgt.value) * 1000) / 10}%`,
+        confidence: 85,
       };
-      const cleanPctTh = disambiguateOcrNumberString(rawPctThText);
-      const parsed = parseStrictBiNumber(cleanPctTh.cleanedText, { isPercentage: true });
-      parsedPctThVal = parsed.value;
-    }
-
-    // Mathematical cross-check or calculation if bar text was obscured
-    if (parsedPctThVal === null && parsedTh.value !== null && parsedTgt.value !== null && parsedTgt.value > 0) {
-      parsedPctThVal = Math.round((parsedTh.value / parsedTgt.value) * 1000) / 10;
-    } else if (parsedPctThVal === null && parsedTgt.value === 0) {
-      parsedPctThVal = 0;
+    } else if (parsedPctTh.value === null && parsedTgt.value === 0) {
+      parsedPctTh = { value: 0, rawText: '0%', confidence: 90 };
     }
 
     // Col 5: % DỰ KIẾN HOÀN THÀNH
     const pctWords = wordsPct
       .filter((w) => Math.abs(w.yCenter - rc.yCenter) < yMatchWindow)
       .sort((a, b) => a.left - b.left);
-    const rawPct = pctWords.map((w) => w.text).join(' ').trim();
-    const cleanPct = disambiguateOcrNumberString(rawPct);
-    const parsedPctDk = parseStrictBiNumber(cleanPct.cleanedText, { isPercentage: true });
+    const parsedPctDk = extractPercentageFromBarWords(pctWords);
 
     // Col 6: HẠNG VÙNG
     const rankWords = wordsRank
       .filter((w) => Math.abs(w.yCenter - rc.yCenter) < yMatchWindow)
       .sort((a, b) => a.left - b.left);
-    const rawRank = rankWords.map((w) => w.text).join(' ').trim();
-    let parsedRankVal: number | null = null;
-    if (rawRank && !/^[-–—=_®•]+$/.test(rawRank)) {
-      const cleanRank = disambiguateOcrNumberString(rawRank);
-      const parsedRank = parseStrictBiNumber(cleanRank.cleanedText, { isIntegerRank: true });
-      parsedRankVal = parsedRank.value;
-    }
+    const parsedRank = extractNumericValueFromWords(rankWords, { isIntegerRank: true });
 
     // Channel validation: Only assign DT or SL if detected from badge. Never guess.
     const finalKenh: ThiDuaKenh | null = kenh;
 
     const uncertainList: string[] = [];
     if (isTruncated) uncertainList.push('ten_chuong_trinh');
-    if (cleanTh.isUncertain) uncertainList.push('thuc_hien');
-    if (cleanTgt.isUncertain) uncertainList.push('target');
-    if (cleanPct.isUncertain) uncertainList.push('ty_le_du_kien');
+    if (parsedTh.isUncertain) uncertainList.push('thuc_hien');
+    if (parsedTgt.isUncertain) uncertainList.push('target');
+    if (parsedPctDk.value === null) uncertainList.push('ty_le_du_kien');
     if (!finalKenh) uncertainList.push('kenh');
 
     // Build rich cell metadata for Admin Debug Mode
@@ -1896,48 +1964,48 @@ export async function recognizeBiColumnsGrid(
       },
       thuc_hien: {
         bbox: thMeta.bbox,
-        rawValue: rawTh,
+        rawValue: parsedTh.rawText,
         parsedValue: parsedTh.value,
-        confidence: thMeta.conf,
+        confidence: parsedTh.confidence || thMeta.conf,
         status:
           parsedTh.value !== null
-            ? rawTh === '0' || rawTh === '0.00'
+            ? parsedTh.value === 0
               ? ('DEFAULT_ZERO' as const)
               : ('VERIFIED' as const)
             : ('MISSING' as const),
       },
       target: {
         bbox: tgtMeta.bbox,
-        rawValue: rawTgt,
+        rawValue: parsedTgt.rawText,
         parsedValue: parsedTgt.value,
-        confidence: tgtMeta.conf,
+        confidence: parsedTgt.confidence || tgtMeta.conf,
         status:
           parsedTgt.value !== null
-            ? rawTgt === '0' || rawTgt === '0.00'
+            ? parsedTgt.value === 0
               ? ('DEFAULT_ZERO' as const)
               : ('VERIFIED' as const)
             : ('MISSING' as const),
       },
       ty_le_thuc_hien: {
-        bbox: pctThBbox,
-        rawValue: rawPctThText,
-        parsedValue: parsedPctThVal,
-        confidence: pctThConf || (parsedPctThVal !== null ? 85 : 0),
-        status: parsedPctThVal !== null ? ('VERIFIED' as const) : ('MISSING' as const),
+        bbox: { x: rectBar.x, y: rc.top, w: rectBar.w, h: rc.bottom - rc.top },
+        rawValue: parsedPctTh.rawText,
+        parsedValue: parsedPctTh.value,
+        confidence: parsedPctTh.confidence || (parsedPctTh.value !== null ? 85 : 0),
+        status: parsedPctTh.value !== null ? ('VERIFIED' as const) : ('MISSING' as const),
       },
       ty_le_du_kien: {
         bbox: pctDkMeta.bbox,
-        rawValue: rawPct,
+        rawValue: parsedPctDk.rawText,
         parsedValue: parsedPctDk.value,
-        confidence: pctDkMeta.conf,
+        confidence: parsedPctDk.confidence || pctDkMeta.conf,
         status: parsedPctDk.value !== null ? ('VERIFIED' as const) : ('MISSING' as const),
       },
       hang_cty: {
         bbox: rankMeta.bbox,
-        rawValue: rawRank,
-        parsedValue: parsedRankVal,
-        confidence: rankMeta.conf,
-        status: parsedRankVal !== null ? ('VERIFIED' as const) : ('DEFAULT_ZERO' as const),
+        rawValue: parsedRank.rawText,
+        parsedValue: parsedRank.value,
+        confidence: parsedRank.confidence || rankMeta.conf,
+        status: parsedRank.value !== null ? ('VERIFIED' as const) : ('DEFAULT_ZERO' as const),
       },
     };
 
@@ -1956,9 +2024,9 @@ export async function recognizeBiColumnsGrid(
         kenh: finalKenh,
         thuc_hien: parsedTh.value,
         target: parsedTgt.value,
-        ty_le_thuc_hien: parsedPctThVal,
+        ty_le_thuc_hien: parsedPctTh.value,
         ty_le_du_kien: parsedPctDk.value,
-        hang_cty: parsedRankVal,
+        hang_cty: parsedRank.value,
         uncertain_fields: uncertainList,
         sourcePageIndex: pageIndex,
         note: isTruncated ? 'Tên chương trình bị rút gọn bởi giao diện nguồn (...)' : undefined,

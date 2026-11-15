@@ -909,13 +909,32 @@ export function normalizeBIData<T extends ThiDuaAiReportResult | ThiDuaAiRow[]>(
           ...r,
           ten_chuong_trinh: normalizeProgramName(r.ten_chuong_trinh || ''),
           kenh: normalizeKenh(r.kenh),
-          thuc_hien: r.thuc_hien ?? 0,
-          target: r.target ?? 0,
+          thuc_hien:
+            typeof r.thuc_hien === 'number' && Number.isFinite(r.thuc_hien)
+              ? r.thuc_hien
+              : r.thuc_hien === 0
+              ? 0
+              : null,
+          target:
+            typeof r.target === 'number' && Number.isFinite(r.target)
+              ? r.target
+              : r.target === 0
+              ? 0
+              : null,
           ty_le_thuc_hien:
-            r.target && r.target > 0
-              ? (r.ty_le_thuc_hien ?? Math.round(((r.thuc_hien ?? 0) / r.target) * 10000) / 100)
-              : (r.ty_le_thuc_hien ?? 0),
-          ty_le_du_kien: r.ty_le_du_kien ?? 0,
+            typeof r.ty_le_thuc_hien === 'number' && Number.isFinite(r.ty_le_thuc_hien)
+              ? r.ty_le_thuc_hien
+              : r.target && r.target > 0 && typeof r.thuc_hien === 'number'
+              ? Math.round((r.thuc_hien / r.target) * 10000) / 100
+              : r.target === 0
+              ? 0
+              : null,
+          ty_le_du_kien:
+            typeof r.ty_le_du_kien === 'number' && Number.isFinite(r.ty_le_du_kien)
+              ? r.ty_le_du_kien
+              : r.ty_le_du_kien === 0
+              ? 0
+              : null,
           hang_cty:
             typeof r.hang_cty === 'number' && Number.isInteger(r.hang_cty) && r.hang_cty >= 1
               ? r.hang_cty
@@ -937,13 +956,32 @@ export function normalizeBIData<T extends ThiDuaAiReportResult | ThiDuaAiRow[]>(
         ...r,
         ten_chuong_trinh: normalizeProgramName(r.ten_chuong_trinh || ''),
         kenh: normalizeKenh(r.kenh),
-        thuc_hien: r.thuc_hien ?? 0,
-        target: r.target ?? 0,
+        thuc_hien:
+          typeof r.thuc_hien === 'number' && Number.isFinite(r.thuc_hien)
+            ? r.thuc_hien
+            : r.thuc_hien === 0
+            ? 0
+            : null,
+        target:
+          typeof r.target === 'number' && Number.isFinite(r.target)
+            ? r.target
+            : r.target === 0
+            ? 0
+            : null,
         ty_le_thuc_hien:
-          r.target && r.target > 0
-            ? (r.ty_le_thuc_hien ?? Math.round(((r.thuc_hien ?? 0) / r.target) * 10000) / 100)
-            : (r.ty_le_thuc_hien ?? 0),
-        ty_le_du_kien: r.ty_le_du_kien ?? 0,
+          typeof r.ty_le_thuc_hien === 'number' && Number.isFinite(r.ty_le_thuc_hien)
+            ? r.ty_le_thuc_hien
+            : r.target && r.target > 0 && typeof r.thuc_hien === 'number'
+            ? Math.round((r.thuc_hien / r.target) * 10000) / 100
+            : r.target === 0
+            ? 0
+            : null,
+        ty_le_du_kien:
+          typeof r.ty_le_du_kien === 'number' && Number.isFinite(r.ty_le_du_kien)
+            ? r.ty_le_du_kien
+            : r.ty_le_du_kien === 0
+            ? 0
+            : null,
         hang_cty:
           typeof r.hang_cty === 'number' && Number.isInteger(r.hang_cty) && r.hang_cty >= 1
             ? r.hang_cty
