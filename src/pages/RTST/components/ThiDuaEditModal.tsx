@@ -47,8 +47,6 @@ export const ThiDuaEditModal: React.FC<ThiDuaEditModalProps> = ({
     }
   }, [batch, isOpen]);
 
-  if (!isOpen || !batch) return null;
-
   const handleFieldChange = (
     index: number,
     field: keyof ThiDuaProgramRecord,
@@ -91,13 +89,13 @@ export const ThiDuaEditModal: React.FC<ThiDuaEditModalProps> = ({
 
   const handleAddRow = () => {
     const newProg: ThiDuaProgramRecord = {
-      id: `${batch.batch_id}_new_${Date.now()}`,
-      batch_id: batch.batch_id,
-      store_id: batch.store_id,
-      warehouse_code: batch.warehouse_code,
-      ten_sieu_thi: batch.ten_sieu_thi,
-      month: batch.month,
-      year: batch.year,
+      id: `${batch?.batch_id || 'new'}_new_${Date.now()}`,
+      batch_id: batch?.batch_id || '',
+      store_id: batch?.store_id || '',
+      warehouse_code: batch?.warehouse_code || '',
+      ten_sieu_thi: batch?.ten_sieu_thi || '',
+      month: batch?.month || (new Date().getMonth() + 1),
+      year: batch?.year || new Date().getFullYear(),
       ten_chuong_trinh: `Chương trình mới ${rows.length + 1}`,
       kenh: 'DT',
       thuc_hien: 0,
@@ -139,6 +137,8 @@ export const ThiDuaEditModal: React.FC<ThiDuaEditModalProps> = ({
         );
       });
   }, [rows, searchQuery]);
+
+  if (!isOpen || !batch) return null;
 
   return (
     <div

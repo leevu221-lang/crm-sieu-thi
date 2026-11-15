@@ -274,8 +274,6 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
     }
   };
 
-  if (!isOpen || !initialReport) return null;
-
   const setDraftValue = (rowId: string, field: string, text: string) => {
     setRawCellDrafts((prev) => ({
       ...prev,
@@ -469,6 +467,8 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
     }
     return `${base} bg-white border-slate-200 text-slate-800 focus:border-orange-400 focus:ring-orange-100`;
   };
+
+  if (!isOpen || !initialReport) return null;
 
   return (
     <div

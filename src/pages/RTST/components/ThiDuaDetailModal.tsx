@@ -48,9 +48,7 @@ export const ThiDuaDetailModal: React.FC<ThiDuaDetailModalProps> = ({
   const [channelFilter, setChannelFilter] = useState<'ALL' | 'DT' | 'SL'>('ALL');
   const [isCopied, setIsCopied] = useState(false);
 
-  if (!isOpen || !batch) return null;
-
-  const programs = batch.programs || [];
+  const programs = batch?.programs || [];
 
   // Filter programs based on search, status, and channel
   const filteredPrograms = useMemo(() => {
@@ -117,9 +115,11 @@ export const ThiDuaDetailModal: React.FC<ThiDuaDetailModalProps> = ({
     });
   };
 
-  const formattedTime = batch.updated_at
+  const formattedTime = batch?.updated_at
     ? new Date(batch.updated_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : '';
+
+  if (!isOpen || !batch) return null;
 
   return (
     <div

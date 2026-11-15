@@ -100,3 +100,4 @@ for idx, c in enumerate(clusters):
         val_rank = '-'
         
     print(f'{idx+1:2d}  | {clean_p:35s} | {kenh:4s} | {val_th:7s} | {val_tgt:8s} | {val_bar:6s} | {val_dk:9s} | {val_rank}')
+

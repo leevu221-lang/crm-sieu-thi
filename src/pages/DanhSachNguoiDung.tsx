@@ -32,9 +32,13 @@ export default function UserManagement({ onBack }: UserManagementProps) {
   const [duplicateIdsToDelete, setDuplicateIdsToDelete] = useState<string[]>([]);
   const [webAppUrl, setWebAppUrl] = useState('');
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const isSuperAdminHardcoded = userProfile?.username === '43751' || userProfile?.username === 'ADMIN';
 
   useEffect(() => {
+    if (!isSuperAdminHardcoded && !userProfile?.userPermissions?.canEditUser) {
+      return;
+    }
     fetchUsers();
     
     const loadConfig = async () => {
@@ -50,19 +54,6 @@ export default function UserManagement({ onBack }: UserManagementProps) {
     };
     loadConfig();
   }, []);
-
-  if (!isSuperAdminHardcoded && !userProfile?.userPermissions?.canEditUser) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8 bg-white m-4 rounded-3xl shadow-sm border border-red-100 min-h-[50vh]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
-        <Shield className="w-16 h-16 text-red-500 mb-4" />
-        <h2 className="text-xl font-bold text-slate-800 uppercase tracking-tight">Truy cập bị từ chối</h2>
-        <p className="text-slate-500 mt-2">Chỉ quản trị viên cấp cao mới có quyền truy cập trang này.</p>
-        <button onClick={onBack} className="mt-6 px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors">
-          Quay lại trang chủ
-        </button>
-      </div>
-    );
-  }
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -458,8 +449,6 @@ export default function UserManagement({ onBack }: UserManagementProps) {
     }
   };
 
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-
   const handleSyncToGoogleSheet = async () => {
     const cleanUrl = String(webAppUrl || '').trim();
     if (!cleanUrl) {
@@ -750,7 +739,18 @@ export default function UserManagement({ onBack }: UserManagementProps) {
     });
   }, [users, searchTerm]);
 
-
+  if (!isSuperAdminHardcoded && !userProfile?.userPermissions?.canEditUser) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 bg-white m-4 rounded-3xl shadow-sm border border-red-100 min-h-[50vh]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
+        <Shield className="w-16 h-16 text-red-500 mb-4" />
+        <h2 className="text-xl font-bold text-slate-800 uppercase tracking-tight">Truy cập bị từ chối</h2>
+        <p className="text-slate-500 mt-2">Chỉ quản trị viên cấp cao mới có quyền truy cập trang này.</p>
+        <button onClick={onBack} className="mt-6 px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors">
+          Quay lại trang chủ
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[1400px] w-full mx-auto px-6 py-8" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
