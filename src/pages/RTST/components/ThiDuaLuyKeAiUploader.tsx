@@ -37,6 +37,7 @@ import {
 import {
   runAutoOcrOnImages,
   terminateSharedOcrWorker,
+  resetOcrWorker,
 } from '../../../utils/thiDuaOcrEngine';
 import { ThiDuaLuyKeAiReviewModal } from './ThiDuaLuyKeAiReviewModal';
 
@@ -356,18 +357,18 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
     setProgressText(`Khởi động bộ đọc OCR cho ${targetImages.length} ảnh...`);
 
     try {
-      const files = targetImages.map((img) => img.file);
       const hintTotal = expectedRowsHint.trim() ? Number(expectedRowsHint.trim()) : null;
 
-      const ocrResult = await runAutoOcrOnImages(files, {
+      // Pass targetImages directly (runAutoOcrOnImages accepts File, Blob, or image objects safely)
+      const ocrResult = await runAutoOcrOnImages(targetImages, {
         monthHint: monthYearHints.month,
         yearHint: monthYearHints.year,
         storeNameHint: resolvedStoreLabel,
         expectedRowsHint:
           hintTotal && Number.isInteger(hintTotal) && hintTotal > 0 ? hintTotal : null,
-        onProgress: (p) => {
-          setOcrProgressPct(p.percent);
-          setProgressText(p.statusText);
+        onProgress: (p, stageText) => {
+          setOcrProgressPct(p);
+          setProgressText(stageText);
         },
       });
 
@@ -399,12 +400,19 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
         `Đã đọc tự động ${rows.length} chương trình từ ${targetImages.length} trang. Hãy bấm "KIỂM TRA VÀ XÁC NHẬN LƯU" để rà soát!`
       );
     } catch (err: any) {
-      console.error('[ThiDuaAutoOcr] Failed:', err);
+      console.error('[ThiDuaAutoOcr Technical Trace]', err);
       setStatus('error');
       setErrorCode(String(err?.errorCode || 'OCR_ERROR'));
       setErrorMsg(err?.message || 'Lỗi khi tự động nhận diện ảnh bằng OCR.');
       setProgressText('');
     }
+  };
+
+  const handleRetryOcr = async () => {
+    try {
+      await resetOcrWorker();
+    } catch {}
+    await triggerAutoOcr(images);
   };
 
   const handleFilesSelected = async (fileList: FileList | File[]) => {
@@ -982,9 +990,9 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                   <button
                     type="button"
                     disabled={status === 'reading_ocr' || status === 'analyzing' || isSaving}
-                    onClick={() => triggerAutoOcr(images)}
+                    onClick={handleRetryOcr}
                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700 text-[10.5px] font-bold hover:bg-slate-50 hover:border-orange-300 disabled:opacity-50 transition-colors"
-                    title="Chạy lại bộ đọc OCR trên máy khách"
+                    title="Khởi tạo lại bộ đọc OCR và quét lại ảnh"
                   >
                     <RotateCcw size={11} />
                     <span>Đọc lại OCR</span>
@@ -1125,7 +1133,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                     <button
                       type="button"
                       disabled={isSaving}
-                      onClick={() => triggerAutoOcr(images)}
+                      onClick={handleRetryOcr}
                       className="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-md bg-orange-600 text-white text-[10.5px] font-extrabold hover:bg-orange-700 disabled:opacity-50 transition-colors"
                     >
                       <RotateCcw size={11} />
@@ -1159,6 +1167,20 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                   <span className="text-[10.5px] font-semibold text-emerald-800">
                     {images.length} trang • Kỳ {analyzedReport.month || monthYearHints.month}/{analyzedReport.year || monthYearHints.year} • {analyzedReport.store_name || resolvedStoreLabel}
                   </span>
+                  {analyzedReport.expected_total_rows && (
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
+                        analyzedReport.rows.length === analyzedReport.expected_total_rows
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-amber-100 text-amber-800 border border-amber-300'
+                      }`}
+                    >
+                      <span>
+                        KPI Đối chiếu: {analyzedReport.rows.length}/{analyzedReport.expected_total_rows} CT
+                      </span>
+                      {analyzedReport.rows.length === analyzedReport.expected_total_rows ? ' (Khớp 100%)' : ' (Cần đối chiếu)'}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
@@ -1189,9 +1211,9 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
               {/* Quick Table Preview (5 First Rows) */}
               <div className="p-2 sm:p-2.5 space-y-2">
                 <div className="text-[10.5px] font-bold text-slate-700 flex items-center justify-between">
-                  <span>Xem nhanh kết quả trích xuất ({Math.min(5, analyzedReport.rows.length)}/{analyzedReport.rows.length} dòng đầu):</span>
+                  <span>Bảng BI xem nhanh ({Math.min(5, analyzedReport.rows.length)}/{analyzedReport.rows.length} dòng đầu):</span>
                   <span className="text-[10px] text-slate-400 font-normal">
-                    (Dữ liệu 286 dòng cũ đang được bảo toàn nguyên vẹn)
+                    (Dữ liệu 286 dòng cũ đang được bảo toàn nguyên vẹn 100%)
                   </span>
                 </div>
 
@@ -1200,71 +1222,76 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                     <thead>
                       <tr className="bg-slate-100 text-slate-700 text-[10px] font-bold uppercase tracking-wider">
                         <th className="p-1.5 border-b border-slate-200 w-8 text-center">STT</th>
-                        <th className="p-1.5 border-b border-slate-200 min-w-[140px]">Tên chương trình</th>
-                        <th className="p-1.5 border-b border-slate-200 w-14 text-center">Kênh</th>
-                        <th className="p-1.5 border-b border-slate-200 text-right w-20">Thực hiện</th>
-                        <th className="p-1.5 border-b border-slate-200 text-right w-20">Target</th>
-                        <th className="p-1.5 border-b border-slate-200 text-right w-16">Tỷ lệ</th>
-                        <th className="p-1.5 border-b border-slate-200 text-center w-16">Hạng Cty</th>
-                        <th className="p-1.5 border-b border-slate-200 text-center w-20">Độ tin cậy</th>
+                        <th className="p-1.5 border-b border-slate-200 min-w-[150px]">1. CHƯƠNG TRÌNH</th>
+                        <th className="p-1.5 border-b border-slate-200 text-right w-24">2. THỰC HIỆN</th>
+                        <th className="p-1.5 border-b border-slate-200 text-right w-24">3. TARGET</th>
+                        <th className="p-1.5 border-b border-slate-200 text-right w-24">4. % DỰ KIẾN HT</th>
+                        <th className="p-1.5 border-b border-slate-200 text-center w-20">5. HẠNG VÙNG</th>
+                        <th className="p-1.5 border-b border-slate-200 text-center w-20">TRẠNG THÁI</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
-                      {analyzedReport.rows.slice(0, 5).map((row, idx) => (
-                        <tr
-                          key={row.id || idx}
-                          className={row.is_uncertain ? 'bg-amber-50/60' : 'hover:bg-slate-50/60'}
-                        >
-                          <td className="p-1.5 text-center font-mono text-[10px] text-slate-500">
-                            {idx + 1}
-                          </td>
-                          <td className="p-1.5 font-semibold text-slate-800 truncate max-w-[200px]" title={row.ten_chuong_trinh}>
-                            {row.ten_chuong_trinh}
-                          </td>
-                          <td className="p-1.5 text-center font-bold">
-                            <span
-                              className={`px-1 py-0.5 rounded text-[9.5px] ${
-                                row.kenh === 'SL'
-                                  ? 'bg-blue-100 text-blue-700'
-                                  : 'bg-emerald-100 text-emerald-700'
-                              }`}
-                            >
-                              {row.kenh || 'DT'}
-                            </span>
-                          </td>
-                          <td className="p-1.5 text-right font-mono font-medium">
-                            {row.thuc_hien !== null && row.thuc_hien !== undefined
-                              ? Number(row.thuc_hien).toLocaleString('vi-VN')
-                              : '-'}
-                          </td>
-                          <td className="p-1.5 text-right font-mono font-medium">
-                            {row.target !== null && row.target !== undefined
-                              ? Number(row.target).toLocaleString('vi-VN')
-                              : '-'}
-                          </td>
-                          <td className="p-1.5 text-right font-mono font-bold text-orange-600">
-                            {row.ty_le_du_kien !== null && row.ty_le_du_kien !== undefined
-                              ? `${row.ty_le_du_kien}%`
-                              : row.ty_le_thuc_hien !== null && row.ty_le_thuc_hien !== undefined
-                              ? `${row.ty_le_thuc_hien}%`
-                              : '-'}
-                          </td>
-                          <td className="p-1.5 text-center font-mono text-[10.5px]">
-                            {row.hang_cty !== null && row.hang_cty !== undefined ? row.hang_cty : '-'}
-                          </td>
-                          <td className="p-1.5 text-center">
-                            {row.is_uncertain ? (
-                              <span className="inline-flex items-center gap-0.5 text-[9.5px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-bold">
-                                <AlertTriangle size={10} /> Cần xem lại
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-0.5 text-[9.5px] px-1 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold">
-                                <Check size={10} /> Chuẩn
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      {analyzedReport.rows.slice(0, 5).map((row, idx) => {
+                        const isTruncated =
+                          Boolean(row.note && row.note.includes('rút gọn')) ||
+                          row.uncertain_fields?.includes('ten_chuong_trinh') ||
+                          /[.…]{2,}$/.test(row.ten_chuong_trinh);
+
+                        return (
+                          <tr
+                            key={row.id || idx}
+                            className={row.is_uncertain ? 'bg-amber-50/60' : 'hover:bg-slate-50/60'}
+                          >
+                            <td className="p-1.5 text-center font-mono text-[10px] text-slate-500">
+                              {idx + 1}
+                            </td>
+                            <td className="p-1.5 font-semibold text-slate-800">
+                              <div className="flex items-center gap-1.5 truncate max-w-[240px]" title={row.ten_chuong_trinh}>
+                                <span className="truncate">{row.ten_chuong_trinh}</span>
+                                {isTruncated && (
+                                  <span
+                                    className="px-1 py-0.2 rounded bg-amber-100 text-amber-800 text-[9px] font-bold shrink-0"
+                                    title="Tên chương trình bị rút gọn bởi giao diện nguồn (...)"
+                                  >
+                                    Rút gọn (...)
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-1.5 text-right font-mono font-medium">
+                              {row.thuc_hien !== null && row.thuc_hien !== undefined
+                                ? Number(row.thuc_hien).toLocaleString('vi-VN')
+                                : '-'}
+                            </td>
+                            <td className="p-1.5 text-right font-mono font-medium">
+                              {row.target !== null && row.target !== undefined
+                                ? Number(row.target).toLocaleString('vi-VN')
+                                : '-'}
+                            </td>
+                            <td className="p-1.5 text-right font-mono font-bold text-orange-600">
+                              {row.ty_le_du_kien !== null && row.ty_le_du_kien !== undefined
+                                ? `${row.ty_le_du_kien}%`
+                                : row.ty_le_thuc_hien !== null && row.ty_le_thuc_hien !== undefined
+                                ? `${row.ty_le_thuc_hien}%`
+                                : '-'}
+                            </td>
+                            <td className="p-1.5 text-center font-mono text-[10.5px]">
+                              {row.hang_cty !== null && row.hang_cty !== undefined ? row.hang_cty : '-'}
+                            </td>
+                            <td className="p-1.5 text-center">
+                              {row.is_uncertain ? (
+                                <span className="inline-flex items-center gap-0.5 text-[9.5px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-bold">
+                                  <AlertTriangle size={10} /> Cần xem lại
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-0.5 text-[9.5px] px-1 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold">
+                                  <Check size={10} /> Chuẩn
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
