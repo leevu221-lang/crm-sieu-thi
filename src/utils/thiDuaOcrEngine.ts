@@ -523,10 +523,9 @@ export function preprocessImageForOcr(canvasSource: HTMLCanvasElement): HTMLCanv
     if (lumRange > 20 && lumRange < 240) {
       for (let i = 0; i < d.length; i += 4) {
         const val = Math.round(((d[i] - minLum) / lumRange) * 255);
-        const enhanced = val < 130 ? Math.max(0, val - 35) : Math.min(255, val + 20);
-        d[i] = enhanced;
-        d[i + 1] = enhanced;
-        d[i + 2] = enhanced;
+        d[i] = val;
+        d[i + 1] = val;
+        d[i + 2] = val;
       }
     }
 
@@ -676,7 +675,7 @@ export function extractProgramNameAndKenh(raw: string): {
 
   return {
     programName: isTruncated && !matchedProg.endsWith('...') ? `${matchedProg}...` : matchedProg,
-    kenh,
+    kenh: kenh || matchResult.channel || null,
     isTruncated,
   };
 }
@@ -1513,70 +1512,82 @@ export async function recognizeBiColumnsGrid(
 
   const tableH = Math.max(100, H - tableTopY);
 
-  // 2. Define 5 Column Slices across table width:
-  // Col 1 (Program + Channel): 4.0% to 34.1%
+  // 2. Define 6 Column Slices across table width:
+  // Col 1 (Program + Channel): 0.0% to 35.0%
   const rectProg = {
-    x: Math.round(W * 0.040),
+    x: 0,
     y: tableTopY,
-    w: Math.round(W * 0.301),
+    w: Math.round(W * 0.350),
     h: tableH,
   };
-  // Col 2 (THỰC HIỆN): 34.8% to 45.1%
+  // Col 2 (THỰC HIỆN): 34.5% to 47.0%
   const rectTh = {
-    x: Math.round(W * 0.348),
+    x: Math.round(W * 0.345),
     y: tableTopY,
-    w: Math.round(W * 0.103),
+    w: Math.round(W * 0.125),
     h: tableH,
   };
-  // Col 3 (TARGET): 45.1% to 57.8% (completely avoids progress bar from 58% to 78%!)
+  // Col 3 (TARGET): 46.8% to 58.6%
   const rectTgt = {
-    x: Math.round(W * 0.451),
+    x: Math.round(W * 0.468),
     y: tableTopY,
-    w: Math.round(W * 0.127),
+    w: Math.round(W * 0.118),
     h: tableH,
   };
-  // Col 4 (% DỰ KIẾN HOÀN THÀNH): 79.0% to 88.4%
+  // Col 4 (THANH TIẾN ĐỘ & % THỰC HIỆN): 58.0% to 80.5%
+  const rectBar = {
+    x: Math.round(W * 0.580),
+    y: tableTopY,
+    w: Math.round(W * 0.225),
+    h: tableH,
+  };
+  // Col 5 (% DỰ KIẾN HOÀN THÀNH): 80.0% to 88.5%
   const rectPct = {
-    x: Math.round(W * 0.790),
+    x: Math.round(W * 0.800),
     y: tableTopY,
-    w: Math.round(W * 0.094),
+    w: Math.round(W * 0.085),
     h: tableH,
   };
-  // Col 5 (HẠNG VÙNG): 88.4% to 99.7%
+  // Col 6 (HẠNG VÙNG): 88.0% to 100.0%
   const rectRank = {
-    x: Math.round(W * 0.884),
+    x: Math.round(W * 0.880),
     y: tableTopY,
-    w: Math.round(W * 0.113),
+    w: Math.round(W * 0.120),
     h: tableH,
   };
 
-  // 3. Crop column canvases
+  // 3. Crop 6 column canvases
   const cProg = cropCanvas(canvas, rectProg);
   const cTh = cropCanvas(canvas, rectTh);
   const cTgt = cropCanvas(canvas, rectTgt);
+  const cBar = cropCanvas(canvas, rectBar);
   const cPct = cropCanvas(canvas, rectPct);
   const cRank = cropCanvas(canvas, rectRank);
 
   // 4. Recognize each column strip with TSV
-  onProgress?.(45, 'Đang quét cột 1: Tên chương trình & Kênh...');
+  onProgress?.(35, 'Đang quét cột 1: Tên chương trình & Kênh...');
   const resProg = await worker.recognize(cProg, {}, { tsv: true, text: true });
 
-  onProgress?.(60, 'Đang quét cột 2: Số liệu Thực hiện...');
+  onProgress?.(50, 'Đang quét cột 2: Số liệu Thực hiện...');
   const resTh = await worker.recognize(cTh, {}, { tsv: true, text: true });
 
-  onProgress?.(72, 'Đang quét cột 3: Chỉ tiêu Target (bỏ qua thanh tiến độ)...');
+  onProgress?.(65, 'Đang quét cột 3: Chỉ tiêu Target...');
   const resTgt = await worker.recognize(cTgt, {}, { tsv: true, text: true });
 
-  onProgress?.(82, 'Đang quét cột 4: % Dự kiến hoàn thành...');
+  onProgress?.(75, 'Đang quét cột 4: Thanh tiến độ & % Thực hiện...');
+  const resBar = await worker.recognize(cBar, {}, { tsv: true, text: true });
+
+  onProgress?.(85, 'Đang quét cột 5: % Dự kiến hoàn thành...');
   const resPct = await worker.recognize(cPct, {}, { tsv: true, text: true });
 
-  onProgress?.(88, 'Đang quét cột 5: Hạng vùng...');
+  onProgress?.(92, 'Đang quét cột 6: Hạng vùng...');
   const resRank = await worker.recognize(cRank, {}, { tsv: true, text: true });
 
   // 5. Parse words with absolute coordinates
   const wordsProg = parseTsvToWords(resProg.data.tsv || '', rectProg.x, rectProg.y);
   const wordsTh = parseTsvToWords(resTh.data.tsv || '', rectTh.x, rectTh.y);
   const wordsTgt = parseTsvToWords(resTgt.data.tsv || '', rectTgt.x, rectTgt.y);
+  const wordsBar = parseTsvToWords(resBar.data.tsv || '', rectBar.x, rectBar.y);
   const wordsPct = parseTsvToWords(resPct.data.tsv || '', rectPct.x, rectPct.y);
   const wordsRank = parseTsvToWords(resRank.data.tsv || '', rectRank.x, rectRank.y);
 
@@ -1620,7 +1631,26 @@ export async function recognizeBiColumnsGrid(
     return null;
   }
 
-  // 7. For each row cluster, extract fields across the 5 columns
+  // Helper to compute union bounding box and average confidence for word groups
+  const getWordsMeta = (words: OcrWordCoord[], fallbackX: number, fallbackW: number, rowTop: number, rowBottom: number) => {
+    if (words.length === 0) {
+      return {
+        bbox: { x: fallbackX, y: rowTop, w: fallbackW, h: Math.max(1, rowBottom - rowTop) },
+        conf: 0,
+      };
+    }
+    const minX = Math.min(...words.map((w) => w.left));
+    const minY = Math.min(...words.map((w) => w.top));
+    const maxX = Math.max(...words.map((w) => w.left + w.width));
+    const maxY = Math.max(...words.map((w) => w.top + w.height));
+    const avgConf = Math.round(words.reduce((sum, w) => sum + w.conf, 0) / words.length);
+    return {
+      bbox: { x: minX, y: minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY) },
+      conf: avgConf,
+    };
+  };
+
+  // 7. For each row cluster, extract fields across the 6 columns
   const yMatchWindow = Math.max(25, Math.round(H * 0.010)); // ~35px on 3458px image
   const extractedRows: ThiDuaAiRow[] = [];
 
@@ -1656,7 +1686,45 @@ export async function recognizeBiColumnsGrid(
     const cleanTgt = disambiguateOcrNumberString(rawTgt);
     const parsedTgt = parseStrictBiNumber(cleanTgt.cleanedText);
 
-    // Col 4: % DỰ KIẾN HOÀN THÀNH
+    // Col 4: % THỰC HIỆN TRÊN THANH TIẾN ĐỘ
+    const barWords = wordsBar
+      .filter((w) => Math.abs(w.yCenter - rc.yCenter) < yMatchWindow)
+      .sort((a, b) => a.left - b.left);
+    const barCandidate = barWords.find(
+      (w) => w.text.includes('%') || /^\d+[.,]?\d*%?$/.test(w.text)
+    );
+    let parsedPctThVal: number | null = null;
+    let rawPctThText = '';
+    let pctThConf = 0;
+    let pctThBbox = { x: rectBar.x, y: rc.top, w: rectBar.w, h: rc.bottom - rc.top };
+
+    if (barCandidate) {
+      rawPctThText = barCandidate.text
+        .replace(')%', '0%')
+        .replace(')%.', '0%')
+        .replace('`', '')
+        .replace(/^[^\d]+/, '')
+        .trim();
+      pctThConf = Math.round(barCandidate.conf);
+      pctThBbox = {
+        x: barCandidate.left,
+        y: barCandidate.top,
+        w: barCandidate.width,
+        h: barCandidate.height,
+      };
+      const cleanPctTh = disambiguateOcrNumberString(rawPctThText);
+      const parsed = parseStrictBiNumber(cleanPctTh.cleanedText, { isPercentage: true });
+      parsedPctThVal = parsed.value;
+    }
+
+    // Mathematical cross-check or calculation if bar text was obscured
+    if (parsedPctThVal === null && parsedTh.value !== null && parsedTgt.value !== null && parsedTgt.value > 0) {
+      parsedPctThVal = Math.round((parsedTh.value / parsedTgt.value) * 1000) / 10;
+    } else if (parsedPctThVal === null && parsedTgt.value === 0) {
+      parsedPctThVal = 0;
+    }
+
+    // Col 5: % DỰ KIẾN HOÀN THÀNH
     const pctWords = wordsPct
       .filter((w) => Math.abs(w.yCenter - rc.yCenter) < yMatchWindow)
       .sort((a, b) => a.left - b.left);
@@ -1664,7 +1732,7 @@ export async function recognizeBiColumnsGrid(
     const cleanPct = disambiguateOcrNumberString(rawPct);
     const parsedPctDk = parseStrictBiNumber(cleanPct.cleanedText, { isPercentage: true });
 
-    // Col 5: HẠNG VÙNG
+    // Col 6: HẠNG VÙNG
     const rankWords = wordsRank
       .filter((w) => Math.abs(w.yCenter - rc.yCenter) < yMatchWindow)
       .sort((a, b) => a.left - b.left);
@@ -1679,18 +1747,93 @@ export async function recognizeBiColumnsGrid(
     // Channel validation: Only assign DT or SL if detected from badge. Never guess.
     const finalKenh: ThiDuaKenh | null = kenh;
 
-    // Compute % TH HIỆN TẠI: (TH / TARGET) * 100
-    let computedPctTh: number | null = null;
-    if (parsedTh.value !== null && parsedTgt.value !== null && parsedTgt.value > 0) {
-      computedPctTh = Math.round((parsedTh.value / parsedTgt.value) * 1000) / 10;
-    }
-
     const uncertainList: string[] = [];
     if (isTruncated) uncertainList.push('ten_chuong_trinh');
     if (cleanTh.isUncertain) uncertainList.push('thuc_hien');
     if (cleanTgt.isUncertain) uncertainList.push('target');
     if (cleanPct.isUncertain) uncertainList.push('ty_le_du_kien');
     if (!finalKenh) uncertainList.push('kenh');
+
+    // Build rich cell metadata for Admin Debug Mode
+    const progMeta = getWordsMeta(rc.words, rectProg.x, rectProg.w, rc.top, rc.bottom);
+    const thMeta = getWordsMeta(thWords, rectTh.x, rectTh.w, rc.top, rc.bottom);
+    const tgtMeta = getWordsMeta(tgtWords, rectTgt.x, rectTgt.w, rc.top, rc.bottom);
+    const pctDkMeta = getWordsMeta(pctWords, rectPct.x, rectPct.w, rc.top, rc.bottom);
+    const rankMeta = getWordsMeta(rankWords, rectRank.x, rectRank.w, rc.top, rc.bottom);
+
+    const cell_metadata = {
+      ten_chuong_trinh: {
+        bbox: progMeta.bbox,
+        rawValue: rawProg,
+        parsedValue: programName,
+        confidence: progMeta.conf,
+        status: programName ? ('VERIFIED' as const) : ('MISSING' as const),
+      },
+      kenh: {
+        bbox: {
+          x: rectProg.x + Math.round(rectProg.w * 0.75),
+          y: rc.top,
+          w: Math.round(rectProg.w * 0.25),
+          h: Math.max(1, rc.bottom - rc.top),
+        },
+        rawValue: kenh || '',
+        parsedValue: finalKenh,
+        confidence: kenh ? 90 : 60,
+        status: kenh ? ('VERIFIED' as const) : ('UNCERTAIN' as const),
+      },
+      thuc_hien: {
+        bbox: thMeta.bbox,
+        rawValue: rawTh,
+        parsedValue: parsedTh.value,
+        confidence: thMeta.conf,
+        status:
+          parsedTh.value !== null
+            ? rawTh === '0' || rawTh === '0.00'
+              ? ('DEFAULT_ZERO' as const)
+              : ('VERIFIED' as const)
+            : ('MISSING' as const),
+      },
+      target: {
+        bbox: tgtMeta.bbox,
+        rawValue: rawTgt,
+        parsedValue: parsedTgt.value,
+        confidence: tgtMeta.conf,
+        status:
+          parsedTgt.value !== null
+            ? rawTgt === '0' || rawTgt === '0.00'
+              ? ('DEFAULT_ZERO' as const)
+              : ('VERIFIED' as const)
+            : ('MISSING' as const),
+      },
+      ty_le_thuc_hien: {
+        bbox: pctThBbox,
+        rawValue: rawPctThText,
+        parsedValue: parsedPctThVal,
+        confidence: pctThConf || (parsedPctThVal !== null ? 85 : 0),
+        status: parsedPctThVal !== null ? ('VERIFIED' as const) : ('MISSING' as const),
+      },
+      ty_le_du_kien: {
+        bbox: pctDkMeta.bbox,
+        rawValue: rawPct,
+        parsedValue: parsedPctDk.value,
+        confidence: pctDkMeta.conf,
+        status: parsedPctDk.value !== null ? ('VERIFIED' as const) : ('MISSING' as const),
+      },
+      hang_cty: {
+        bbox: rankMeta.bbox,
+        rawValue: rawRank,
+        parsedValue: parsedRankVal,
+        confidence: rankMeta.conf,
+        status: parsedRankVal !== null ? ('VERIFIED' as const) : ('DEFAULT_ZERO' as const),
+      },
+    };
+
+    const row_bbox = {
+      x: 0,
+      y: rc.top,
+      w: W,
+      h: Math.max(1, rc.bottom - rc.top),
+    };
 
     const row = validateThiDuaRow(
       {
@@ -1699,12 +1842,14 @@ export async function recognizeBiColumnsGrid(
         kenh: finalKenh,
         thuc_hien: parsedTh.value,
         target: parsedTgt.value,
-        ty_le_thuc_hien: computedPctTh,
+        ty_le_thuc_hien: parsedPctThVal,
         ty_le_du_kien: parsedPctDk.value,
         hang_cty: parsedRankVal,
         uncertain_fields: uncertainList,
         sourcePageIndex: pageIndex,
         note: isTruncated ? 'Tên chương trình bị rút gọn bởi giao diện nguồn (...)' : undefined,
+        cell_metadata,
+        row_bbox,
       },
       extractedRows.length,
       pageIndex

@@ -31,6 +31,14 @@ export interface ThiDuaAiRawReport {
   rows?: unknown;
 }
 
+export interface ThiDuaCellMetadata {
+  bbox?: { x: number; y: number; w: number; h: number };
+  rawValue?: string;
+  parsedValue?: unknown;
+  confidence?: number;
+  status?: 'VERIFIED' | 'UNCERTAIN' | 'DEFAULT_ZERO' | 'MISSING';
+}
+
 export interface ThiDuaAiRow {
   id: string;
   ten_chuong_trinh: string;
@@ -46,6 +54,16 @@ export interface ThiDuaAiRow {
   warnings: string[];
   sourcePageIndex?: number;
   note?: string;
+  cell_metadata?: {
+    ten_chuong_trinh?: ThiDuaCellMetadata;
+    kenh?: ThiDuaCellMetadata;
+    thuc_hien?: ThiDuaCellMetadata;
+    target?: ThiDuaCellMetadata;
+    ty_le_thuc_hien?: ThiDuaCellMetadata;
+    ty_le_du_kien?: ThiDuaCellMetadata;
+    hang_cty?: ThiDuaCellMetadata;
+  };
+  row_bbox?: { x: number; y: number; w: number; h: number };
 }
 
 export interface OcrDebugTrace {
@@ -169,50 +187,255 @@ export function normalizeProgramKey(name: string): string {
 }
 
 // ==========================================
-// STANDARD BI BUSINESS PROGRAM DICTIONARY
+// STANDARD BI BUSINESS PROGRAM DICTIONARY & CATALOG
 // ==========================================
 
-export const STANDARD_BI_THI_DUA_PROGRAMS: string[] = [
-  'Điện tử Samsung',
-  'Tivi TCL',
-  'CE LG',
-  'MỞ THẺ TÍN DỤNG VPBANK',
-  'Phụ kiện công nghệ',
-  'Vay tiền mặt',
-  'Bảo hiểm Thợ ICT',
-  'Loa Phụ Kiện',
-  'Bảo hiểm Thợ DMX',
-  'Ví trả sau',
-  'Máy giặt',
-  'Nồi cơm & Nồi chiên',
-  'Máy nước nóng',
-  'Bảo hiểm Tổng',
-  'Sạc dự phòng',
-  'Máy lọc KK - Hút bụi - Hút ẩm',
-  'Sim',
-  'Trả chậm Điện máy & Gia dụng',
-  'Phụ kiện khác IT & Nhóm khác',
-  'Điện tử',
-  'Nạp rút',
-  'Máy lọc nước',
-  'Điện thoại & Tablet Android',
-  'Quạt gió',
-  'Laptop',
-  'Đồng hồ & Smartwatch',
-  'Máy Lạnh',
-  'Trả chậm Homecredit',
-  'Tai nghe',
-  'Camera',
-  'Sim DMX',
-  'Cáp sạc',
-  'Tủ Lạnh / Đông / Mát',
-  'VAS',
-  'Điện thoại Realme',
-  'Điện thoại Vivo',
-  'Máy sấy / Máy rửa chén',
-  'Đèn năng lượng mặt trời',
-  'Trả chậm FECREDIT, SAMSUNG',
+export interface StandardBiProgramEntry {
+  name: string;
+  channel: ThiDuaKenh;
+  aliases: string[];
+  priority: number;
+}
+
+export const STANDARD_BI_PROGRAM_CATALOG: StandardBiProgramEntry[] = [
+  // High priority compounds (checked before individual components)
+  {
+    name: 'Trả chậm FECREDIT, SAMSUNG',
+    channel: 'DT',
+    aliases: ['fecredit', 'fe credit', 'tra cham fecredit', 'tra cham fecredit samsung', 'tra cham fecredit, samsung'],
+    priority: 100,
+  },
+  {
+    name: 'Trả chậm Homecredit',
+    channel: 'DT',
+    aliases: ['homecredit', 'home credit', 'tra cham homecredit', 'tra cham home credit'],
+    priority: 95,
+  },
+  {
+    name: 'Trả chậm Điện máy & Gia dụng',
+    channel: 'DT',
+    aliases: ['tra cham dien may', 'dien may & gia dung', 'tra cham dien may gia dung', 'tra cham dien may & gia dung'],
+    priority: 90,
+  },
+  {
+    name: 'Điện tử Samsung',
+    channel: 'DT',
+    aliases: ['dien tu samsung', 'samsung'],
+    priority: 85,
+  },
+  {
+    name: 'Bảo hiểm Thợ ICT',
+    channel: 'DT',
+    aliases: ['tho ict', 'thoilct', 'thoict', 'bao hiem tho ict', 'tho ilct'],
+    priority: 80,
+  },
+  {
+    name: 'Bảo hiểm Thợ DMX',
+    channel: 'DT',
+    aliases: ['tho dmx', 'thodmx', 'bao hiem tho dmx'],
+    priority: 80,
+  },
+  {
+    name: 'Bảo hiểm Tổng',
+    channel: 'DT',
+    aliases: ['bao hiem tong', 'bh tong'],
+    priority: 75,
+  },
+  {
+    name: 'Sim DMX',
+    channel: 'SL',
+    aliases: ['sim dmx', 'simdmx', 'sim đmx'],
+    priority: 75,
+  },
+  {
+    name: 'Sim',
+    channel: 'SL',
+    aliases: ['sim'],
+    priority: 40,
+  },
+  {
+    name: 'Máy lọc KK - Hút bụi - Hút ẩm',
+    channel: 'DT',
+    aliases: ['may loc kk', 'hut bui', 'hut am', 'may loc kk hut bui hut am', 'may loc kk - hut bui - hút ẩm', 'may loc kk - hut bui - hut am'],
+    priority: 70,
+  },
+  {
+    name: 'Máy lọc nước',
+    channel: 'DT',
+    aliases: ['may loc nuoc', 'may locnuoc'],
+    priority: 70,
+  },
+  {
+    name: 'Máy sấy / Máy rửa chén',
+    channel: 'DT',
+    aliases: ['may say', 'may rua chen', 'may say may rua chen', 'may say / may rua chen'],
+    priority: 70,
+  },
+  {
+    name: 'Tủ Lạnh / Đông / Mát',
+    channel: 'DT',
+    aliases: ['tu lanh', 'dong / mat', 'dong mat', 'tu lanh dong mat', 'tu lanh / dong / mat', 'dong jmat'],
+    priority: 70,
+  },
+  {
+    name: 'Điện thoại & Tablet Android',
+    channel: 'DT',
+    aliases: ['tablet android', 'android', 'dien thoai & tablet android', 'dien thoai tablet android'],
+    priority: 70,
+  },
+  {
+    name: 'Phụ kiện khác IT & Nhóm khác',
+    channel: 'DT',
+    aliases: ['phu kien khac it', 'phu kien khac', 'nhom khac', 'phu kien khac it & nhom khac'],
+    priority: 70,
+  },
+  {
+    name: 'MỞ THẺ TÍN DỤNG VPBANK',
+    channel: 'SL',
+    aliases: ['vpbank', 'vp bank', 'mo the tin dung', 'mo the tin dung vpbank', 'mo the tin dung vpbankm'],
+    priority: 70,
+  },
+  {
+    name: 'Đồng hồ & Smartwatch',
+    channel: 'DT',
+    aliases: ['smartwatch', 'dong ho & smartwatch', 'dong ho smartwatch', 'dong ho'],
+    priority: 65,
+  },
+  {
+    name: 'Đèn năng lượng mặt trời',
+    channel: 'SL',
+    aliases: ['den nang luong mat troi', 'nang luong mat troi', 'den nang luong'],
+    priority: 65,
+  },
+  {
+    name: 'Điện thoại Realme',
+    channel: 'DT',
+    aliases: ['realme', 'dien thoai realme'],
+    priority: 65,
+  },
+  {
+    name: 'Điện thoại Vivo',
+    channel: 'DT',
+    aliases: ['vivo', 'dien thoai vivo'],
+    priority: 65,
+  },
+  {
+    name: 'Tivi TCL',
+    channel: 'DT',
+    aliases: ['tcl', 'tivi tcl', 'tivitcl'],
+    priority: 65,
+  },
+  {
+    name: 'CE LG',
+    channel: 'DT',
+    aliases: ['ce lg', 'celg', 'lg'],
+    priority: 65,
+  },
+  {
+    name: 'Nồi cơm & Nồi chiên',
+    channel: 'DT',
+    aliases: ['noi com', 'noi chien', 'noi com & noi chien', 'noi com noi chien'],
+    priority: 60,
+  },
+  {
+    name: 'Máy nước nóng',
+    channel: 'SL',
+    aliases: ['may nuoc nong'],
+    priority: 60,
+  },
+  {
+    name: 'Máy giặt',
+    channel: 'DT',
+    aliases: ['may giat'],
+    priority: 60,
+  },
+  {
+    name: 'Máy Lạnh',
+    channel: 'SL',
+    aliases: ['may lanh'],
+    priority: 60,
+  },
+  {
+    name: 'Phụ kiện công nghệ',
+    channel: 'DT',
+    aliases: ['phu kien cong nghe'],
+    priority: 60,
+  },
+  {
+    name: 'Vay tiền mặt',
+    channel: 'DT',
+    aliases: ['vay tien mat', 'vay tien'],
+    priority: 60,
+  },
+  {
+    name: 'Loa Phụ Kiện',
+    channel: 'DT',
+    aliases: ['loa phu kien', 'loa pk'],
+    priority: 60,
+  },
+  {
+    name: 'Ví trả sau',
+    channel: 'DT',
+    aliases: ['vi tra sau'],
+    priority: 60,
+  },
+  {
+    name: 'Sạc dự phòng',
+    channel: 'DT',
+    aliases: ['sac du phong', 'sdp'],
+    priority: 60,
+  },
+  {
+    name: 'Nạp rút',
+    channel: 'SL',
+    aliases: ['nap rut', 'nạút', 'naut', 'naprut'],
+    priority: 60,
+  },
+  {
+    name: 'Quạt gió',
+    channel: 'DT',
+    aliases: ['quat gio', 'quat'],
+    priority: 60,
+  },
+  {
+    name: 'Laptop',
+    channel: 'DT',
+    aliases: ['laptop'],
+    priority: 60,
+  },
+  {
+    name: 'Tai nghe',
+    channel: 'DT',
+    aliases: ['tai nghe', 'tainghe'],
+    priority: 60,
+  },
+  {
+    name: 'Camera',
+    channel: 'DT',
+    aliases: ['camera'],
+    priority: 60,
+  },
+  {
+    name: 'Cáp sạc',
+    channel: 'DT',
+    aliases: ['cap sac'],
+    priority: 60,
+  },
+  {
+    name: 'VAS',
+    channel: 'SL',
+    aliases: ['vas'],
+    priority: 60,
+  },
+  {
+    name: 'Điện tử',
+    channel: 'DT',
+    aliases: ['dien tu'],
+    priority: 10,
+  },
 ];
+
+export const STANDARD_BI_THI_DUA_PROGRAMS: string[] = STANDARD_BI_PROGRAM_CATALOG.map((p) => p.name);
 
 export function removeVietnameseDiacritics(str: string): string {
   return str
@@ -243,11 +466,13 @@ export function levenshteinDistance(a: string, b: string): number {
  * Matches an OCR-extracted program name against the standard business catalog:
  * - Restores correct Vietnamese diacritics, capitalization, and standard spacing.
  * - Preserves period prefix (e.g. 'T11 - ') and truncation ellipsis ('...').
- * - Only applies match if similarity >= 0.75 and unambiguous.
+ * - Matches against priority catalog aliases before fuzzy Levenshtein distance.
+ * - Resolves canonical channel ('DT' or 'SL') according to business rules.
  * - Always ensures Unicode NFC.
  */
 export function matchStandardProgramName(ocrName: string): {
   matchedName: string;
+  channel?: ThiDuaKenh;
   isMatched: boolean;
   score: number;
 } {
@@ -263,12 +488,40 @@ export function matchStandardProgramName(ocrName: string): {
     return { matchedName: normalizedInput, isMatched: false, score: 0 };
   }
 
-  let bestMatch: string | null = null;
+  // Phase 1: High-priority Catalog Exact and Substring Alias Matching
+  const sortedCatalog = [...STANDARD_BI_PROGRAM_CATALOG].sort((a, b) => b.priority - a.priority);
+
+  for (const entry of sortedCatalog) {
+    for (const alias of entry.aliases) {
+      const aliasKey = removeVietnameseDiacritics(alias);
+      if (ocrKey === aliasKey) {
+        const finalName = prefix ? `${prefix}${entry.name}` : entry.name;
+        return {
+          matchedName: (isTruncated && !finalName.endsWith('...') ? `${finalName}...` : finalName).normalize('NFC'),
+          channel: entry.channel,
+          isMatched: true,
+          score: 1.0,
+        };
+      }
+      if (aliasKey.length >= 3 && ocrKey.includes(aliasKey)) {
+        const finalName = prefix ? `${prefix}${entry.name}` : entry.name;
+        return {
+          matchedName: (isTruncated && !finalName.endsWith('...') ? `${finalName}...` : finalName).normalize('NFC'),
+          channel: entry.channel,
+          isMatched: true,
+          score: 0.95,
+        };
+      }
+    }
+  }
+
+  // Phase 2: Levenshtein Distance Fallback
+  let bestMatch: StandardBiProgramEntry | null = null;
   let bestScore = 0;
   let secondBestScore = 0;
 
-  for (const std of STANDARD_BI_THI_DUA_PROGRAMS) {
-    const stdKey = removeVietnameseDiacritics(std);
+  for (const entry of STANDARD_BI_PROGRAM_CATALOG) {
+    const stdKey = removeVietnameseDiacritics(entry.name);
     let score = 0;
     if (ocrKey === stdKey) {
       score = 1.0;
@@ -283,7 +536,7 @@ export function matchStandardProgramName(ocrName: string): {
     if (score > bestScore) {
       secondBestScore = bestScore;
       bestScore = score;
-      bestMatch = std;
+      bestMatch = entry;
     } else if (score > secondBestScore) {
       secondBestScore = score;
     }
@@ -294,9 +547,10 @@ export function matchStandardProgramName(ocrName: string): {
     bestMatch &&
     (bestScore >= 0.85 || (bestScore >= 0.75 && bestScore - secondBestScore >= 0.12))
   ) {
-    const finalName = prefix ? `${prefix}${bestMatch}` : bestMatch;
+    const finalName = prefix ? `${prefix}${bestMatch.name}` : bestMatch.name;
     return {
       matchedName: (isTruncated && !finalName.endsWith('...') ? `${finalName}...` : finalName).normalize('NFC'),
+      channel: bestMatch.channel,
       isMatched: true,
       score: bestScore,
     };
@@ -445,42 +699,79 @@ export function validateThiDuaRow(
   const ten_chuong_trinh = normalizeProgramName(String(rowInput.ten_chuong_trinh ?? ''));
   const kenh = normalizeKenh(rowInput.kenh);
 
-  // Default Zero rules for blank/dash numeric cells:
-  // If undefined/null -> default to 0 (never fatal error). Keep valid numbers exact.
-  let thuc_hien = 0;
+  const uncertainSet = new Set<string>(
+    Array.isArray(rowInput.uncertain_fields)
+      ? rowInput.uncertain_fields.map((f) => String(f).trim()).filter(Boolean)
+      : []
+  );
+  const missing_fields: string[] = [];
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // THỰC HIỆN:
+  // - Distinct natural 0 (e.g. 0, 0.00, or DEFAULT_ZERO) vs UNREAD/MISSING (null)
+  let thuc_hien: number | null = null;
+  const isThExplicitZero =
+    rowInput.thuc_hien === 0 ||
+    rowInput.cell_metadata?.thuc_hien?.status === 'DEFAULT_ZERO' ||
+    rowInput.cell_metadata?.thuc_hien?.rawValue === '-' ||
+    rowInput.cell_metadata?.thuc_hien?.rawValue === '0' ||
+    rowInput.cell_metadata?.thuc_hien?.rawValue === '0.00';
+
   if (typeof rowInput.thuc_hien === 'number' && Number.isFinite(rowInput.thuc_hien)) {
     thuc_hien = rowInput.thuc_hien;
-  } else if (rowInput.thuc_hien === null || rowInput.thuc_hien === undefined) {
+  } else if (isThExplicitZero) {
     thuc_hien = 0;
+  } else if (rowInput.thuc_hien === null || rowInput.thuc_hien === undefined) {
+    thuc_hien = null;
+    missing_fields.push('thuc_hien');
+    uncertainSet.add('thuc_hien');
+    warnings.push('Chưa nhận diện được Thực hiện — vui lòng đối chiếu ảnh');
   }
 
-  let target = 0;
+  // TARGET:
+  let target: number | null = null;
+  const isTgtExplicitZero =
+    rowInput.target === 0 ||
+    rowInput.cell_metadata?.target?.status === 'DEFAULT_ZERO' ||
+    rowInput.cell_metadata?.target?.rawValue === '-' ||
+    rowInput.cell_metadata?.target?.rawValue === '0' ||
+    rowInput.cell_metadata?.target?.rawValue === '0.00';
+
   if (typeof rowInput.target === 'number' && Number.isFinite(rowInput.target)) {
     target = rowInput.target;
-  } else if (rowInput.target === null || rowInput.target === undefined) {
+  } else if (isTgtExplicitZero) {
     target = 0;
+  } else if (rowInput.target === null || rowInput.target === undefined) {
+    target = null;
+    missing_fields.push('target');
+    uncertainSet.add('target');
+    warnings.push('Chưa nhận diện được Target — vui lòng đối chiếu ảnh');
   }
 
   // % TH HIỆN TẠI:
-  // Nếu TARGET > 0: tính (THỰC HIỆN / TARGET) * 100 nếu chưa có giá trị nhận diện
-  // Nếu TARGET = 0: gán 0%
-  let ty_le_thuc_hien = 0;
-  if (target > 0) {
-    if (typeof rowInput.ty_le_thuc_hien === 'number' && Number.isFinite(rowInput.ty_le_thuc_hien)) {
-      ty_le_thuc_hien = rowInput.ty_le_thuc_hien;
-    } else {
-      ty_le_thuc_hien = Math.round((thuc_hien / target) * 10000) / 100;
-    }
-  } else {
+  // Ưu tiên giá trị đọc được từ vùng thanh tiến độ (cBar)
+  // Nếu chưa có mà Target > 0 và Thực hiện != null -> tự động tính (thuc_hien / target) * 100
+  let ty_le_thuc_hien: number | null = null;
+  if (typeof rowInput.ty_le_thuc_hien === 'number' && Number.isFinite(rowInput.ty_le_thuc_hien)) {
+    ty_le_thuc_hien = rowInput.ty_le_thuc_hien;
+  } else if (target !== null && target > 0 && thuc_hien !== null) {
+    ty_le_thuc_hien = Math.round((thuc_hien / target) * 10000) / 100;
+  } else if (target === 0) {
     ty_le_thuc_hien = 0;
   }
 
-  // % DỰ KIẾN HT: giữ nguyên giá trị nhận diện; nếu trống hoặc "-" -> 0
-  let ty_le_du_kien = 0;
+  // % DỰ KIẾN HT:
+  let ty_le_du_kien: number | null = null;
   if (typeof rowInput.ty_le_du_kien === 'number' && Number.isFinite(rowInput.ty_le_du_kien)) {
     ty_le_du_kien = rowInput.ty_le_du_kien;
-  } else {
-    ty_le_du_kien = 0;
+  } else if (rowInput.ty_le_du_kien === null || rowInput.ty_le_du_kien === undefined) {
+    // If not read, keep null if uncertain
+    if (rowInput.cell_metadata?.ty_le_du_kien?.status === 'DEFAULT_ZERO') {
+      ty_le_du_kien = 0;
+    } else {
+      ty_le_du_kien = rowInput.ty_le_du_kien ?? null;
+    }
   }
 
   // HẠNG VÙNG: giữ nguyên giá trị hợp lệ (>= 1); nếu trống hoặc "-" -> null (hiển thị "-")
@@ -488,16 +779,6 @@ export function validateThiDuaRow(
   if (typeof rowInput.hang_cty === 'number' && Number.isInteger(rowInput.hang_cty) && rowInput.hang_cty >= 1) {
     hang_cty = rowInput.hang_cty;
   }
-
-  const uncertainSet = new Set<string>(
-    Array.isArray(rowInput.uncertain_fields)
-      ? rowInput.uncertain_fields.map((f) => String(f).trim()).filter(Boolean)
-      : []
-  );
-
-  const missing_fields: string[] = [];
-  const errors: string[] = [];
-  const warnings: string[] = [];
 
   if (!ten_chuong_trinh) {
     missing_fields.push('ten_chuong_trinh');
@@ -512,31 +793,31 @@ export function validateThiDuaRow(
 
   if (invalidFlags.invalidThucHien) {
     errors.push('Thực hiện không phải số hợp lệ');
-  } else if (thuc_hien < 0) {
+  } else if (thuc_hien !== null && thuc_hien < 0) {
     errors.push('Thực hiện phải là số >= 0');
   }
 
   if (invalidFlags.invalidTarget) {
     errors.push('Target không phải số hợp lệ');
-  } else if (target < 0) {
+  } else if (target !== null && target < 0) {
     errors.push('Target phải là số >= 0');
-  } else if (target === 0 && thuc_hien > 0) {
+  } else if (target === 0 && thuc_hien !== null && thuc_hien > 0) {
     warnings.push('Target = 0 trong khi Thực hiện > 0');
   }
 
   if (invalidFlags.invalidTyLeThucHien) {
     errors.push('% Thực hiện không hợp lệ');
-  } else if (ty_le_thuc_hien < 0) {
+  } else if (ty_le_thuc_hien !== null && ty_le_thuc_hien < 0) {
     errors.push('% Thực hiện không được âm');
-  } else if (ty_le_thuc_hien > 5000) {
+  } else if (ty_le_thuc_hien !== null && ty_le_thuc_hien > 5000) {
     errors.push('% Thực hiện vượt ngưỡng hợp lý (> 5000%)');
   }
 
   if (invalidFlags.invalidTyLeDuKien) {
     errors.push('% Dự kiến HT không hợp lệ');
-  } else if (ty_le_du_kien < 0) {
+  } else if (ty_le_du_kien !== null && ty_le_du_kien < 0) {
     errors.push('% Dự kiến hoàn thành không được âm');
-  } else if (ty_le_du_kien > 5000) {
+  } else if (ty_le_du_kien !== null && ty_le_du_kien > 5000) {
     errors.push('% Dự kiến hoàn thành vượt ngưỡng hợp lý (> 5000%)');
   }
 
@@ -547,12 +828,14 @@ export function validateThiDuaRow(
       errors.push('Hạng vùng phải là số nguyên từ 1 trở lên');
     }
   }
-  // hang_cty === null represents an unranked program ('—' / dash), which is standard in BI.
 
   // Cross-field consistency checks (only for active positive targets)
   if (
+    target !== null &&
     target > 0 &&
+    thuc_hien !== null &&
     thuc_hien > 0 &&
+    ty_le_thuc_hien !== null &&
     ty_le_thuc_hien > 0
   ) {
     const computedPct = (thuc_hien / target) * 100;
@@ -567,7 +850,9 @@ export function validateThiDuaRow(
   }
 
   if (
+    ty_le_thuc_hien !== null &&
     ty_le_thuc_hien > 0 &&
+    ty_le_du_kien !== null &&
     ty_le_du_kien > 0 &&
     ty_le_du_kien + 2 < ty_le_thuc_hien
   ) {
@@ -595,6 +880,8 @@ export function validateThiDuaRow(
     warnings,
     sourcePageIndex: rowInput.sourcePageIndex ?? pageIndex,
     note: rowInput.note ? String(rowInput.note).trim() : undefined,
+    cell_metadata: rowInput.cell_metadata,
+    row_bbox: rowInput.row_bbox,
   };
 }
 
@@ -604,7 +891,7 @@ export function validateThiDuaRow(
  * - If target > 0 and ty_le_thuc_hien is missing -> (thuc_hien / target) * 100
  * - If target = 0 -> ty_le_thuc_hien = 0
  * - hang_cty: integer >= 1 or null (never 0)
- * - Preserves Vietnamese NFC strings, original decimal values, and does not alter program names
+ * - Preserves Vietnamese NFC strings, original decimal values, cell_metadata, and does not alter program names
  */
 export function normalizeBIData<T extends ThiDuaAiReportResult | ThiDuaAiRow[]>(input: T): T {
   if (Array.isArray(input)) {
@@ -619,15 +906,15 @@ export function normalizeBIData<T extends ThiDuaAiReportResult | ThiDuaAiRow[]>(
           ty_le_thuc_hien:
             r.target && r.target > 0
               ? (r.ty_le_thuc_hien ?? Math.round(((r.thuc_hien ?? 0) / r.target) * 10000) / 100)
-              : 0,
+              : (r.ty_le_thuc_hien ?? 0),
           ty_le_du_kien: r.ty_le_du_kien ?? 0,
           hang_cty:
             typeof r.hang_cty === 'number' && Number.isInteger(r.hang_cty) && r.hang_cty >= 1
               ? r.hang_cty
               : null,
-          uncertain_fields: (r.uncertain_fields || []).filter(
-            (f) => f !== 'thuc_hien' && f !== 'target' && f !== 'ty_le_thuc_hien' && f !== 'ty_le_du_kien'
-          ),
+          uncertain_fields: r.uncertain_fields || [],
+          cell_metadata: r.cell_metadata,
+          row_bbox: r.row_bbox,
         },
         idx,
         r.sourcePageIndex || 1
@@ -647,15 +934,15 @@ export function normalizeBIData<T extends ThiDuaAiReportResult | ThiDuaAiRow[]>(
         ty_le_thuc_hien:
           r.target && r.target > 0
             ? (r.ty_le_thuc_hien ?? Math.round(((r.thuc_hien ?? 0) / r.target) * 10000) / 100)
-            : 0,
+            : (r.ty_le_thuc_hien ?? 0),
         ty_le_du_kien: r.ty_le_du_kien ?? 0,
         hang_cty:
           typeof r.hang_cty === 'number' && Number.isInteger(r.hang_cty) && r.hang_cty >= 1
             ? r.hang_cty
             : null,
-        uncertain_fields: (r.uncertain_fields || []).filter(
-          (f) => f !== 'thuc_hien' && f !== 'target' && f !== 'ty_le_thuc_hien' && f !== 'ty_le_du_kien'
-        ),
+        uncertain_fields: r.uncertain_fields || [],
+        cell_metadata: r.cell_metadata,
+        row_bbox: r.row_bbox,
       },
       idx,
       r.sourcePageIndex || 1

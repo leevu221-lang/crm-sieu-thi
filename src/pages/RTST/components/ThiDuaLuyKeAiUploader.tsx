@@ -1886,6 +1886,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
         existingMeta={savedMeta}
         hasUpdatePermission={hasUpdatePermission}
         isSaving={isSaving}
+        imagePreviews={images.map((img) => img.previewUrl)}
         onConfirmSave={handleConfirmAndSave}
         onSaveValidOnly={handleSaveValidOnly}
         onSaveDraft={handleSaveDraftManual}

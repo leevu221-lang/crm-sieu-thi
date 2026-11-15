@@ -3,8 +3,14 @@ import {
   AlertTriangle,
   Bookmark,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Crosshair,
+  Eye,
   FileText,
   FileWarning,
+  Info,
+  Layers,
   Lock,
   Plus,
   RefreshCw,
@@ -43,6 +49,7 @@ interface ThiDuaLuyKeAiReviewModalProps {
   existingMeta?: ThiDuaLkMeta | null;
   hasUpdatePermission: boolean;
   isSaving: boolean;
+  imagePreviews?: string[];
   onConfirmSave: (
     finalReport: ThiDuaAiReportResult,
     metaInfo: {
@@ -85,6 +92,7 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
   existingMeta,
   hasUpdatePermission,
   isSaving,
+  imagePreviews = [],
   onConfirmSave,
   onSaveValidOnly,
   onSaveDraft,
@@ -103,6 +111,17 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
   const [draftStatus, setDraftStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('saved');
   const [draftSavedAt, setDraftSavedAt] = useState<string>('');
   const autoSaveTimerRef = useRef<any>(null);
+
+  // Admin Debug Inspector Mode state
+  const [isAdminDebugMode, setIsAdminDebugMode] = useState(false);
+  const [selectedInspectCell, setSelectedInspectCell] = useState<{
+    rowId: string;
+    field: 'ten_chuong_trinh' | 'kenh' | 'thuc_hien' | 'target' | 'ty_le_thuc_hien' | 'ty_le_du_kien' | 'hang_cty';
+    rowIdx: number;
+  } | null>(null);
+  const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
+  const [activePreviewIndex, setActivePreviewIndex] = useState(0);
+  const [imgNaturalDims, setImgNaturalDims] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
 
   useEffect(() => {
     if (!isOpen || !initialReport) return;
@@ -408,15 +427,40 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
     return String(val);
   };
 
+  const FIELD_LABELS: Record<string, string> = {
+    ten_chuong_trinh: 'Chương trình',
+    kenh: 'Kênh (DT/SL)',
+    thuc_hien: 'Thực hiện',
+    target: 'Target',
+    ty_le_thuc_hien: '% TH hiện tại',
+    ty_le_du_kien: '% Dự kiến HT',
+    hang_cty: 'Hạng Vùng',
+  };
+
+  const activeInspectRow = useMemo(() => {
+    if (!selectedInspectCell) return rows[0] || null;
+    return rows.find((r) => r.id === selectedInspectCell.rowId) || rows[0] || null;
+  }, [rows, selectedInspectCell]);
+
+  const activeInspectField = selectedInspectCell?.field || 'thuc_hien';
+  const activeCellMeta = activeInspectRow?.cell_metadata?.[activeInspectField];
+
+  const activeCellBbox = activeCellMeta?.bbox;
+  const activeRowBbox =
+    (hoveredRowId ? rows.find((r) => r.id === hoveredRowId)?.row_bbox : null) ||
+    activeInspectRow?.row_bbox;
+
   const isCellUncertain = (row: ThiDuaAiRow, field: string) => row.uncertain_fields.includes(field);
   const isCellMissing = (row: ThiDuaAiRow, field: string) => row.missing_fields.includes(field);
 
   const cellClassName = (row: ThiDuaAiRow, field: string, alignRight = true) => {
     const isUncertain = isCellUncertain(row, field);
     const isMissing = isCellMissing(row, field);
-    const base = `w-full px-1.5 py-1 text-[11px] sm:text-xs rounded border focus:outline-none focus:ring-2 transition-colors tabular-nums ${
+    const isSelected =
+      selectedInspectCell?.rowId === row.id && selectedInspectCell?.field === field;
+    const base = `w-full px-1.5 py-1 text-[11px] sm:text-xs rounded border focus:outline-none transition-all tabular-nums ${
       alignRight ? 'text-right' : 'text-left'
-    }`;
+    } ${isSelected ? 'ring-2 ring-purple-500 font-extrabold shadow-xs ' : 'focus:ring-2 '}`;
     if (isMissing && (field === 'ten_chuong_trinh' || field === 'thuc_hien' || field === 'target' || field === 'kenh')) {
       return `${base} bg-rose-50/80 border-rose-400 text-rose-900 focus:ring-rose-200`;
     }
@@ -433,7 +477,11 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
       aria-modal="true"
       aria-label="Xác nhận dữ liệu AI Lũy kế thi đua"
     >
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-[97vw] sm:w-[95vw] max-w-7xl max-h-[94vh] flex flex-col overflow-hidden">
+      <div
+        className={`bg-white rounded-2xl border border-slate-200 shadow-2xl w-[98vw] ${
+          isAdminDebugMode ? 'max-w-[98vw] h-[96vh]' : 'max-w-7xl max-h-[94vh]'
+        } flex flex-col overflow-hidden transition-all`}
+      >
         {/* Header */}
         <div className="px-3 py-2.5 sm:px-5 sm:py-3.5 bg-gradient-to-r from-orange-50 via-amber-50/80 to-white border-b border-orange-200/70 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -457,15 +505,42 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSaving}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
-            title="Đóng mà không lưu"
-          >
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsAdminDebugMode((prev) => !prev)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs ${
+                isAdminDebugMode
+                  ? 'bg-purple-600 text-white ring-2 ring-purple-300 shadow-purple-200'
+                  : 'bg-white text-slate-700 hover:bg-purple-50 hover:text-purple-700 border border-slate-300'
+              }`}
+              title="Bật/tắt chế độ đối chiếu hình ảnh gốc và thông tin tọa độ OCR"
+            >
+              <Crosshair
+                size={14}
+                className={isAdminDebugMode ? 'text-purple-200 animate-pulse' : 'text-purple-600'}
+              />
+              <span className="hidden sm:inline">Chế độ Debug đối chiếu (Admin)</span>
+              <span className="sm:hidden">Debug Admin</span>
+              <span
+                className={`ml-1 px-1.5 py-0.2 text-[9.5px] font-extrabold rounded-full ${
+                  isAdminDebugMode ? 'bg-purple-800 text-white' : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                {isAdminDebugMode ? 'BẬT' : 'TẮT'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSaving}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
+              title="Đóng mà không lưu"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable body */}
@@ -766,196 +841,438 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
             </div>
           </div>
 
-          {/* Editable Data Table */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto max-h-[44vh]">
-              <table className="w-full min-w-[920px] border-collapse text-left">
-                <thead className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200 text-[10px] sm:text-[11px] font-extrabold uppercase text-slate-600">
-                  <tr>
-                    <th className="px-2 py-2 w-9 text-center">#</th>
-                    <th className="px-2 py-2 min-w-[230px]">Chương trình</th>
-                    <th className="px-2 py-2 w-20 text-center">Kênh</th>
-                    <th className="px-2 py-2 w-28 text-right">Thực hiện</th>
-                    <th className="px-2 py-2 w-28 text-right">Target</th>
-                    <th className="px-2 py-2 w-24 text-right">% TH hiện tại</th>
-                    <th className="px-2 py-2 w-28 text-right">% Dự kiến HT</th>
-                    <th className="px-2 py-2 w-20 text-right">Hạng Vùng</th>
-                    <th className="px-2 py-2 min-w-[165px]">Kiểm tra</th>
-                    <th className="px-2 py-2 w-12 text-center">Xóa</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="px-4 py-8 text-center text-xs text-slate-400">
-                        Không có dòng nào phù hợp bộ lọc hiện tại.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredRows.map((row, visibleIdx) => {
-                      const rowIdx = rows.findIndex((x) => x.id === row.id) + 1;
-                      const hasError = row.errors.length > 0;
-                      const hasWarn = row.warnings.length > 0 || row.uncertain_fields.length > 0;
-                      return (
-                        <tr
-                          key={row.id}
-                          className={
-                            hasError
-                              ? 'bg-rose-50/40'
-                              : hasWarn
-                                ? 'bg-amber-50/30'
-                                : visibleIdx % 2 === 0
-                                  ? 'bg-white'
-                                  : 'bg-slate-50/40'
-                          }
-                        >
-                          <td className="px-2 py-1.5 text-center text-[11px] font-bold text-slate-400">
-                            {rowIdx}
-                          </td>
-
-                          <td className="px-1.5 py-1.5">
-                            <input
-                              type="text"
-                              disabled={!hasUpdatePermission}
-                              value={row.ten_chuong_trinh}
-                              onChange={(e) =>
-                                updateRowField(row.id, 'ten_chuong_trinh', e.target.value)
-                              }
-                              placeholder="Tên chương trình..."
-                              className={cellClassName(row, 'ten_chuong_trinh', false)}
-                            />
-                          </td>
-
-                          <td className="px-1.5 py-1.5 text-center">
-                            <button
-                              type="button"
-                              disabled={!hasUpdatePermission}
-                              onClick={() => handleToggleKenh(row.id, row.kenh === 'DT' ? 'SL' : 'DT')}
-                              title="Nhấn để đổi kênh giữa DT và SL"
-                              className={`inline-flex items-center justify-center min-w-[42px] px-2 py-1 text-[10.5px] font-extrabold rounded-md border transition-all ${
-                                row.kenh === 'DT'
-                                  ? 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100'
-                                  : row.kenh === 'SL'
-                                  ? 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
-                                  : 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-200'
-                              }`}
-                            >
-                              {row.kenh || 'Chưa rõ'}
-                            </button>
-                          </td>
-
-                          <td className="px-1.5 py-1.5">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              disabled={!hasUpdatePermission}
-                              value={getCellText(row, 'thuc_hien', row.thuc_hien)}
-                              onChange={(e) => updateRowField(row.id, 'thuc_hien', e.target.value)}
-                              onBlur={() => clearDraftValue(row.id, 'thuc_hien')}
-                              placeholder="—"
-                              className={cellClassName(row, 'thuc_hien')}
-                            />
-                          </td>
-
-                          <td className="px-1.5 py-1.5">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              disabled={!hasUpdatePermission}
-                              value={getCellText(row, 'target', row.target)}
-                              onChange={(e) => updateRowField(row.id, 'target', e.target.value)}
-                              onBlur={() => clearDraftValue(row.id, 'target')}
-                              placeholder="—"
-                              className={cellClassName(row, 'target')}
-                            />
-                          </td>
-
-                          <td className="px-1.5 py-1.5">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              disabled={!hasUpdatePermission}
-                              value={getCellText(row, 'ty_le_thuc_hien', row.ty_le_thuc_hien)}
-                              onChange={(e) =>
-                                updateRowField(row.id, 'ty_le_thuc_hien', e.target.value)
-                              }
-                              onBlur={() => clearDraftValue(row.id, 'ty_le_thuc_hien')}
-                              placeholder="—"
-                              className={cellClassName(row, 'ty_le_thuc_hien')}
-                            />
-                          </td>
-
-                          <td className="px-1.5 py-1.5">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              disabled={!hasUpdatePermission}
-                              value={getCellText(row, 'ty_le_du_kien', row.ty_le_du_kien)}
-                              onChange={(e) =>
-                                updateRowField(row.id, 'ty_le_du_kien', e.target.value)
-                              }
-                              onBlur={() => clearDraftValue(row.id, 'ty_le_du_kien')}
-                              placeholder="—"
-                              className={cellClassName(row, 'ty_le_du_kien')}
-                            />
-                          </td>
-
-                          <td className="px-1.5 py-1.5">
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              disabled={!hasUpdatePermission}
-                              value={getCellText(row, 'hang_cty', row.hang_cty)}
-                              onChange={(e) => updateRowField(row.id, 'hang_cty', e.target.value)}
-                              onFocus={(e) => {
-                                if (e.target.value === '-' || e.target.value === '—') {
-                                  e.target.select();
-                                }
-                              }}
-                              onBlur={() => clearDraftValue(row.id, 'hang_cty')}
-                              placeholder="-"
-                              className={cellClassName(row, 'hang_cty')}
-                            />
-                          </td>
-
-                          <td className="px-2 py-1.5 text-[10.5px] leading-snug">
-                            {row.errors.length > 0 ? (
-                              <div className="text-rose-700 font-semibold space-y-0.5">
-                                {row.errors.map((err, i) => (
-                                  <div key={i}>• {err}</div>
-                                ))}
-                              </div>
-                            ) : row.warnings.length > 0 ? (
-                              <div className="text-amber-700 font-medium space-y-0.5">
-                                {row.warnings.map((w, i) => (
-                                  <div key={i}>• {w}</div>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-emerald-700 font-bold">
-                                <CheckCircle2 size={12} /> Hợp lệ
-                              </span>
-                            )}
-                          </td>
-
-                          <td className="px-2 py-1.5 text-center">
-                            <button
-                              type="button"
-                              disabled={!hasUpdatePermission || isSaving}
-                              onClick={() => handleDeleteRow(row.id)}
-                              className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                              title="Xóa dòng này"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+          {/* Main Dual-Pane or Single-Pane Content */}
+          <div className={isAdminDebugMode ? 'grid grid-cols-1 lg:grid-cols-12 gap-3 items-start' : 'space-y-3'}>
+            <div className={isAdminDebugMode ? 'lg:col-span-7 xl:col-span-8' : 'w-full'}>
+              {/* Editable Data Table */}
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+                <div className={`overflow-x-auto ${isAdminDebugMode ? 'max-h-[58vh]' : 'max-h-[44vh]'}`}>
+                  <table className="w-full min-w-[920px] border-collapse text-left">
+                    <thead className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200 text-[10px] sm:text-[11px] font-extrabold uppercase text-slate-600">
+                      <tr>
+                        <th className="px-2 py-2 w-9 text-center">#</th>
+                        <th className="px-2 py-2 min-w-[230px]">Chương trình</th>
+                        <th className="px-2 py-2 w-20 text-center">Kênh</th>
+                        <th className="px-2 py-2 w-28 text-right">Thực hiện</th>
+                        <th className="px-2 py-2 w-28 text-right">Target</th>
+                        <th className="px-2 py-2 w-24 text-right">% TH hiện tại</th>
+                        <th className="px-2 py-2 w-28 text-right">% Dự kiến HT</th>
+                        <th className="px-2 py-2 w-20 text-right">Hạng Vùng</th>
+                        <th className="px-2 py-2 min-w-[165px]">Kiểm tra</th>
+                        <th className="px-2 py-2 w-12 text-center">Xóa</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredRows.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="px-4 py-8 text-center text-xs text-slate-400">
+                            Không có dòng nào phù hợp bộ lọc hiện tại.
                           </td>
                         </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                      ) : (
+                        filteredRows.map((row, visibleIdx) => {
+                          const rowIdx = rows.findIndex((x) => x.id === row.id) + 1;
+                          const hasError = row.errors.length > 0;
+                          const hasWarn = row.warnings.length > 0 || row.uncertain_fields.length > 0;
+                          return (
+                            <tr
+                              key={row.id}
+                              onMouseEnter={() => setHoveredRowId(row.id)}
+                              onMouseLeave={() => setHoveredRowId(null)}
+                              className={
+                                hasError
+                                  ? 'bg-rose-50/40'
+                                  : hasWarn
+                                    ? 'bg-amber-50/30'
+                                    : visibleIdx % 2 === 0
+                                      ? 'bg-white'
+                                      : 'bg-slate-50/40'
+                              }
+                            >
+                              <td
+                                className="px-2 py-1.5 text-center text-[11px] font-bold text-slate-400 cursor-pointer hover:text-purple-600"
+                                onClick={() =>
+                                  setSelectedInspectCell({ rowId: row.id, field: 'ten_chuong_trinh', rowIdx })
+                                }
+                                title="Bấm để xem đối chiếu dòng này trên ảnh gốc"
+                              >
+                                {rowIdx}
+                              </td>
+
+                              <td className="px-1.5 py-1.5">
+                                <input
+                                  type="text"
+                                  disabled={!hasUpdatePermission}
+                                  value={row.ten_chuong_trinh}
+                                  onFocus={() =>
+                                    setSelectedInspectCell({ rowId: row.id, field: 'ten_chuong_trinh', rowIdx })
+                                  }
+                                  onClick={() =>
+                                    setSelectedInspectCell({ rowId: row.id, field: 'ten_chuong_trinh', rowIdx })
+                                  }
+                                  onChange={(e) =>
+                                    updateRowField(row.id, 'ten_chuong_trinh', e.target.value)
+                                  }
+                                  placeholder="Tên chương trình..."
+                                  className={cellClassName(row, 'ten_chuong_trinh', false)}
+                                />
+                              </td>
+
+                              <td className="px-1.5 py-1.5 text-center">
+                                <button
+                                  type="button"
+                                  disabled={!hasUpdatePermission}
+                                  onClick={() => {
+                                    setSelectedInspectCell({ rowId: row.id, field: 'kenh', rowIdx });
+                                    handleToggleKenh(row.id, row.kenh === 'DT' ? 'SL' : 'DT');
+                                  }}
+                                  onFocus={() =>
+                                    setSelectedInspectCell({ rowId: row.id, field: 'kenh', rowIdx })
+                                  }
+                                  title="Nhấn để đổi kênh giữa DT và SL"
+                                  className={`inline-flex items-center justify-center min-w-[42px] px-2 py-1 text-[10.5px] font-extrabold rounded-md border transition-all ${
+                                    selectedInspectCell?.rowId === row.id && selectedInspectCell?.field === 'kenh'
+                                      ? 'ring-2 ring-purple-500 '
+                                      : ''
+                                  }${
+                                    row.kenh === 'DT'
+                                      ? 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100'
+                                      : row.kenh === 'SL'
+                                      ? 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                                      : 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-200'
+                                  }`}
+                                >
+                                  {row.kenh || 'Chưa rõ'}
+                                </button>
+                              </td>
+
+                              <td className="px-1.5 py-1.5">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  disabled={!hasUpdatePermission}
+                                  value={getCellText(row, 'thuc_hien', row.thuc_hien)}
+                                  onFocus={() =>
+                                    setSelectedInspectCell({ rowId: row.id, field: 'thuc_hien', rowIdx })
+                                  }
+                                  onClick={() =>
+                                    setSelectedInspectCell({ rowId: row.id, field: 'thuc_hien', rowIdx })
+                                  }
+                                  onChange={(e) => updateRowField(row.id, 'thuc_hien', e.target.value)}
+                                  onBlur={() => clearDraftValue(row.id, 'thuc_hien')}
+                                  placeholder="—"
+                                  className={cellClassName(row, 'thuc_hien')}
+                                />
+                              </td>
+
+                              <td className="px-1.5 py-1.5">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  disabled={!hasUpdatePermission}
+                                  value={getCellText(row, 'target', row.target)}
+                                  onFocus={() =>
+                                    setSelectedInspectCell({ rowId: row.id, field: 'target', rowIdx })
+                                  }
+                                  onClick={() =>
+                                    setSelectedInspectCell({ rowId: row.id, field: 'target', rowIdx })
+                                  }
+                                  onChange={(e) => updateRowField(row.id, 'target', e.target.value)}
+                                  onBlur={() => clearDraftValue(row.id, 'target')}
+                                  placeholder="—"
+                                  className={cellClassName(row, 'target')}
+                                />
+                              </td>
+
+                              <td className="px-1.5 py-1.5">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  disabled={!hasUpdatePermission}
+                                  value={getCellText(row, 'ty_le_thuc_hien', row.ty_le_thuc_hien)}
+                                  onFocus={() =>
+                                    setSelectedInspectCell({ rowId: row.id, field: 'ty_le_thuc_hien', rowIdx })
+                                  }
+                                  onClick={() =>
+                                    setSelectedInspectCell({ rowId: row.id, field: 'ty_le_thuc_hien', rowIdx })
+                                  }
+                                  onChange={(e) =>
+                                    updateRowField(row.id, 'ty_le_thuc_hien', e.target.value)
+                                  }
+                                  onBlur={() => clearDraftValue(row.id, 'ty_le_thuc_hien')}
+                                  placeholder="—"
+                                  className={cellClassName(row, 'ty_le_thuc_hien')}
+                                />
+                              </td>
+
+                              <td className="px-1.5 py-1.5">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  disabled={!hasUpdatePermission}
+                                  value={getCellText(row, 'ty_le_du_kien', row.ty_le_du_kien)}
+                                  onFocus={() =>
+                                    setSelectedInspectCell({ rowId: row.id, field: 'ty_le_du_kien', rowIdx })
+                                  }
+                                  onClick={() =>
+                                    setSelectedInspectCell({ rowId: row.id, field: 'ty_le_du_kien', rowIdx })
+                                  }
+                                  onChange={(e) =>
+                                    updateRowField(row.id, 'ty_le_du_kien', e.target.value)
+                                  }
+                                  onBlur={() => clearDraftValue(row.id, 'ty_le_du_kien')}
+                                  placeholder="—"
+                                  className={cellClassName(row, 'ty_le_du_kien')}
+                                />
+                              </td>
+
+                              <td className="px-1.5 py-1.5">
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  disabled={!hasUpdatePermission}
+                                  value={getCellText(row, 'hang_cty', row.hang_cty)}
+                                  onFocus={(e) => {
+                                    setSelectedInspectCell({ rowId: row.id, field: 'hang_cty', rowIdx });
+                                    if (e.target.value === '-' || e.target.value === '—') {
+                                      e.target.select();
+                                    }
+                                  }}
+                                  onClick={() =>
+                                    setSelectedInspectCell({ rowId: row.id, field: 'hang_cty', rowIdx })
+                                  }
+                                  onChange={(e) => updateRowField(row.id, 'hang_cty', e.target.value)}
+                                  onBlur={() => clearDraftValue(row.id, 'hang_cty')}
+                                  placeholder="-"
+                                  className={cellClassName(row, 'hang_cty')}
+                                />
+                              </td>
+
+                              <td className="px-2 py-1.5 text-[10.5px] leading-snug">
+                                {row.errors.length > 0 ? (
+                                  <div className="text-rose-700 font-semibold space-y-0.5">
+                                    {row.errors.map((err, i) => (
+                                      <div key={i}>• {err}</div>
+                                    ))}
+                                  </div>
+                                ) : row.warnings.length > 0 ? (
+                                  <div className="text-amber-700 font-medium space-y-0.5">
+                                    {row.warnings.map((w, i) => (
+                                      <div key={i}>• {w}</div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-emerald-700 font-bold">
+                                    <CheckCircle2 size={12} /> Hợp lệ
+                                  </span>
+                                )}
+                              </td>
+
+                              <td className="px-2 py-1.5 text-center">
+                                <button
+                                  type="button"
+                                  disabled={!hasUpdatePermission || isSaving}
+                                  onClick={() => handleDeleteRow(row.id)}
+                                  className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                  title="Xóa dòng này"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
+
+            {/* Admin Debug Inspector Panel */}
+            {isAdminDebugMode && (
+              <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-2.5">
+                {/* Panel Header & Inspector Card */}
+                <div className="bg-slate-900 text-white rounded-xl p-3 border border-slate-700 shadow-lg">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-purple-300">
+                      <Crosshair size={14} className="text-purple-400" />
+                      <span>Debug Inspector — Đối Chiếu Tọa Độ</span>
+                    </div>
+                    {imagePreviews && imagePreviews.length > 1 && (
+                      <div className="flex items-center gap-1 text-[11px] text-slate-300">
+                        <button
+                          type="button"
+                          onClick={() => setActivePreviewIndex((prev) => Math.max(0, prev - 1))}
+                          disabled={activePreviewIndex === 0}
+                          className="p-0.5 rounded hover:bg-slate-800 disabled:opacity-30"
+                        >
+                          <ChevronLeft size={13} />
+                        </button>
+                        <span>
+                          Trang {activePreviewIndex + 1}/{imagePreviews.length}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setActivePreviewIndex((prev) =>
+                              Math.min(imagePreviews.length - 1, prev + 1)
+                            )
+                          }
+                          disabled={activePreviewIndex === imagePreviews.length - 1}
+                          className="p-0.5 rounded hover:bg-slate-800 disabled:opacity-30"
+                        >
+                          <ChevronRight size={13} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Selected Cell Inspector Details */}
+                  <div className="mt-2.5 pt-2 border-t border-slate-800 text-[11px] space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Chương trình:</span>
+                      <span
+                        className="font-bold text-white truncate max-w-[210px]"
+                        title={activeInspectRow?.ten_chuong_trinh}
+                      >
+                        {activeInspectRow ? activeInspectRow.ten_chuong_trinh : '—'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Ô đang chọn:</span>
+                      <span className="font-extrabold text-orange-400">
+                        {FIELD_LABELS[activeInspectField] || activeInspectField}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Trạng thái ô:</span>
+                      <span>
+                        {activeCellMeta?.status === 'VERIFIED' && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700">
+                            VERIFIED (Khớp ảnh)
+                          </span>
+                        )}
+                        {activeCellMeta?.status === 'DEFAULT_ZERO' && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-950 text-blue-300 border border-blue-700">
+                            DEFAULT_ZERO (Gạch/0)
+                          </span>
+                        )}
+                        {activeCellMeta?.status === 'UNCERTAIN' && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-700">
+                            UNCERTAIN (Chưa chắc chắn)
+                          </span>
+                        )}
+                        {activeCellMeta?.status === 'MISSING' && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-300 border border-rose-700">
+                            MISSING (Chưa đọc được)
+                          </span>
+                        )}
+                        {!activeCellMeta?.status && (
+                          <span className="text-slate-400 text-[10px]">VERIFIED</span>
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5 pt-1 text-[10.5px]">
+                      <div className="bg-slate-800/80 rounded-lg p-1.5 border border-slate-700">
+                        <div className="text-slate-400 text-[9.5px]">Raw OCR Text</div>
+                        <div className="font-mono font-bold text-amber-300 truncate mt-0.5">
+                          {activeCellMeta?.rawValue ? `"${activeCellMeta.rawValue}"` : '—'}
+                        </div>
+                      </div>
+                      <div className="bg-slate-800/80 rounded-lg p-1.5 border border-slate-700">
+                        <div className="text-slate-400 text-[9.5px]">Parsed Value</div>
+                        <div className="font-mono font-bold text-emerald-300 truncate mt-0.5">
+                          {activeCellMeta?.parsedValue !== undefined && activeCellMeta?.parsedValue !== null
+                            ? String(activeCellMeta.parsedValue)
+                            : 'null'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+                      <span>Độ tin cậy OCR:</span>
+                      <span className="font-bold text-slate-200">
+                        {activeCellMeta?.confidence ? `${activeCellMeta.confidence}%` : 'N/A'}
+                      </span>
+                    </div>
+
+                    {activeCellBbox && (
+                      <div className="text-[9.5px] font-mono text-slate-400 truncate">
+                        Tọa độ BBox: [x:{activeCellBbox.x}, y:{activeCellBbox.y}, w:{activeCellBbox.w}, h:{activeCellBbox.h}]
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Image with SVG Bounding Box Overlay */}
+                <div className="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden relative shadow-lg">
+                  <div className="bg-slate-800 px-2.5 py-1.5 text-[10.5px] font-semibold text-slate-300 flex items-center justify-between border-b border-slate-700">
+                    <span>Vị trí trên ảnh báo cáo BI:</span>
+                    <span className="text-[9.5px] text-orange-300 font-bold">Khung cam = Ô đang chọn</span>
+                  </div>
+                  <div className="overflow-auto max-h-[380px] sm:max-h-[460px] relative bg-slate-950 p-1 flex justify-center">
+                    {imagePreviews && imagePreviews[activePreviewIndex] ? (
+                      <div className="relative inline-block max-w-full">
+                        <img
+                          src={imagePreviews[activePreviewIndex]}
+                          alt="Ảnh báo cáo BI"
+                          className="w-full h-auto block select-none"
+                          onLoad={(e) => {
+                            setImgNaturalDims({
+                              width: e.currentTarget.naturalWidth,
+                              height: e.currentTarget.naturalHeight,
+                            });
+                          }}
+                        />
+                        {imgNaturalDims.width > 0 && imgNaturalDims.height > 0 && (
+                          <svg
+                            viewBox={`0 0 ${imgNaturalDims.width} ${imgNaturalDims.height}`}
+                            className="absolute inset-0 w-full h-full pointer-events-none"
+                          >
+                            {/* Row bounding box */}
+                            {activeRowBbox && (
+                              <rect
+                                x={activeRowBbox.x}
+                                y={activeRowBbox.y}
+                                width={activeRowBbox.w}
+                                height={activeRowBbox.h}
+                                fill="rgba(59, 130, 246, 0.08)"
+                                stroke="#3b82f6"
+                                strokeWidth={imgNaturalDims.width > 1500 ? 3 : 2}
+                                strokeDasharray="8 4"
+                              />
+                            )}
+                            {/* Cell bounding box */}
+                            {activeCellBbox && (
+                              <g>
+                                <rect
+                                  x={activeCellBbox.x}
+                                  y={activeCellBbox.y}
+                                  width={activeCellBbox.w}
+                                  height={activeCellBbox.h}
+                                  fill="rgba(249, 115, 22, 0.35)"
+                                  stroke="#f97316"
+                                  strokeWidth={imgNaturalDims.width > 1500 ? 4 : 2.5}
+                                  rx={imgNaturalDims.width > 1500 ? 4 : 2}
+                                />
+                              </g>
+                            )}
+                          </svg>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center text-xs text-slate-500">
+                        Chưa có ảnh xem trước để đối chiếu.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Mandatory Admin Confirmation Checkbox when warnings/uncertainties exist */}
