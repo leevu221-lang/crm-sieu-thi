@@ -1,15 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
+  AlertTriangle,
+  Check,
   CheckCircle2,
   Clock,
+  Cpu,
   Eye,
   FileSpreadsheet,
   History,
   ImagePlus,
+  Layers,
   Lock,
   Loader2,
   RotateCcw,
+  Scan,
   Sparkles,
   Trash2,
   Upload,
@@ -29,6 +34,10 @@ import {
   type ThiDuaLkMeta,
   type ThiDuaLkUpdateHistoryEntry,
 } from '../../../utils/thiDuaAiParser';
+import {
+  runAutoOcrOnImages,
+  terminateSharedOcrWorker,
+} from '../../../utils/thiDuaOcrEngine';
 import { ThiDuaLuyKeAiReviewModal } from './ThiDuaLuyKeAiReviewModal';
 
 interface SelectedImageItem {
@@ -41,7 +50,7 @@ interface SelectedImageItem {
   height?: number;
 }
 
-type PipelineStatus = 'idle' | 'loading_images' | 'analyzing' | 'completed' | 'error';
+type PipelineStatus = 'idle' | 'loading_images' | 'reading_ocr' | 'analyzing' | 'completed' | 'error';
 
 interface ThiDuaLuyKeAiUploaderProps {
   currentValue: string;
@@ -164,6 +173,16 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
   const [errorCode, setErrorCode] = useState<string>('');
   const [expectedRowsHint, setExpectedRowsHint] = useState<string>('');
 
+  const [ocrProgressPct, setOcrProgressPct] = useState<number>(0);
+  const [ocrStats, setOcrStats] = useState<{
+    total: number;
+    valid: number;
+    uncertain: number;
+    errors: number;
+    confidence: number;
+  } | null>(null);
+  const [ocrNeedsAiFallback, setOcrNeedsAiFallback] = useState<boolean>(false);
+
   const [analyzedReport, setAnalyzedReport] = useState<ThiDuaAiReportResult | null>(null);
   const [pageCountAnalyzed, setPageCountAnalyzed] = useState<number>(0);
   const [duplicatesMerged, setDuplicatesMerged] = useState<number>(0);
@@ -284,7 +303,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
     }
   }, [allStoresCache, activeStore, metaStorageKey, savedMeta]);
 
-  // Revoke object URLs on unmount to avoid memory leaks
+  // Revoke object URLs on unmount to avoid memory leaks + terminate shared OCR worker
   const imagesRef = useRef<SelectedImageItem[]>([]);
   imagesRef.current = images;
   useEffect(() => {
@@ -294,6 +313,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
           URL.revokeObjectURL(img.previewUrl);
         } catch {}
       });
+      terminateSharedOcrWorker();
     };
   }, []);
 
@@ -311,6 +331,81 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() + 1 };
   }, [selectedMonth]);
+
+  /**
+   * Tự động nhận diện dữ liệu bằng OCR Engine (Tesseract.js / WebAssembly) chạy trực tiếp trên Client
+   * Không bắt buộc có GEMINI_API_KEY hay gọi backend trong quy trình thông thường
+   */
+  const triggerAutoOcr = async (targetImages: SelectedImageItem[]) => {
+    if (!hasUpdatePermission) {
+      showNotification('Tài khoản của bạn không có quyền cập nhật dữ liệu.', 'error');
+      return;
+    }
+    if (targetImages.length === 0) {
+      setAnalyzedReport(null);
+      setOcrStats(null);
+      setStatus('idle');
+      setProgressText('');
+      return;
+    }
+
+    setStatus('reading_ocr');
+    setErrorMsg('');
+    setErrorCode('');
+    setOcrProgressPct(3);
+    setProgressText(`Khởi động bộ đọc OCR cho ${targetImages.length} ảnh...`);
+
+    try {
+      const files = targetImages.map((img) => img.file);
+      const hintTotal = expectedRowsHint.trim() ? Number(expectedRowsHint.trim()) : null;
+
+      const ocrResult = await runAutoOcrOnImages(files, {
+        monthHint: monthYearHints.month,
+        yearHint: monthYearHints.year,
+        storeNameHint: resolvedStoreLabel,
+        expectedRowsHint:
+          hintTotal && Number.isInteger(hintTotal) && hintTotal > 0 ? hintTotal : null,
+        onProgress: (p) => {
+          setOcrProgressPct(p.percent);
+          setProgressText(p.statusText);
+        },
+      });
+
+      const rows = ocrResult.report.rows;
+      const validCount = rows.filter(
+        (r) => !r.is_uncertain && (!r.validation_errors || r.validation_errors.length === 0)
+      ).length;
+      const uncertainCount = rows.filter((r) => r.is_uncertain).length;
+      const errorCount = rows.filter(
+        (r) => r.validation_errors && r.validation_errors.length > 0
+      ).length;
+
+      setOcrStats({
+        total: rows.length,
+        valid: validCount,
+        uncertain: uncertainCount,
+        errors: errorCount,
+        confidence: ocrResult.confidenceScore,
+      });
+
+      setOcrNeedsAiFallback(ocrResult.needsAiFallback);
+      setAnalyzedReport(ocrResult.report);
+      setPageCountAnalyzed(targetImages.length);
+      setDuplicatesMerged(ocrResult.duplicatesMerged);
+      setDuplicateProgramsOnMerge(ocrResult.duplicatePrograms);
+      setModelUsed('Auto-OCR WebAssembly (Client Engine)');
+      setStatus('completed');
+      setProgressText(
+        `Đã đọc tự động ${rows.length} chương trình từ ${targetImages.length} trang. Hãy bấm "KIỂM TRA VÀ XÁC NHẬN LƯU" để rà soát!`
+      );
+    } catch (err: any) {
+      console.error('[ThiDuaAutoOcr] Failed:', err);
+      setStatus('error');
+      setErrorCode(String(err?.errorCode || 'OCR_ERROR'));
+      setErrorMsg(err?.message || 'Lỗi khi tự động nhận diện ảnh bằng OCR.');
+      setProgressText('');
+    }
+  };
 
   const handleFilesSelected = async (fileList: FileList | File[]) => {
     if (!hasUpdatePermission) {
@@ -355,9 +450,11 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
         });
       }
 
-      setImages((prev) => [...prev, ...prepared]);
-      setStatus('idle');
-      setProgressText('');
+      const nextImages = [...images, ...prepared];
+      setImages(nextImages);
+
+      // Tự động phân tích ngay sau khi tải ảnh, không cần người dùng bấm nút
+      await triggerAutoOcr(nextImages);
     } catch (err: any) {
       setErrorMsg(err?.message || 'Không thể tải ảnh đã chọn.');
       setErrorCode('INVALID_IMAGE');
@@ -366,15 +463,21 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
   };
 
   const handleRemoveImage = (id: string) => {
-    setImages((prev) => {
-      const found = prev.find((x) => x.id === id);
-      if (found) {
-        try {
-          URL.revokeObjectURL(found.previewUrl);
-        } catch {}
-      }
-      return prev.filter((x) => x.id !== id);
-    });
+    const nextImages = images.filter((x) => x.id !== id);
+    const found = images.find((x) => x.id === id);
+    if (found) {
+      try {
+        URL.revokeObjectURL(found.previewUrl);
+      } catch {}
+    }
+    setImages(nextImages);
+
+    if (nextImages.length > 0) {
+      // Tự động cập nhật dữ liệu từ các ảnh còn lại
+      triggerAutoOcr(nextImages);
+    } else {
+      handleClearImages();
+    }
   };
 
   const handleClearImages = () => {
@@ -384,6 +487,10 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
       } catch {}
     });
     setImages([]);
+    setAnalyzedReport(null);
+    setOcrStats(null);
+    setOcrProgressPct(0);
+    setOcrNeedsAiFallback(false);
     setStatus('idle');
     setProgressText('');
     setErrorMsg('');
@@ -856,37 +963,89 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                 ))}
               </div>
 
-              <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  disabled={status === 'analyzing' || isSaving}
-                  onClick={handleAnalyzeImages}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-900 text-white text-[11px] font-extrabold hover:bg-orange-600 disabled:opacity-50 transition-colors"
-                >
-                  {status === 'analyzing' ? (
-                    <>
-                      <Loader2 size={13} className="animate-spin" />
-                      <span>ĐANG PHÂN TÍCH AI...</span>
-                    </>
+              {/* Auto OCR Controls & Mini Quick Preview */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                <div className="text-[10.5px] text-slate-500 font-medium">
+                  {status === 'reading_ocr' ? (
+                    <span className="inline-flex items-center gap-1.5 text-orange-600 font-bold">
+                      <Loader2 size={12} className="animate-spin" />
+                      Đang tự động đọc ảnh bằng OCR ({ocrProgressPct}%)...
+                    </span>
                   ) : (
-                    <>
-                      <Sparkles size={13} />
-                      <span>PHÂN TÍCH {images.length} ẢNH BẰNG AI</span>
-                    </>
+                    <span>
+                      Tự động phân tích ngay khi nạp ảnh (Hybrid OCR Client Engine).
+                    </span>
                   )}
-                </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={status === 'reading_ocr' || status === 'analyzing' || isSaving}
+                    onClick={() => triggerAutoOcr(images)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700 text-[10.5px] font-bold hover:bg-slate-50 hover:border-orange-300 disabled:opacity-50 transition-colors"
+                    title="Chạy lại bộ đọc OCR trên máy khách"
+                  >
+                    <RotateCcw size={11} />
+                    <span>Đọc lại OCR</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={status === 'reading_ocr' || status === 'analyzing' || isSaving}
+                    onClick={handleAnalyzeImages}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-orange-50 border border-orange-200 text-orange-700 text-[10.5px] font-bold hover:bg-orange-100 disabled:opacity-50 transition-colors"
+                    title="Sử dụng Gemini Vision Backend làm phương án dự phòng khi ảnh bị mờ hoặc cần đối chiếu"
+                  >
+                    {status === 'analyzing' ? (
+                      <>
+                        <Loader2 size={11} className="animate-spin" />
+                        <span>Đang gọi AI...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={11} />
+                        <span>Dùng AI nâng cao (Dự phòng)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Pipeline Status Feedback */}
-          {(status === 'loading_images' || status === 'analyzing') && progressText && (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 flex items-center gap-2 text-[11px] font-semibold text-blue-800">
-              <Loader2 size={13} className="animate-spin shrink-0" />
+          {/* Auto-OCR Running Progress Feedback */}
+          {status === 'reading_ocr' && (
+            <div className="rounded-xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-3 space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-bold text-orange-900">
+                <span className="inline-flex items-center gap-2">
+                  <Scan size={14} className="animate-pulse text-orange-600" />
+                  <span>ĐANG ĐỌC ẢNH TỰ ĐỘNG (AUTO OCR CLIENT)...</span>
+                </span>
+                <span className="text-orange-700 font-extrabold">{ocrProgressPct}%</span>
+              </div>
+              <div className="w-full bg-orange-100 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-gradient-to-r from-orange-500 to-amber-500 h-2 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${Math.max(4, ocrProgressPct)}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[10.5px] text-slate-600">
+                <span className="truncate">{progressText || 'Đang nhận diện dữ liệu...'}</span>
+                <span className="text-slate-400 shrink-0">WebAssembly Engine</span>
+              </div>
+            </div>
+          )}
+
+          {/* Gemini AI Fallback Running Feedback */}
+          {status === 'analyzing' && progressText && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 flex items-center gap-2 text-[11px] font-semibold text-blue-800">
+              <Loader2 size={14} className="animate-spin shrink-0 text-blue-600" />
               <span>{progressText}</span>
             </div>
           )}
 
+          {/* Error Message Box */}
           {status === 'error' && errorMsg && (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 space-y-1.5 text-[11px] text-rose-800">
               <div className="flex items-start justify-between gap-2">
@@ -894,6 +1053,15 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                   <AlertCircle size={14} className="shrink-0 mt-0.5 text-rose-600" />
                   <div className="space-y-1">
                     <div>{errorMsg}</div>
+                    {errorCode === 'OCR_ERROR' && (
+                      <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1 space-y-0.5">
+                        <div>Ảnh chụp có thể chưa rõ hoặc bị nghiêng. Bạn có thể:</div>
+                        <ul className="list-disc pl-4 space-y-0.5 text-[10px] text-slate-700">
+                          <li>Kiểm tra lại ảnh chụp bảng báo cáo BI (đủ các cột Tên CT, Kênh, Thực hiện, Target...).</li>
+                          <li>Bấm <strong>Đọc lại OCR</strong> hoặc bấm <strong>Dùng AI nâng cao (Dự phòng)</strong> để Cloudflare Gemini API phân tích thay thế.</li>
+                        </ul>
+                      </div>
+                    )}
                     {(errorCode === 'GEMINI_API_KEY_MISSING' || errorCode === 'MISSING_API_KEY') && (
                       <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1.5 space-y-1">
                         <div>
@@ -953,36 +1121,176 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                 </div>
 
                 {images.length > 0 && (
-                  <button
-                    type="button"
-                    disabled={isSaving}
-                    onClick={handleAnalyzeImages}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-rose-600 text-white text-[10.5px] font-extrabold hover:bg-rose-700 disabled:opacity-50 shrink-0 transition-colors"
-                  >
-                    <RotateCcw size={12} />
-                    <span>Thử lại</span>
-                  </button>
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <button
+                      type="button"
+                      disabled={isSaving}
+                      onClick={() => triggerAutoOcr(images)}
+                      className="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-md bg-orange-600 text-white text-[10.5px] font-extrabold hover:bg-orange-700 disabled:opacity-50 transition-colors"
+                    >
+                      <RotateCcw size={11} />
+                      <span>Thử lại OCR</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSaving}
+                      onClick={handleAnalyzeImages}
+                      className="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-md bg-slate-800 text-white text-[10px] font-bold hover:bg-slate-900 disabled:opacity-50 transition-colors"
+                    >
+                      <Sparkles size={10} />
+                      <span>Thử AI Cloud</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
           )}
 
-          {analyzedReport && (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-              <span className="inline-flex items-center gap-1.5 font-bold text-emerald-800">
-                <CheckCircle2 size={14} className="shrink-0" />
-                <span>
-                  Đã nhận diện {analyzedReport.rows.length} chương trình (chưa lưu vào DB).
-                </span>
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsReviewOpen(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-600 text-white text-[10.5px] font-extrabold hover:bg-emerald-700"
-              >
-                <Eye size={12} />
-                <span>XEM TRƯỚC & XÁC NHẬN LƯU</span>
-              </button>
+          {/* Auto-OCR Result Card with Live Quick Preview & Prominent Confirm Button */}
+          {analyzedReport && status !== 'reading_ocr' && (
+            <div className="rounded-xl border border-emerald-200 bg-white shadow-sm overflow-hidden space-y-0">
+              {/* Header Statistics Bar */}
+              <div className="bg-emerald-50/80 px-3 py-2 border-b border-emerald-100 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-600 text-white text-[11px] font-black">
+                    <CheckCircle2 size={13} />
+                    <span>ĐÃ NHẬN DIỆN {analyzedReport.rows.length} CHƯƠNG TRÌNH</span>
+                  </span>
+                  <span className="text-[10.5px] font-semibold text-emerald-800">
+                    {images.length} trang • Kỳ {analyzedReport.month || monthYearHints.month}/{analyzedReport.year || monthYearHints.year} • {analyzedReport.store_name || resolvedStoreLabel}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                  {ocrStats && (
+                    <>
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-100/80 text-emerald-800 font-bold">
+                        Chuẩn xác: {ocrStats.valid}
+                      </span>
+                      {ocrStats.uncertain > 0 && (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold inline-flex items-center gap-1">
+                          <AlertTriangle size={10} />
+                          Cần kiểm tra: {ocrStats.uncertain}
+                        </span>
+                      )}
+                      <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold">
+                        Độ tin cậy: {ocrStats.confidence}%
+                      </span>
+                    </>
+                  )}
+                  {modelUsed && (
+                    <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                      {modelUsed}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Quick Table Preview (5 First Rows) */}
+              <div className="p-2 sm:p-2.5 space-y-2">
+                <div className="text-[10.5px] font-bold text-slate-700 flex items-center justify-between">
+                  <span>Xem nhanh kết quả trích xuất ({Math.min(5, analyzedReport.rows.length)}/{analyzedReport.rows.length} dòng đầu):</span>
+                  <span className="text-[10px] text-slate-400 font-normal">
+                    (Dữ liệu 286 dòng cũ đang được bảo toàn nguyên vẹn)
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                  <table className="w-full text-left text-[11px] border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-700 text-[10px] font-bold uppercase tracking-wider">
+                        <th className="p-1.5 border-b border-slate-200 w-8 text-center">STT</th>
+                        <th className="p-1.5 border-b border-slate-200 min-w-[140px]">Tên chương trình</th>
+                        <th className="p-1.5 border-b border-slate-200 w-14 text-center">Kênh</th>
+                        <th className="p-1.5 border-b border-slate-200 text-right w-20">Thực hiện</th>
+                        <th className="p-1.5 border-b border-slate-200 text-right w-20">Target</th>
+                        <th className="p-1.5 border-b border-slate-200 text-right w-16">Tỷ lệ</th>
+                        <th className="p-1.5 border-b border-slate-200 text-center w-16">Hạng Cty</th>
+                        <th className="p-1.5 border-b border-slate-200 text-center w-20">Độ tin cậy</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {analyzedReport.rows.slice(0, 5).map((row, idx) => (
+                        <tr
+                          key={row.id || idx}
+                          className={row.is_uncertain ? 'bg-amber-50/60' : 'hover:bg-slate-50/60'}
+                        >
+                          <td className="p-1.5 text-center font-mono text-[10px] text-slate-500">
+                            {idx + 1}
+                          </td>
+                          <td className="p-1.5 font-semibold text-slate-800 truncate max-w-[200px]" title={row.ten_chuong_trinh}>
+                            {row.ten_chuong_trinh}
+                          </td>
+                          <td className="p-1.5 text-center font-bold">
+                            <span
+                              className={`px-1 py-0.5 rounded text-[9.5px] ${
+                                row.kenh === 'SL'
+                                  ? 'bg-blue-100 text-blue-700'
+                                  : 'bg-emerald-100 text-emerald-700'
+                              }`}
+                            >
+                              {row.kenh || 'DT'}
+                            </span>
+                          </td>
+                          <td className="p-1.5 text-right font-mono font-medium">
+                            {row.thuc_hien !== null && row.thuc_hien !== undefined
+                              ? Number(row.thuc_hien).toLocaleString('vi-VN')
+                              : '-'}
+                          </td>
+                          <td className="p-1.5 text-right font-mono font-medium">
+                            {row.target !== null && row.target !== undefined
+                              ? Number(row.target).toLocaleString('vi-VN')
+                              : '-'}
+                          </td>
+                          <td className="p-1.5 text-right font-mono font-bold text-orange-600">
+                            {row.ty_le_du_kien !== null && row.ty_le_du_kien !== undefined
+                              ? `${row.ty_le_du_kien}%`
+                              : row.ty_le_thuc_hien !== null && row.ty_le_thuc_hien !== undefined
+                              ? `${row.ty_le_thuc_hien}%`
+                              : '-'}
+                          </td>
+                          <td className="p-1.5 text-center font-mono text-[10.5px]">
+                            {row.hang_cty !== null && row.hang_cty !== undefined ? row.hang_cty : '-'}
+                          </td>
+                          <td className="p-1.5 text-center">
+                            {row.is_uncertain ? (
+                              <span className="inline-flex items-center gap-0.5 text-[9.5px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-bold">
+                                <AlertTriangle size={10} /> Cần xem lại
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-0.5 text-[9.5px] px-1 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold">
+                                <Check size={10} /> Chuẩn
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {analyzedReport.rows.length > 5 && (
+                  <div className="text-center text-[10.5px] text-slate-500 font-medium">
+                    ... và còn <strong>{analyzedReport.rows.length - 5}</strong> chương trình khác. Bấm nút dưới đây để kiểm tra toàn bộ.
+                  </div>
+                )}
+
+                {/* Primary Action Button (Prominent & Eye-Catching) */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                  <div className="text-[10px] text-slate-500">
+                    <span className="text-emerald-700 font-bold">Lưu ý:</span> Kết quả OCR cần Admin xác nhận mới được lưu vào bảng LUỸ KẾ THI ĐUA.
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsReviewOpen(true)}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white text-xs sm:text-[13px] font-black shadow-md hover:from-emerald-700 hover:to-teal-800 hover:shadow-lg transition-all transform active:scale-[0.99]"
+                  >
+                    <Eye size={15} />
+                    <span>KIỂM TRA VÀ XÁC NHẬN LƯU ({analyzedReport.rows.length} CHƯƠNG TRÌNH)</span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
