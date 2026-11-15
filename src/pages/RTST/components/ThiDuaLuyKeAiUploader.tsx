@@ -117,8 +117,8 @@ function getImageDimensions(url: string): Promise<{ width: number; height: numbe
 async function prepareImageForVision(
   item: SelectedImageItem
 ): Promise<{ imageBase64: string; mimeType: string }> {
-  const maxDirectBytes = 3.2 * 1024 * 1024;
-  const maxDim = 2800;
+  const maxDirectBytes = 15 * 1024 * 1024;
+  const maxDim = 5000;
   const width = item.width || 0;
   const height = item.height || 0;
 

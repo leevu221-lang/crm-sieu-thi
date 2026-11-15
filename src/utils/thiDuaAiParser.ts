@@ -41,6 +41,7 @@ export interface ThiDuaCellMetadata {
 
 export interface ThiDuaAiRow {
   id: string;
+  stt?: number;
   ten_chuong_trinh: string;
   kenh: ThiDuaKenh | null;
   thuc_hien: number | null;
@@ -117,6 +118,12 @@ export interface ThiDuaAiValidationSummary {
   requiresAdminConfirmation: boolean;
   canConfirmSave: boolean;
   blockingReasons: string[];
+  minStt?: number;
+  maxStt?: number;
+  missingSttCount?: number;
+  duplicateSttCount?: number;
+  isIncomplete?: boolean;
+  incompleteMessage?: string;
 }
 
 export interface ThiDuaLkUpdateHistoryEntry {
@@ -867,6 +874,7 @@ export function validateThiDuaRow(
 
   return {
     id: rowInput.id || createRowId(index, pageIndex),
+    stt: rowInput.stt ?? (index + 1),
     ten_chuong_trinh,
     kenh,
     thuc_hien,
@@ -1230,13 +1238,29 @@ export function buildValidationSummary(
   const expectedTotal = report.expected_total_rows;
   const hasCountMismatch = expectedTotal !== null && expectedTotal > 0 && rows.length !== expectedTotal;
 
+  const sttList = rows.map((r, i) => r.stt ?? (i + 1));
+  const minStt = sttList.length > 0 ? Math.min(...sttList) : 1;
+  const maxStt = sttList.length > 0 ? Math.max(...sttList) : rows.length;
+  const seenStt = new Set<number>();
+  let duplicateSttCount = 0;
+  sttList.forEach((stt) => {
+    if (seenStt.has(stt)) duplicateSttCount++;
+    else seenStt.add(stt);
+  });
+  const missingSttCount = expectedTotal && expectedTotal > rows.length ? expectedTotal - rows.length : 0;
+  const isIncomplete = (expectedTotal !== null && expectedTotal > 0 && rows.length < expectedTotal) || missingSttCount > 0;
+  const incompleteMessage = isIncomplete
+    ? `ẢNH CHƯA ĐƯỢC NHẬN DIỆN ĐẦY ĐỦ – VUI LÒNG KIỂM TRA CÁC DÒNG CÒN THIẾU (Đã nhận diện ${rows.length}/${expectedTotal} dòng, còn thiếu ${expectedTotal! - rows.length} dòng).`
+    : undefined;
+
   const requiresAdminConfirmation =
     report.image_quality !== 'GOOD' ||
     uncertainPrograms.length > 0 ||
     missingDataPrograms.length > 0 ||
     warningRows > 0 ||
     hasCountMismatch ||
-    runtimeDuplicates.length > 0;
+    runtimeDuplicates.length > 0 ||
+    isIncomplete;
 
   const blockingReasons: string[] = [];
   if (rows.length === 0) {
@@ -1252,7 +1276,11 @@ export function buildValidationSummary(
     }
   }
   if (requiresAdminConfirmation && !adminConfirmedWarnings) {
-    blockingReasons.push('Vui lòng tick xác nhận đã kiểm tra các cảnh báo / trường chưa chắc chắn.');
+    blockingReasons.push(
+      isIncomplete
+        ? 'Vui lòng kiểm tra các dòng còn thiếu và tick xác nhận đã rà soát trước khi lưu.'
+        : 'Vui lòng tick xác nhận đã kiểm tra các cảnh báo / trường chưa chắc chắn.'
+    );
   }
 
   return {
@@ -1270,6 +1298,12 @@ export function buildValidationSummary(
     requiresAdminConfirmation,
     canConfirmSave: blockingReasons.length === 0,
     blockingReasons,
+    minStt,
+    maxStt,
+    missingSttCount,
+    duplicateSttCount,
+    isIncomplete,
+    incompleteMessage,
   };
 }
 

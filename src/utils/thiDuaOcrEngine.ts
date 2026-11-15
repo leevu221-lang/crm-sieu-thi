@@ -265,7 +265,7 @@ export async function decodeImageToCanvas(
           return;
         }
 
-        const maxDim = 2600;
+        const maxDim = 5000;
         let scale = 1;
         if (Math.max(origW, origH) > maxDim) {
           scale = maxDim / Math.max(origW, origH);
@@ -482,10 +482,10 @@ export function preprocessImageForOcr(canvasSource: HTMLCanvasElement): HTMLCanv
   const origH = canvasSource.height;
 
   let scale = 1;
-  if (origW < 1600) {
-    scale = Math.min(2.0, 1800 / origW);
-  } else if (origW > 2800) {
-    scale = 2800 / origW;
+  if (origW < 1200) {
+    scale = Math.min(2.0, 1600 / origW);
+  } else if (origW > 4500) {
+    scale = 4500 / origW;
   }
 
   const targetW = Math.max(1, Math.round(origW * scale));
@@ -1461,6 +1461,28 @@ export function parseTsvToWords(tsvString: string, offsetX = 0, offsetY = 0): Oc
 }
 
 /**
+ * Merges words from overlapping tiles into an existing word list.
+ * Deduplicates adjacent words (within 16px vertical & 35px horizontal distance),
+ * retaining the token with the higher OCR confidence score.
+ */
+export function mergeWordLists(existing: OcrWordCoord[], incoming: OcrWordCoord[]): OcrWordCoord[] {
+  const result = [...existing];
+  for (const inc of incoming) {
+    const matchIdx = result.findIndex(
+      (e) => Math.abs(e.yCenter - inc.yCenter) < 16 && Math.abs(e.left - inc.left) < 35
+    );
+    if (matchIdx !== -1) {
+      if (inc.conf > result[matchIdx].conf) {
+        result[matchIdx] = inc;
+      }
+    } else {
+      result.push(inc);
+    }
+  }
+  return result;
+}
+
+/**
  * Recognizes the BI table using Column-Strip Cropping:
  * 1. Reads Header area for Period, Store Name, and KPI Summary (39 CT).
  * 2. Crops 5 vertical column strips:
@@ -1564,39 +1586,98 @@ export async function recognizeBiColumnsGrid(
   const cPct = cropCanvas(canvas, rectPct);
   const cRank = cropCanvas(canvas, rectRank);
 
-  // 4. Recognize each column strip with TSV
-  onProgress?.(35, 'Đang quét cột 1: Tên chương trình & Kênh...');
+  // 4. Pass 1: Global recognition of the 6 column strips
+  onProgress?.(30, 'Giai đoạn 2: Quét toàn bảng & Phân tích cấu trúc tiêu đề...');
   const resProg = await worker.recognize(cProg, {}, { tsv: true, text: true });
-
-  onProgress?.(50, 'Đang quét cột 2: Số liệu Thực hiện...');
   const resTh = await worker.recognize(cTh, {}, { tsv: true, text: true });
-
-  onProgress?.(65, 'Đang quét cột 3: Chỉ tiêu Target...');
   const resTgt = await worker.recognize(cTgt, {}, { tsv: true, text: true });
-
-  onProgress?.(75, 'Đang quét cột 4: Thanh tiến độ & % Thực hiện...');
   const resBar = await worker.recognize(cBar, {}, { tsv: true, text: true });
-
-  onProgress?.(85, 'Đang quét cột 5: % Dự kiến hoàn thành...');
   const resPct = await worker.recognize(cPct, {}, { tsv: true, text: true });
-
-  onProgress?.(92, 'Đang quét cột 6: Hạng vùng...');
   const resRank = await worker.recognize(cRank, {}, { tsv: true, text: true });
 
   // 5. Parse words with absolute coordinates
-  const wordsProg = parseTsvToWords(resProg.data.tsv || '', rectProg.x, rectProg.y);
-  const wordsTh = parseTsvToWords(resTh.data.tsv || '', rectTh.x, rectTh.y);
-  const wordsTgt = parseTsvToWords(resTgt.data.tsv || '', rectTgt.x, rectTgt.y);
-  const wordsBar = parseTsvToWords(resBar.data.tsv || '', rectBar.x, rectBar.y);
-  const wordsPct = parseTsvToWords(resPct.data.tsv || '', rectPct.x, rectPct.y);
-  const wordsRank = parseTsvToWords(resRank.data.tsv || '', rectRank.x, rectRank.y);
+  let wordsProg = parseTsvToWords(resProg.data.tsv || '', rectProg.x, rectProg.y);
+  let wordsTh = parseTsvToWords(resTh.data.tsv || '', rectTh.x, rectTh.y);
+  let wordsTgt = parseTsvToWords(resTgt.data.tsv || '', rectTgt.x, rectTgt.y);
+  let wordsBar = parseTsvToWords(resBar.data.tsv || '', rectBar.x, rectBar.y);
+  let wordsPct = parseTsvToWords(resPct.data.tsv || '', rectPct.x, rectPct.y);
+  let wordsRank = parseTsvToWords(resRank.data.tsv || '', rectRank.x, rectRank.y);
 
-  if (wordsProg.length < 5) {
+  // Multi-Tile Vertical Slicing with Overlap (Image Tiling)
+  // When table is long, partition vertically into overlapping horizontal bands
+  // to ensure small fonts and the bottom rows (30-39) are captured at 100% fidelity.
+  if (tableH > 1000) {
+    const numTiles = Math.min(3, Math.max(2, Math.ceil(tableH / 1300)));
+    const overlap = Math.max(140, Math.round(tableH * 0.08));
+    const sliceH = Math.round(tableH / numTiles);
+
+    for (let t = 0; t < numTiles; t++) {
+      const tileY0 = Math.max(tableTopY, tableTopY + t * sliceH - (t > 0 ? overlap : 0));
+      const tileY1 = t === numTiles - 1 ? H : Math.min(H, tableTopY + (t + 1) * sliceH + overlap);
+      const curTileH = tileY1 - tileY0;
+      if (curTileH < 100) continue;
+
+      onProgress?.(
+        40 + Math.round((t / numTiles) * 35),
+        `Giai đoạn 3: Quét chi tiết phân vùng ${t + 1}/${numTiles} (Y: ${tileY0} - ${tileY1})...`
+      );
+
+      const tileProg = cropCanvas(canvas, { x: rectProg.x, y: tileY0, w: rectProg.w, h: curTileH });
+      const tileTh = cropCanvas(canvas, { x: rectTh.x, y: tileY0, w: rectTh.w, h: curTileH });
+      const tileTgt = cropCanvas(canvas, { x: rectTgt.x, y: tileY0, w: rectTgt.w, h: curTileH });
+      const tileBar = cropCanvas(canvas, { x: rectBar.x, y: tileY0, w: rectBar.w, h: curTileH });
+      const tilePct = cropCanvas(canvas, { x: rectPct.x, y: tileY0, w: rectPct.w, h: curTileH });
+      const tileRank = cropCanvas(canvas, { x: rectRank.x, y: tileY0, w: rectRank.w, h: curTileH });
+
+      const [rProgTile, rThTile, rTgtTile, rBarTile, rPctTile, rRankTile] = await Promise.all([
+        worker.recognize(tileProg, {}, { tsv: true, text: true }),
+        worker.recognize(tileTh, {}, { tsv: true, text: true }),
+        worker.recognize(tileTgt, {}, { tsv: true, text: true }),
+        worker.recognize(tileBar, {}, { tsv: true, text: true }),
+        worker.recognize(tilePct, {}, { tsv: true, text: true }),
+        worker.recognize(tileRank, {}, { tsv: true, text: true }),
+      ]);
+
+      const tileWordsProg = parseTsvToWords(rProgTile.data.tsv || '', rectProg.x, tileY0);
+      const tileWordsTh = parseTsvToWords(rThTile.data.tsv || '', rectTh.x, tileY0);
+      const tileWordsTgt = parseTsvToWords(rTgtTile.data.tsv || '', rectTgt.x, tileY0);
+      const tileWordsBar = parseTsvToWords(rBarTile.data.tsv || '', rectBar.x, tileY0);
+      const tileWordsPct = parseTsvToWords(rPctTile.data.tsv || '', rectPct.x, tileY0);
+      const tileWordsRank = parseTsvToWords(rRankTile.data.tsv || '', rectRank.x, tileY0);
+
+      wordsProg = mergeWordLists(wordsProg, tileWordsProg);
+      wordsTh = mergeWordLists(wordsTh, tileWordsTh);
+      wordsTgt = mergeWordLists(wordsTgt, tileWordsTgt);
+      wordsBar = mergeWordLists(wordsBar, tileWordsBar);
+      wordsPct = mergeWordLists(wordsPct, tileWordsPct);
+      wordsRank = mergeWordLists(wordsRank, tileWordsRank);
+    }
+  }
+
+  onProgress?.(80, 'Giai đoạn 4: Đối chiếu chéo 6 cột & Phát hiện toàn bộ neo dòng...');
+
+  if (wordsProg.length < 5 && wordsTh.length < 5) {
     return null;
   }
 
-  // 6. Cluster Col 1 words into rows by vertical proximity
-  const sortedProg = [...wordsProg].sort((a, b) => a.yCenter - b.yCenter);
+  // 6. Cross-Column Row Anchor Clustering:
+  // Instead of relying strictly on Col 1, collect candidate row anchors from:
+  // - Col 1 (Program words)
+  // - Col 2 (TH) and Col 3 (Target) number pairs
+  // - Col 4 (Bar) and Col 5 (% Dự kiến) percentage pairs
+  const candidateCenters: number[] = [];
+  wordsProg.forEach((w) => candidateCenters.push(w.yCenter));
+  wordsTh.forEach((th) => {
+    const tgt = wordsTgt.find((t) => Math.abs(t.yCenter - th.yCenter) < 25);
+    if (tgt) candidateCenters.push((th.yCenter + tgt.yCenter) / 2);
+    else candidateCenters.push(th.yCenter);
+  });
+  wordsBar.forEach((bar) => {
+    const pct = wordsPct.find((p) => Math.abs(p.yCenter - bar.yCenter) < 25);
+    if (pct) candidateCenters.push((bar.yCenter + pct.yCenter) / 2);
+  });
+
+  candidateCenters.sort((a, b) => a - b);
   const yTol = Math.max(18, Math.round(H * 0.0085)); // ~28px on 3458px image
 
   interface RowCluster {
@@ -1607,21 +1688,53 @@ export async function recognizeBiColumnsGrid(
   }
   const rowClusters: RowCluster[] = [];
 
-  for (const w of sortedProg) {
-    let cluster = rowClusters.find((c) => Math.abs(c.yCenter - w.yCenter) < yTol);
+  for (const yc of candidateCenters) {
+    let cluster = rowClusters.find((c) => Math.abs(c.yCenter - yc) < yTol);
     if (!cluster) {
-      cluster = {
-        yCenter: w.yCenter,
-        top: w.top,
-        bottom: w.top + w.height,
-        words: [w],
-      };
-      rowClusters.push(cluster);
+      rowClusters.push({
+        yCenter: yc,
+        top: yc - 15,
+        bottom: yc + 15,
+        words: [],
+      });
     } else {
+      cluster.yCenter = (cluster.yCenter + yc) / 2;
+      cluster.top = Math.min(cluster.top, yc - 15);
+      cluster.bottom = Math.max(cluster.bottom, yc + 15);
+    }
+  }
+
+  // Populate program words into row clusters
+  for (const w of wordsProg) {
+    let cluster = rowClusters.find((c) => Math.abs(c.yCenter - w.yCenter) < yTol);
+    if (cluster) {
       cluster.words.push(w);
       cluster.top = Math.min(cluster.top, w.top);
       cluster.bottom = Math.max(cluster.bottom, w.top + w.height);
-      cluster.yCenter = (cluster.top + cluster.bottom) / 2;
+    }
+  }
+
+  // Targeted Micro-Pass: If a cluster has data in other columns but Col 1 has < 3 characters
+  for (const rc of rowClusters) {
+    const rawProg = rc.words.map((w) => w.text).join(' ').trim();
+    if (rawProg.length < 3) {
+      const hasTh = wordsTh.some((w) => Math.abs(w.yCenter - rc.yCenter) < 30);
+      const hasTgt = wordsTgt.some((w) => Math.abs(w.yCenter - rc.yCenter) < 30);
+      const hasBar = wordsBar.some((w) => Math.abs(w.yCenter - rc.yCenter) < 30);
+      if (hasTh || hasTgt || hasBar) {
+        const microH = Math.max(45, Math.round(H * 0.020));
+        const microTop = Math.max(0, Math.round(rc.yCenter - microH / 2));
+        const microCanvas = cropCanvas(canvas, { x: 0, y: microTop, w: rectProg.w, h: microH });
+        try {
+          const microRes = await worker.recognize(microCanvas, {}, { tsv: true, text: true });
+          const microWords = parseTsvToWords(microRes.data.tsv || '', 0, microTop);
+          if (microWords.length > 0) {
+            rc.words = microWords;
+            rc.top = Math.min(...microWords.map((w) => w.top));
+            rc.bottom = Math.max(...microWords.map((w) => w.top + w.height));
+          }
+        } catch {}
+      }
     }
   }
 
@@ -1838,6 +1951,7 @@ export async function recognizeBiColumnsGrid(
     const row = validateThiDuaRow(
       {
         id: createRowId(extractedRows.length, pageIndex),
+        stt: extractedRows.length + 1,
         ten_chuong_trinh: programName.normalize('NFC'),
         kenh: finalKenh,
         thuc_hien: parsedTh.value,
@@ -1858,6 +1972,14 @@ export async function recognizeBiColumnsGrid(
     extractedRows.push(row);
   }
 
+  onProgress?.(95, 'Giai đoạn 5: Kiểm tra tính đầy đủ STT 1..N & Đối chiếu...');
+
+  // Sort rows strictly by vertical coordinate
+  extractedRows.sort((a, b) => (a.row_bbox?.y || 0) - (b.row_bbox?.y || 0));
+  extractedRows.forEach((r, idx) => {
+    r.stt = idx + 1;
+  });
+
   // 8. Warnings & Reconciliation
   const warnings: string[] = [];
   const expectedTotal = headerMeta.expectedTotalRows ?? 39;
@@ -1865,7 +1987,7 @@ export async function recognizeBiColumnsGrid(
   if (extractedRows.length !== expectedTotal) {
     const diff = Math.abs(expectedTotal - extractedRows.length);
     warnings.push(
-      `Báo cáo ghi nhận ${expectedTotal} chương trình (${headerMeta.datCount ?? 6} đạt, ${headerMeta.canDayCount ?? 9} cận đích, ${headerMeta.chuaDatCount ?? 24} chưa đạt), lưới nhận diện trích xuất được ${extractedRows.length} dòng (chênh lệch ${diff} dòng).`
+      `ẢNH CHƯA ĐƯỢC NHẬN DIỆN ĐẦY ĐỦ – VUI LÒNG KIỂM TRA CÁC DÒNG CÒN THIẾU (Báo cáo ghi nhận ${expectedTotal} chương trình (${headerMeta.datCount ?? 6} đạt, ${headerMeta.canDayCount ?? 9} cận đích, ${headerMeta.chuaDatCount ?? 24} chưa đạt), lưới nhận diện trích xuất được ${extractedRows.length} dòng, chênh lệch ${diff} dòng).`
     );
   }
 

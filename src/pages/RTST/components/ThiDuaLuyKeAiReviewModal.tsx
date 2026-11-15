@@ -654,21 +654,31 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
             </div>
           </div>
 
-          {/* Quality KPI Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          {/* Quality KPI Grid - 6 Comprehensive Metrics */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
             <div
               className={`rounded-xl border p-2 sm:p-2.5 bg-white ${
                 summary.hasCountMismatch ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200'
               }`}
             >
-              <div className="text-[10px] font-bold uppercase text-slate-400">Tổng CT nhận diện</div>
+              <div className="text-[10px] font-bold uppercase text-slate-400">Tổng CT dự kiến</div>
               <div className="text-base sm:text-lg font-extrabold text-slate-800 mt-0.5">
-                {summary.totalRecognized}
-                {summary.expectedTotal !== null && (
-                  <span className="text-xs font-semibold text-slate-500 ml-1">
-                    / {summary.expectedTotal}
-                  </span>
-                )}
+                {summary.expectedTotal ?? '—'}
+                <span className="text-[10px] font-medium text-slate-400 ml-1">CT</span>
+              </div>
+            </div>
+
+            <div
+              className={`rounded-xl border p-2 sm:p-2.5 bg-white ${
+                summary.hasCountMismatch ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200'
+              }`}
+            >
+              <div className="text-[10px] font-bold uppercase text-slate-400">Tổng nhận diện</div>
+              <div className="text-base sm:text-lg font-extrabold text-slate-800 mt-0.5 flex items-baseline gap-1">
+                <span>{summary.totalRecognized}</span>
+                <span className="text-[10px] font-medium text-slate-500">
+                  (STT {summary.minStt || 1} - {summary.maxStt || summary.totalRecognized})
+                </span>
               </div>
             </div>
 
@@ -681,41 +691,66 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
 
             <div
               className={`rounded-xl border p-2 sm:p-2.5 ${
-                summary.errorRows > 0
-                  ? 'border-rose-300 bg-rose-50 text-rose-700'
+                summary.uncertainPrograms.length > 0
+                  ? 'border-amber-300 bg-amber-50 text-amber-800'
                   : 'border-slate-200 bg-white text-slate-700'
               }`}
             >
-              <div className="text-[10px] font-bold uppercase opacity-75">Dòng có lỗi</div>
-              <div className="text-base sm:text-lg font-extrabold mt-0.5">{summary.errorRows}</div>
+              <div className="text-[10px] font-bold uppercase opacity-75">Chưa chắc chắn</div>
+              <div className="text-base sm:text-lg font-extrabold mt-0.5">
+                {summary.uncertainPrograms.length} CT
+              </div>
             </div>
 
             <div
               className={`rounded-xl border p-2 sm:p-2.5 ${
                 summary.missingDataPrograms.length > 0
-                  ? 'border-amber-300 bg-amber-50 text-amber-800'
+                  ? 'border-rose-300 bg-rose-50 text-rose-700'
                   : 'border-slate-200 bg-white text-slate-700'
               }`}
             >
-              <div className="text-[10px] font-bold uppercase opacity-75">CT thiếu dữ liệu</div>
+              <div className="text-[10px] font-bold uppercase opacity-75">Thiếu số liệu</div>
               <div className="text-base sm:text-lg font-extrabold mt-0.5">
-                {summary.missingDataPrograms.length}
+                {summary.missingDataPrograms.length} CT
               </div>
             </div>
 
             <div
-              className={`rounded-xl border p-2 sm:p-2.5 col-span-2 sm:col-span-1 ${
-                summary.uncertainPrograms.length > 0
-                  ? 'border-orange-300 bg-orange-50 text-orange-800'
-                  : 'border-slate-200 bg-white text-slate-700'
+              className={`rounded-xl border p-2 sm:p-2.5 ${
+                (summary.missingSttCount || 0) > 0 || (summary.duplicateSttCount || 0) > 0
+                  ? 'border-rose-300 bg-rose-50 text-rose-800'
+                  : 'border-emerald-200 bg-emerald-50/30 text-emerald-800'
               }`}
             >
-              <div className="text-[10px] font-bold uppercase opacity-75">Trường chưa chắc chắn</div>
-              <div className="text-base sm:text-lg font-extrabold mt-0.5">
-                {summary.uncertainPrograms.length} CT
+              <div className="text-[10px] font-bold uppercase opacity-75">STT thiếu / trùng</div>
+              <div className="text-xs sm:text-sm font-extrabold mt-1 truncate">
+                {(summary.missingSttCount || 0) + (summary.duplicateSttCount || 0) === 0 ? (
+                  <span className="text-emerald-700 font-bold">0 (Chuẩn 1..{summary.totalRecognized})</span>
+                ) : (
+                  <span className="text-rose-700 font-bold">
+                    {summary.missingSttCount ? `Thiếu ${summary.missingSttCount} ` : ''}
+                    {summary.duplicateSttCount ? `Trùng ${summary.duplicateSttCount}` : ''}
+                  </span>
+                )}
               </div>
             </div>
           </div>
+
+          {/* CRITICAL WARNING: Incomplete OCR table */}
+          {(summary.isIncomplete || summary.hasCountMismatch) && (
+            <div className="rounded-xl border-2 border-rose-400 bg-rose-50/95 p-3 flex items-start gap-3 text-rose-950 shadow-sm animate-pulse">
+              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+              <div className="text-xs sm:text-sm">
+                <strong className="text-rose-800 font-black uppercase tracking-wide">
+                  ẢNH CHƯA ĐƯỢC NHẬN DIỆN ĐẦY ĐỦ – VUI LÒNG KIỂM TRA CÁC DÒNG CÒN THIẾU.
+                </strong>
+                <p className="mt-1 text-slate-700 text-xs font-medium">
+                  Báo cáo BI ghi nhận <strong>{summary.expectedTotal}</strong> chương trình, nhưng hệ thống mới nhận diện được <strong>{summary.totalRecognized}</strong> dòng (còn thiếu <strong>{Math.max(0, (summary.expectedTotal || 0) - summary.totalRecognized)}</strong> dòng).
+                  Vui lòng kiểm tra kỹ các dòng cuối bảng (đặc biệt các dòng 34 đến 39) hoặc bấm <strong>"Thêm CT"</strong> để bổ sung trước khi xác nhận lưu!
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Alerts: Duplicate upload / image quality / missing / uncertain */}
           {isDuplicateOfLastSaved && (
@@ -850,7 +885,7 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
                   <table className="w-full min-w-[920px] border-collapse text-left">
                     <thead className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200 text-[10px] sm:text-[11px] font-extrabold uppercase text-slate-600">
                       <tr>
-                        <th className="px-2 py-2 w-9 text-center">#</th>
+                        <th className="px-2 py-2 w-12 text-center font-black">STT</th>
                         <th className="px-2 py-2 min-w-[230px]">Chương trình</th>
                         <th className="px-2 py-2 w-20 text-center">Kênh</th>
                         <th className="px-2 py-2 w-28 text-right">Thực hiện</th>
@@ -890,13 +925,13 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
                               }
                             >
                               <td
-                                className="px-2 py-1.5 text-center text-[11px] font-bold text-slate-400 cursor-pointer hover:text-purple-600"
+                                className="px-2 py-1.5 text-center text-[11px] font-black text-slate-500 cursor-pointer hover:text-purple-600"
                                 onClick={() =>
                                   setSelectedInspectCell({ rowId: row.id, field: 'ten_chuong_trinh', rowIdx })
                                 }
                                 title="Bấm để xem đối chiếu dòng này trên ảnh gốc"
                               >
-                                {rowIdx}
+                                {row.stt ?? rowIdx}
                               </td>
 
                               <td className="px-1.5 py-1.5">
