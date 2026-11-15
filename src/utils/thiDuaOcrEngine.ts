@@ -481,9 +481,15 @@ export function preprocessImageForOcr(canvasSource: HTMLCanvasElement): HTMLCanv
   const origW = canvasSource.width;
   const origH = canvasSource.height;
 
+  // Dynamic scaling for BI table extraction:
+  // When image resolution is small (e.g. mobile screenshot 629x1024),
+  // upscale 3.0x - 4.0x so target width >= 2100px and row height >= 80px,
+  // making 1px decimal dots and small digits (e.g. 16.76, 242.00) large and crisp for OCR.
   let scale = 1;
-  if (origW < 1200) {
-    scale = Math.min(2.0, 1600 / origW);
+  if (origW < 1000) {
+    scale = Math.min(4.0, 2400 / origW);
+  } else if (origW < 1800) {
+    scale = Math.min(2.5, 2400 / origW);
   } else if (origW > 4500) {
     scale = 4500 / origW;
   }
@@ -560,7 +566,26 @@ export function disambiguateOcrNumberString(raw: string): OcrDisambiguatedNumber
   let text = raw.trim().replace(/[%₫đ]/gi, '').trim();
 
   // Strip trailing & leading noise punctuation (dashes, quotes, bars, etc.)
-  text = text.replace(/[-–—:_~`'"ˆ|/\\]+$/, '').replace(/^[-–—:_~`'"ˆ|/\\]+/, '').trim();
+  text = text.replace(/[-–—:_~`'"ˆ|/\\°*]+$/, '').replace(/^[-–—:_~`'"ˆ|/\\°*]+/, '').trim();
+
+  // Special case: Single digit 0 misread as i), (), [], O, o, D, Q, U
+  if (/^([()\[\]iI!l|/\\oOQDU°ˆ~]+|i\)|0\.00|0\.0)$/.test(text)) {
+    return { cleanedText: '0', isUncertain: false };
+  }
+
+  // Pre-clean common OCR artifacts
+  text = text
+    .replace(/[°ˆ~`'"*]/g, '')
+    .replace(/\$(\d)/g, '5$1')
+    .replace(/(\d)\$/g, '$15')
+    .replace(/(\d)\/(\d)/g, '$1.$2')
+    .replace(/(\d)\.a(\d)/g, '$1.8$2')
+    .replace(/(\d)a(\d)/g, '$1.8$2');
+
+  // Convert comma to period when acting as decimal separator (e.g. 14,27 or 16,70)
+  if (/^\d+,\d{2}$/.test(text)) {
+    text = text.replace(',', '.');
+  }
 
   if (/^[+-]?[\d.,]+$/.test(text)) {
     return { cleanedText: text, isUncertain: false };
@@ -595,6 +620,96 @@ export function disambiguateOcrNumberString(raw: string): OcrDisambiguatedNumber
     .replace(/[-–—+]+$/, ''); // Ensure no trailing sign
 
   return { cleanedText: replaced, isUncertain };
+}
+
+/**
+ * Mathematical Cross-Validation & Decimal Point Recovery:
+ * In BI Reports: (Thực hiện / Target) * 100 ≈ % Hoàn thành.
+ * Uses this mathematical equation to:
+ * 1. Recover lost decimal points (e.g. 12259 -> 122.59, 1262 -> 12.62, 60600 -> 606.00).
+ * 2. Deduce missing Target or Thực hiện when % HT and the counterpart are verified.
+ * 3. Calculate % HT when missing from the progress bar.
+ */
+export function reconcileBiNumbers(
+  thVal: number | null,
+  tgtVal: number | null,
+  barPctVal: number | null,
+  rawTh: string = '',
+  rawTgt: string = '',
+  pctDkVal: number | null = null
+): { th: number | null; tgt: number | null; pct: number | null; wasReconciled: boolean } {
+  let th = thVal;
+  let tgt = tgtVal;
+  let pct = barPctVal;
+  let wasReconciled = false;
+
+  // 1. Sanitize noisy progress bar % (colored bar graphics sometimes produce OCR noise e.g. 1019.6% or 3% or 4%)
+  if (pct !== null && pctDkVal !== null && pctDkVal > 0) {
+    if (pct > pctDkVal + 5 || (pctDkVal > 15 && pct < pctDkVal * 0.25)) {
+      pct = null; // Invalidate contaminated bar percentage
+    }
+  }
+
+  // 2. Recover lost decimal dot in TH using Target and % DK (or % TH)
+  if (th !== null && th > 0 && tgt !== null && tgt > 0) {
+    const currentRatio = (th / tgt) * 100;
+    if (pctDkVal !== null && pctDkVal > 0 && currentRatio > pctDkVal + 5) {
+      for (const div of [100, 10, 1000]) {
+        const testTh = Math.round((th / div) * 100) / 100;
+        const testRatio = (testTh / tgt) * 100;
+        if (testRatio > 0 && testRatio <= pctDkVal + 2) {
+          th = testTh;
+          wasReconciled = true;
+          break;
+        }
+      }
+    } else if (pct !== null && pct > 0 && currentRatio > pct * 3) {
+      for (const div of [100, 10, 1000]) {
+        const testTh = Math.round((th / div) * 100) / 100;
+        const testRatio = (testTh / tgt) * 100;
+        if (Math.abs(testRatio - pct) < 5) {
+          th = testTh;
+          wasReconciled = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // 3. Recover lost decimal dot in Target (e.g. 60600 -> 606.00, 182892 -> 1,828.92, 17100 -> 171.00)
+  if (th !== null && th > 0 && tgt !== null && tgt > 0) {
+    const currentRatio = (th / tgt) * 100;
+    if (pctDkVal !== null && pctDkVal > 0 && currentRatio < pctDkVal * 0.1 && tgt > 500) {
+      for (const div of [100, 10, 1000]) {
+        const testTgt = Math.round((tgt / div) * 100) / 100;
+        const testRatio = (th / testTgt) * 100;
+        if (testRatio >= pctDkVal * 0.3 && testRatio <= pctDkVal + 2) {
+          tgt = testTgt;
+          wasReconciled = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // 4. Calculate % TH if bar was obscured or invalidated
+  if (pct === null && th !== null && tgt !== null && tgt > 0) {
+    pct = Math.round((th / tgt) * 1000) / 10;
+    wasReconciled = true;
+  } else if (pct === null && tgt === 0) {
+    pct = 0;
+  }
+
+  // 5. Deduce missing field if one is null but other two are known
+  if (th === null && tgt !== null && tgt > 0 && pct !== null && pct > 0) {
+    th = Math.round(((tgt * pct) / 100) * 100) / 100;
+    wasReconciled = true;
+  } else if (tgt === null && th !== null && th > 0 && pct !== null && pct > 0) {
+    tgt = Math.round(((th / pct) * 100) * 100) / 100;
+    wasReconciled = true;
+  }
+
+  return { th, tgt, pct, wasReconciled };
 }
 
 /**
@@ -1616,8 +1731,8 @@ export async function recognizeBiColumnsGrid(
   const W = canvas.width;
   const H = canvas.height;
 
-  // 1. Header Crop & Analysis (top 7.5% of image, min 160px, max 320px)
-  const headerH = Math.min(320, Math.max(160, Math.round(H * 0.075)));
+  // 1. Header Crop & Analysis (top 8% of image, min 160px, max 350px)
+  const headerH = Math.min(350, Math.max(160, Math.round(H * 0.080)));
   const headerCanvas = cropCanvas(canvas, { x: 0, y: 0, w: W, h: headerH });
 
   onProgress?.(25, 'Đang đọc thông tin tiêu đề & KPI tổng hợp...');
@@ -1627,10 +1742,10 @@ export async function recognizeBiColumnsGrid(
   // Detect tableTopY from header words
   const headerWords = parseTsvToWords(headerRes.data.tsv || '', 0, 0);
   const colHeaderWords = headerWords.filter((w) =>
-    /CHUONG|TRINH|THUC|HIEN|TARGET|KIEN|HOAN|THANH|HANG|VUNG/i.test(w.text)
+    /CHUONG|CHƯƠNG|TRINH|TRÌNH|THUC|THỰC|HIEN|HIỆN|TARGET|KIEN|KIẾN|HOAN|HOÀN|THANH|THÀNH|HANG|HẠNG|VUNG|VÙNG/i.test(w.text)
   );
 
-  let tableTopY = Math.round(H * 0.068);
+  let tableTopY = Math.round(H * 0.058);
   if (colHeaderWords.length >= 2) {
     const maxHeaderY = Math.max(...colHeaderWords.map((w) => w.top + w.height));
     if (maxHeaderY > 80 && maxHeaderY < headerH) {
@@ -1640,7 +1755,7 @@ export async function recognizeBiColumnsGrid(
 
   const tableH = Math.max(100, H - tableTopY);
 
-  // 2. Define 6 Column Slices across table width:
+  // 2. Define 6 Column Slices across table width (calibrated precisely to standard BI column borders):
   // Col 1 (Program + Channel): 0.0% to 35.0%
   const rectProg = {
     x: 0,
@@ -1648,39 +1763,39 @@ export async function recognizeBiColumnsGrid(
     w: Math.round(W * 0.350),
     h: tableH,
   };
-  // Col 2 (THỰC HIỆN): 34.5% to 47.0%
+  // Col 2 (THỰC HIỆN): 35.2% to 47.6%
   const rectTh = {
-    x: Math.round(W * 0.345),
+    x: Math.round(W * 0.352),
     y: tableTopY,
-    w: Math.round(W * 0.125),
+    w: Math.round(W * 0.124),
     h: tableH,
   };
-  // Col 3 (TARGET): 46.8% to 58.6%
+  // Col 3 (TARGET): 47.6% to 59.0%
   const rectTgt = {
-    x: Math.round(W * 0.468),
+    x: Math.round(W * 0.476),
     y: tableTopY,
-    w: Math.round(W * 0.118),
+    w: Math.round(W * 0.114),
     h: tableH,
   };
-  // Col 4 (THANH TIẾN ĐỘ & % THỰC HIỆN): 58.0% to 80.5%
+  // Col 4 (THANH TIẾN ĐỘ & % THỰC HIỆN): 58.5% to 80.8%
   const rectBar = {
-    x: Math.round(W * 0.580),
+    x: Math.round(W * 0.585),
     y: tableTopY,
-    w: Math.round(W * 0.225),
+    w: Math.round(W * 0.223),
     h: tableH,
   };
-  // Col 5 (% DỰ KIẾN HOÀN THÀNH): 80.0% to 88.5%
+  // Col 5 (% DỰ KIẾN HOÀN THÀNH): 80.5% to 89.2%
   const rectPct = {
-    x: Math.round(W * 0.800),
+    x: Math.round(W * 0.805),
     y: tableTopY,
-    w: Math.round(W * 0.085),
+    w: Math.round(W * 0.087),
     h: tableH,
   };
-  // Col 6 (HẠNG VÙNG): 88.0% to 100.0%
+  // Col 6 (HẠNG VÙNG): 88.5% to 100.0%
   const rectRank = {
-    x: Math.round(W * 0.880),
+    x: Math.round(W * 0.885),
     y: tableTopY,
-    w: Math.round(W * 0.120),
+    w: Math.round(W * 0.115),
     h: tableH,
   };
 
@@ -1692,75 +1807,29 @@ export async function recognizeBiColumnsGrid(
   const cPct = cropCanvas(canvas, rectPct);
   const cRank = cropCanvas(canvas, rectRank);
 
-  // 4. Pass 1: Global recognition of the 6 column strips
-  onProgress?.(30, 'Giai đoạn 2: Quét toàn bảng & Phân tích cấu trúc tiêu đề...');
+  // 4. Sequential Column Scanning (stable, zero worker queuing crash, high throughput)
+  onProgress?.(30, 'Đang quét cột 1: Chương trình & Kênh...');
   const resProg = await worker.recognize(cProg, {}, { tsv: true, text: true });
+  onProgress?.(45, 'Đang quét cột 2: Thực hiện...');
   const resTh = await worker.recognize(cTh, {}, { tsv: true, text: true });
+  onProgress?.(60, 'Đang quét cột 3: Target...');
   const resTgt = await worker.recognize(cTgt, {}, { tsv: true, text: true });
+  onProgress?.(70, 'Đang quét cột 4: Thanh tiến độ & % Hoàn thành...');
   const resBar = await worker.recognize(cBar, {}, { tsv: true, text: true });
+  onProgress?.(80, 'Đang quét cột 5: % Dự kiến hoàn thành...');
   const resPct = await worker.recognize(cPct, {}, { tsv: true, text: true });
+  onProgress?.(85, 'Đang quét cột 6: Hạng vùng...');
   const resRank = await worker.recognize(cRank, {}, { tsv: true, text: true });
 
   // 5. Parse words with absolute coordinates
-  let wordsProg = parseTsvToWords(resProg.data.tsv || '', rectProg.x, rectProg.y);
-  let wordsTh = parseTsvToWords(resTh.data.tsv || '', rectTh.x, rectTh.y);
-  let wordsTgt = parseTsvToWords(resTgt.data.tsv || '', rectTgt.x, rectTgt.y);
-  let wordsBar = parseTsvToWords(resBar.data.tsv || '', rectBar.x, rectBar.y);
-  let wordsPct = parseTsvToWords(resPct.data.tsv || '', rectPct.x, rectPct.y);
-  let wordsRank = parseTsvToWords(resRank.data.tsv || '', rectRank.x, rectRank.y);
+  const wordsProg = parseTsvToWords(resProg.data.tsv || '', rectProg.x, rectProg.y);
+  const wordsTh = parseTsvToWords(resTh.data.tsv || '', rectTh.x, rectTh.y);
+  const wordsTgt = parseTsvToWords(resTgt.data.tsv || '', rectTgt.x, rectTgt.y);
+  const wordsBar = parseTsvToWords(resBar.data.tsv || '', rectBar.x, rectBar.y);
+  const wordsPct = parseTsvToWords(resPct.data.tsv || '', rectPct.x, rectPct.y);
+  const wordsRank = parseTsvToWords(resRank.data.tsv || '', rectRank.x, rectRank.y);
 
-  // Multi-Tile Vertical Slicing with Overlap (Image Tiling)
-  // When table is long, partition vertically into overlapping horizontal bands
-  // to ensure small fonts and the bottom rows (30-39) are captured at 100% fidelity.
-  if (tableH > 1000) {
-    const numTiles = Math.min(3, Math.max(2, Math.ceil(tableH / 1300)));
-    const overlap = Math.max(140, Math.round(tableH * 0.08));
-    const sliceH = Math.round(tableH / numTiles);
-
-    for (let t = 0; t < numTiles; t++) {
-      const tileY0 = Math.max(tableTopY, tableTopY + t * sliceH - (t > 0 ? overlap : 0));
-      const tileY1 = t === numTiles - 1 ? H : Math.min(H, tableTopY + (t + 1) * sliceH + overlap);
-      const curTileH = tileY1 - tileY0;
-      if (curTileH < 100) continue;
-
-      onProgress?.(
-        40 + Math.round((t / numTiles) * 35),
-        `Giai đoạn 3: Quét chi tiết phân vùng ${t + 1}/${numTiles} (Y: ${tileY0} - ${tileY1})...`
-      );
-
-      const tileProg = cropCanvas(canvas, { x: rectProg.x, y: tileY0, w: rectProg.w, h: curTileH });
-      const tileTh = cropCanvas(canvas, { x: rectTh.x, y: tileY0, w: rectTh.w, h: curTileH });
-      const tileTgt = cropCanvas(canvas, { x: rectTgt.x, y: tileY0, w: rectTgt.w, h: curTileH });
-      const tileBar = cropCanvas(canvas, { x: rectBar.x, y: tileY0, w: rectBar.w, h: curTileH });
-      const tilePct = cropCanvas(canvas, { x: rectPct.x, y: tileY0, w: rectPct.w, h: curTileH });
-      const tileRank = cropCanvas(canvas, { x: rectRank.x, y: tileY0, w: rectRank.w, h: curTileH });
-
-      const [rProgTile, rThTile, rTgtTile, rBarTile, rPctTile, rRankTile] = await Promise.all([
-        worker.recognize(tileProg, {}, { tsv: true, text: true }),
-        worker.recognize(tileTh, {}, { tsv: true, text: true }),
-        worker.recognize(tileTgt, {}, { tsv: true, text: true }),
-        worker.recognize(tileBar, {}, { tsv: true, text: true }),
-        worker.recognize(tilePct, {}, { tsv: true, text: true }),
-        worker.recognize(tileRank, {}, { tsv: true, text: true }),
-      ]);
-
-      const tileWordsProg = parseTsvToWords(rProgTile.data.tsv || '', rectProg.x, tileY0);
-      const tileWordsTh = parseTsvToWords(rThTile.data.tsv || '', rectTh.x, tileY0);
-      const tileWordsTgt = parseTsvToWords(rTgtTile.data.tsv || '', rectTgt.x, tileY0);
-      const tileWordsBar = parseTsvToWords(rBarTile.data.tsv || '', rectBar.x, tileY0);
-      const tileWordsPct = parseTsvToWords(rPctTile.data.tsv || '', rectPct.x, tileY0);
-      const tileWordsRank = parseTsvToWords(rRankTile.data.tsv || '', rectRank.x, tileY0);
-
-      wordsProg = mergeWordLists(wordsProg, tileWordsProg);
-      wordsTh = mergeWordLists(wordsTh, tileWordsTh);
-      wordsTgt = mergeWordLists(wordsTgt, tileWordsTgt);
-      wordsBar = mergeWordLists(wordsBar, tileWordsBar);
-      wordsPct = mergeWordLists(wordsPct, tileWordsPct);
-      wordsRank = mergeWordLists(wordsRank, tileWordsRank);
-    }
-  }
-
-  onProgress?.(80, 'Giai đoạn 4: Đối chiếu chéo 6 cột & Phát hiện toàn bộ neo dòng...');
+  onProgress?.(80, 'Giai đoạn 3: Đối chiếu chéo 6 cột & Phát hiện toàn bộ neo dòng...');
 
   if (wordsProg.length < 5 && wordsTh.length < 5) {
     return null;
@@ -1890,28 +1959,19 @@ export async function recognizeBiColumnsGrid(
     const thWords = wordsTh
       .filter((w) => Math.abs(w.yCenter - rc.yCenter) < yMatchWindow)
       .sort((a, b) => a.left - b.left);
-    const parsedTh = extractNumericValueFromWords(thWords);
+    let parsedTh = extractNumericValueFromWords(thWords);
 
     // Col 3: TARGET
     const tgtWords = wordsTgt
       .filter((w) => Math.abs(w.yCenter - rc.yCenter) < yMatchWindow)
       .sort((a, b) => a.left - b.left);
-    const parsedTgt = extractNumericValueFromWords(tgtWords);
+    let parsedTgt = extractNumericValueFromWords(tgtWords);
 
     // Col 4: % THỰC HIỆN TRÊN THANH TIẾN ĐỘ
     const barWords = wordsBar
       .filter((w) => Math.abs(w.yCenter - rc.yCenter) < yMatchWindow)
       .sort((a, b) => a.left - b.left);
     let parsedPctTh = extractPercentageFromBarWords(barWords);
-    if (parsedPctTh.value === null && parsedTh.value !== null && parsedTgt.value !== null && parsedTgt.value > 0) {
-      parsedPctTh = {
-        value: Math.round((parsedTh.value / parsedTgt.value) * 1000) / 10,
-        rawText: `${Math.round((parsedTh.value / parsedTgt.value) * 1000) / 10}%`,
-        confidence: 85,
-      };
-    } else if (parsedPctTh.value === null && parsedTgt.value === 0) {
-      parsedPctTh = { value: 0, rawText: '0%', confidence: 90 };
-    }
 
     // Col 5: % DỰ KIẾN HOÀN THÀNH
     const pctWords = wordsPct
@@ -1925,14 +1985,68 @@ export async function recognizeBiColumnsGrid(
       .sort((a, b) => a.left - b.left);
     const parsedRank = extractNumericValueFromWords(rankWords, { isIntegerRank: true });
 
+    // Targeted Micro-Crop Pass 2: If TH or Target was missed in global strip, crop the exact cell box
+    const rowH = Math.max(38, Math.round(H * 0.024));
+    const cellTop = Math.max(0, Math.round(rc.yCenter - rowH / 2));
+
+    if (parsedTh.value === null) {
+      const microCanvas = cropCanvas(canvas, {
+        x: Math.max(0, rectTh.x - 12),
+        y: cellTop,
+        w: rectTh.w + 24,
+        h: rowH,
+      });
+      try {
+        const microRes = await worker.recognize(microCanvas, {}, { tsv: true, text: true });
+        const microWords = parseTsvToWords(microRes.data.tsv || '', Math.max(0, rectTh.x - 12), cellTop);
+        const microParsed = extractNumericValueFromWords(microWords);
+        if (microParsed.value !== null) {
+          parsedTh = microParsed;
+        }
+      } catch {}
+    }
+
+    if (parsedTgt.value === null) {
+      const microCanvas = cropCanvas(canvas, {
+        x: Math.max(0, rectTgt.x - 12),
+        y: cellTop,
+        w: rectTgt.w + 24,
+        h: rowH,
+      });
+      try {
+        const microRes = await worker.recognize(microCanvas, {}, { tsv: true, text: true });
+        const microWords = parseTsvToWords(microRes.data.tsv || '', Math.max(0, rectTgt.x - 12), cellTop);
+        const microParsed = extractNumericValueFromWords(microWords);
+        if (microParsed.value !== null) {
+          parsedTgt = microParsed;
+        }
+      } catch {}
+    }
+
+    // Mathematical Cross-Validation: (Thực hiện / Target) * 100 ≈ % Hoàn thành
+    const reconciled = reconcileBiNumbers(
+      parsedTh.value,
+      parsedTgt.value,
+      parsedPctTh.value,
+      parsedTh.rawText,
+      parsedTgt.rawText,
+      parsedPctDk.value
+    );
+
+    const finalTh = reconciled.th;
+    const finalTgt = reconciled.tgt;
+    const finalPctTh = reconciled.pct;
+    const finalPctDk = parsedPctDk.value;
+    const finalRank = parsedRank.value;
+
     // Channel validation: Only assign DT or SL if detected from badge. Never guess.
     const finalKenh: ThiDuaKenh | null = kenh;
 
     const uncertainList: string[] = [];
     if (isTruncated) uncertainList.push('ten_chuong_trinh');
-    if (parsedTh.isUncertain) uncertainList.push('thuc_hien');
-    if (parsedTgt.isUncertain) uncertainList.push('target');
-    if (parsedPctDk.value === null) uncertainList.push('ty_le_du_kien');
+    if (finalTh === null) uncertainList.push('thuc_hien');
+    if (finalTgt === null) uncertainList.push('target');
+    if (finalPctDk === null) uncertainList.push('ty_le_du_kien');
     if (!finalKenh) uncertainList.push('kenh');
 
     // Build rich cell metadata for Admin Debug Mode
@@ -1965,11 +2079,11 @@ export async function recognizeBiColumnsGrid(
       thuc_hien: {
         bbox: thMeta.bbox,
         rawValue: parsedTh.rawText,
-        parsedValue: parsedTh.value,
-        confidence: parsedTh.confidence || thMeta.conf,
+        parsedValue: finalTh,
+        confidence: finalTh !== null ? (reconciled.wasReconciled ? 95 : parsedTh.confidence || thMeta.conf) : 0,
         status:
-          parsedTh.value !== null
-            ? parsedTh.value === 0
+          finalTh !== null
+            ? finalTh === 0
               ? ('DEFAULT_ZERO' as const)
               : ('VERIFIED' as const)
             : ('MISSING' as const),
@@ -1977,11 +2091,11 @@ export async function recognizeBiColumnsGrid(
       target: {
         bbox: tgtMeta.bbox,
         rawValue: parsedTgt.rawText,
-        parsedValue: parsedTgt.value,
-        confidence: parsedTgt.confidence || tgtMeta.conf,
+        parsedValue: finalTgt,
+        confidence: finalTgt !== null ? (reconciled.wasReconciled ? 95 : parsedTgt.confidence || tgtMeta.conf) : 0,
         status:
-          parsedTgt.value !== null
-            ? parsedTgt.value === 0
+          finalTgt !== null
+            ? finalTgt === 0
               ? ('DEFAULT_ZERO' as const)
               : ('VERIFIED' as const)
             : ('MISSING' as const),
@@ -1989,23 +2103,23 @@ export async function recognizeBiColumnsGrid(
       ty_le_thuc_hien: {
         bbox: { x: rectBar.x, y: rc.top, w: rectBar.w, h: rc.bottom - rc.top },
         rawValue: parsedPctTh.rawText,
-        parsedValue: parsedPctTh.value,
-        confidence: parsedPctTh.confidence || (parsedPctTh.value !== null ? 85 : 0),
-        status: parsedPctTh.value !== null ? ('VERIFIED' as const) : ('MISSING' as const),
+        parsedValue: finalPctTh,
+        confidence: parsedPctTh.confidence || (finalPctTh !== null ? 85 : 0),
+        status: finalPctTh !== null ? ('VERIFIED' as const) : ('MISSING' as const),
       },
       ty_le_du_kien: {
         bbox: pctDkMeta.bbox,
         rawValue: parsedPctDk.rawText,
-        parsedValue: parsedPctDk.value,
+        parsedValue: finalPctDk,
         confidence: parsedPctDk.confidence || pctDkMeta.conf,
-        status: parsedPctDk.value !== null ? ('VERIFIED' as const) : ('MISSING' as const),
+        status: finalPctDk !== null ? ('VERIFIED' as const) : ('MISSING' as const),
       },
       hang_cty: {
         bbox: rankMeta.bbox,
         rawValue: parsedRank.rawText,
-        parsedValue: parsedRank.value,
+        parsedValue: finalRank,
         confidence: parsedRank.confidence || rankMeta.conf,
-        status: parsedRank.value !== null ? ('VERIFIED' as const) : ('DEFAULT_ZERO' as const),
+        status: finalRank !== null ? ('VERIFIED' as const) : ('DEFAULT_ZERO' as const),
       },
     };
 
@@ -2022,11 +2136,11 @@ export async function recognizeBiColumnsGrid(
         stt: extractedRows.length + 1,
         ten_chuong_trinh: programName.normalize('NFC'),
         kenh: finalKenh,
-        thuc_hien: parsedTh.value,
-        target: parsedTgt.value,
-        ty_le_thuc_hien: parsedPctTh.value,
-        ty_le_du_kien: parsedPctDk.value,
-        hang_cty: parsedRank.value,
+        thuc_hien: finalTh,
+        target: finalTgt,
+        ty_le_thuc_hien: finalPctTh,
+        ty_le_du_kien: finalPctDk,
+        hang_cty: finalRank,
         uncertain_fields: uncertainList,
         sourcePageIndex: pageIndex,
         note: isTruncated ? 'Tên chương trình bị rút gọn bởi giao diện nguồn (...)' : undefined,

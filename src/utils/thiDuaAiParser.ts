@@ -733,7 +733,12 @@ export function validateThiDuaRow(
     thuc_hien = null;
     missing_fields.push('thuc_hien');
     uncertainSet.add('thuc_hien');
-    warnings.push('Chưa nhận diện được Thực hiện — vui lòng đối chiếu ảnh');
+    const rawVal = rowInput.cell_metadata?.thuc_hien?.rawValue?.trim();
+    warnings.push(
+      rawVal
+        ? `Chưa nhận diện được Thực hiện (RAW: "${rawVal}") — vui lòng đối chiếu ảnh`
+        : 'Chưa nhận diện được Thực hiện (ô trống) — vui lòng đối chiếu ảnh'
+    );
   }
 
   // TARGET:
@@ -753,7 +758,12 @@ export function validateThiDuaRow(
     target = null;
     missing_fields.push('target');
     uncertainSet.add('target');
-    warnings.push('Chưa nhận diện được Target — vui lòng đối chiếu ảnh');
+    const rawVal = rowInput.cell_metadata?.target?.rawValue?.trim();
+    warnings.push(
+      rawVal
+        ? `Chưa nhận diện được Target (RAW: "${rawVal}") — vui lòng đối chiếu ảnh`
+        : 'Chưa nhận diện được Target (ô trống) — vui lòng đối chiếu ảnh'
+    );
   }
 
   // % TH HIỆN TẠI:
@@ -869,7 +879,17 @@ export function validateThiDuaRow(
   }
 
   if (uncertainSet.size > 0) {
-    warnings.push(`AI chưa chắc chắn: ${Array.from(uncertainSet).join(', ')}`);
+    const fieldMap: Record<string, string> = {
+      thuc_hien: 'Thực hiện',
+      target: 'Target',
+      ty_le_thuc_hien: '% TH',
+      ty_le_du_kien: '% Dự kiến',
+      kenh: 'Kênh',
+      ten_chuong_trinh: 'Tên chương trình',
+      hang_cty: 'Hạng vùng',
+    };
+    const translated = Array.from(uncertainSet).map((f) => fieldMap[f] || f);
+    warnings.push(`AI chưa chắc chắn: ${translated.join(', ')}`);
   }
 
   return {
