@@ -27,6 +27,7 @@
 import { createWorker, type Worker, type Page, type Line, type Word } from 'tesseract.js';
 import {
   createRowId,
+  matchStandardProgramName,
   mergeMultiPageReports,
   normalizeProgramKey,
   normalizeProgramName,
@@ -642,11 +643,11 @@ export function extractProgramNameAndKenh(raw: string): {
     text = prefixMatch[2].trim();
   } else {
     // 4. Token / Suffix channel: e.g. "T11 - Điện tử Samsung DT", "T11 - Tivi TCL ot", "T11 - Máy Lạnh sL"
-    const kenhRegex = /\b(DT|Dr|dr|ot|oT|or|ort|pt|pr|prt|vt|vr|bt|nr|tT|pT|D7|0T|SL|sL|si|S1|5L|s1|st|sSL|ssL)\b/i;
+    const kenhRegex = /\b(DT|Dr|dr|ot|oT|or|ort|pt|pr|prt|vt|vr|bt|br|nr|tT|pT|D7|0T|SL|sL|si|S1|5L|s1|st|sSL|ssL)\b/i;
     const match = text.match(kenhRegex);
     if (match) {
       const rawTag = match[1];
-      if (/^(DT|Dr|dr|ot|oT|or|ort|pt|pr|prt|vt|vr|bt|nr|tT|pT|D7|0T)$/i.test(rawTag)) {
+      if (/^(DT|Dr|dr|ot|oT|or|ort|pt|pr|prt|vt|vr|bt|br|nr|tT|pT|D7|0T)$/i.test(rawTag)) {
         kenh = 'DT';
       } else {
         kenh = 'SL';
@@ -664,14 +665,17 @@ export function extractProgramNameAndKenh(raw: string): {
   text = text.replace(/^1T11\s*[-–—:]?\s*/i, 'T11 - ');
   text = text.replace(/^T1\s*[-–—:]?\s*Sim/i, 'T11 - Sim');
   text = text.replace(/^T(\d{1,2})\s*[-–—:]?\s*/i, 'T$1 - ');
-  // Specific BI brand corrections
   text = text.replace(/\bCELG\b/i, 'CE LG');
 
   const { isTruncated, cleanedName } = checkProgramNameTruncated(text);
   const cleanProg = cleanedName.replace(/[-–—:,\s]+$/, '').trim();
 
+  // 7. Match with Standard BI Business Catalog to restore authentic Vietnamese diacritics
+  const matchResult = matchStandardProgramName(cleanProg);
+  const matchedProg = matchResult.matchedName;
+
   return {
-    programName: isTruncated && !cleanProg.endsWith('...') ? `${cleanProg}...` : cleanProg,
+    programName: isTruncated && !matchedProg.endsWith('...') ? `${matchedProg}...` : matchedProg,
     kenh,
     isTruncated,
   };
@@ -1665,19 +1669,15 @@ export async function recognizeBiColumnsGrid(
       .filter((w) => Math.abs(w.yCenter - rc.yCenter) < yMatchWindow)
       .sort((a, b) => a.left - b.left);
     const rawRank = rankWords.map((w) => w.text).join(' ').trim();
-    const cleanRank = disambiguateOcrNumberString(rawRank);
-    const parsedRank = parseStrictBiNumber(cleanRank.cleanedText, { isIntegerRank: true });
-
-    // Infer channel if still missing
-    let finalKenh = kenh;
-    if (!finalKenh) {
-      const tgtVal = parsedTgt.value ?? parsedTh.value ?? 0;
-      if (tgtVal > 0 && tgtVal < 500 && Number.isInteger(tgtVal)) {
-        finalKenh = 'SL';
-      } else {
-        finalKenh = 'DT';
-      }
+    let parsedRankVal: number | null = null;
+    if (rawRank && !/^[-–—=_®•]+$/.test(rawRank)) {
+      const cleanRank = disambiguateOcrNumberString(rawRank);
+      const parsedRank = parseStrictBiNumber(cleanRank.cleanedText, { isIntegerRank: true });
+      parsedRankVal = parsedRank.value;
     }
+
+    // Channel validation: Only assign DT or SL if detected from badge. Never guess.
+    const finalKenh: ThiDuaKenh | null = kenh;
 
     // Compute % TH HIỆN TẠI: (TH / TARGET) * 100
     let computedPctTh: number | null = null;
@@ -1690,18 +1690,18 @@ export async function recognizeBiColumnsGrid(
     if (cleanTh.isUncertain) uncertainList.push('thuc_hien');
     if (cleanTgt.isUncertain) uncertainList.push('target');
     if (cleanPct.isUncertain) uncertainList.push('ty_le_du_kien');
-    if (!kenh) uncertainList.push('kenh');
+    if (!finalKenh) uncertainList.push('kenh');
 
     const row = validateThiDuaRow(
       {
         id: createRowId(extractedRows.length, pageIndex),
-        ten_chuong_trinh: programName,
+        ten_chuong_trinh: programName.normalize('NFC'),
         kenh: finalKenh,
         thuc_hien: parsedTh.value,
         target: parsedTgt.value,
         ty_le_thuc_hien: computedPctTh,
         ty_le_du_kien: parsedPctDk.value,
-        hang_cty: parsedRank.value,
+        hang_cty: parsedRankVal,
         uncertain_fields: uncertainList,
         sourcePageIndex: pageIndex,
         note: isTruncated ? 'Tên chương trình bị rút gọn bởi giao diện nguồn (...)' : undefined,

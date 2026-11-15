@@ -627,7 +627,7 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
                     <th className="px-2 py-2 w-28 text-right">Target</th>
                     <th className="px-2 py-2 w-24 text-right">% TH hiện tại</th>
                     <th className="px-2 py-2 w-28 text-right">% Dự kiến HT</th>
-                    <th className="px-2 py-2 w-20 text-right">Hạng Cty</th>
+                    <th className="px-2 py-2 w-20 text-right">Hạng Vùng</th>
                     <th className="px-2 py-2 min-w-[165px]">Kiểm tra</th>
                     <th className="px-2 py-2 w-12 text-center">Xóa</th>
                   </tr>
@@ -675,32 +675,21 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
                           </td>
 
                           <td className="px-1.5 py-1.5 text-center">
-                            <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
-                              <button
-                                type="button"
-                                disabled={!hasUpdatePermission}
-                                onClick={() => handleToggleKenh(row.id, 'DT')}
-                                className={`px-2 py-1 text-[10px] font-extrabold transition-colors ${
-                                  row.kenh === 'DT'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'text-slate-500 hover:bg-slate-100'
-                                }`}
-                              >
-                                DT
-                              </button>
-                              <button
-                                type="button"
-                                disabled={!hasUpdatePermission}
-                                onClick={() => handleToggleKenh(row.id, 'SL')}
-                                className={`px-2 py-1 text-[10px] font-extrabold transition-colors ${
-                                  row.kenh === 'SL'
-                                    ? 'bg-orange-500 text-white'
-                                    : 'text-slate-500 hover:bg-slate-100'
-                                }`}
-                              >
-                                SL
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              disabled={!hasUpdatePermission}
+                              onClick={() => handleToggleKenh(row.id, row.kenh === 'DT' ? 'SL' : 'DT')}
+                              title="Nhấn để đổi kênh giữa DT và SL"
+                              className={`inline-flex items-center justify-center min-w-[42px] px-2 py-1 text-[10.5px] font-extrabold rounded-md border transition-all ${
+                                row.kenh === 'DT'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100'
+                                  : row.kenh === 'SL'
+                                  ? 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                                  : 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-200'
+                              }`}
+                            >
+                              {row.kenh || 'Chưa rõ'}
+                            </button>
                           </td>
 
                           <td className="px-1.5 py-1.5">
@@ -711,7 +700,7 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
                               value={getCellText(row, 'thuc_hien', row.thuc_hien)}
                               onChange={(e) => updateRowField(row.id, 'thuc_hien', e.target.value)}
                               onBlur={() => clearDraftValue(row.id, 'thuc_hien')}
-                              placeholder="0"
+                              placeholder="—"
                               className={cellClassName(row, 'thuc_hien')}
                             />
                           </td>
@@ -724,7 +713,7 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
                               value={getCellText(row, 'target', row.target)}
                               onChange={(e) => updateRowField(row.id, 'target', e.target.value)}
                               onBlur={() => clearDraftValue(row.id, 'target')}
-                              placeholder="0"
+                              placeholder="—"
                               className={cellClassName(row, 'target')}
                             />
                           </td>
@@ -739,7 +728,7 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
                                 updateRowField(row.id, 'ty_le_thuc_hien', e.target.value)
                               }
                               onBlur={() => clearDraftValue(row.id, 'ty_le_thuc_hien')}
-                              placeholder="-"
+                              placeholder="—"
                               className={cellClassName(row, 'ty_le_thuc_hien')}
                             />
                           </td>
@@ -754,7 +743,7 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
                                 updateRowField(row.id, 'ty_le_du_kien', e.target.value)
                               }
                               onBlur={() => clearDraftValue(row.id, 'ty_le_du_kien')}
-                              placeholder="-"
+                              placeholder="—"
                               className={cellClassName(row, 'ty_le_du_kien')}
                             />
                           </td>
@@ -767,7 +756,7 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
                               value={getCellText(row, 'hang_cty', row.hang_cty)}
                               onChange={(e) => updateRowField(row.id, 'hang_cty', e.target.value)}
                               onBlur={() => clearDraftValue(row.id, 'hang_cty')}
-                              placeholder="-"
+                              placeholder="—"
                               className={cellClassName(row, 'hang_cty')}
                             />
                           </td>

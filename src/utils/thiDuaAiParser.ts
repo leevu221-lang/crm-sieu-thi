@@ -160,6 +160,143 @@ export function normalizeProgramKey(name: string): string {
     .replace(/\s*-\s*/g, ' - ');
 }
 
+// ==========================================
+// STANDARD BI BUSINESS PROGRAM DICTIONARY
+// ==========================================
+
+export const STANDARD_BI_THI_DUA_PROGRAMS: string[] = [
+  'Điện tử Samsung',
+  'Tivi TCL',
+  'CE LG',
+  'MỞ THẺ TÍN DỤNG VPBANK',
+  'Phụ kiện công nghệ',
+  'Vay tiền mặt',
+  'Bảo hiểm Thợ ICT',
+  'Loa Phụ Kiện',
+  'Bảo hiểm Thợ DMX',
+  'Ví trả sau',
+  'Máy giặt',
+  'Nồi cơm & Nồi chiên',
+  'Máy nước nóng',
+  'Bảo hiểm Tổng',
+  'Sạc dự phòng',
+  'Máy lọc KK - Hút bụi - Hút ẩm',
+  'Sim',
+  'Trả chậm Điện máy & Gia dụng',
+  'Phụ kiện khác IT & Nhóm khác',
+  'Điện tử',
+  'Nạp rút',
+  'Máy lọc nước',
+  'Điện thoại & Tablet Android',
+  'Quạt gió',
+  'Laptop',
+  'Đồng hồ & Smartwatch',
+  'Máy Lạnh',
+  'Trả chậm Homecredit',
+  'Tai nghe',
+  'Camera',
+  'Sim DMX',
+  'Cáp sạc',
+  'Tủ Lạnh / Đông / Mát',
+  'VAS',
+  'Điện thoại Realme',
+  'Điện thoại Vivo',
+  'Máy sấy / Máy rửa chén',
+  'Đèn năng lượng mặt trời',
+  'Trả chậm FECREDIT, SAMSUNG',
+];
+
+export function removeVietnameseDiacritics(str: string): string {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+export function levenshteinDistance(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+    }
+  }
+  return dp[m][n];
+}
+
+/**
+ * Matches an OCR-extracted program name against the standard business catalog:
+ * - Restores correct Vietnamese diacritics, capitalization, and standard spacing.
+ * - Preserves period prefix (e.g. 'T11 - ') and truncation ellipsis ('...').
+ * - Only applies match if similarity >= 0.75 and unambiguous.
+ * - Always ensures Unicode NFC.
+ */
+export function matchStandardProgramName(ocrName: string): {
+  matchedName: string;
+  isMatched: boolean;
+  score: number;
+} {
+  const normalizedInput = ocrName.normalize('NFC').trim();
+  const prefixMatch = normalizedInput.match(/^(T\d{1,2}\s*[-–—:]\s*)/i);
+  const prefix = prefixMatch ? prefixMatch[1] : '';
+  const coreOcr = prefixMatch ? normalizedInput.slice(prefixMatch[0].length).trim() : normalizedInput.trim();
+  const isTruncated = /[.…]{2,}$/.test(coreOcr);
+  const cleanCore = coreOcr.replace(/[.…]+$/, '').trim();
+
+  const ocrKey = removeVietnameseDiacritics(cleanCore);
+  if (!ocrKey) {
+    return { matchedName: normalizedInput, isMatched: false, score: 0 };
+  }
+
+  let bestMatch: string | null = null;
+  let bestScore = 0;
+  let secondBestScore = 0;
+
+  for (const std of STANDARD_BI_THI_DUA_PROGRAMS) {
+    const stdKey = removeVietnameseDiacritics(std);
+    let score = 0;
+    if (ocrKey === stdKey) {
+      score = 1.0;
+    } else if (stdKey.startsWith(ocrKey) || ocrKey.startsWith(stdKey)) {
+      score = Math.min(ocrKey.length, stdKey.length) / Math.max(ocrKey.length, stdKey.length);
+    } else {
+      const maxLen = Math.max(ocrKey.length, stdKey.length);
+      const dist = levenshteinDistance(ocrKey, stdKey);
+      score = (maxLen - dist) / maxLen;
+    }
+
+    if (score > bestScore) {
+      secondBestScore = bestScore;
+      bestScore = score;
+      bestMatch = std;
+    } else if (score > secondBestScore) {
+      secondBestScore = score;
+    }
+  }
+
+  // High confidence threshold (>= 0.75) and margin over 2nd best to avoid ambiguity
+  if (
+    bestMatch &&
+    (bestScore >= 0.85 || (bestScore >= 0.75 && bestScore - secondBestScore >= 0.12))
+  ) {
+    const finalName = prefix ? `${prefix}${bestMatch}` : bestMatch;
+    return {
+      matchedName: (isTruncated && !finalName.endsWith('...') ? `${finalName}...` : finalName).normalize('NFC'),
+      isMatched: true,
+      score: bestScore,
+    };
+  }
+
+  return { matchedName: normalizedInput, isMatched: false, score: bestScore };
+}
+
 export function normalizeKenh(raw: unknown): ThiDuaKenh | null {
   if (typeof raw !== 'string') return null;
   const upper = raw.normalize('NFC').trim().toUpperCase();
@@ -369,15 +506,13 @@ export function validateThiDuaRow(
   }
 
   if (invalidFlags.invalidHangCty) {
-    errors.push('Hạng công ty phải là số nguyên dương');
-  } else if (hang_cty === null) {
-    missing_fields.push('hang_cty');
-    warnings.push('Chưa nhận diện được hạng vùng');
-  } else {
+    errors.push('Hạng vùng phải là số nguyên dương');
+  } else if (hang_cty !== null) {
     if (!Number.isInteger(hang_cty) || hang_cty < 1 || hang_cty > 10000) {
-      errors.push('Hạng công ty phải là số nguyên từ 1 trở lên');
+      errors.push('Hạng vùng phải là số nguyên từ 1 trở lên');
     }
   }
+  // hang_cty === null represents an unranked program ('—' / dash), which is standard in BI.
 
   // Cross-field consistency checks (does NOT reject valid <100% or >100% values!)
   if (
