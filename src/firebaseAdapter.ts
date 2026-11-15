@@ -116,6 +116,16 @@ export function getActiveSessionPermissionContext(): {
   }
 }
 
+const VALID_RELEASE_STATUSES = new Set([
+  'draft',
+  'testing',
+  'pending_approval',
+  'approved',
+  'published',
+  'rejected',
+  'rolled_back',
+]);
+
 /**
  * Enforces Row-Level Security (RLS) & `allowed_pages` permission checks at the Data Adapter layer.
  * Blocks unauthorized API/Database queries and mutations even if invoked directly outside React UI.
@@ -126,6 +136,77 @@ export function enforceTableRlsPolicy(
   payload?: any
 ): void {
   const ctx = getActiveSessionPermissionContext();
+
+  // 0. STRICT GUARD FOR APP VERSION & RELEASE MANAGEMENT TABLES (app_releases, app_devices, app_release_logs)
+  // Enforce BEFORE generic SuperAdmin bypass so ONLY account '43751' can manage releases, and logs remain immutable.
+  if (tableName === 'app_releases') {
+    if (operation === 'select') {
+      return; // All clients & devices are allowed to read release metadata to check for updates
+    }
+    if (!isSuperAdmin43751(ctx.username)) {
+      throw new Error(
+        '[RLS Policy Violation] Truy cập bị từ chối: Chỉ duy nhất Admin 43751 mới có quyền tạo, phê duyệt, phát hành hoặc thu hồi phiên bản ứng dụng (app_releases).'
+      );
+    }
+    if (operation === 'delete') {
+      throw new Error(
+        '[RLS Policy Violation] Không được phép xoá lịch sử phiên bản ứng dụng. Vui lòng sử dụng trạng thái Rejected hoặc Rolled Back.'
+      );
+    }
+    if (payload) {
+      const items = Array.isArray(payload) ? payload : [payload];
+      for (const item of items) {
+        if (item?.status && !VALID_RELEASE_STATUSES.has(String(item.status))) {
+          throw new Error(`[RLS Policy Violation] Trạng thái phiên bản không hợp lệ: "${item.status}".`);
+        }
+        if (item?.status === 'published') {
+          if (!isSuperAdmin43751(item.approved_by)) {
+            throw new Error(
+              '[RLS Policy Violation] Không thể phát hành (Published) phiên bản chưa được Admin 43751 phê duyệt.'
+            );
+          }
+          if (!item.checksum_sha256 || String(item.checksum_sha256).trim().length < 16) {
+            throw new Error(
+              '[RLS Policy Violation] Phiên bản phát hành bắt buộc phải có mã kiểm tra toàn vẹn Checksum SHA-256 hợp lệ.'
+            );
+          }
+        }
+      }
+    }
+    return;
+  }
+
+  if (tableName === 'app_release_logs') {
+    if (operation === 'select' || operation === 'insert') {
+      return;
+    }
+    throw new Error(
+      '[RLS Policy Violation] Nhật ký kiểm duyệt và cập nhật phiên bản (app_release_logs) là bất biến, tuyệt đối không được phép sửa hoặc xoá.'
+    );
+  }
+
+  if (tableName === 'app_devices') {
+    if (operation === 'select') {
+      return;
+    }
+    if (operation === 'delete' && !isSuperAdmin43751(ctx.username)) {
+      throw new Error(
+        '[RLS Policy Violation] Chỉ Admin 43751 mới có quyền xoá thiết bị khỏi hệ thống.'
+      );
+    }
+    if (payload && !isSuperAdmin43751(ctx.username)) {
+      const items = Array.isArray(payload) ? payload : [payload];
+      for (const item of items) {
+        const sentUser = String(item?.user_id || '').trim();
+        if (sentUser && ctx.username && sentUser !== ctx.username && sentUser !== 'anonymous' && !sentUser.startsWith('Khách')) {
+          throw new Error(
+            '[RLS Policy Violation] Không được phép giả mạo user_id của người dùng khác khi cập nhật thông tin thiết bị (app_devices).'
+          );
+        }
+      }
+    }
+    return;
+  }
 
   // 1. SuperAdmin (43751 / ADMIN / canEditUser) has full access (subject to SuperAdmin write guard)
   if (ctx.isSuperAdmin) return;

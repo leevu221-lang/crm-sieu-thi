@@ -1,8 +1,8 @@
 import type { Handler } from '@netlify/functions';
 import {
   analyzeThiDuaImageServer,
+  extractCloudflareServerEnv,
   resolveGeminiServerStatus,
-  type ServerEnvLike,
   type VisionAnalyzeRequestBody,
 } from '../../src/utils/thiDuaAiServerCore';
 
@@ -14,17 +14,6 @@ const CORS_HEADERS: Record<string, string> = {
   'Cache-Control': 'no-store',
 };
 
-function getNetlifyServerEnv(): ServerEnvLike {
-  return {
-    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-    GEMINI_MODEL: process.env.GEMINI_MODEL,
-    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
-    VITE_FIREBASE_PROJECT_ID: process.env.VITE_FIREBASE_PROJECT_ID,
-    FIREBASE_API_KEY: process.env.FIREBASE_API_KEY,
-    VITE_FIREBASE_API_KEY: process.env.VITE_FIREBASE_API_KEY,
-  };
-}
-
 export const handler: Handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return {
@@ -34,7 +23,7 @@ export const handler: Handler = async (event) => {
     };
   }
 
-  const env = getNetlifyServerEnv();
+  const env = extractCloudflareServerEnv(process.env);
 
   if (event.httpMethod === 'GET') {
     return {
@@ -75,6 +64,7 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify({
         ok: false,
         status: 400,
+        errorCode: 'INVALID_IMAGE',
         error: err?.message || 'Yêu cầu không hợp lệ.',
       }),
     };

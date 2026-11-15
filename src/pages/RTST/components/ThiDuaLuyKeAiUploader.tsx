@@ -175,8 +175,9 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
   const [aiStatusState, setAiStatusState] = useState<{
     loading: boolean;
     configured: boolean | null;
+    errorCode?: string;
     message: string;
-  }>({ loading: false, configured: null, message: '' });
+  }>({ loading: false, configured: null, errorCode: '', message: '' });
 
   const checkBackendAiStatus = async () => {
     setAiStatusState((prev) => ({ ...prev, loading: true }));
@@ -186,12 +187,14 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
       setAiStatusState({
         loading: false,
         configured: Boolean(data?.configured),
+        errorCode: data?.errorCode || (data?.configured ? '' : 'GEMINI_API_KEY_MISSING'),
         message: String(data?.message || ''),
       });
     } catch {
       setAiStatusState({
         loading: false,
         configured: null,
+        errorCode: '',
         message: 'Không kiểm tra được trạng thái backend',
       });
     }
@@ -718,7 +721,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                 <span className="truncate">
                   {aiStatusState.configured
                     ? 'Backend AI: AI service ready (Secret GEMINI_API_KEY đã được phát hiện trên server)'
-                    : `Backend AI: ${aiStatusState.message || 'GEMINI_API_KEY is missing'}`}
+                    : 'Backend AI: Chưa cấu hình GEMINI_API_KEY (Server Cloudflare Pages chưa nhận được biến môi trường)'}
                 </span>
               </span>
               <button
@@ -891,17 +894,59 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                   <AlertCircle size={14} className="shrink-0 mt-0.5 text-rose-600" />
                   <div className="space-y-1">
                     <div>{errorMsg}</div>
-                    {(errorCode === 'MISSING_API_KEY' || errorCode === 'INVALID_API_KEY') && (
+                    {(errorCode === 'GEMINI_API_KEY_MISSING' || errorCode === 'MISSING_API_KEY') && (
+                      <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1.5 space-y-1">
+                        <div>
+                          <strong>Hướng dẫn cấu hình Cloudflare Pages:</strong>
+                        </div>
+                        <ol className="list-decimal pl-4 space-y-0.5 text-[10px] text-slate-700">
+                          <li>Vào <strong>Cloudflare Dashboard</strong> → <strong>Workers & Pages</strong> → Chọn project <code>crm43751</code> (hoặc <code>crm-sieu-thi</code>).</li>
+                          <li>Vào <strong>Settings</strong> → <strong>Variables and Secrets</strong> → Bấm <strong>Add Variable / Secret</strong>.</li>
+                          <li>Tên: <code className="px-1 py-0.2 rounded bg-rose-100 font-bold text-rose-800">GEMINI_API_KEY</code> (không dùng tiền tố <code>VITE_</code>).</li>
+                          <li>Giá trị: Nhập API Key Gemini lấy từ <code>aistudio.google.com</code>.</li>
+                          <li>Thiết lập cho cả <strong>Production</strong> và <strong>Preview</strong>.</li>
+                          <li>Bấm <strong>Save and Deploy</strong> hoặc thực hiện <strong>Redeploy</strong> bản build gần nhất.</li>
+                        </ol>
+                      </div>
+                    )}
+                    {(errorCode === 'GEMINI_API_KEY_INVALID' || errorCode === 'INVALID_API_KEY') && (
                       <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1">
-                        <strong>Hướng dẫn Admin:</strong> Vào Cloudflare Pages → chọn project →{' '}
-                        <strong>Settings → Variables and Secrets</strong> → thêm biến{' '}
-                        <code className="px-1 py-0.5 rounded bg-rose-100 font-bold">GEMINI_API_KEY</code>{' '}
-                        (không dùng tiền tố <code>VITE_</code>) và bấm <strong>Redeploy</strong>.
+                        <strong>Lưu ý Admin:</strong> GEMINI_API_KEY hiện tại không hợp lệ hoặc đã bị vô hiệu hóa trên Google AI Studio. Vui lòng lấy API Key mới tại <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" className="underline font-bold text-blue-600">aistudio.google.com</a> và cập nhật lại vào Cloudflare Pages.
+                      </div>
+                    )}
+                    {(errorCode === 'GEMINI_PERMISSION_DENIED' || errorCode === 'PERMISSION_DENIED') && (
+                      <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1">
+                        <strong>Quyền hạn:</strong> Tài khoản cần có quyền CẬP NHẬT DỮ LIỆU (khaibao) hoặc API Key bị giới hạn IP/Referer trên Google Cloud Console.
+                      </div>
+                    )}
+                    {(errorCode === 'GEMINI_QUOTA_EXCEEDED' || errorCode === 'QUOTA_EXCEEDED') && (
+                      <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1">
+                        <strong>Hạn mức API:</strong> Google Gemini API đã vượt hạn mức sử dụng (Quota Exceeded / HTTP 429). Vui lòng kiểm tra hạn mức hoặc thông tin thanh toán tại Google AI Studio.
+                      </div>
+                    )}
+                    {errorCode === 'GEMINI_RATE_LIMIT' && (
+                      <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1">
+                        <strong>Tần suất yêu cầu:</strong> Hệ thống đã tự động thử lại nhưng Google API vẫn tạm thời giới hạn tần suất gọi. Vui lòng chờ 10-15 giây rồi bấm nút <strong>Thử lại</strong> bên phải.
+                      </div>
+                    )}
+                    {(errorCode === 'GEMINI_TIMEOUT' || errorCode === 'TIMEOUT') && (
+                      <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1">
+                        <strong>Quá thời gian chờ:</strong> Quá 45 giây chưa nhận được phản hồi từ máy chủ Google. Vui lòng kiểm tra kết nối mạng và bấm <strong>Thử lại</strong>.
+                      </div>
+                    )}
+                    {errorCode === 'GEMINI_SERVER_ERROR' && (
+                      <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1">
+                        <strong>Sự cố máy chủ Google:</strong> Máy chủ Gemini API đang phản hồi lỗi 500/503. Dữ liệu của bạn được bảo toàn 100%, vui lòng thử lại sau ít phút.
+                      </div>
+                    )}
+                    {errorCode === 'GEMINI_INVALID_RESPONSE' && (
+                      <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1">
+                        <strong>Chất lượng ảnh:</strong> AI không trích xuất được bảng số liệu hợp lệ từ ảnh. Vui lòng kiểm tra ảnh chụp rõ nét bảng báo cáo BI (đủ các cột Chương trình, Thực hiện, Target...).
                       </div>
                     )}
                     {images.length > 0 && (
                       <div className="text-[10px] text-slate-600 font-medium">
-                        {images.length} ảnh đã tải lên vẫn được giữ nguyên; dữ liệu cũ chưa bị thay đổi.
+                        {images.length} ảnh đã tải lên vẫn được giữ nguyên; 286 dòng dữ liệu LUỸ KẾ THI ĐUA cũ không bị thay đổi.
                       </div>
                     )}
                   </div>

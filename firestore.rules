@@ -2,7 +2,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Bảo vệ tài khoản SuperAdmin 43751 không bao giờ bị xoá hoặc hạ quyền
+    // Kiểm tra trạng thái hoạt động của tài khoản SuperAdmin 43751 trong cơ sở dữ liệu
+    function isSuperAdmin43751Active() {
+      return exists(/databases/$(database)/documents/ql_nguoi_dung/43751) &&
+             get(/databases/$(database)/documents/ql_nguoi_dung/43751).data.role == 'admin' &&
+             get(/databases/$(database)/documents/ql_nguoi_dung/43751).data.status == 'active';
+    }
+
+    // 1. Bảo vệ tài khoản SuperAdmin 43751 không bao giờ bị xoá hoặc hạ quyền
     match /ql_nguoi_dung/{docId} {
       allow read: if true;
       allow create, update: if docId != '43751' || (
@@ -12,17 +19,68 @@ service cloud.firestore {
       allow delete: if docId != '43751' && resource.data.username != '43751';
     }
 
-    // Bảo vệ bảng phân quyền `user_permissions` (chứa mảng `allowed_pages`)
+    // 2. Bảo vệ bảng phân quyền `user_permissions` (chứa mảng `allowed_pages`)
     match /user_permissions/{docId} {
       allow read: if true;
       allow create, update: if !(resource != null && resource.data.user_id == '43751') || (
         request.resource.data.allowed_pages.hasAll([
           'realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'bbkq',
-          'tienich', 'users', 'tnb_data', 'tnbleader', 'birthday',
+          'tienich', 'users', 'tnbleader', 'birthday',
           'feedback', 'excelviewer', 'lichpg'
         ])
       );
       allow delete: if resource.data.user_id != '43751';
+    }
+
+    // 3. Bảng Quản lý Phiên bản Ứng dụng (`app_releases`) - Single Source of Truth
+    // - Mọi thiết bị được đọc để kiểm tra cập nhật.
+    // - Chỉ cho phép tạo/cập nhật khi người thực hiện là Admin 43751 (created_by == '43751')
+    //   và trạng thái hợp lệ.
+    // - Nếu chuyển sang 'approved', 'published', 'rejected', 'rolled_back' bắt buộc approved_by == '43751'
+    //   và đối với 'published' bắt buộc có checksum_sha256 hợp lệ.
+    // - Không bao giờ cho phép xóa lịch sử phiên bản.
+    match /app_releases/{releaseId} {
+      allow read: if true;
+      allow create: if isSuperAdmin43751Active() &&
+        request.resource.data.created_by == '43751' &&
+        request.resource.data.status in ['draft', 'testing', 'pending_approval', 'approved', 'published'] &&
+        (
+          !(request.resource.data.status in ['approved', 'published']) ||
+          (request.resource.data.approved_by == '43751' && request.resource.data.checksum_sha256 is string && request.resource.data.checksum_sha256.size() >= 16)
+        );
+      allow update: if isSuperAdmin43751Active() &&
+        request.resource.data.status in ['draft', 'testing', 'pending_approval', 'approved', 'published', 'rejected', 'rolled_back'] &&
+        (
+          !(request.resource.data.status in ['approved', 'published', 'rejected', 'rolled_back']) ||
+          request.resource.data.approved_by == '43751'
+        ) &&
+        (
+          request.resource.data.status != 'published' ||
+          (request.resource.data.checksum_sha256 is string && request.resource.data.checksum_sha256.size() >= 16)
+        );
+      allow delete: if false;
+    }
+
+    // 4. Bảng Thiết bị Ứng dụng (`app_devices`)
+    // - Thiết bị chỉ cập nhật thông tin phiên bản của chính mình (device_id, platform, app_version, bundle_version, update_status).
+    // - Không cho phép chèn các trường nâng quyền trái phép.
+    match /app_devices/{deviceId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.device_id is string &&
+        request.resource.data.device_id.size() > 0 &&
+        request.resource.data.platform in ['web', 'android', 'ios'] &&
+        !('role' in request.resource.data) &&
+        !('allowed_pages' in request.resource.data);
+      allow delete: if isSuperAdmin43751Active();
+    }
+
+    // 5. Bảng Nhật ký Kiểm duyệt & Cập nhật Phiên bản (`app_release_logs`)
+    // - Append-only (Chỉ cho phép thêm mới nhật ký, tuyệt đối cấm sửa hoặc xóa).
+    match /app_release_logs/{logId} {
+      allow read: if true;
+      allow create: if request.resource.data.status is string &&
+        request.resource.data.status.size() > 0;
+      allow update, delete: if false;
     }
 
     // Các bảng nghiệp vụ khác đồng bộ cùng tầng Adapter Guard (`enforceTableRlsPolicy`)
@@ -31,4 +89,3 @@ service cloud.firestore {
     }
   }
 }
-

@@ -1,5 +1,6 @@
 import {
   analyzeThiDuaImageServer,
+  extractCloudflareServerEnv,
   resolveGeminiServerStatus,
   type ServerEnvLike,
   type VisionAnalyzeRequestBody,
@@ -12,18 +13,6 @@ const CORS_HEADERS: Record<string, string> = {
   'Content-Type': 'application/json; charset=utf-8',
   'Cache-Control': 'no-store',
 };
-
-function extractCloudflareServerEnv(env?: ServerEnvLike): ServerEnvLike {
-  const apiKey = env?.GEMINI_API_KEY;
-  return {
-    GEMINI_API_KEY: apiKey,
-    GEMINI_MODEL: env?.GEMINI_MODEL,
-    FIREBASE_PROJECT_ID: env?.FIREBASE_PROJECT_ID,
-    VITE_FIREBASE_PROJECT_ID: env?.VITE_FIREBASE_PROJECT_ID,
-    FIREBASE_API_KEY: env?.FIREBASE_API_KEY,
-    VITE_FIREBASE_API_KEY: env?.VITE_FIREBASE_API_KEY,
-  };
-}
 
 export async function onRequestOptions() {
   return new Response(null, { status: 204, headers: CORS_HEADERS });

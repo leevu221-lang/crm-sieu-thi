@@ -1,5 +1,8 @@
 import type { Handler } from '@netlify/functions';
-import { resolveThiDuaAiStatus } from '../../src/utils/thiDuaAiServerCore';
+import {
+  extractCloudflareServerEnv,
+  resolveThiDuaAiStatus,
+} from '../../src/utils/thiDuaAiServerCore';
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -22,9 +25,8 @@ export const handler: Handler = async (event) => {
     };
   }
 
-  const health = resolveThiDuaAiStatus({
-    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-  });
+  const env = extractCloudflareServerEnv(process.env);
+  const health = resolveThiDuaAiStatus(env);
 
   return {
     statusCode: 200,

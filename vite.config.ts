@@ -5,13 +5,14 @@ import fs from 'fs';
 import { defineConfig, loadEnv, type Connect, type Plugin } from 'vite';
 import {
   analyzeThiDuaImageServer,
+  extractCloudflareServerEnv,
   resolveGeminiServerStatus,
   resolveThiDuaAiStatus,
   type VisionAnalyzeRequestBody,
 } from './src/utils/thiDuaAiServerCore';
 
 function createThiDuaAiStatusMiddleware(serverEnv: Record<string, string>): Connect.NextHandleFunction {
-  const apiKey = serverEnv.GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  const effectiveEnv = extractCloudflareServerEnv({ ...serverEnv, ...process.env });
   return (req, res, next) => {
     if (req.method === 'OPTIONS') {
       res.statusCode = 204;
@@ -27,19 +28,12 @@ function createThiDuaAiStatusMiddleware(serverEnv: Record<string, string>): Conn
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
-    res.end(JSON.stringify(resolveThiDuaAiStatus({ GEMINI_API_KEY: apiKey })));
+    res.end(JSON.stringify(resolveThiDuaAiStatus(effectiveEnv)));
   };
 }
 
 function createThiDuaAiMiddleware(serverEnv: Record<string, string>): Connect.NextHandleFunction {
-  const effectiveEnv = {
-    GEMINI_API_KEY: serverEnv.GEMINI_API_KEY || process.env.GEMINI_API_KEY,
-    GEMINI_MODEL: serverEnv.GEMINI_MODEL || process.env.GEMINI_MODEL,
-    FIREBASE_PROJECT_ID: serverEnv.FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID,
-    VITE_FIREBASE_PROJECT_ID: serverEnv.VITE_FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
-    FIREBASE_API_KEY: serverEnv.FIREBASE_API_KEY || process.env.FIREBASE_API_KEY,
-    VITE_FIREBASE_API_KEY: serverEnv.VITE_FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
-  };
+  const effectiveEnv = extractCloudflareServerEnv({ ...serverEnv, ...process.env });
 
   return (req, res, next) => {
     if (req.method === 'OPTIONS') {

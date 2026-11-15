@@ -1,4 +1,5 @@
 import {
+  extractCloudflareServerEnv,
   resolveThiDuaAiStatus,
   type ServerEnvLike,
 } from '../../../src/utils/thiDuaAiServerCore';
@@ -17,8 +18,8 @@ export async function onRequestOptions() {
 
 export async function onRequestGet(context: { env: ServerEnvLike }) {
   const { env } = context;
-  const apiKey = env?.GEMINI_API_KEY;
-  const health = resolveThiDuaAiStatus({ GEMINI_API_KEY: apiKey });
+  const serverEnv = extractCloudflareServerEnv(env);
+  const health = resolveThiDuaAiStatus(serverEnv);
   return new Response(JSON.stringify(health), {
     status: 200,
     headers: CORS_HEADERS,

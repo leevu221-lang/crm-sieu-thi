@@ -9,8 +9,10 @@ coverage/
 43751-crm.local+1-key.pem
 43751-crm.local+1.pem
 
-# Local Netlify folder
+# Local Netlify & Cloudflare folders
 .netlify
+.wrangler
+_worker.bundle
 
 # Build version file
 public/version.json

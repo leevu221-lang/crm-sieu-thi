@@ -24,6 +24,43 @@ export interface ServerEnvLike {
   VITE_FIREBASE_API_KEY?: string;
 }
 
+/**
+ * Standardized server environment extractor for Cloudflare Pages Functions,
+ * Netlify Functions, and Vite dev server.
+ * Security: Strict server-side variable access, no frontend leak, handles casing/spaces.
+ */
+export function extractCloudflareServerEnv(env?: any): ServerEnvLike {
+  const safeEnv = env && typeof env === 'object' ? env : {};
+  const cfApiKey = safeEnv.GEMINI_API_KEY || safeEnv.gemini_api_key;
+  const procApiKey =
+    typeof process !== 'undefined' && process?.env
+      ? process.env.GEMINI_API_KEY || process.env.gemini_api_key
+      : undefined;
+
+  const cfModel = safeEnv.GEMINI_MODEL || safeEnv.gemini_model;
+  const procModel =
+    typeof process !== 'undefined' && process?.env
+      ? process.env.GEMINI_MODEL || process.env.gemini_model
+      : undefined;
+
+  return {
+    GEMINI_API_KEY: cfApiKey || procApiKey,
+    GEMINI_MODEL: cfModel || procModel,
+    FIREBASE_PROJECT_ID:
+      safeEnv.FIREBASE_PROJECT_ID ||
+      (typeof process !== 'undefined' ? process?.env?.FIREBASE_PROJECT_ID : undefined),
+    VITE_FIREBASE_PROJECT_ID:
+      safeEnv.VITE_FIREBASE_PROJECT_ID ||
+      (typeof process !== 'undefined' ? process?.env?.VITE_FIREBASE_PROJECT_ID : undefined),
+    FIREBASE_API_KEY:
+      safeEnv.FIREBASE_API_KEY ||
+      (typeof process !== 'undefined' ? process?.env?.FIREBASE_API_KEY : undefined),
+    VITE_FIREBASE_API_KEY:
+      safeEnv.VITE_FIREBASE_API_KEY ||
+      (typeof process !== 'undefined' ? process?.env?.VITE_FIREBASE_API_KEY : undefined),
+  };
+}
+
 export interface VisionAnalyzeRequestBody {
   imageBase64?: string;
   mimeType?: string;
@@ -42,6 +79,16 @@ export interface VisionAnalyzeRequestBody {
 }
 
 export type VisionErrorCode =
+  // User canonical error codes (Section 4)
+  | 'GEMINI_API_KEY_MISSING'
+  | 'GEMINI_API_KEY_INVALID'
+  | 'GEMINI_PERMISSION_DENIED'
+  | 'GEMINI_QUOTA_EXCEEDED'
+  | 'GEMINI_RATE_LIMIT'
+  | 'GEMINI_TIMEOUT'
+  | 'GEMINI_SERVER_ERROR'
+  | 'GEMINI_INVALID_RESPONSE'
+  // Backward compatibility aliases
   | 'PERMISSION_DENIED'
   | 'MISSING_API_KEY'
   | 'INVALID_API_KEY'
@@ -64,6 +111,7 @@ export interface VisionAnalyzeResponse {
 export interface ThiDuaAiHealthStatus {
   configured: boolean;
   provider: 'gemini';
+  errorCode?: VisionErrorCode;
   message: string;
 }
 
@@ -71,7 +119,7 @@ export interface GeminiServerConfigStatus {
   ok: boolean;
   configured: boolean;
   provider: 'gemini';
-  errorCode?: 'MISSING_API_KEY';
+  errorCode?: VisionErrorCode;
   message: string;
 }
 
@@ -97,6 +145,7 @@ export function resolveThiDuaAiStatus(env: ServerEnvLike): ThiDuaAiHealthStatus 
     return {
       configured: false,
       provider: 'gemini',
+      errorCode: 'GEMINI_API_KEY_MISSING',
       message: 'GEMINI_API_KEY is missing',
     };
   }
@@ -114,7 +163,7 @@ export function resolveGeminiServerStatus(env: ServerEnvLike): GeminiServerConfi
       ok: false,
       configured: false,
       provider: 'gemini',
-      errorCode: 'MISSING_API_KEY',
+      errorCode: 'GEMINI_API_KEY_MISSING',
       message: health.message,
     };
   }
@@ -426,8 +475,8 @@ export async function analyzeThiDuaImageServer(
     return {
       ok: false,
       status: permCheck.status,
-      errorCode: 'PERMISSION_DENIED',
-      error: permCheck.reason || 'Không có quyền thực hiện thao tác này.',
+      errorCode: 'GEMINI_PERMISSION_DENIED',
+      error: permCheck.reason || 'Tài khoản không đủ quyền sử dụng AI nhận diện.',
     };
   }
 
@@ -437,7 +486,7 @@ export async function analyzeThiDuaImageServer(
     return {
       ok: false,
       status: 500,
-      errorCode: 'MISSING_API_KEY',
+      errorCode: 'GEMINI_API_KEY_MISSING',
       error:
         'Server chưa được cấu hình GEMINI_API_KEY. Admin vui lòng thêm biến môi trường GEMINI_API_KEY phía server (Cloudflare Pages: Settings → Variables and Secrets → chọn cả Production & Preview → Redeploy).',
     };
@@ -500,215 +549,267 @@ export async function analyzeThiDuaImageServer(
       ok: false,
       status: 400,
       errorCode: 'MODEL_NOT_SUPPORTED',
-      error: `Model '${preferredModel}' không hỗ trợ phân tích hình ảnh Gemini Vision. Vui lòng sử dụng gemini-2.5-flash hoặc gemini-2.0-flash.`,
+      error: `Model '${preferredModel}' không hỗ trợ phân tích hình ảnh Gemini Vision. Vui lòng sử dụng gemini-2.0-flash hoặc gemini-1.5-flash.`,
     };
   }
 
+  // Primary model: gemini-2.0-flash (fast, reliable vision & structured schema output)
+  // Fallbacks: gemini-1.5-flash, gemini-2.5-flash
   const modelCandidates = Array.from(
     new Set([
       ...(preferredModel ? [preferredModel] : []),
-      'gemini-2.5-flash',
       'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-2.5-flash',
     ])
   );
 
   let lastErrorMsg = 'Không thể kết nối Gemini Vision API.';
-  let lastErrorCode: VisionErrorCode = 'GEMINI_API_ERROR';
+  let lastErrorCode: VisionErrorCode = 'GEMINI_SERVER_ERROR';
   let lastStatus = 502;
 
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  const MAX_ATTEMPTS_PER_MODEL = 2;
+
   for (const modelName of modelCandidates) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 45_000);
-    try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-        modelName
-      )}:generateContent`;
-
-      const geminiRes = await fetch(endpoint, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                { text: prompt },
-                {
-                  inlineData: {
-                    mimeType: mimeType === 'image/jpg' ? 'image/jpeg' : mimeType,
-                    data: base64Data,
-                  },
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0,
-            maxOutputTokens: 16384,
-            responseMimeType: 'application/json',
-            responseSchema: GEMINI_RESPONSE_SCHEMA,
-          },
-        }),
-      });
-
-      if (!geminiRes.ok) {
-        const errBodyText = await geminiRes.text();
-        lastStatus = geminiRes.status;
-        let parsedErr = '';
-        let parsedReason = '';
-        try {
-          const parsedObj = JSON.parse(errBodyText);
-          parsedErr = String(parsedObj?.error?.message || '');
-          parsedReason = String(
-            parsedObj?.error?.details?.[0]?.reason || parsedObj?.error?.status || ''
-          );
-        } catch {}
-
-        // Do not leak API keys or raw internals; classify exact HTTP status
-        if (geminiRes.status === 429) {
-          return {
-            ok: false,
-            status: 429,
-            errorCode: 'QUOTA_EXCEEDED',
-            error:
-              'Gemini API đã vượt hạn mức hoặc tần suất gọi (HTTP 429). Vui lòng thử lại sau ít phút hoặc kiểm tra quota/billing.',
-          };
-        }
-
-        if (
-          parsedReason.includes('API_KEY_INVALID') ||
-          /api[_\s]?key/i.test(parsedErr) ||
-          geminiRes.status === 401
-        ) {
-          return {
-            ok: false,
-            status: geminiRes.status === 400 ? 401 : geminiRes.status,
-            errorCode: 'INVALID_API_KEY',
-            error: `GEMINI_API_KEY phía server không hợp lệ hoặc đã bị thu hồi (HTTP ${geminiRes.status}). Vui lòng kiểm tra lại giá trị GEMINI_API_KEY.`,
-          };
-        }
-
-        if (geminiRes.status === 403) {
-          return {
-            ok: false,
-            status: 403,
-            errorCode: 'INVALID_API_KEY',
-            error:
-              'GEMINI_API_KEY bị từ chối quyền truy cập Gemini API hoặc bị giới hạn IP/Referer (HTTP 403).',
-          };
-        }
-
-        const isModelIssue =
-          geminiRes.status === 404 ||
-          (/(model|modality|multimodal|image|vision)/i.test(parsedErr) &&
-            /(not found|not supported|unsupported|invalid)/i.test(parsedErr));
-
-        if (isModelIssue) {
-          lastStatus = geminiRes.status;
-          lastErrorCode = 'MODEL_NOT_SUPPORTED';
-          lastErrorMsg = `Model '${modelName}' không khả dụng hoặc không hỗ trợ nhận diện hình ảnh (HTTP ${geminiRes.status}).`;
-          continue;
-        }
-
-        if (geminiRes.status === 400) {
-          return {
-            ok: false,
-            status: 400,
-            errorCode: 'BAD_REQUEST',
-            error: parsedErr
-              ? redactSensitiveSecrets(
-                  `Dữ liệu/ảnh gửi Gemini API không hợp lệ (HTTP 400): ${parsedErr}`
-                )
-              : 'Dữ liệu hoặc định dạng ảnh gửi Gemini API không hợp lệ (HTTP 400).',
-          };
-        }
-
-        if (geminiRes.status >= 500) {
-          lastErrorCode = 'GEMINI_API_ERROR';
-          lastStatus = geminiRes.status;
-          lastErrorMsg = parsedErr
-            ? redactSensitiveSecrets(
-                `Máy chủ Google Gemini API đang gặp sự cố (HTTP ${geminiRes.status}): ${parsedErr}`
-              )
-            : `Máy chủ Google Gemini API đang gặp sự cố tạm thời (HTTP ${geminiRes.status}).`;
-          continue;
-        }
-
-        lastErrorCode = 'GEMINI_API_ERROR';
-        lastErrorMsg = parsedErr
-          ? redactSensitiveSecrets(`Lỗi Gemini Vision (HTTP ${geminiRes.status}): ${parsedErr}`)
-          : `Lỗi Gemini Vision HTTP ${geminiRes.status}`;
-        continue;
-      }
-
-      const geminiJson = (await geminiRes.json()) as any;
-      const finishReason = geminiJson?.candidates?.[0]?.finishReason;
-      const textParts: string[] = (geminiJson?.candidates?.[0]?.content?.parts || [])
-        .map((p: any) => (typeof p?.text === 'string' ? p.text : ''))
-        .filter(Boolean);
-      const combinedText = textParts.join('\n').trim();
-
-      if (!combinedText) {
-        lastErrorCode = 'GEMINI_API_ERROR';
-        lastErrorMsg = 'Gemini Vision trả về kết quả trống. Vui lòng kiểm tra chất lượng ảnh và thử lại.';
-        continue;
-      }
-
-      let parsedPayload: ThiDuaAiRawReport;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_MODEL; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45_000);
       try {
-        parsedPayload = JSON.parse(stripCodeFences(combinedText)) as ThiDuaAiRawReport;
-      } catch {
-        lastErrorCode = 'GEMINI_API_ERROR';
-        lastErrorMsg =
-          finishReason === 'MAX_TOKENS'
-            ? 'Bảng dữ liệu trong ảnh quá dài vượt giới hạn output một lần đọc. Vui lòng cắt ảnh làm 2-3 phần rồi tải lên cùng lúc.'
-            : 'Không thể giải mã JSON từ kết quả AI Vision. Vui lòng bấm Thử lại.';
-        continue;
-      }
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+          modelName
+        )}:generateContent`;
 
-      const normalizedReport = normalizeRawAiReport(parsedPayload, pageIndex);
+        const geminiRes = await fetch(endpoint, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { text: prompt },
+                  {
+                    inlineData: {
+                      mimeType: mimeType === 'image/jpg' ? 'image/jpeg' : mimeType,
+                      data: base64Data,
+                    },
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              temperature: 0,
+              maxOutputTokens: 16384,
+              responseMimeType: 'application/json',
+              responseSchema: GEMINI_RESPONSE_SCHEMA,
+            },
+          }),
+        });
 
-      if (finishReason === 'MAX_TOKENS') {
-        normalizedReport.image_quality = 'PARTIAL';
-        normalizedReport.quality_warnings = Array.from(
-          new Set([
-            ...normalizedReport.quality_warnings,
-            'Phản hồi AI chạm giới hạn độ dài — hãy kiểm tra kỹ các dòng cuối xem có bị thiếu không hoặc cắt ảnh thành nhiều phần.',
-          ])
-        );
-      }
+        if (!geminiRes.ok) {
+          const errBodyText = await geminiRes.text();
+          lastStatus = geminiRes.status;
+          let parsedErr = '';
+          let parsedReason = '';
+          try {
+            const parsedObj = JSON.parse(errBodyText);
+            parsedErr = String(parsedObj?.error?.message || '');
+            parsedReason = String(
+              parsedObj?.error?.details?.[0]?.reason || parsedObj?.error?.status || ''
+            );
+          } catch {}
 
-      if (normalizedReport.rows.length === 0) {
-        normalizedReport.image_quality = 'PARTIAL';
-        normalizedReport.quality_warnings = Array.from(
-          new Set([
-            ...normalizedReport.quality_warnings,
-            'Không nhận diện được dòng chương trình nào trong ảnh. Hãy kiểm tra ảnh đúng báo cáo BI Lũy kế thi đua.',
-          ])
-        );
-      }
+          // 1. Invalid API Key / Revoked Key (401 or API_KEY_INVALID) -> NO RETRY
+          if (
+            parsedReason.includes('API_KEY_INVALID') ||
+            /api[_\s]?key/i.test(parsedErr) ||
+            geminiRes.status === 401
+          ) {
+            return {
+              ok: false,
+              status: geminiRes.status === 400 ? 401 : geminiRes.status,
+              errorCode: 'GEMINI_API_KEY_INVALID',
+              error: `GEMINI_API_KEY phía server không hợp lệ hoặc đã bị vô hiệu hóa (HTTP ${geminiRes.status}). Vui lòng kiểm tra lại giá trị GEMINI_API_KEY từ Google AI Studio.`,
+            };
+          }
 
-      return {
-        ok: true,
-        status: 200,
-        modelUsed: modelName,
-        report: normalizedReport,
-      };
-    } catch (err: any) {
-      if (err?.name === 'AbortError') {
-        lastStatus = 504;
-        lastErrorCode = 'TIMEOUT';
-        lastErrorMsg = 'Quá thời gian chờ phản hồi từ Gemini Vision API (45s). Ảnh có thể quá nặng hoặc mạng chậm, vui lòng thử lại.';
-      } else {
-        lastErrorCode = 'GEMINI_API_ERROR';
-        lastErrorMsg = redactSensitiveSecrets(err?.message || 'Lỗi kết nối dịch vụ AI Vision.');
+          // 2. Permission Denied / IP/Referrer restriction (403) -> NO RETRY
+          if (geminiRes.status === 403) {
+            return {
+              ok: false,
+              status: 403,
+              errorCode: 'GEMINI_PERMISSION_DENIED',
+              error:
+                'GEMINI_API_KEY bị từ chối quyền truy cập Gemini API hoặc bị giới hạn IP/Referer/Project trên Google Cloud (HTTP 403).',
+            };
+          }
+
+          // 3. Quota Exceeded vs Rate Limit (429)
+          if (geminiRes.status === 429) {
+            const isPermanentQuota =
+              parsedReason === 'RESOURCE_EXHAUSTED' ||
+              /quota/i.test(parsedErr) ||
+              /billing/i.test(parsedErr);
+
+            if (isPermanentQuota) {
+              return {
+                ok: false,
+                status: 429,
+                errorCode: 'GEMINI_QUOTA_EXCEEDED',
+                error:
+                  'Gemini API đã vượt hạn mức sử dụng (Quota Exceeded / HTTP 429). Vui lòng kiểm tra quota/billing trên Google AI Studio.',
+              };
+            }
+
+            // Transient Rate Limit (requests per minute) -> Retry once if attempt 1
+            if (attempt < MAX_ATTEMPTS_PER_MODEL) {
+              await sleep(2000);
+              continue;
+            }
+
+            return {
+              ok: false,
+              status: 429,
+              errorCode: 'GEMINI_RATE_LIMIT',
+              error:
+                'Gemini API đã chạm giới hạn tần suất yêu cầu (Rate Limit / HTTP 429). Vui lòng thử lại sau ít giây.',
+            };
+          }
+
+          // 4. Model not supported or not found -> switch to next model immediately (no retry on same model)
+          const isModelIssue =
+            geminiRes.status === 404 ||
+            (/(model|modality|multimodal|image|vision)/i.test(parsedErr) &&
+              /(not found|not supported|unsupported|invalid)/i.test(parsedErr));
+
+          if (isModelIssue) {
+            lastStatus = geminiRes.status;
+            lastErrorCode = 'MODEL_NOT_SUPPORTED';
+            lastErrorMsg = `Model '${modelName}' không khả dụng hoặc không hỗ trợ nhận diện hình ảnh (HTTP ${geminiRes.status}).`;
+            break; // break attempt loop to try next model
+          }
+
+          // 5. Bad request (malformed image/request) -> NO RETRY
+          if (geminiRes.status === 400) {
+            return {
+              ok: false,
+              status: 400,
+              errorCode: 'BAD_REQUEST',
+              error: parsedErr
+                ? redactSensitiveSecrets(
+                    `Dữ liệu/ảnh gửi Gemini API không hợp lệ (HTTP 400): ${parsedErr}`
+                  )
+                : 'Dữ liệu hoặc định dạng ảnh gửi Gemini API không hợp lệ (HTTP 400).',
+            };
+          }
+
+          // 6. Server error (500, 502, 503, 504) -> Retry once on same model before switching
+          if (geminiRes.status >= 500) {
+            lastErrorCode = 'GEMINI_SERVER_ERROR';
+            lastStatus = geminiRes.status;
+            lastErrorMsg = parsedErr
+              ? redactSensitiveSecrets(
+                  `Máy chủ Google Gemini API đang gặp sự cố (HTTP ${geminiRes.status}): ${parsedErr}`
+                )
+              : `Máy chủ Google Gemini API đang gặp sự cố tạm thời (HTTP ${geminiRes.status}).`;
+
+            if (attempt < MAX_ATTEMPTS_PER_MODEL) {
+              await sleep(1500);
+              continue;
+            }
+            break; // try next candidate model
+          }
+
+          lastErrorCode = 'GEMINI_SERVER_ERROR';
+          lastErrorMsg = parsedErr
+            ? redactSensitiveSecrets(`Lỗi Gemini Vision (HTTP ${geminiRes.status}): ${parsedErr}`)
+            : `Lỗi Gemini Vision HTTP ${geminiRes.status}`;
+          break;
+        }
+
+        const geminiJson = (await geminiRes.json()) as any;
+        const finishReason = geminiJson?.candidates?.[0]?.finishReason;
+        const textParts: string[] = (geminiJson?.candidates?.[0]?.content?.parts || [])
+          .map((p: any) => (typeof p?.text === 'string' ? p.text : ''))
+          .filter(Boolean);
+        const combinedText = textParts.join('\n').trim();
+
+        if (!combinedText) {
+          lastErrorCode = 'GEMINI_INVALID_RESPONSE';
+          lastErrorMsg = 'Gemini Vision trả về kết quả trống. Vui lòng kiểm tra chất lượng ảnh và thử lại.';
+          if (attempt < MAX_ATTEMPTS_PER_MODEL) {
+            await sleep(1000);
+            continue;
+          }
+          break;
+        }
+
+        let parsedPayload: ThiDuaAiRawReport;
+        try {
+          parsedPayload = JSON.parse(stripCodeFences(combinedText)) as ThiDuaAiRawReport;
+        } catch {
+          lastErrorCode = 'GEMINI_INVALID_RESPONSE';
+          lastErrorMsg =
+            finishReason === 'MAX_TOKENS'
+              ? 'Bảng dữ liệu trong ảnh quá dài vượt giới hạn output một lần đọc. Vui lòng cắt ảnh làm 2-3 phần rồi tải lên cùng lúc.'
+              : 'Không thể giải mã dữ liệu bảng từ kết quả AI Vision. Vui lòng bấm Thử lại.';
+          if (attempt < MAX_ATTEMPTS_PER_MODEL) {
+            await sleep(1000);
+            continue;
+          }
+          break;
+        }
+
+        const normalizedReport = normalizeRawAiReport(parsedPayload, pageIndex);
+
+        if (finishReason === 'MAX_TOKENS') {
+          normalizedReport.image_quality = 'PARTIAL';
+          normalizedReport.quality_warnings = Array.from(
+            new Set([
+              ...normalizedReport.quality_warnings,
+              'Phản hồi AI chạm giới hạn độ dài — hãy kiểm tra kỹ các dòng cuối xem có bị thiếu không hoặc cắt ảnh thành nhiều phần.',
+            ])
+          );
+        }
+
+        if (normalizedReport.rows.length === 0) {
+          normalizedReport.image_quality = 'PARTIAL';
+          normalizedReport.quality_warnings = Array.from(
+            new Set([
+              ...normalizedReport.quality_warnings,
+              'Không nhận diện được dòng chương trình nào trong ảnh. Hãy kiểm tra ảnh đúng báo cáo BI Lũy kế thi đua.',
+            ])
+          );
+        }
+
+        return {
+          ok: true,
+          status: 200,
+          modelUsed: modelName,
+          report: normalizedReport,
+        };
+      } catch (err: any) {
+        if (err?.name === 'AbortError') {
+          lastStatus = 504;
+          lastErrorCode = 'GEMINI_TIMEOUT';
+          lastErrorMsg = 'Quá thời gian chờ phản hồi từ Gemini Vision API (45s). Ảnh có thể quá nặng hoặc mạng chậm, vui lòng thử lại.';
+          break; // Don't retry timed-out requests
+        } else {
+          lastErrorCode = 'GEMINI_SERVER_ERROR';
+          lastErrorMsg = redactSensitiveSecrets(err?.message || 'Lỗi kết nối dịch vụ AI Vision.');
+          if (attempt < MAX_ATTEMPTS_PER_MODEL) {
+            await sleep(1000);
+            continue;
+          }
+        }
+      } finally {
+        clearTimeout(timeoutId);
       }
-    } finally {
-      clearTimeout(timeoutId);
     }
   }
 

@@ -296,8 +296,8 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                   }`}
                   title={
                     isPosmAllSp
-                      ? 'Chia sẻ link POSM ALL SP: crm-sieu-thi.pages.dev/posm'
-                      : `Chia sẻ link trực tiếp trang này cho Khách xem dữ liệu Kho ${userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || ''}`
+                      ? 'Chia sẻ link POSM ALL SP: crm43751.pages.dev/posm'
+                      : `Chia sẻ link trực tiếp trang này Kho ${userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || ''}`
                   }
                 >
                   {copiedLink ? (
