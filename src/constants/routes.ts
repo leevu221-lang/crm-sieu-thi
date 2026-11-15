@@ -44,7 +44,7 @@ export const APP_PAGES_REGISTRY: AppPageRegistryItem[] = [
     path: '/realtime',
     section: 'management',
     defaultGranted: false,
-    protectedTables: ['store', 'warehouse_time'],
+    protectedTables: ['store', 'warehouse_time', 'thi_dua_batches'],
   },
   {
     id: 'luyke',
@@ -57,7 +57,7 @@ export const APP_PAGES_REGISTRY: AppPageRegistryItem[] = [
     aliases: ['/luyke'],
     section: 'management',
     defaultGranted: false,
-    protectedTables: ['store', 'warehouse_time'],
+    protectedTables: ['store', 'warehouse_time', 'thi_dua_batches'],
   },
   {
     id: 'khaibao',
@@ -70,7 +70,7 @@ export const APP_PAGES_REGISTRY: AppPageRegistryItem[] = [
     aliases: ['/khaibao'],
     section: 'management',
     defaultGranted: false,
-    protectedTables: ['store', 'warehouse_time', 'employee_health'],
+    protectedTables: ['store', 'warehouse_time', 'employee_health', 'thi_dua_batches'],
   },
   {
     id: 'health',
@@ -83,7 +83,7 @@ export const APP_PAGES_REGISTRY: AppPageRegistryItem[] = [
     aliases: ['/health'],
     section: 'management',
     defaultGranted: false,
-    protectedTables: ['employee_health', 'store'],
+    protectedTables: ['employee_health', 'store', 'thi_dua_batches'],
   },
   {
     id: 'toolhotro',
@@ -224,6 +224,7 @@ export function getDefaultAllowedPagesForNewUser(): string[] {
  */
 export const TABLE_REQUIRED_PAGES_MAP: Record<string, string[]> = {
   employee_health: ['health', 'khaibao'],
+  thi_dua_batches: ['khaibao', 'luyke', 'realtime', 'health'],
   inventory_schedules: ['tienich'],
   inventory_assignments: ['tienich'],
   scanner_sessions: ['toolhotro'],

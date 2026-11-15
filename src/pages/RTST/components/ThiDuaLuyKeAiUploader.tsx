@@ -52,6 +52,7 @@ import {
   convertDraftToAiReport,
   type ThiDuaDraftRecord,
 } from '../../../utils/thiDuaDraftStorage';
+import { thiDuaCentralService } from '../../../services/thiDuaCentralService';
 import { ThiDuaLuyKeAiReviewModal } from './ThiDuaLuyKeAiReviewModal';
 
 interface SelectedImageItem {
@@ -836,18 +837,25 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
         localStorage.setItem(metaStorageKey, JSON.stringify(nextMeta));
       } catch {}
 
+      // Persist to Central Competition Database Service (thi_dua_batches + store + realtime sync)
+      await thiDuaCentralService.saveCompetitionBatch({
+        storeId: storeDocId,
+        storeName: targetStoreLabel,
+        warehouseCode: effectiveMaKho === 'GLOBAL' ? '' : effectiveMaKho,
+        month: normalizedReport.month,
+        year: normalizedReport.year,
+        programs: normalizedReport.rows,
+        existingBiText: currentValue,
+        batchId,
+        sourceType: 'AI_VISION_BI',
+        username: userProfile?.username || 'ADMIN',
+        adminConfirmedWarnings: metaInfo.adminConfirmedWarnings,
+        pageCount: metaInfo.pageCount,
+        duplicatesMerged: metaInfo.duplicatesMerged,
+      });
+
       if (targetStoreLabel && targetStoreLabel !== 'ALL' && isValidStoreName(targetStoreLabel)) {
         if (storeDocId && storeDocId !== 'ALL') {
-          const { error: upsertErr } = await supabase.from('store').upsert({
-            id: storeDocId,
-            warehouse_code: effectiveMaKho === 'GLOBAL' ? '' : effectiveMaKho,
-            ten_sieu_thi: targetStoreLabel,
-            lk_nh_meta: nextMeta,
-          });
-          if (upsertErr) {
-            console.error('[ThiDua] Supabase upsert error:', upsertErr);
-            throw new Error(`Lỗi ghi nhận Database: ${upsertErr.message}`);
-          }
           // Clear active draft ONLY after DB write confirmation
           await clearThiDuaDraft(storeDocId, normalizedReport.month, normalizedReport.year);
         }
@@ -976,16 +984,21 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
 
       const storeDocId = normalizeStoreId(targetStoreLabel);
       if (storeDocId && storeDocId !== 'ALL') {
-        const { error: upsertErr } = await supabase.from('store').upsert({
-          id: storeDocId,
-          warehouse_code: effectiveMaKho === 'GLOBAL' ? '' : effectiveMaKho,
-          ten_sieu_thi: targetStoreLabel,
-          lk_nh_meta: nextMeta,
+        // Persist to Central Competition Database Service
+        await thiDuaCentralService.saveCompetitionBatch({
+          storeId: storeDocId,
+          storeName: targetStoreLabel,
+          warehouseCode: effectiveMaKho === 'GLOBAL' ? '' : effectiveMaKho,
+          month: validReport.month,
+          year: validReport.year,
+          programs: validRows,
+          existingBiText: currentValue,
+          sourceType: 'AI_VISION_BI',
+          username: userProfile?.username || 'ADMIN',
+          adminConfirmedWarnings: metaInfo.adminConfirmedWarnings,
+          pageCount: metaInfo.pageCount,
+          duplicatesMerged: metaInfo.duplicatesMerged,
         });
-        if (upsertErr) {
-          console.error('[ThiDua] Supabase upsert error in valid only:', upsertErr);
-          throw new Error(`Lỗi ghi nhận Database: ${upsertErr.message}`);
-        }
       }
 
       // Update draft: keep all rows (including remaining error rows) so user can continue later!

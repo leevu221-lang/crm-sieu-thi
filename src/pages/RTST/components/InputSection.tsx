@@ -162,6 +162,7 @@ interface InputSectionProps {
 }
 
 import { ThiDuaLuyKeAiUploader } from './ThiDuaLuyKeAiUploader';
+import { ThiDuaLuyKeCentralCard } from './ThiDuaLuyKeCentralCard';
 
 interface ReportInputBoxProps {
   id: string;
@@ -1494,37 +1495,58 @@ const InputSection: React.FC<InputSectionProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-[12px] sm:gap-[16px]">
-                  {group.items.map(item => (
-                    <ReportInputBox
-                      key={item.id}
-                      id={item.id}
-                      label={item.label}
-                      value={item.value}
-                      onChange={item.onChange}
-                      onBlur={(item as any).onBlur}
-                      footerSlot={
-                        item.id === 'rt_catlk' ? (
-                          <ThiDuaLuyKeAiUploader
-                            currentValue={item.value}
-                            activeStore={activeStore}
-                            availableMarkets={availableMarkets}
-                            selectedMonth={selectedMonth}
-                            allStoresCache={allStoresCache}
-                            onApplyBiText={item.onChange}
-                            onTriggerSavePipeline={async () => {
-                              await Promise.resolve(onSaveRealtime(false, 'LUỸ KẾ TĐ'));
-                              if (onSaveLuyke) {
-                                await Promise.resolve(
-                                  onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ TĐ')
-                                );
-                              }
-                            }}
-                            showNotification={showNotification}
-                          />
-                        ) : undefined
-                      }
-                      colorTheme={item.colorTheme as any}
-                      onClear={() => {
+                  {group.items.map(item => {
+                    if (item.id === 'rt_catlk') {
+                      return (
+                        <ThiDuaLuyKeCentralCard
+                          key={item.id}
+                          id={item.id}
+                          label={item.label}
+                          value={item.value}
+                          onChange={item.onChange}
+                          onBlur={(item as any).onBlur}
+                          activeStore={activeStore}
+                          availableMarkets={availableMarkets}
+                          selectedMonth={selectedMonth}
+                          allStoresCache={allStoresCache}
+                          onTriggerSavePipeline={async () => {
+                            await Promise.resolve(onSaveRealtime(false, 'LUỸ KẾ TĐ'));
+                            if (onSaveLuyke) {
+                              await Promise.resolve(
+                                onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ TĐ')
+                              );
+                            }
+                          }}
+                          onClear={() => {
+                            try {
+                              localStorage.setItem('crm_field_cleared_rt_catlk', String(Date.now()));
+                              removeLocalStorageByPrefix(['rtst_cat_target_', 'rtst_catlk_', 'rtst_cluster_category_'], ['rt_catlk', 'rtst_catlk', 'rtst_cluster_category']);
+                            } catch {}
+                            setCategoryTargetInput('');
+                            if (setClusterCategoryInput) setClusterCategoryInput('');
+                            if (clearField) clearField(setCategoryTargetInput, 'LUỸ KẾ TĐ');
+                            else {
+                              onSaveRealtime(true, 'LUỸ KẾ TĐ');
+                              onSaveLuyke(true, 'auto', undefined, undefined, 'LUỸ KẾ TĐ');
+                            }
+                            showNotification('Đã xóa dữ liệu LUỸ KẾ THI ĐUA', 'info');
+                          }}
+                          showNotification={showNotification}
+                          externalLink={group.reportUrl}
+                        />
+                      );
+                    }
+
+                    return (
+                      <ReportInputBox
+                        key={item.id}
+                        id={item.id}
+                        label={item.label}
+                        value={item.value}
+                        onChange={item.onChange}
+                        onBlur={(item as any).onBlur}
+                        colorTheme={item.colorTheme as any}
+                        onClear={() => {
                         if (item.label === 'REALTIME DT' || item.label === 'REALTIME DOANH THU QUY ĐỔI') {
                           try {
                             localStorage.setItem('crm_field_cleared_rt_market', String(Date.now()));
@@ -1587,8 +1609,9 @@ const InputSection: React.FC<InputSectionProps> = ({
                         }
                       }}
                     />
-                  ))}
-                </div>
+                  );
+                })}
+              </div>
 
                 {group.hasYcx && (
                   <label className="mt-[12px] flex items-center gap-[12px] px-[14px] py-[12px] rounded-[16px] border-2 border-dashed border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/30 transition-all cursor-pointer">
