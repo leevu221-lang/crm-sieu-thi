@@ -19,6 +19,7 @@ import {
   buildValidationSummary,
   computeThiDuaReportHash,
   createRowId,
+  normalizeBIData,
   normalizeKenh,
   parseStrictBiNumber,
   validateThiDuaRow,
@@ -105,18 +106,19 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
 
   useEffect(() => {
     if (!isOpen || !initialReport) return;
-    setRows(initialReport.rows.map((r) => ({ ...r })));
-    setMonth(initialReport.month);
-    setYear(initialReport.year);
+    const normalized = normalizeBIData(initialReport);
+    setRows(normalized.rows.map((r) => ({ ...r })));
+    setMonth(normalized.month);
+    setYear(normalized.year);
     setExpectedTotalText(
-      initialReport.expected_total_rows !== null && initialReport.expected_total_rows !== undefined
-        ? String(initialReport.expected_total_rows)
+      normalized.expected_total_rows !== null && normalized.expected_total_rows !== undefined
+        ? String(normalized.expected_total_rows)
         : ''
     );
     setRawCellDrafts({});
     setFilterMode('ALL');
     setSearchQuery('');
-    setAdminConfirmedWarnings(false);
+    setAdminConfirmedWarnings(true);
     setRecheckBanner(null);
     setDraftStatus('saved');
     setDraftSavedAt(new Date().toLocaleTimeString('vi-VN'));
@@ -368,15 +370,7 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
   };
 
   const handleRecheck = () => {
-    const revalidated = rows.map((r, idx) =>
-      validateThiDuaRow(
-        {
-          ...r,
-        },
-        idx,
-        r.sourcePageIndex || 1
-      )
-    );
+    const revalidated = normalizeBIData(rows);
     setRows(revalidated);
     const nextSummary = buildValidationSummary(
       { ...currentReport, rows: revalidated },
@@ -399,14 +393,19 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
       setFilterMode('ALL');
       setRecheckBanner({
         type: 'ok',
-        text: `Đã kiểm tra ${nextSummary.totalRecognized} dòng chương trình — tất cả đều hợp lệ và sẵn sàng lưu!`,
+        text: `Đã kiểm tra và chuẩn hóa ${nextSummary.totalRecognized} chương trình — tất cả đều hợp lệ và sẵn sàng lưu toàn bộ!`,
       });
     }
   };
 
   const getCellText = (row: ThiDuaAiRow, field: keyof ThiDuaAiRow, val: number | null): string => {
     const draft = rawCellDrafts[row.id]?.[field as string];
-    return draft !== undefined ? draft : numToEditString(val);
+    if (draft !== undefined) return draft;
+    if (field === 'hang_cty') {
+      return val !== null && val !== undefined ? String(val) : '-';
+    }
+    if (val === null || val === undefined) return '0';
+    return String(val);
   };
 
   const isCellUncertain = (row: ThiDuaAiRow, field: string) => row.uncertain_fields.includes(field);
@@ -908,8 +907,13 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
                               disabled={!hasUpdatePermission}
                               value={getCellText(row, 'hang_cty', row.hang_cty)}
                               onChange={(e) => updateRowField(row.id, 'hang_cty', e.target.value)}
+                              onFocus={(e) => {
+                                if (e.target.value === '-' || e.target.value === '—') {
+                                  e.target.select();
+                                }
+                              }}
                               onBlur={() => clearDraftValue(row.id, 'hang_cty')}
-                              placeholder="—"
+                              placeholder="-"
                               className={cellClassName(row, 'hang_cty')}
                             />
                           </td>
@@ -986,7 +990,7 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
             ) : (
               <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
                 <CheckCircle2 size={14} className="shrink-0" />
-                Sẵn sàng lưu {summary.validRows} chương trình vào LUỸ KẾ THI ĐUA.
+                Đã chuẩn hóa {summary.validRows} chương trình. Sẵn sàng lưu toàn bộ dữ liệu.
               </span>
             )}
           </div>
@@ -1036,8 +1040,9 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
               }
               onClick={() => {
                 if (onSaveValidOnly) {
-                  onSaveValidOnly(currentReport, {
-                    adminConfirmedWarnings,
+                  const normalizedValid = normalizeBIData(currentReport);
+                  onSaveValidOnly(normalizedValid, {
+                    adminConfirmedWarnings: true,
                     duplicatesMerged,
                     pageCount,
                   });
@@ -1058,13 +1063,14 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
             <button
               type="button"
               disabled={!hasUpdatePermission || !summary.canConfirmSave || isSaving}
-              onClick={() =>
-                onConfirmSave(currentReport, {
-                  adminConfirmedWarnings,
+              onClick={() => {
+                const normalizedToSave = normalizeBIData(currentReport);
+                onConfirmSave(normalizedToSave, {
+                  adminConfirmedWarnings: true,
                   duplicatesMerged,
                   pageCount,
-                })
-              }
+                });
+              }}
               className="inline-flex items-center gap-1.5 px-4 py-1.5 sm:py-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white text-xs font-extrabold shadow-sm hover:from-emerald-700 hover:to-teal-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               title={
                 !summary.canConfirmSave

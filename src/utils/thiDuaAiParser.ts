@@ -109,6 +109,10 @@ export interface ThiDuaLkUpdateHistoryEntry {
   rowCount: number;
   expectedRowCount: number | null;
   reportHash: string;
+  batchId?: string;
+  batchStatus?: 'SAVED' | 'DRAFT';
+  updatedCount?: number;
+  addedCount?: number;
 }
 
 export interface ThiDuaLkMeta {
@@ -121,6 +125,10 @@ export interface ThiDuaLkMeta {
   rowCount: number;
   expectedRowCount: number | null;
   reportHash: string;
+  batchId?: string;
+  batchStatus?: 'SAVED' | 'DRAFT';
+  updatedCount?: number;
+  addedCount?: number;
   pageCount?: number;
   duplicatesMerged?: number;
   uncertainConfirmed?: boolean;
@@ -436,11 +444,50 @@ export function validateThiDuaRow(
 ): ThiDuaAiRow {
   const ten_chuong_trinh = normalizeProgramName(String(rowInput.ten_chuong_trinh ?? ''));
   const kenh = normalizeKenh(rowInput.kenh);
-  const thuc_hien = rowInput.thuc_hien ?? null;
-  const target = rowInput.target ?? null;
-  const ty_le_thuc_hien = rowInput.ty_le_thuc_hien ?? null;
-  const ty_le_du_kien = rowInput.ty_le_du_kien ?? null;
-  const hang_cty = rowInput.hang_cty ?? null;
+
+  // Default Zero rules for blank/dash numeric cells:
+  // If undefined/null -> default to 0 (never fatal error). Keep valid numbers exact.
+  let thuc_hien = 0;
+  if (typeof rowInput.thuc_hien === 'number' && Number.isFinite(rowInput.thuc_hien)) {
+    thuc_hien = rowInput.thuc_hien;
+  } else if (rowInput.thuc_hien === null || rowInput.thuc_hien === undefined) {
+    thuc_hien = 0;
+  }
+
+  let target = 0;
+  if (typeof rowInput.target === 'number' && Number.isFinite(rowInput.target)) {
+    target = rowInput.target;
+  } else if (rowInput.target === null || rowInput.target === undefined) {
+    target = 0;
+  }
+
+  // % TH HIỆN TẠI:
+  // Nếu TARGET > 0: tính (THỰC HIỆN / TARGET) * 100 nếu chưa có giá trị nhận diện
+  // Nếu TARGET = 0: gán 0%
+  let ty_le_thuc_hien = 0;
+  if (target > 0) {
+    if (typeof rowInput.ty_le_thuc_hien === 'number' && Number.isFinite(rowInput.ty_le_thuc_hien)) {
+      ty_le_thuc_hien = rowInput.ty_le_thuc_hien;
+    } else {
+      ty_le_thuc_hien = Math.round((thuc_hien / target) * 10000) / 100;
+    }
+  } else {
+    ty_le_thuc_hien = 0;
+  }
+
+  // % DỰ KIẾN HT: giữ nguyên giá trị nhận diện; nếu trống hoặc "-" -> 0
+  let ty_le_du_kien = 0;
+  if (typeof rowInput.ty_le_du_kien === 'number' && Number.isFinite(rowInput.ty_le_du_kien)) {
+    ty_le_du_kien = rowInput.ty_le_du_kien;
+  } else {
+    ty_le_du_kien = 0;
+  }
+
+  // HẠNG VÙNG: giữ nguyên giá trị hợp lệ (>= 1); nếu trống hoặc "-" -> null (hiển thị "-")
+  let hang_cty: number | null = null;
+  if (typeof rowInput.hang_cty === 'number' && Number.isInteger(rowInput.hang_cty) && rowInput.hang_cty >= 1) {
+    hang_cty = rowInput.hang_cty;
+  }
 
   const uncertainSet = new Set<string>(
     Array.isArray(rowInput.uncertain_fields)
@@ -465,30 +512,21 @@ export function validateThiDuaRow(
 
   if (invalidFlags.invalidThucHien) {
     errors.push('Thực hiện không phải số hợp lệ');
-  } else if (thuc_hien === null) {
-    missing_fields.push('thuc_hien');
-    errors.push('Thiếu số liệu Thực hiện');
-  } else if (!Number.isFinite(thuc_hien) || thuc_hien < 0) {
+  } else if (thuc_hien < 0) {
     errors.push('Thực hiện phải là số >= 0');
   }
 
   if (invalidFlags.invalidTarget) {
     errors.push('Target không phải số hợp lệ');
-  } else if (target === null) {
-    missing_fields.push('target');
-    errors.push('Thiếu số liệu Target');
-  } else if (!Number.isFinite(target) || target < 0) {
+  } else if (target < 0) {
     errors.push('Target phải là số >= 0');
-  } else if (target === 0 && thuc_hien !== null && thuc_hien > 0) {
+  } else if (target === 0 && thuc_hien > 0) {
     warnings.push('Target = 0 trong khi Thực hiện > 0');
   }
 
   if (invalidFlags.invalidTyLeThucHien) {
     errors.push('% Thực hiện không hợp lệ');
-  } else if (ty_le_thuc_hien === null) {
-    missing_fields.push('ty_le_thuc_hien');
-    warnings.push('Chưa có % Thực hiện hiện tại');
-  } else if (!Number.isFinite(ty_le_thuc_hien) || ty_le_thuc_hien < 0) {
+  } else if (ty_le_thuc_hien < 0) {
     errors.push('% Thực hiện không được âm');
   } else if (ty_le_thuc_hien > 5000) {
     errors.push('% Thực hiện vượt ngưỡng hợp lý (> 5000%)');
@@ -496,10 +534,7 @@ export function validateThiDuaRow(
 
   if (invalidFlags.invalidTyLeDuKien) {
     errors.push('% Dự kiến HT không hợp lệ');
-  } else if (ty_le_du_kien === null) {
-    missing_fields.push('ty_le_du_kien');
-    warnings.push('Thiếu % Dự kiến hoàn thành');
-  } else if (!Number.isFinite(ty_le_du_kien) || ty_le_du_kien < 0) {
+  } else if (ty_le_du_kien < 0) {
     errors.push('% Dự kiến hoàn thành không được âm');
   } else if (ty_le_du_kien > 5000) {
     errors.push('% Dự kiến hoàn thành vượt ngưỡng hợp lý (> 5000%)');
@@ -507,21 +542,18 @@ export function validateThiDuaRow(
 
   if (invalidFlags.invalidHangCty) {
     errors.push('Hạng vùng phải là số nguyên dương');
-  } else if (hang_cty !== null) {
-    if (!Number.isInteger(hang_cty) || hang_cty < 1 || hang_cty > 10000) {
+  } else if (rowInput.hang_cty !== null && rowInput.hang_cty !== undefined) {
+    if (!Number.isInteger(rowInput.hang_cty) || rowInput.hang_cty < 1 || rowInput.hang_cty > 10000) {
       errors.push('Hạng vùng phải là số nguyên từ 1 trở lên');
     }
   }
   // hang_cty === null represents an unranked program ('—' / dash), which is standard in BI.
 
-  // Cross-field consistency checks (does NOT reject valid <100% or >100% values!)
+  // Cross-field consistency checks (only for active positive targets)
   if (
-    target !== null &&
     target > 0 &&
-    thuc_hien !== null &&
-    thuc_hien >= 0 &&
-    ty_le_thuc_hien !== null &&
-    ty_le_thuc_hien >= 0
+    thuc_hien > 0 &&
+    ty_le_thuc_hien > 0
   ) {
     const computedPct = (thuc_hien / target) * 100;
     const diff = Math.abs(ty_le_thuc_hien - computedPct);
@@ -535,10 +567,8 @@ export function validateThiDuaRow(
   }
 
   if (
-    ty_le_thuc_hien !== null &&
-    ty_le_du_kien !== null &&
-    ty_le_thuc_hien >= 0 &&
-    ty_le_du_kien >= 0 &&
+    ty_le_thuc_hien > 0 &&
+    ty_le_du_kien > 0 &&
     ty_le_du_kien + 2 < ty_le_thuc_hien
   ) {
     warnings.push(
@@ -566,6 +596,76 @@ export function validateThiDuaRow(
     sourcePageIndex: rowInput.sourcePageIndex ?? pageIndex,
     note: rowInput.note ? String(rowInput.note).trim() : undefined,
   };
+}
+
+/**
+ * Normalizes all BI rows with Default Zero semantics:
+ * - Truly blank or dash ('-') numeric metrics -> 0 (thuc_hien, target, ty_le_thuc_hien, ty_le_du_kien)
+ * - If target > 0 and ty_le_thuc_hien is missing -> (thuc_hien / target) * 100
+ * - If target = 0 -> ty_le_thuc_hien = 0
+ * - hang_cty: integer >= 1 or null (never 0)
+ * - Preserves Vietnamese NFC strings, original decimal values, and does not alter program names
+ */
+export function normalizeBIData<T extends ThiDuaAiReportResult | ThiDuaAiRow[]>(input: T): T {
+  if (Array.isArray(input)) {
+    return (input as ThiDuaAiRow[]).map((r, idx) =>
+      validateThiDuaRow(
+        {
+          ...r,
+          ten_chuong_trinh: normalizeProgramName(r.ten_chuong_trinh || ''),
+          kenh: normalizeKenh(r.kenh),
+          thuc_hien: r.thuc_hien ?? 0,
+          target: r.target ?? 0,
+          ty_le_thuc_hien:
+            r.target && r.target > 0
+              ? (r.ty_le_thuc_hien ?? Math.round(((r.thuc_hien ?? 0) / r.target) * 10000) / 100)
+              : 0,
+          ty_le_du_kien: r.ty_le_du_kien ?? 0,
+          hang_cty:
+            typeof r.hang_cty === 'number' && Number.isInteger(r.hang_cty) && r.hang_cty >= 1
+              ? r.hang_cty
+              : null,
+          uncertain_fields: (r.uncertain_fields || []).filter(
+            (f) => f !== 'thuc_hien' && f !== 'target' && f !== 'ty_le_thuc_hien' && f !== 'ty_le_du_kien'
+          ),
+        },
+        idx,
+        r.sourcePageIndex || 1
+      )
+    ) as T;
+  }
+
+  const report = input as ThiDuaAiReportResult;
+  const normalizedRows = (report.rows || []).map((r, idx) =>
+    validateThiDuaRow(
+      {
+        ...r,
+        ten_chuong_trinh: normalizeProgramName(r.ten_chuong_trinh || ''),
+        kenh: normalizeKenh(r.kenh),
+        thuc_hien: r.thuc_hien ?? 0,
+        target: r.target ?? 0,
+        ty_le_thuc_hien:
+          r.target && r.target > 0
+            ? (r.ty_le_thuc_hien ?? Math.round(((r.thuc_hien ?? 0) / r.target) * 10000) / 100)
+            : 0,
+        ty_le_du_kien: r.ty_le_du_kien ?? 0,
+        hang_cty:
+          typeof r.hang_cty === 'number' && Number.isInteger(r.hang_cty) && r.hang_cty >= 1
+            ? r.hang_cty
+            : null,
+        uncertain_fields: (r.uncertain_fields || []).filter(
+          (f) => f !== 'thuc_hien' && f !== 'target' && f !== 'ty_le_thuc_hien' && f !== 'ty_le_du_kien'
+        ),
+      },
+      idx,
+      r.sourcePageIndex || 1
+    )
+  );
+
+  return {
+    ...report,
+    rows: normalizedRows,
+  } as T;
 }
 
 export function normalizeRawAiReport(
@@ -954,9 +1054,18 @@ export function serializeThiDuaRowsToBiText(
   return lines.join('\n');
 }
 
+export interface MergeThiDuaResult {
+  text: string;
+  updatedCount: number;
+  addedCount: number;
+  totalCount: number;
+  preservedExistingCount: number;
+  toString(): string;
+}
+
 /**
  * Merges updated/valid ThiDua rows into existing BI text without deleting any unrelated existing programs!
- * - When replaceMode is true or existingBiText is empty: returns serializeThiDuaRowsToBiText(newRows, options).
+ * - When replaceMode is true or existingBiText is empty: returns serialized newRows wrapped in MergeThiDuaResult.
  * - When replaceMode is false: updates matching programs (by name + channel), appends new ones, and keeps all other existing programs intact.
  */
 export function mergeThiDuaRowsWithBiText(
@@ -968,10 +1077,24 @@ export function mergeThiDuaRowsWithBiText(
     year?: number | null;
     updatedAt?: Date;
     replaceMode?: boolean;
+    batchId?: string;
   }
-): string {
+): MergeThiDuaResult {
   if (options.replaceMode || !existingBiText || !existingBiText.trim()) {
-    return serializeThiDuaRowsToBiText(newRows, options);
+    const text = serializeThiDuaRowsToBiText(newRows, options);
+    const validRowsCount = newRows.filter(
+      (r) => r.ten_chuong_trinh && (!r.errors || r.errors.length === 0)
+    ).length;
+    return {
+      text,
+      updatedCount: 0,
+      addedCount: validRowsCount,
+      totalCount: validRowsCount,
+      preservedExistingCount: 0,
+      toString() {
+        return text;
+      },
+    };
   }
 
   const rawLines = existingBiText.split('\n');
@@ -992,6 +1115,7 @@ export function mergeThiDuaRowsWithBiText(
   const programBlocks: Array<{
     key: string;
     progName: string;
+    channel: string;
     headerLine: string;
     dataLine: string;
   }> = [];
@@ -1013,10 +1137,12 @@ export function mergeThiDuaRowsWithBiText(
 
     if (isProgHeader && i + 1 < rawLines.length) {
       const progName = cols[0].trim();
+      const channel = upperL.includes('SLLK') ? 'SL' : 'DT';
       const dataLine = rawLines[i + 1].trim();
       programBlocks.push({
-        key: normalizeProgramKey(progName),
+        key: `${normalizeProgramKey(progName)}::${channel}`,
         progName,
+        channel,
         headerLine: l,
         dataLine,
       });
@@ -1024,14 +1150,19 @@ export function mergeThiDuaRowsWithBiText(
     }
   }
 
+  const initialBlockCount = programBlocks.length;
+  let updatedCount = 0;
+  let addedCount = 0;
+
   // Update or append newRows (only valid rows)
   const validRows = newRows.filter(
     (r) => r.ten_chuong_trinh && (!r.errors || r.errors.length === 0)
   );
 
   for (const row of validRows) {
-    const key = normalizeProgramKey(row.ten_chuong_trinh);
-    const metricCol = row.kenh === 'SL' ? 'SLLK' : 'DTLK';
+    const channel = row.kenh === 'SL' ? 'SL' : 'DT';
+    const key = `${normalizeProgramKey(row.ten_chuong_trinh)}::${channel}`;
+    const metricCol = channel === 'SL' ? 'SLLK' : 'DTLK';
     const pctForParser = row.ty_le_du_kien ?? row.ty_le_thuc_hien ?? 0;
     const pctThStr =
       row.ty_le_thuc_hien !== null ? formatPlainBiPercent(row.ty_le_thuc_hien) : '-';
@@ -1048,13 +1179,17 @@ export function mergeThiDuaRowsWithBiText(
       existingBlock.headerLine = newHeader;
       existingBlock.dataLine = newData;
       existingBlock.progName = row.ten_chuong_trinh;
+      existingBlock.channel = channel;
+      updatedCount++;
     } else {
       programBlocks.push({
         key,
         progName: row.ten_chuong_trinh,
+        channel,
         headerLine: newHeader,
         dataLine: newData,
       });
+      addedCount++;
     }
   }
 
@@ -1067,7 +1202,17 @@ export function mergeThiDuaRowsWithBiText(
     outLines.push(block.dataLine);
   }
 
-  return outLines.join('\n');
+  const text = outLines.join('\n');
+  return {
+    text,
+    updatedCount,
+    addedCount,
+    totalCount: updatedCount + addedCount,
+    preservedExistingCount: initialBlockCount - updatedCount,
+    toString() {
+      return text;
+    },
+  };
 }
 
 /**

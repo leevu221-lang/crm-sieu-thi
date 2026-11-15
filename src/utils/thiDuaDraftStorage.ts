@@ -251,3 +251,4 @@ export function convertDraftToAiReport(draft: ThiDuaDraftRecord): ThiDuaAiReport
     rows: draft.rows.map((r) => ({ ...r })),
   };
 }
+

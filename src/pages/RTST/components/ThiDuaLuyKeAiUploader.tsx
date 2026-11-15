@@ -33,6 +33,8 @@ import {
   mergeMultiPageReports,
   serializeThiDuaRowsToBiText,
   mergeThiDuaRowsWithBiText,
+  normalizeBIData,
+  type MergeThiDuaResult,
   type ThiDuaAiReportResult,
   type ThiDuaLkMeta,
   type ThiDuaLkUpdateHistoryEntry,
@@ -176,6 +178,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
 }) => {
   const { userProfile } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const lastSavedBatchRef = useRef<string | null>(null);
 
   const [images, setImages] = useState<SelectedImageItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -428,10 +431,9 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
         },
       });
 
-      const rows = ocrResult.report.rows;
-      const validCount = rows.filter(
-        (r) => r.errors.length === 0 && r.missing_fields.length === 0 && r.uncertain_fields.length === 0
-      ).length;
+      const normalizedOcrReport = normalizeBIData(ocrResult.report);
+      const rows = normalizedOcrReport.rows;
+      const validCount = rows.filter((r) => r.errors.length === 0).length;
       const uncertainCount = rows.filter(
         (r) => r.uncertain_fields.length > 0 && r.errors.length === 0
       ).length;
@@ -450,7 +452,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
       });
 
       setOcrNeedsAiFallback(ocrResult.needsAiFallback);
-      setAnalyzedReport(ocrResult.report);
+      setAnalyzedReport(normalizedOcrReport);
       setPageCountAnalyzed(targetImages.length);
       setDuplicatesMerged(ocrResult.duplicatesMerged);
       setDuplicateProgramsOnMerge(ocrResult.duplicatePrograms);
@@ -466,10 +468,10 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
         saveThiDuaDraft({
           storeId: storeDocId,
           storeLabel: resolvedStoreLabel,
-          month: ocrResult.report.month || monthYearHints.month,
-          year: ocrResult.report.year || monthYearHints.year,
-          expected_total_rows: ocrResult.report.expected_total_rows,
-          rows: ocrResult.report.rows,
+          month: normalizedOcrReport.month || monthYearHints.month,
+          year: normalizedOcrReport.year || monthYearHints.year,
+          expected_total_rows: normalizedOcrReport.expected_total_rows,
+          rows: normalizedOcrReport.rows,
           modelUsed: 'Auto-OCR WebAssembly (Client Engine)',
           pageCount: targetImages.length,
           duplicatesMerged: ocrResult.duplicatesMerged,
@@ -678,14 +680,16 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
       if (merged.month === null) merged.month = monthYearHints.month;
       if (merged.year === null) merged.year = monthYearHints.year;
 
-      setAnalyzedReport(merged);
+      const normalizedMerged = normalizeBIData(merged);
+
+      setAnalyzedReport(normalizedMerged);
       setPageCountAnalyzed(images.length);
       setDuplicatesMerged(mergedCount);
       setDuplicateProgramsOnMerge(duplicatePrograms);
       setModelUsed(latestModel);
       setStatus('completed');
       setProgressText(
-        `Hoàn thành nhận diện ${merged.rows.length} chương trình. Chờ Admin xác nhận.`
+        `Hoàn thành nhận diện ${normalizedMerged.rows.length} chương trình. Chờ Admin xác nhận.`
       );
 
       // Auto-save draft immediately upon AI completion to guarantee multi-tier persistence
@@ -694,10 +698,10 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
         saveThiDuaDraft({
           storeId: storeDocId,
           storeLabel: resolvedStoreLabel,
-          month: merged.month || monthYearHints.month,
-          year: merged.year || monthYearHints.year,
-          expected_total_rows: merged.expected_total_rows,
-          rows: merged.rows,
+          month: normalizedMerged.month || monthYearHints.month,
+          year: normalizedMerged.year || monthYearHints.year,
+          expected_total_rows: normalizedMerged.expected_total_rows,
+          rows: normalizedMerged.rows,
           modelUsed: latestModel,
           pageCount: images.length,
           duplicatesMerged: mergedCount,
@@ -736,39 +740,51 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
     setIsSaving(true);
     try {
       const now = new Date();
+      // Ensure normalizeBIData runs immediately before saving
+      const normalizedReport = normalizeBIData(finalReport);
       const targetStoreLabel =
-        finalReport.store_name && isValidStoreName(finalReport.store_name) && activeStore === 'ALL'
-          ? finalReport.store_name
+        normalizedReport.store_name && isValidStoreName(normalizedReport.store_name) && activeStore === 'ALL'
+          ? normalizedReport.store_name
           : resolvedStoreLabel;
 
-      const serializedBiText = serializeThiDuaRowsToBiText(finalReport.rows, {
+      const storeDocId = normalizeStoreId(targetStoreLabel);
+      const mm = normalizedReport.month
+        ? String(normalizedReport.month).padStart(2, '0')
+        : String(now.getMonth() + 1).padStart(2, '0');
+      const yyyy = normalizedReport.year || now.getFullYear();
+      const period = `${mm}/${yyyy}`;
+
+      const batchId = `BATCH_${Date.now()}_${storeDocId || 'STORE'}_T${mm}_${yyyy}_${Math.random().toString(36).slice(2, 7)}`;
+      if (lastSavedBatchRef.current === batchId) {
+        return;
+      }
+
+      // Merge ALL normalized programs with existing currentValue (100% protecting existing 286 rows)
+      const mergeResult = mergeThiDuaRowsWithBiText(currentValue, normalizedReport.rows, {
         storeLabel: targetStoreLabel,
-        month: finalReport.month,
-        year: finalReport.year,
+        month: normalizedReport.month,
+        year: normalizedReport.year,
         updatedAt: now,
+        batchId,
+        replaceMode: false,
       });
 
       try {
         localStorage.removeItem('crm_field_cleared_rt_catlk');
       } catch {}
 
-      // Apply to shared React state and trigger existing LUỸ KẾ THI ĐUA save + sync pipeline
-      onApplyBiText(serializedBiText);
+      // Apply merged text to shared React state and trigger existing LUỸ KẾ THI ĐUA save + sync pipeline
+      onApplyBiText(mergeResult.text);
 
       // Wait briefly so LuykeDataContext useEffect syncs clusterCategoryInputRef before save
       await new Promise((resolve) => setTimeout(resolve, 140));
       await onTriggerSavePipeline();
 
-      // Persist lightweight metadata (source, timestamp, period, hash, compact snapshot, history)
-      const mm = finalReport.month
-        ? String(finalReport.month).padStart(2, '0')
-        : String(now.getMonth() + 1).padStart(2, '0');
-      const yyyy = finalReport.year || now.getFullYear();
-      const period = `${mm}/${yyyy}`;
+      // Persist lightweight metadata (source, timestamp, period, hash, compact snapshot, history, batch)
       const reportHash = computeThiDuaReportHash({
-        month: finalReport.month,
-        year: finalReport.year,
-        rows: finalReport.rows,
+        month: normalizedReport.month,
+        year: normalizedReport.year,
+        rows: normalizedReport.rows,
       });
 
       const newHistoryEntry: ThiDuaLkUpdateHistoryEntry = {
@@ -776,9 +792,13 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
         updatedBy: userProfile?.username || 'ADMIN',
         source: 'AI_VISION_BI',
         period,
-        rowCount: finalReport.rows.length,
-        expectedRowCount: finalReport.expected_total_rows,
+        rowCount: normalizedReport.rows.length,
+        expectedRowCount: normalizedReport.expected_total_rows,
         reportHash,
+        batchId,
+        batchStatus: 'SAVED',
+        updatedCount: mergeResult.updatedCount,
+        addedCount: mergeResult.addedCount,
       };
 
       const nextHistory = [newHistoryEntry, ...(savedMeta?.history || [])].slice(0, 10);
@@ -787,15 +807,19 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
         lastUpdatedBy: userProfile?.username || 'ADMIN',
         source: 'AI_VISION_BI',
         period,
-        month: finalReport.month,
-        year: finalReport.year,
-        rowCount: finalReport.rows.length,
-        expectedRowCount: finalReport.expected_total_rows,
+        month: normalizedReport.month,
+        year: normalizedReport.year,
+        rowCount: normalizedReport.rows.length,
+        expectedRowCount: normalizedReport.expected_total_rows,
         reportHash,
+        batchId,
+        batchStatus: 'SAVED',
+        updatedCount: mergeResult.updatedCount,
+        addedCount: mergeResult.addedCount,
         pageCount: metaInfo.pageCount,
         duplicatesMerged: metaInfo.duplicatesMerged,
         uncertainConfirmed: metaInfo.adminConfirmedWarnings,
-        rowsSnapshot: finalReport.rows.map((r) => ({
+        rowsSnapshot: normalizedReport.rows.map((r) => ({
           ten_chuong_trinh: r.ten_chuong_trinh,
           kenh: r.kenh || 'DT',
           thuc_hien: r.thuc_hien ?? 0,
@@ -813,25 +837,29 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
       } catch {}
 
       if (targetStoreLabel && targetStoreLabel !== 'ALL' && isValidStoreName(targetStoreLabel)) {
-        const storeDocId = normalizeStoreId(targetStoreLabel);
         if (storeDocId && storeDocId !== 'ALL') {
-          await supabase.from('store').upsert({
+          const { error: upsertErr } = await supabase.from('store').upsert({
             id: storeDocId,
             warehouse_code: effectiveMaKho === 'GLOBAL' ? '' : effectiveMaKho,
             ten_sieu_thi: targetStoreLabel,
             lk_nh_meta: nextMeta,
           });
-          // Clear active draft since full report is committed to official DB
-          await clearThiDuaDraft(storeDocId, finalReport.month, finalReport.year);
+          if (upsertErr) {
+            console.error('[ThiDua] Supabase upsert error:', upsertErr);
+            throw new Error(`Lỗi ghi nhận Database: ${upsertErr.message}`);
+          }
+          // Clear active draft ONLY after DB write confirmation
+          await clearThiDuaDraft(storeDocId, normalizedReport.month, normalizedReport.year);
         }
       }
 
+      lastSavedBatchRef.current = batchId;
       setActiveDraft(null);
       setIsReviewOpen(false);
       setAnalyzedReport(null);
       handleClearImages();
       showNotification(
-        `Đã lưu thành công ${finalReport.rows.length} chương trình LUỸ KẾ THI ĐUA từ AI Vision!`,
+        `Đã lưu thành công ${normalizedReport.rows.length}/${normalizedReport.rows.length} chương trình vào Database. (Cập nhật: ${mergeResult.updatedCount}, Thêm mới: ${mergeResult.addedCount})`,
         'success'
       );
     } catch (err: any) {
@@ -871,7 +899,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
       }
 
       // Merge ONLY valid rows with existing currentValue so existing 286 rows are 100% preserved!
-      const updatedBiText = mergeThiDuaRowsWithBiText(currentValue, validRows, {
+      const mergeResult = mergeThiDuaRowsWithBiText(currentValue, validRows, {
         storeLabel: targetStoreLabel,
         month: validReport.month,
         year: validReport.year,
@@ -883,7 +911,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
         localStorage.removeItem('crm_field_cleared_rt_catlk');
       } catch {}
 
-      onApplyBiText(updatedBiText);
+      onApplyBiText(mergeResult.text);
       await new Promise((resolve) => setTimeout(resolve, 140));
       await onTriggerSavePipeline();
 
@@ -907,6 +935,9 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
         rowCount: validRows.length,
         expectedRowCount: validReport.expected_total_rows,
         reportHash,
+        batchStatus: 'SAVED',
+        updatedCount: mergeResult.updatedCount,
+        addedCount: mergeResult.addedCount,
       };
 
       const nextHistory = [newHistoryEntry, ...(savedMeta?.history || [])].slice(0, 10);
@@ -920,6 +951,9 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
         rowCount: validRows.length,
         expectedRowCount: validReport.expected_total_rows,
         reportHash,
+        batchStatus: 'SAVED',
+        updatedCount: mergeResult.updatedCount,
+        addedCount: mergeResult.addedCount,
         pageCount: metaInfo.pageCount,
         duplicatesMerged: metaInfo.duplicatesMerged,
         uncertainConfirmed: metaInfo.adminConfirmedWarnings,
@@ -942,12 +976,16 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
 
       const storeDocId = normalizeStoreId(targetStoreLabel);
       if (storeDocId && storeDocId !== 'ALL') {
-        await supabase.from('store').upsert({
+        const { error: upsertErr } = await supabase.from('store').upsert({
           id: storeDocId,
           warehouse_code: effectiveMaKho === 'GLOBAL' ? '' : effectiveMaKho,
           ten_sieu_thi: targetStoreLabel,
           lk_nh_meta: nextMeta,
         });
+        if (upsertErr) {
+          console.error('[ThiDua] Supabase upsert error in valid only:', upsertErr);
+          throw new Error(`Lỗi ghi nhận Database: ${upsertErr.message}`);
+        }
       }
 
       // Update draft: keep all rows (including remaining error rows) so user can continue later!
