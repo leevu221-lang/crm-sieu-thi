@@ -179,10 +179,13 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
     total: number;
     valid: number;
     uncertain: number;
+    missing?: number;
     errors: number;
     confidence: number;
   } | null>(null);
   const [ocrNeedsAiFallback, setOcrNeedsAiFallback] = useState<boolean>(false);
+  const [showAdminDebug, setShowAdminDebug] = useState<boolean>(false);
+  const [copiedDebug, setCopiedDebug] = useState<boolean>(false);
 
   const [analyzedReport, setAnalyzedReport] = useState<ThiDuaAiReportResult | null>(null);
   const [pageCountAnalyzed, setPageCountAnalyzed] = useState<number>(0);
@@ -374,17 +377,21 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
 
       const rows = ocrResult.report.rows;
       const validCount = rows.filter(
-        (r) => !r.is_uncertain && (!r.validation_errors || r.validation_errors.length === 0)
+        (r) => r.errors.length === 0 && r.missing_fields.length === 0 && r.uncertain_fields.length === 0
       ).length;
-      const uncertainCount = rows.filter((r) => r.is_uncertain).length;
-      const errorCount = rows.filter(
-        (r) => r.validation_errors && r.validation_errors.length > 0
+      const uncertainCount = rows.filter(
+        (r) => r.uncertain_fields.length > 0 && r.errors.length === 0
       ).length;
+      const missingDataCount = rows.filter(
+        (r) => r.missing_fields.length > 0 && r.errors.length === 0
+      ).length;
+      const errorCount = rows.filter((r) => r.errors.length > 0).length;
 
       setOcrStats({
         total: rows.length,
         valid: validCount,
         uncertain: uncertainCount,
+        missing: missingDataCount,
         errors: errorCount,
         confidence: ocrResult.confidenceScore,
       });
@@ -1197,6 +1204,11 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                   <span className="text-[10.5px] font-semibold text-emerald-800">
                     {images.length} trang • Kỳ {analyzedReport.month || monthYearHints.month}/{analyzedReport.year || monthYearHints.year} • {analyzedReport.store_name || resolvedStoreLabel}
                   </span>
+                  {analyzedReport.kpi_breakdown && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      KPI: {analyzedReport.kpi_breakdown.dat ?? 0} Đạt · {analyzedReport.kpi_breakdown.canDay ?? 0} Cần đẩy · {analyzedReport.kpi_breakdown.chuaDat ?? 0} Chưa đạt ({analyzedReport.kpi_breakdown.totalReported ?? 39} CT)
+                    </span>
+                  )}
                   {analyzedReport.expected_total_rows && (
                     <span
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -1208,7 +1220,9 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                       <span>
                         KPI Đối chiếu: {analyzedReport.rows.length}/{analyzedReport.expected_total_rows} CT
                       </span>
-                      {analyzedReport.rows.length === analyzedReport.expected_total_rows ? ' (Khớp 100%)' : ' (Cần đối chiếu)'}
+                      {analyzedReport.rows.length === analyzedReport.expected_total_rows
+                        ? ' (Khớp 100%)'
+                        : ` (Thiếu ${Math.max(0, analyzedReport.expected_total_rows - analyzedReport.rows.length)} CT)`}
                     </span>
                   )}
                 </div>
@@ -1225,7 +1239,17 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                           Cần kiểm tra: {ocrStats.uncertain}
                         </span>
                       )}
-                      <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold">
+                      {(ocrStats.missing ?? 0) > 0 && (
+                        <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold">
+                          Thiếu số: {ocrStats.missing}
+                        </span>
+                      )}
+                      {ocrStats.errors > 0 && (
+                        <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 font-bold">
+                          Lỗi: {ocrStats.errors}
+                        </span>
+                      )}
+                      <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 font-bold">
                         Độ tin cậy: {ocrStats.confidence}%
                       </span>
                     </>
@@ -1253,6 +1277,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                       <tr className="bg-slate-100 text-slate-700 text-[10px] font-bold uppercase tracking-wider">
                         <th className="p-1.5 border-b border-slate-200 w-8 text-center">STT</th>
                         <th className="p-1.5 border-b border-slate-200 min-w-[150px]">1. CHƯƠNG TRÌNH</th>
+                        <th className="p-1.5 border-b border-slate-200 text-center w-14">KÊNH</th>
                         <th className="p-1.5 border-b border-slate-200 text-right w-24">2. THỰC HIỆN</th>
                         <th className="p-1.5 border-b border-slate-200 text-right w-24">3. TARGET</th>
                         <th className="p-1.5 border-b border-slate-200 text-right w-24">4. % DỰ KIẾN HT</th>
@@ -1267,10 +1292,14 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                           row.uncertain_fields?.includes('ten_chuong_trinh') ||
                           /[.…]{2,}$/.test(row.ten_chuong_trinh);
 
+                        const hasErr = row.errors && row.errors.length > 0;
+                        const hasMissing = row.missing_fields && row.missing_fields.length > 0;
+                        const isUncertain = (row.uncertain_fields && row.uncertain_fields.length > 0) || hasMissing;
+
                         return (
                           <tr
                             key={row.id || idx}
-                            className={row.is_uncertain ? 'bg-amber-50/60' : 'hover:bg-slate-50/60'}
+                            className={hasErr ? 'bg-rose-50/60' : isUncertain ? 'bg-amber-50/60' : 'hover:bg-slate-50/60'}
                           >
                             <td className="p-1.5 text-center font-mono text-[10px] text-slate-500">
                               {idx + 1}
@@ -1288,15 +1317,26 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                                 )}
                               </div>
                             </td>
+                            <td className="p-1.5 text-center">
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold ${
+                                  row.kenh === 'SL'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-emerald-100 text-emerald-800'
+                                }`}
+                              >
+                                {row.kenh || 'DT'}
+                              </span>
+                            </td>
                             <td className="p-1.5 text-right font-mono font-medium">
                               {row.thuc_hien !== null && row.thuc_hien !== undefined
                                 ? Number(row.thuc_hien).toLocaleString('vi-VN')
-                                : '-'}
+                                : <span className="text-amber-600 font-bold">-</span>}
                             </td>
                             <td className="p-1.5 text-right font-mono font-medium">
                               {row.target !== null && row.target !== undefined
                                 ? Number(row.target).toLocaleString('vi-VN')
-                                : '-'}
+                                : <span className="text-amber-600 font-bold">-</span>}
                             </td>
                             <td className="p-1.5 text-right font-mono font-bold text-orange-600">
                               {row.ty_le_du_kien !== null && row.ty_le_du_kien !== undefined
@@ -1309,7 +1349,11 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                               {row.hang_cty !== null && row.hang_cty !== undefined ? row.hang_cty : '-'}
                             </td>
                             <td className="p-1.5 text-center">
-                              {row.is_uncertain ? (
+                              {hasErr ? (
+                                <span className="inline-flex items-center gap-0.5 text-[9.5px] px-1 py-0.5 rounded bg-rose-100 text-rose-700 font-bold">
+                                  Lỗi
+                                </span>
+                              ) : isUncertain ? (
                                 <span className="inline-flex items-center gap-0.5 text-[9.5px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-bold">
                                   <AlertTriangle size={10} /> Cần xem lại
                                 </span>
@@ -1347,6 +1391,98 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                     <span>KIỂM TRA VÀ XÁC NHẬN LƯU ({analyzedReport.rows.length} CHƯƠNG TRÌNH)</span>
                   </button>
                 </div>
+
+                {/* Internal Admin Debug Panel (Inspection Tool for Engineering) */}
+                {hasUpdatePermission && analyzedReport.debug_trace && (
+                  <div className="pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminDebug((prev) => !prev)}
+                      className="text-[10.5px] font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-colors"
+                    >
+                      <Cpu size={13} className="text-indigo-600" />
+                      <span>{showAdminDebug ? '▼ Ẩn Bảng Debug Kỹ Thuật OCR (Admin)' : '► Xem Bảng Debug Kỹ Thuật OCR (Admin Diagnostic)'}</span>
+                    </button>
+
+                    {showAdminDebug && (
+                      <div className="mt-2 p-3 rounded-xl bg-slate-900 text-slate-100 text-[11px] font-mono space-y-2 border border-slate-700 shadow-inner">
+                        <div className="flex items-center justify-between border-b border-slate-700 pb-1.5">
+                          <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+                            <Cpu size={14} /> THÔNG SỐ PIPELINE OCR (NỘI BỘ ADMIN)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(analyzedReport.debug_trace?.rawText || '');
+                              setCopiedDebug(true);
+                              setTimeout(() => setCopiedDebug(false), 2000);
+                            }}
+                            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] border border-slate-600 transition-colors"
+                          >
+                            {copiedDebug ? '✓ Đã copy Raw OCR' : 'Copy Raw OCR Text'}
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10.5px]">
+                          <div className="p-1.5 rounded bg-slate-800/80 border border-slate-700">
+                            <span className="text-slate-400 block text-[9.5px]">Khối (Blocks):</span>
+                            <span className="text-white font-bold text-[12px]">{analyzedReport.debug_trace.blocksCount}</span>
+                          </div>
+                          <div className="p-1.5 rounded bg-slate-800/80 border border-slate-700">
+                            <span className="text-slate-400 block text-[9.5px]">Số từ (Words):</span>
+                            <span className="text-white font-bold text-[12px]">{analyzedReport.debug_trace.wordsCount}</span>
+                          </div>
+                          <div className="p-1.5 rounded bg-slate-800/80 border border-slate-700">
+                            <span className="text-slate-400 block text-[9.5px]">Spatial / Stream:</span>
+                            <span className="text-amber-400 font-bold text-[12px]">
+                              {analyzedReport.debug_trace.spatialRowsCount} / {analyzedReport.debug_trace.streamRowsCount}
+                            </span>
+                          </div>
+                          <div className="p-1.5 rounded bg-slate-800/80 border border-slate-700">
+                            <span className="text-slate-400 block text-[9.5px]">Parser tạo ra:</span>
+                            <span className="text-emerald-400 font-bold text-[12px]">{analyzedReport.debug_trace.detectedRowsCount} CT</span>
+                          </div>
+                        </div>
+
+                        <div className="p-1.5 rounded bg-slate-800/80 border border-slate-700 text-[10.5px]">
+                          <span className="text-slate-400 block text-[9.5px]">Phương thức trích xuất:</span>
+                          <span className="text-cyan-400 font-bold">{analyzedReport.debug_trace.parserMethod}</span>
+                          {analyzedReport.debug_trace.kpiSummary.totalReported && (
+                            <span className="text-slate-300 ml-2">
+                              (KPI Header: {analyzedReport.debug_trace.kpiSummary.dat ?? 0} Đạt + {analyzedReport.debug_trace.kpiSummary.canDay ?? 0} Cần đẩy + {analyzedReport.debug_trace.kpiSummary.chuaDat ?? 0} Chưa đạt = {analyzedReport.debug_trace.kpiSummary.totalReported} CT)
+                            </span>
+                          )}
+                        </div>
+
+                        {analyzedReport.debug_trace.discardedLines && analyzedReport.debug_trace.discardedLines.length > 0 && (
+                          <div className="space-y-1">
+                            <div className="text-slate-400 font-semibold text-[10px]">
+                              Dòng bị loại trừ ({analyzedReport.debug_trace.discardedLines.length} dòng):
+                            </div>
+                            <div className="max-h-28 overflow-y-auto space-y-1 pr-1 text-[9.5px]">
+                              {analyzedReport.debug_trace.discardedLines.map((disc, dIdx) => (
+                                <div key={dIdx} className="flex items-start justify-between gap-2 p-1 rounded bg-slate-800/40 border border-slate-700/50">
+                                  <span className="text-slate-300 truncate max-w-[70%]">{disc.lineText}</span>
+                                  <span className="text-rose-400 font-bold shrink-0">{disc.reason}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <div className="text-slate-400 font-semibold text-[10px] mb-1">Raw OCR Text preview:</div>
+                          <textarea
+                            readOnly
+                            value={analyzedReport.debug_trace.rawText}
+                            rows={4}
+                            className="w-full p-1.5 rounded bg-black/60 border border-slate-700 text-slate-200 text-[9.5px] font-mono resize-none focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}

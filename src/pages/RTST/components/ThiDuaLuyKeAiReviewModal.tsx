@@ -48,7 +48,7 @@ interface ThiDuaLuyKeAiReviewModalProps {
   ) => Promise<void>;
 }
 
-type FilterMode = 'ALL' | 'ISSUES' | 'UNCERTAIN' | 'UNDER_100' | 'OVER_100';
+type FilterMode = 'ALL' | 'ISSUES' | 'UNCERTAIN' | 'MISSING' | 'UNDER_100' | 'OVER_100';
 
 function numToEditString(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return '';
@@ -131,7 +131,8 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
     return rows.filter((r) => {
       if (q && !r.ten_chuong_trinh.toLowerCase().includes(q)) return false;
       if (filterMode === 'ISSUES') return r.errors.length > 0 || r.warnings.length > 0;
-      if (filterMode === 'UNCERTAIN') return r.uncertain_fields.length > 0 || r.missing_fields.length > 0;
+      if (filterMode === 'UNCERTAIN') return r.uncertain_fields.length > 0;
+      if (filterMode === 'MISSING') return r.missing_fields.length > 0;
       if (filterMode === 'UNDER_100') {
         const pct = r.ty_le_du_kien ?? r.ty_le_thuc_hien;
         return pct !== null && pct < 100;
@@ -565,7 +566,11 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
                   },
                   {
                     id: 'UNCERTAIN',
-                    label: `Chưa chắc chắn (${rows.filter((r) => r.uncertain_fields.length > 0 || r.missing_fields.length > 0).length})`,
+                    label: `Chưa chắc chắn (${rows.filter((r) => r.uncertain_fields.length > 0).length})`,
+                  },
+                  {
+                    id: 'MISSING',
+                    label: `Thiếu số liệu (${rows.filter((r) => r.missing_fields.length > 0).length})`,
                   },
                   { id: 'UNDER_100', label: `< 100% (${summary.under100Count})` },
                   { id: 'OVER_100', label: `>= 100% (${summary.overOrEqual100Count})` },

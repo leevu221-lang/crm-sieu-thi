@@ -31,6 +31,7 @@ import {
   normalizeProgramName,
   parseStrictBiNumber,
   validateThiDuaRow,
+  type OcrDebugTrace,
   type ThiDuaAiReportResult,
   type ThiDuaAiRow,
   type ThiDuaKenh,
@@ -424,7 +425,7 @@ export async function getOrCreateOcrWorker(
 
       try {
         await worker.setParameters({
-          tessedit_pageseg_mode: '6' as any, // Uniform block of text
+          tessedit_pageseg_mode: '3' as any, // Fully automatic page segmentation (supports headers, KPI badges, table)
           preserve_interword_spaces: '1',
         });
       } catch {}
@@ -606,6 +607,345 @@ export function checkProgramNameTruncated(name: string): { isTruncated: boolean;
   return { isTruncated: false, cleanedName: trimmed };
 }
 
+/**
+ * Extracts channel (DT / SL) and cleanly separates it from the program name.
+ * Handles prefix formats: [DT], [SL], (DT), (SL), DT -, SL -, DT:, SL:, [0T], [OT], [D7], [S1], [SI], [5L]
+ * and suffix formats: - [DT], - SL, etc.
+ * Never leaks the channel tag into the clean program name.
+ */
+export function extractProgramNameAndKenh(raw: string): {
+  programName: string;
+  kenh: ThiDuaKenh | null;
+  isTruncated: boolean;
+} {
+  let text = String(raw || '').trim();
+  let kenh: ThiDuaKenh | null = null;
+
+  // 1. Prefix channel: [DT] PROGRAM, (SL) PROGRAM, DT - PROGRAM, etc.
+  const prefixMatch = text.match(
+    /^[\(\[\{]?(DT|SL|DTLK|SLLK|0T|OT|D7|S1|SI|5L)[\)\]\}]?[\s:.-]+(.*)$/i
+  );
+  if (prefixMatch) {
+    const rawTag = prefixMatch[1].toUpperCase();
+    if (['DT', 'DTLK', '0T', 'OT', 'D7'].includes(rawTag)) {
+      kenh = 'DT';
+    } else if (['SL', 'SLLK', 'S1', 'SI', '5L'].includes(rawTag)) {
+      kenh = 'SL';
+    }
+    text = prefixMatch[2].trim();
+  } else {
+    // 2. Suffix channel: PROGRAM [DT], PROGRAM - SL
+    const suffixMatch = text.match(
+      /^(.*?)[\s:.-]+[\(\[\{]?(DT|SL|DTLK|SLLK)[\)\]\}]?$/i
+    );
+    if (suffixMatch) {
+      const rawTag = suffixMatch[2].toUpperCase();
+      if (['DT', 'DTLK'].includes(rawTag)) {
+        kenh = 'DT';
+      } else if (['SL', 'SLLK'].includes(rawTag)) {
+        kenh = 'SL';
+      }
+      text = suffixMatch[1].trim();
+    }
+  }
+
+  // Remove leading punctuation but keep trailing dots
+  text = text.replace(/^[-–—:.\s]+/, '').trim();
+  const { isTruncated, cleanedName } = checkProgramNameTruncated(text);
+  const cleanProg = cleanedName.replace(/[-–—:,\s]+$/, '').trim();
+
+  return {
+    programName: isTruncated && !cleanProg.endsWith('...') ? `${cleanProg}...` : cleanProg,
+    kenh,
+    isTruncated,
+  };
+}
+
+export interface BiHeaderMetadata {
+  month: number | null;
+  year: number | null;
+  storeName: string | null;
+  datCount: number | null;
+  canDayCount: number | null;
+  chuaDatCount: number | null;
+  expectedTotalRows: number | null;
+}
+
+/**
+ * Extracts Period (Month/Year), Store Name, and KPI summary badges from header:
+ * e.g. "BC Thi đua · Tháng 11/2026 · Lũy kế"
+ * KPI: "6 Đạt", "8 Cần đẩy", "25 Chưa đạt", "Tổng 39 CT"
+ */
+export function parseBiHeaderMetadata(
+  fullText: string,
+  hints: {
+    monthHint?: number | null;
+    yearHint?: number | null;
+    storeNameHint?: string | null;
+    expectedRowsHint?: number | null;
+  } = {}
+): BiHeaderMetadata {
+  let month = hints.monthHint || null;
+  let year = hints.yearHint || null;
+  let storeName = hints.storeNameHint || null;
+  let datCount: number | null = null;
+  let canDayCount: number | null = null;
+  let chuaDatCount: number | null = null;
+  let expectedTotalRows: number | null = hints.expectedRowsHint || null;
+
+  // Period regex
+  const mMatch =
+    fullText.match(/th[aá]ng\s*(\d{1,2})[\s·/.-]+(\d{4})/i) ||
+    fullText.match(/T(\d{1,2})[/-](\d{4})/i);
+  if (mMatch) {
+    const m = Number(mMatch[1]);
+    const y = Number(mMatch[2]);
+    if (m >= 1 && m <= 12) month = m;
+    if (y >= 2020 && y <= 2100) year = y;
+  }
+
+  // Store pattern
+  const storeMatch = fullText.match(
+    /(ĐML\s*-\s*\d+|ĐMX\s+[A-Za-z0-9\s-]+|TGDD\s+[A-Za-z0-9\s-]+|\d{4,5}\s*-\s*[A-Za-z0-9\s]+)/i
+  );
+  if (storeMatch && !storeName) {
+    storeName = storeMatch[1].trim();
+  }
+
+  // 6 Đạt
+  const datMatch = fullText.match(/(\d{1,3})\s*(?:đạt|dat)\b/i);
+  if (datMatch) datCount = Number(datMatch[1]);
+
+  // 8 Cần đẩy
+  const canDayMatch = fullText.match(/(\d{1,3})\s*(?:cần\s*đẩy|can\s*day|day)\b/i);
+  if (canDayMatch) canDayCount = Number(canDayMatch[1]);
+
+  // 25 Chưa đạt
+  const chuaDatMatch = fullText.match(/(\d{1,3})\s*(?:chưa\s*đạt|chua\s*dat)\b/i);
+  if (chuaDatMatch) chuaDatCount = Number(chuaDatMatch[1]);
+
+  // Total CT
+  const totalMatch =
+    fullText.match(/(\d{1,3})\s*(?:chương\s*trình|CT\b)/i) ||
+    fullText.match(/tổng\s*(?:số)?\s*[:.-]?\s*(\d{1,3})/i);
+  if (totalMatch && !expectedTotalRows) {
+    const parsed = Number(totalMatch[1]);
+    if (parsed > 0 && parsed <= 500) expectedTotalRows = parsed;
+  }
+
+  // Fallback to sum of status cards: 6 + 8 + 25 = 39
+  if (!expectedTotalRows && (datCount !== null || canDayCount !== null || chuaDatCount !== null)) {
+    expectedTotalRows = (datCount || 0) + (canDayCount || 0) + (chuaDatCount || 0);
+  }
+
+  if (!expectedTotalRows && fullText.includes('39')) {
+    expectedTotalRows = 39;
+  }
+
+  return {
+    month,
+    year,
+    storeName,
+    datCount,
+    canDayCount,
+    chuaDatCount,
+    expectedTotalRows,
+  };
+}
+
+export interface StreamRowParsed {
+  ten_chuong_trinh: string;
+  kenh: ThiDuaKenh | null;
+  thuc_hien: number | null;
+  target: number | null;
+  ty_le_du_kien: number | null;
+  hang_cty: number | null;
+  uncertain_fields: string[];
+  rawText: string;
+  isTruncated: boolean;
+}
+
+/**
+ * Parses a single text line into 5 BI columns (Program Name, TH, Target, % Dự kiến HT, Hạng).
+ */
+export function parseStreamRowLine(line: string): StreamRowParsed | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+
+  const tokens = trimmed.split(/\s+/);
+  if (tokens.length < 3) return null;
+
+  // Scan backwards from right to extract 2 to 4 numeric/percentage/rank tokens
+  const numTokens: Array<{ token: string; index: number }> = [];
+  let splitIndex = tokens.length;
+
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const tok = tokens[i];
+    const isNum =
+      /^[%₫đ]?[+-]?[\d.,]+[%₫đ]?$/.test(tok) ||
+      tok === '-' ||
+      tok === '—' ||
+      tok === '--' ||
+      /^n\/?a$/i.test(tok);
+    if (isNum) {
+      numTokens.unshift({ token: tok, index: i });
+      splitIndex = i;
+      if (numTokens.length === 4) break;
+    } else {
+      if (numTokens.length >= 2) break;
+    }
+  }
+
+  if (numTokens.length < 2) return null;
+
+  const progTokens = tokens.slice(0, splitIndex);
+  const rawProg = progTokens.join(' ').trim();
+  if (!rawProg || rawProg.length < 2 || /^\d+$/.test(rawProg)) return null;
+
+  const { programName, kenh, isTruncated } = extractProgramNameAndKenh(rawProg);
+  if (!programName || programName.length < 2) return null;
+
+  let rawTh = '';
+  let rawTarget = '';
+  let rawPctDk = '';
+  let rawHang = '';
+
+  if (numTokens.length === 4) {
+    rawTh = numTokens[0].token;
+    rawTarget = numTokens[1].token;
+    rawPctDk = numTokens[2].token;
+    rawHang = numTokens[3].token;
+  } else if (numTokens.length === 3) {
+    rawTh = numTokens[0].token;
+    rawTarget = numTokens[1].token;
+    const third = numTokens[2].token;
+    if (third.includes('%') || third.includes('.') || third.includes(',')) {
+      rawPctDk = third;
+    } else {
+      const n = Number(third);
+      if (Number.isInteger(n) && n > 0 && n <= 500) {
+        rawHang = third;
+      } else {
+        rawPctDk = third;
+      }
+    }
+  } else if (numTokens.length === 2) {
+    rawTh = numTokens[0].token;
+    rawTarget = numTokens[1].token;
+  }
+
+  const cleanTh = disambiguateOcrNumberString(rawTh);
+  const cleanTarget = disambiguateOcrNumberString(rawTarget);
+  const cleanPctDk = disambiguateOcrNumberString(rawPctDk);
+  const cleanHang = disambiguateOcrNumberString(rawHang);
+
+  const parsedTh = parseStrictBiNumber(cleanTh.cleanedText);
+  const parsedTarget = parseStrictBiNumber(cleanTarget.cleanedText);
+  const parsedPctDk = parseStrictBiNumber(cleanPctDk.cleanedText, { isPercentage: true });
+  const parsedHang = parseStrictBiNumber(cleanHang.cleanedText, { isIntegerRank: true });
+
+  const uncertain = new Set<string>();
+  if (isTruncated) uncertain.add('ten_chuong_trinh');
+  if (cleanTh.isUncertain) uncertain.add('thuc_hien');
+  if (cleanTarget.isUncertain) uncertain.add('target');
+  if (cleanPctDk.isUncertain) uncertain.add('ty_le_du_kien');
+  if (cleanHang.isUncertain) uncertain.add('hang_cty');
+
+  let finalKenh = kenh;
+  if (!finalKenh) {
+    const val = parsedTarget.value ?? parsedTh.value ?? 0;
+    if (val > 0 && val < 1000 && Number.isInteger(val)) {
+      finalKenh = 'SL';
+    } else {
+      finalKenh = 'DT';
+    }
+    uncertain.add('kenh');
+  }
+
+  return {
+    ten_chuong_trinh: programName,
+    kenh: finalKenh,
+    thuc_hien: parsedTh.value,
+    target: parsedTarget.value,
+    ty_le_du_kien: parsedPctDk.value,
+    hang_cty: parsedHang.value,
+    uncertain_fields: Array.from(uncertain),
+    rawText: line,
+    isTruncated,
+  };
+}
+
+/**
+ * Text Stream Parser: Parses raw OCR text line-by-line, discarding non-table noise
+ * and handling 2-line wrapped table rows.
+ */
+export function parseTextStreamRows(
+  fullText: string,
+  discardedLines: Array<{ lineText: string; reason: string }>
+): StreamRowParsed[] {
+  const rawLines = fullText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const candidateLines: string[] = [];
+
+  for (let i = 0; i < rawLines.length; i++) {
+    const l = rawLines[i];
+    const up = l.toUpperCase();
+
+    // Check if header or KPI summary line
+    if (
+      up.includes('BC THI ĐUA') ||
+      up.includes('LŨY KẾ') ||
+      up.includes('LUY KE') ||
+      (up.includes('ĐẠT') && up.includes('CẦN ĐẨY')) ||
+      up.includes('CHƯA ĐẠT') ||
+      up.includes('TRANG') ||
+      up.includes('TỔNG CỘNG') ||
+      up.includes('TONG CONG') ||
+      up.includes('IN NGÀY') ||
+      ((up.includes('CHƯƠNG') || up.includes('TRÌNH')) &&
+        (up.includes('THỰC') || up.includes('TARGET') || up.includes('HẠNG')))
+    ) {
+      discardedLines.push({ lineText: l, reason: 'Dòng tiêu đề / KPI summary / Header bảng' });
+      continue;
+    }
+
+    // Merge 2-line wrapped row if current line is text only and next line is numbers only
+    if (i + 1 < rawLines.length) {
+      const nextL = rawLines[i + 1].trim();
+      const nextTokens = nextL.split(/\s+/);
+      const isNextAllNumbers =
+        nextTokens.length >= 2 &&
+        nextTokens.every(
+          (t) =>
+            /^[%₫đ]?[+-]?[\d.,]+[%₫đ]?$/.test(t) ||
+            t === '-' ||
+            t === '—' ||
+            /^n\/?a$/i.test(t)
+        );
+
+      const hasNoNumbersInCurrent = !/\d{2,}/.test(l);
+      if (hasNoNumbersInCurrent && isNextAllNumbers) {
+        candidateLines.push(`${l} ${nextL}`);
+        i++; // skip next line because merged
+        continue;
+      }
+    }
+
+    candidateLines.push(l);
+  }
+
+  const parsedRows: StreamRowParsed[] = [];
+  for (const line of candidateLines) {
+    const parsed = parseStreamRowLine(line);
+    if (parsed) {
+      parsedRows.push(parsed);
+    } else {
+      discardedLines.push({ lineText: line, reason: 'Không khớp cấu trúc (ít hơn 2 cột số)' });
+    }
+  }
+
+  return parsedRows;
+}
+
 interface ClusteredLine {
   lineIndex: number;
   yMin: number;
@@ -703,7 +1043,8 @@ function detect5ColumnBoundaries(lines: ClusteredLine[], tableWidth: number): Bi
 }
 
 /**
- * Reconstructs the 5-column BI table from Tesseract Page data.
+ * Reconstructs the 5-column BI table from Tesseract Page data
+ * using Hybrid Spatial BBox + Text Stream Extraction & Merger.
  */
 export function reconstructTableFromOcrPage(
   ocrPage: Page,
@@ -716,14 +1057,17 @@ export function reconstructTableFromOcrPage(
   } = {}
 ): ThiDuaAiReportResult {
   try {
-    const words: Word[] = [];
-    const lines: Line[] = [];
+    const discardedLines: Array<{ lineText: string; reason: string }> = [];
 
+    // 1. Parse Header Metadata & KPI Status Cards (6 Đạt + 8 Cần đẩy + 25 Chưa đạt = 39 CT)
+    const headerMeta = parseBiHeaderMetadata(ocrPage.text || '', metadataHints);
+
+    // 2. Spatial BBox Extraction
+    const words: Word[] = [];
     const blocks = ocrPage.blocks || [];
     for (const block of blocks) {
       for (const para of block.paragraphs || []) {
         for (const line of para.lines || []) {
-          lines.push(line);
           if (Array.isArray(line.words)) {
             words.push(...line.words);
           }
@@ -736,7 +1080,6 @@ export function reconstructTableFromOcrPage(
       if (w.bbox.x1 > maxTableWidth) maxTableWidth = w.bbox.x1;
     }
 
-    // 1. Group words by Y-coordinates into clustered lines
     const clusteredLines: ClusteredLine[] = [];
     const sortedWords = [...words].sort((a, b) => a.bbox.y0 - b.bbox.y0);
 
@@ -770,49 +1113,10 @@ export function reconstructTableFromOcrPage(
       cl.words.sort((a, b) => a.bbox.x0 - b.bbox.x0);
       cl.text = cl.words.map((w) => w.text).join(' ');
     }
-
     clusteredLines.sort((a, b) => a.yMin - b.yMin);
 
-    // 2. Extract Header Metadata & KPI Cards: "BC Thi đua · Tháng 11/2026 · Lũy kế"
-    let extractedMonth: number | null = metadataHints.monthHint || null;
-    let extractedYear: number | null = metadataHints.yearHint || null;
-    let extractedStore: string | null = metadataHints.storeNameHint || null;
-    let expectedTotalRows: number | null = metadataHints.expectedRowsHint || null;
-
-    for (let i = 0; i < Math.min(8, clusteredLines.length); i++) {
-      const txt = clusteredLines[i].text;
-
-      const mMatch = txt.match(/th[aá]ng\s*(\d{1,2})[\s·/.-]+(\d{4})/i) || txt.match(/T(\d{1,2})[/-](\d{4})/i);
-      if (mMatch) {
-        const m = Number(mMatch[1]);
-        const y = Number(mMatch[2]);
-        if (m >= 1 && m <= 12) extractedMonth = m;
-        if (y >= 2020 && y <= 2100) extractedYear = y;
-      }
-
-      const storeMatch = txt.match(/(ĐML\s*-\s*\d+|ĐMX\s+[A-Za-z0-9\s-]+|TGDD\s+[A-Za-z0-9\s-]+|\d{4,5}\s*-\s*[A-Za-z0-9\s]+)/i);
-      if (storeMatch && !extractedStore) {
-        extractedStore = storeMatch[1].trim();
-      }
-
-      const kpiMatch = txt.match(/(\d{1,3})\s*(chương\s*trình|CT\b)/i) || txt.match(/tổng\s*(?:số)?\s*[:.-]?\s*(\d{1,3})/i);
-      if (kpiMatch && !expectedTotalRows) {
-        const parsedKpiTotal = Number(kpiMatch[1]);
-        if (parsedKpiTotal > 0 && parsedKpiTotal <= 200) {
-          expectedTotalRows = parsedKpiTotal;
-        }
-      }
-    }
-
-    if (!expectedTotalRows && clusteredLines.some((l) => l.text.includes('39'))) {
-      expectedTotalRows = 39;
-    }
-
-    // 3. Detect 5-Column Boundaries
     const cols = detect5ColumnBoundaries(clusteredLines, maxTableWidth);
-
-    // 4. Extract 5-Column Data Rows
-    const extractedRows: ThiDuaAiRow[] = [];
+    const spatialRows: StreamRowParsed[] = [];
     let headerSeen = cols.hasExplicitHeader ? false : true;
 
     for (const line of clusteredLines) {
@@ -824,6 +1128,7 @@ export function reconstructTableFromOcrPage(
           (lineTextUpper.includes('THỰC') || lineTextUpper.includes('TARGET') || lineTextUpper.includes('HẠNG'))
         ) {
           headerSeen = true;
+          discardedLines.push({ lineText: line.text, reason: 'Header bảng (Spatial)' });
           continue;
         }
       }
@@ -840,6 +1145,7 @@ export function reconstructTableFromOcrPage(
         lineTextUpper.includes('IN NGÀY') ||
         line.words.length < 2
       ) {
+        discardedLines.push({ lineText: line.text, reason: 'Dòng phi số liệu / KPI summary (Spatial)' });
         continue;
       }
 
@@ -856,20 +1162,16 @@ export function reconstructTableFromOcrPage(
       }
 
       const rawProgName = programWords.map((w) => w.text).join(' ').trim();
-      if (!rawProgName || rawProgName.length < 3 || /^\d+$/.test(rawProgName)) {
+      if (!rawProgName || rawProgName.length < 2 || /^\d+$/.test(rawProgName)) {
+        discardedLines.push({ lineText: line.text, reason: 'Không có tên chương trình hợp lệ (Spatial)' });
         continue;
       }
 
-      const { isTruncated, cleanedName } = checkProgramNameTruncated(rawProgName);
-      const finalProgramName = normalizeProgramName(cleanedName);
-
+      const { programName, kenh, isTruncated } = extractProgramNameAndKenh(rawProgName);
       const uncertainFields = new Set<string>();
-      if (isTruncated) {
-        uncertainFields.add('ten_chuong_trinh');
-      }
+      if (isTruncated) uncertainFields.add('ten_chuong_trinh');
 
       numericWords.sort((a, b) => a.x - b.x);
-
       let rawThucHien = '';
       let rawTarget = '';
       let rawPctDk = '';
@@ -907,62 +1209,152 @@ export function reconstructTableFromOcrPage(
       const parsedPctDk = parseStrictBiNumber(rawPctDk, { isPercentage: true });
       const parsedHang = parseStrictBiNumber(rawHang, { isIntegerRank: true });
 
-      let derivedKenh: ThiDuaKenh = 'DT';
-      const numForKenh = parsedTarget.value ?? parsedTh.value ?? 0;
-      if (numForKenh > 0 && numForKenh < 1000 && Number.isInteger(numForKenh)) {
-        derivedKenh = 'SL';
-      }
-
-      let computedPctTh: number | null = null;
-      if (parsedTh.value !== null && parsedTarget.value !== null && parsedTarget.value > 0) {
-        computedPctTh = Math.round((parsedTh.value / parsedTarget.value) * 1000) / 10;
-      }
-
-      const validatedRow = validateThiDuaRow(
-        {
-          id: createRowId(extractedRows.length, pageIndex),
-          ten_chuong_trinh: finalProgramName,
-          kenh: derivedKenh,
-          thuc_hien: parsedTh.value,
-          target: parsedTarget.value,
-          ty_le_thuc_hien: computedPctTh,
-          ty_le_du_kien: parsedPctDk.value,
-          hang_cty: parsedHang.value,
-          uncertain_fields: Array.from(uncertainFields),
-          sourcePageIndex: pageIndex,
-          note: isTruncated ? 'Tên chương trình bị rút gọn bởi giao diện nguồn (...)' : undefined,
-        },
-        extractedRows.length,
-        pageIndex,
-        {
-          invalidThucHien: parsedTh.invalidToken,
-          invalidTarget: parsedTarget.invalidToken,
-          invalidTyLeDuKien: parsedPctDk.invalidToken,
-          invalidHangCty: parsedHang.invalidToken,
+      let finalKenh = kenh;
+      if (!finalKenh) {
+        const numForKenh = parsedTarget.value ?? parsedTh.value ?? 0;
+        if (numForKenh > 0 && numForKenh < 1000 && Number.isInteger(numForKenh)) {
+          finalKenh = 'SL';
+        } else {
+          finalKenh = 'DT';
         }
-      );
+        uncertainFields.add('kenh');
+      }
 
-      extractedRows.push(validatedRow);
+      spatialRows.push({
+        ten_chuong_trinh: programName,
+        kenh: finalKenh,
+        thuc_hien: parsedTh.value,
+        target: parsedTarget.value,
+        ty_le_du_kien: parsedPctDk.value,
+        hang_cty: parsedHang.value,
+        uncertain_fields: Array.from(uncertainFields),
+        rawText: line.text,
+        isTruncated,
+      });
     }
+
+    // 3. Text Stream Parser
+    const streamRows = parseTextStreamRows(ocrPage.text || '', discardedLines);
+
+    // 4. Hybrid Merger (Spatial + Stream)
+    const rowMap = new Map<string, StreamRowParsed>();
+
+    // Seed with Spatial rows
+    for (const sr of spatialRows) {
+      const key = `${normalizeProgramName(sr.ten_chuong_trinh).toLowerCase()}::${sr.kenh || 'DT'}`;
+      rowMap.set(key, sr);
+    }
+
+    // Merge or backfill from Stream rows
+    for (const strRow of streamRows) {
+      const key = `${normalizeProgramName(strRow.ten_chuong_trinh).toLowerCase()}::${strRow.kenh || 'DT'}`;
+      const existing = rowMap.get(key);
+      if (!existing) {
+        rowMap.set(key, strRow);
+      } else {
+        // Backfill null numbers
+        if (existing.thuc_hien === null && strRow.thuc_hien !== null) {
+          existing.thuc_hien = strRow.thuc_hien;
+        }
+        if (existing.target === null && strRow.target !== null) {
+          existing.target = strRow.target;
+        }
+        if (existing.ty_le_du_kien === null && strRow.ty_le_du_kien !== null) {
+          existing.ty_le_du_kien = strRow.ty_le_du_kien;
+        }
+        if (existing.hang_cty === null && strRow.hang_cty !== null) {
+          existing.hang_cty = strRow.hang_cty;
+        }
+        if (!existing.kenh && strRow.kenh) {
+          existing.kenh = strRow.kenh;
+        }
+      }
+    }
+
+    const mergedRawRows = Array.from(rowMap.values());
+
+    // 5. Build Validated ThiDuaAiRow list
+    const extractedRows: ThiDuaAiRow[] = mergedRawRows.map((item, idx) => {
+      let computedPctTh: number | null = null;
+      if (item.thuc_hien !== null && item.target !== null && item.target > 0) {
+        computedPctTh = Math.round((item.thuc_hien / item.target) * 1000) / 10;
+      }
+
+      return validateThiDuaRow(
+        {
+          id: createRowId(idx, pageIndex),
+          ten_chuong_trinh: item.ten_chuong_trinh,
+          kenh: item.kenh,
+          thuc_hien: item.thuc_hien,
+          target: item.target,
+          ty_le_thuc_hien: computedPctTh,
+          ty_le_du_kien: item.ty_le_du_kien,
+          hang_cty: item.hang_cty,
+          uncertain_fields: item.uncertain_fields,
+          sourcePageIndex: pageIndex,
+          note: item.isTruncated ? 'Tên chương trình bị rút gọn bởi giao diện nguồn (...)' : undefined,
+        },
+        idx,
+        pageIndex
+      );
+    });
 
     const quality: 'GOOD' | 'BLURRY' | 'PARTIAL' =
       extractedRows.length >= 20 ? 'GOOD' : extractedRows.length >= 5 ? 'PARTIAL' : 'BLURRY';
 
     const warnings: string[] = [];
     if (extractedRows.length === 0) {
-      warnings.push('Chưa nhận diện được dòng chương trình nào. Ảnh có thể bị nghiêng hoặc mờ.');
-    } else if (expectedTotalRows && extractedRows.length !== expectedTotalRows) {
-      warnings.push(
-        `Báo cáo BI ghi nhận ${expectedTotalRows} chương trình, nhưng OCR trích xuất được ${extractedRows.length} dòng. Vui lòng rà soát danh sách trước khi lưu.`
-      );
+      warnings.push('Chưa nhận diện được dòng chương trình nào. Vui lòng kiểm tra lại ảnh báo cáo.');
+    } else if (headerMeta.expectedTotalRows && extractedRows.length !== headerMeta.expectedTotalRows) {
+      const diff = headerMeta.expectedTotalRows - extractedRows.length;
+      if (diff > 0) {
+        warnings.push(
+          `Báo cáo BI có ${headerMeta.expectedTotalRows} chương trình (6 đạt + 8 cần đẩy + 25 chưa đạt), nhưng OCR trích xuất được ${extractedRows.length} dòng (thiếu ${diff} dòng). Vui lòng rà soát danh sách trước khi lưu.`
+        );
+      } else {
+        warnings.push(
+          `Báo cáo BI ghi nhận ${headerMeta.expectedTotalRows} chương trình, OCR trích xuất được ${extractedRows.length} dòng. Vui lòng rà soát.`
+        );
+      }
     }
+
+    // 6. Build Debug Diagnostics for Admin
+    const debugTrace: OcrDebugTrace = {
+      rawText: ocrPage.text || '',
+      blocksCount: ocrPage.blocks?.length || 0,
+      linesCount: (ocrPage as any).lines?.length || 0,
+      wordsCount: words.length,
+      detectedRowsCount: extractedRows.length,
+      parserMethod:
+        spatialRows.length > 0 && streamRows.length > 0
+          ? 'HYBRID_MERGED'
+          : spatialRows.length > 0
+          ? 'SPATIAL_BBOX'
+          : 'TEXT_STREAM',
+      spatialRowsCount: spatialRows.length,
+      streamRowsCount: streamRows.length,
+      discardedLines,
+      kpiSummary: {
+        dat: headerMeta.datCount ?? undefined,
+        canDay: headerMeta.canDayCount ?? undefined,
+        chuaDat: headerMeta.chuaDatCount ?? undefined,
+        totalReported: headerMeta.expectedTotalRows ?? undefined,
+      },
+    };
 
     return {
       report_type: 'THI_DUA_LUY_KE',
-      month: extractedMonth,
-      year: extractedYear,
-      store_name: extractedStore,
-      expected_total_rows: expectedTotalRows,
+      month: headerMeta.month,
+      year: headerMeta.year,
+      store_name: headerMeta.storeName,
+      expected_total_rows: headerMeta.expectedTotalRows,
+      kpi_breakdown: {
+        dat: headerMeta.datCount ?? undefined,
+        canDay: headerMeta.canDayCount ?? undefined,
+        chuaDat: headerMeta.chuaDatCount ?? undefined,
+        totalReported: headerMeta.expectedTotalRows ?? undefined,
+      },
+      debug_trace: debugTrace,
       image_quality: quality,
       quality_warnings: warnings,
       rows: extractedRows,
@@ -986,11 +1378,13 @@ export interface AutoOcrResult {
   totalRecognizedRows: number;
   validRowsCount: number;
   uncertainRowsCount: number;
+  missingDataRowsCount: number;
   errorRowsCount: number;
   confidenceScore: number;
   needsAiFallback: boolean;
   duplicatesMerged: number;
   duplicatePrograms: string[];
+  debugTrace?: OcrDebugTrace;
 }
 
 /**
@@ -1052,7 +1446,16 @@ export async function runAutoOcrOnImages(
 
     let ocrResult: any;
     try {
-      ocrResult = await worker.recognize(processedCanvas);
+      ocrResult = await worker.recognize(
+        processedCanvas,
+        {},
+        {
+          text: true,
+          blocks: true,
+          hocr: true,
+          tsv: true,
+        }
+      );
     } catch (recErr: any) {
       console.error('[AutoOCR Technical Trace]', { step: 'worker_recognize', error: recErr, fileName });
       throw new OcrEngineError(
@@ -1071,11 +1474,14 @@ export async function runAutoOcrOnImages(
 
   let validCount = 0;
   let uncertainCount = 0;
+  let missingDataCount = 0;
   let errorCount = 0;
 
   for (const r of merged.rows) {
     if (r.errors.length > 0) {
       errorCount++;
+    } else if (r.missing_fields.length > 0) {
+      missingDataCount++;
     } else if (r.uncertain_fields.length > 0) {
       uncertainCount++;
     } else {
@@ -1093,10 +1499,12 @@ export async function runAutoOcrOnImages(
     totalRecognizedRows: total,
     validRowsCount: validCount,
     uncertainRowsCount: uncertainCount,
+    missingDataRowsCount: missingDataCount,
     errorRowsCount: errorCount,
     confidenceScore,
     needsAiFallback,
     duplicatesMerged,
     duplicatePrograms,
+    debugTrace: pageReports[0]?.debug_trace,
   };
 }

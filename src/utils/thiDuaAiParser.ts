@@ -48,12 +48,37 @@ export interface ThiDuaAiRow {
   note?: string;
 }
 
+export interface OcrDebugTrace {
+  rawText: string;
+  blocksCount: number;
+  linesCount: number;
+  wordsCount: number;
+  detectedRowsCount: number;
+  parserMethod: 'SPATIAL_BBOX' | 'TEXT_STREAM' | 'HYBRID_MERGED';
+  spatialRowsCount: number;
+  streamRowsCount: number;
+  discardedLines: Array<{ lineText: string; reason: string }>;
+  kpiSummary: {
+    dat?: number;
+    canDay?: number;
+    chuaDat?: number;
+    totalReported?: number;
+  };
+}
+
 export interface ThiDuaAiReportResult {
   report_type: 'THI_DUA_LUY_KE';
   month: number | null;
   year: number | null;
   store_name: string | null;
   expected_total_rows: number | null;
+  kpi_breakdown?: {
+    dat?: number;
+    canDay?: number;
+    chuaDat?: number;
+    totalReported?: number;
+  };
+  debug_trace?: OcrDebugTrace;
   image_quality: 'GOOD' | 'BLURRY' | 'PARTIAL';
   quality_warnings: string[];
   rows: ThiDuaAiRow[];
@@ -297,7 +322,8 @@ export function validateThiDuaRow(
 
   if (!kenh) {
     missing_fields.push('kenh');
-    errors.push('Chưa xác định kênh (DT / SL)');
+    warnings.push('Chưa xác định rõ kênh (mặc định DT)');
+    uncertainSet.add('kenh');
   }
 
   if (invalidFlags.invalidThucHien) {
@@ -344,7 +370,10 @@ export function validateThiDuaRow(
 
   if (invalidFlags.invalidHangCty) {
     errors.push('Hạng công ty phải là số nguyên dương');
-  } else if (hang_cty !== null) {
+  } else if (hang_cty === null) {
+    missing_fields.push('hang_cty');
+    warnings.push('Chưa nhận diện được hạng vùng');
+  } else {
     if (!Number.isInteger(hang_cty) || hang_cty < 1 || hang_cty > 10000) {
       errors.push('Hạng công ty phải là số nguyên từ 1 trở lên');
     }
@@ -618,6 +647,8 @@ export function mergeMultiPageReports(
       year,
       store_name,
       expected_total_rows,
+      kpi_breakdown: pageReports[0]?.kpi_breakdown,
+      debug_trace: pageReports[0]?.debug_trace,
       image_quality,
       quality_warnings: Array.from(qualityWarningsSet),
       rows: Array.from(rowMap.values()),
