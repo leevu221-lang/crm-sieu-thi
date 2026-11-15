@@ -2,30 +2,32 @@
  * Hybrid Client-Side Auto-OCR Engine for LUỸ KẾ THI ĐUA.
  * Runs directly on the browser via WebAssembly (Tesseract.js) inside a reusable worker.
  *
- * KEY FEATURES & INVARIANTS:
- * 1. Safe Direct File Decoding: Uses window.createImageBitmap (HTML5 native) with fallback to
- *    FileReader DataURL to decode user-uploaded images safely without DOM/Blob URL lifecycle errors.
- * 2. 5-Column BI Table Layout:
- *    - Cột 1: CHƯƠNG TRÌNH (Tự động phát hiện tên bị rút gọn dấu '...', đánh dấu is_truncated, không tự bịa).
- *    - Cột 2: THỰC HIỆN.
- *    - Cột 3: TARGET.
- *    - Cột 4: % DỰ KIẾN HOÀN THÀNH (Không nhầm với % hiển thị trên thanh tiến độ).
- *    - Cột 5: HẠNG VÙNG.
- * 3. Specific BI Report Parser ("BC Thi đua · Tháng 11/2026 · Lũy kế"):
- *    - Trích xuất tháng báo cáo (Tháng 11/2026), tên siêu thị (ĐML - 43751).
- *    - Trích xuất KPI Cards: Tổng số CT (39 chương trình), Số CT Đạt, Số CT Cần đẩy, Số CT Chưa đạt.
- *    - Đối chiếu số dòng thực tế với tổng số 39 chương trình ở đầu báo cáo.
- * 4. Resilient Worker Singleton:
- *    - Tự động thử tải vie+eng với timeout 15s; tự động fallback sang 'eng' nếu mạng chặn CDN hoặc tải lâu.
- *    - Hỗ trợ reset worker khi thử lại.
- * 5. Full Developer Console Logging: Ghi nhận lỗi kỹ thuật chi tiết vào console.error để hỗ trợ chẩn đoán.
+ * ZERO-CDN ARCHITECTURE (100% SAME-ORIGIN SERVED BY CLOUDFLARE PAGES):
+ * 1. Worker: /ocr/worker.min.js (served locally, zero external CDN dependency)
+ * 2. Core: /ocr/core/tesseract-core* (WASM & JS matched with installed tesseract.js-core 7.0.0)
+ * 3. Lang: /ocr/lang/vie.traineddata.gz & /ocr/lang/eng.traineddata.gz (served locally)
+ * 4. Image Decoding: Native createImageBitmap with fallback to Base64 DataURL (memory-safe max 2600px)
+ * 5. 5-Column BI Table Extraction:
+ *    - Cột 1: CHƯƠNG TRÌNH (Nhận diện dấu '...', đánh dấu is_truncated, không tự bịa)
+ *    - Cột 2: THỰC HIỆN
+ *    - Cột 3: TARGET
+ *    - Cột 4: % DỰ KIẾN HOÀN THÀNH (Tách biệt hoàn toàn với % trên thanh tiến độ)
+ *    - Cột 5: HẠNG VÙNG
+ * 6. BI Header & KPI Reconciliation ("BC Thi đua · Tháng 11/2026 · Lũy kế" - Tổng 39 CT).
+ * 7. Granular Error Codes:
+ *    - OCR_WORKER_LOAD_FAILED
+ *    - OCR_CORE_LOAD_FAILED
+ *    - OCR_WASM_LOAD_FAILED
+ *    - OCR_TRAINEDDATA_LOAD_FAILED
+ *    - OCR_LANGUAGE_NOT_FOUND
+ *    - OCR_IMAGE_DECODE_FAILED
+ *    - OCR_PROCESSING_FAILED
  */
 
 import { createWorker, type Worker, type Page, type Line, type Word } from 'tesseract.js';
 import {
   createRowId,
   mergeMultiPageReports,
-  normalizeKenh,
   normalizeProgramName,
   parseStrictBiNumber,
   validateThiDuaRow,
@@ -35,7 +37,104 @@ import {
 } from './thiDuaAiParser';
 
 // ==========================================
-// 1. SAFE IMAGE DECODING PIPELINE
+// 1. GRANULAR ERROR CODES & EXCEPTIONS
+// ==========================================
+
+export type OcrErrorCode =
+  | 'OCR_WORKER_LOAD_FAILED'
+  | 'OCR_CORE_LOAD_FAILED'
+  | 'OCR_WASM_LOAD_FAILED'
+  | 'OCR_TRAINEDDATA_LOAD_FAILED'
+  | 'OCR_LANGUAGE_NOT_FOUND'
+  | 'OCR_IMAGE_DECODE_FAILED'
+  | 'OCR_PROCESSING_FAILED';
+
+export class OcrEngineError extends Error {
+  code: OcrErrorCode;
+  resource?: string;
+
+  constructor(message: string, code: OcrErrorCode, resource?: string) {
+    super(message);
+    this.name = 'OcrEngineError';
+    this.code = code;
+    this.resource = resource;
+  }
+}
+
+// ==========================================
+// 2. SAFE SAME-ORIGIN ASSET VERIFICATION
+// ==========================================
+
+let hasVerifiedAssets = false;
+
+/**
+ * Preflights the availability of local OCR assets on the website's origin.
+ * Throws specific granular errors if any local file is missing or returns 404/500.
+ */
+export async function verifyOcrAssetsAvailable(origin: string): Promise<void> {
+  if (hasVerifiedAssets || typeof fetch === 'undefined') return;
+
+  const checks: Array<{ url: string; code: OcrErrorCode; label: string }> = [
+    {
+      url: `${origin}/ocr/worker.min.js`,
+      code: 'OCR_WORKER_LOAD_FAILED',
+      label: 'OCR Worker (/ocr/worker.min.js)',
+    },
+    {
+      url: `${origin}/ocr/core/tesseract-core-simd-lstm.wasm.js`,
+      code: 'OCR_CORE_LOAD_FAILED',
+      label: 'Tesseract Core JS (/ocr/core/tesseract-core-simd-lstm.wasm.js)',
+    },
+    {
+      url: `${origin}/ocr/core/tesseract-core-simd-lstm.wasm`,
+      code: 'OCR_WASM_LOAD_FAILED',
+      label: 'Tesseract WebAssembly (/ocr/core/tesseract-core-simd-lstm.wasm)',
+    },
+    {
+      url: `${origin}/ocr/lang/vie.traineddata.gz`,
+      code: 'OCR_TRAINEDDATA_LOAD_FAILED',
+      label: 'Từ điển tiếng Việt (/ocr/lang/vie.traineddata.gz)',
+    },
+    {
+      url: `${origin}/ocr/lang/eng.traineddata.gz`,
+      code: 'OCR_TRAINEDDATA_LOAD_FAILED',
+      label: 'Từ điển tiếng Anh & Số (/ocr/lang/eng.traineddata.gz)',
+    },
+  ];
+
+  for (const item of checks) {
+    try {
+      const res = await fetch(item.url, { method: 'HEAD', cache: 'force-cache' });
+      if (!res.ok && res.status !== 405) {
+        // Fallback check with GET 1 byte if server disallows HEAD
+        const getRes = await fetch(item.url, {
+          method: 'GET',
+          headers: { Range: 'bytes=0-1' },
+          cache: 'force-cache',
+        });
+        if (!getRes.ok) {
+          throw new OcrEngineError(
+            `Không tìm thấy tài nguyên OCR nội bộ: ${item.label} (HTTP ${getRes.status}). Vui lòng kiểm tra file trong thư mục public/ocr.`,
+            item.code,
+            item.url
+          );
+        }
+      }
+    } catch (err: any) {
+      if (err instanceof OcrEngineError) throw err;
+      throw new OcrEngineError(
+        `Lỗi kết nối tài nguyên OCR nội bộ: ${item.label} (${err?.message || err}).`,
+        item.code,
+        item.url
+      );
+    }
+  }
+
+  hasVerifiedAssets = true;
+}
+
+// ==========================================
+// 3. SAFE IMAGE DECODING PIPELINE
 // ==========================================
 
 export type ImageInputSource =
@@ -47,7 +146,7 @@ export type ImageInputSource =
   | { file?: File; previewUrl?: string; name?: string };
 
 /**
- * Decodes an input file / blob / URL into an HTMLCanvasElement using the safest and most robust browser APIs:
+ * Decodes an input file / blob / URL into an HTMLCanvasElement using the safest browser APIs:
  * 1. window.createImageBitmap (HTML5 native, runs off-main-thread, immune to DOM/blob-url lifecycle bugs)
  * 2. FileReader -> readAsDataURL (Base64) -> HTMLImageElement (standard fallback)
  * 3. Handles memory constraints by capping max canvas dimensions at 2600px.
@@ -56,7 +155,6 @@ export async function decodeImageToCanvas(
   input: ImageInputSource,
   fileName = 'image'
 ): Promise<HTMLCanvasElement> {
-  // Extract underlying source if wrapped in an object
   let rawSource: any = input;
   if (input && typeof input === 'object') {
     if ('file' in input && input.file instanceof Blob) {
@@ -79,14 +177,21 @@ export async function decodeImageToCanvas(
       await new Promise<void>((resolve, reject) => {
         rawSource.onload = () => resolve();
         rawSource.onerror = (e: any) =>
-          reject(new Error(`Không thể nạp ảnh ${fileName}: Lỗi render phần tử ảnh (${e?.message || 'onerror'})`));
+          reject(
+            new OcrEngineError(
+              `Không thể nạp ảnh ${fileName}: Lỗi render phần tử ảnh DOM (${e?.message || 'onerror'})`,
+              'OCR_IMAGE_DECODE_FAILED'
+            )
+          );
       });
     }
     const canvas = document.createElement('canvas');
     canvas.width = rawSource.naturalWidth || rawSource.width;
     canvas.height = rawSource.naturalHeight || rawSource.height;
     const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Không thể khởi tạo Canvas 2D context');
+    if (!ctx) {
+      throw new OcrEngineError('Không thể khởi tạo Canvas 2D context', 'OCR_IMAGE_DECODE_FAILED');
+    }
     ctx.drawImage(rawSource, 0, 0);
     return canvas;
   }
@@ -123,14 +228,23 @@ export async function decodeImageToCanvas(
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || ''));
       reader.onerror = (err) =>
-        reject(new Error(`Không thể đọc file ${fileName}: Lỗi I/O FileReader (${err})`));
+        reject(
+          new OcrEngineError(
+            `Không thể đọc file ${fileName}: Lỗi I/O FileReader (${err})`,
+            'OCR_IMAGE_DECODE_FAILED'
+          )
+        );
       reader.readAsDataURL(rawSource as Blob);
       return;
     }
-    reject(new Error(`Định dạng dữ liệu ảnh không được hỗ trợ (${fileName})`));
+    reject(
+      new OcrEngineError(
+        `Định dạng dữ liệu ảnh không được hỗ trợ (${fileName})`,
+        'OCR_IMAGE_DECODE_FAILED'
+      )
+    );
   });
 
-  // Decode image element from dataUrl
   return new Promise<HTMLCanvasElement>((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -139,11 +253,15 @@ export async function decodeImageToCanvas(
         const origW = img.naturalWidth || img.width;
         const origH = img.naturalHeight || img.height;
         if (!origW || !origH) {
-          reject(new Error(`Không thể nạp ảnh ${fileName}: Kích thước ảnh bằng 0 (0x0)`));
+          reject(
+            new OcrEngineError(
+              `Không thể nạp ảnh ${fileName}: Kích thước ảnh bằng 0 (0x0)`,
+              'OCR_IMAGE_DECODE_FAILED'
+            )
+          );
           return;
         }
 
-        // Safe dimension capping to prevent mobile canvas OOM crash
         const maxDim = 2600;
         let scale = 1;
         if (Math.max(origW, origH) > maxDim) {
@@ -157,7 +275,12 @@ export async function decodeImageToCanvas(
         canvas.height = h;
         const ctx = canvas.getContext('2d');
         if (!ctx) {
-          reject(new Error(`Không thể tạo 2D context cho ảnh ${fileName}`));
+          reject(
+            new OcrEngineError(
+              `Không thể tạo 2D context cho ảnh ${fileName}`,
+              'OCR_IMAGE_DECODE_FAILED'
+            )
+          );
           return;
         }
         ctx.fillStyle = '#ffffff';
@@ -168,19 +291,29 @@ export async function decodeImageToCanvas(
         resolve(canvas);
       } catch (err: any) {
         console.error('[AutoOCR Technical Trace]', { step: 'canvas_render', error: err, fileName });
-        reject(new Error(`Lỗi xử lý nạp ảnh ${fileName}: ${err?.message || err}`));
+        reject(
+          new OcrEngineError(
+            `Lỗi xử lý nạp ảnh ${fileName}: ${err?.message || err}`,
+            'OCR_IMAGE_DECODE_FAILED'
+          )
+        );
       }
     };
     img.onerror = (err) => {
       console.error('[AutoOCR Technical Trace]', { step: 'img_element_decode', error: err, fileName });
-      reject(new Error(`Không thể nạp ảnh ${fileName}: File bị hỏng hoặc định dạng ảnh không tương thích trình duyệt.`));
+      reject(
+        new OcrEngineError(
+          `Không thể nạp ảnh ${fileName}: File bị hỏng hoặc định dạng ảnh không tương thích trình duyệt.`,
+          'OCR_IMAGE_DECODE_FAILED'
+        )
+      );
     };
     img.src = dataUrl;
   });
 }
 
 // ==========================================
-// 2. REUSABLE TESSERACT WORKER SINGLETON
+// 4. REUSABLE SAME-ORIGIN TESSERACT WORKER
 // ==========================================
 
 let ocrWorkerInstance: Worker | null = null;
@@ -190,9 +323,11 @@ let workerInitPromise: Promise<Worker> | null = null;
 export type OcrProgressCallback = (progress: number, stageText: string) => void;
 
 /**
- * Creates or retrieves the shared Tesseract.js worker with resilient fallback:
- * - Attempts to load vie+eng for high accuracy with Vietnamese text & BI terms.
- * - Caps loading at 15s timeout: if CDN network fails or is slow, falls back to 'eng'.
+ * Creates or retrieves the shared Tesseract.js worker served 100% from same origin:
+ * - Worker: /ocr/worker.min.js
+ * - Core: /ocr/core/tesseract-core*
+ * - Lang: /ocr/lang/vie.traineddata.gz & /ocr/lang/eng.traineddata.gz
+ * - Zero reliance on external CDNs!
  */
 export async function getOrCreateOcrWorker(
   onProgress?: OcrProgressCallback
@@ -208,61 +343,91 @@ export async function getOrCreateOcrWorker(
   isInitializingWorker = true;
   workerInitPromise = (async () => {
     try {
-      onProgress?.(10, 'Đang chuẩn bị lõi xử lý WebAssembly...');
+      onProgress?.(10, 'Đang chuẩn bị lõi xử lý WebAssembly nội bộ...');
 
-      const initWorkerWithLang = async (lang: string | string[], timeoutMs: number): Promise<Worker> => {
-        const workerPromise = (async () => {
-          const w = await createWorker(lang, 1, {
-            workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@v7/dist/worker.min.js',
-            corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@v5',
-            langPath: 'https://tessdata.projectnaptha.com/4.0.0',
-            logger: (m) => {
-              if (m.status === 'recognizing text') {
-                const p = Math.round((m.progress || 0) * 80) + 15;
-                onProgress?.(p, `Đang quét nhận diện ký tự (${Math.round((m.progress || 0) * 100)}%)...`);
-              } else if (m.status === 'loading tesseract core') {
-                onProgress?.(15, 'Đang tải WebAssembly core...');
-              } else if (m.status === 'loading language traineddata') {
-                onProgress?.(30, 'Đang đồng bộ từ điển nhận dạng...');
-              } else if (m.status === 'initializing api') {
-                onProgress?.(45, 'Đang cấu hình bố cục bảng...');
-              }
-            },
-          });
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const workerPath = `${origin}/ocr/worker.min.js`;
+      const corePath = `${origin}/ocr/core`;
+      const langPath = `${origin}/ocr/lang`;
 
-          try {
-            await w.setParameters({
-              tessedit_pageseg_mode: '6' as any, // Uniform block of text
-              preserve_interword_spaces: '1',
-            });
-          } catch {}
+      // Preflight verify local files exist to give explicit diagnostic errors if 404
+      await verifyOcrAssetsAvailable(origin);
 
-          return w;
-        })();
-
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`Timeout tải model OCR (${lang}) sau ${timeoutMs / 1000}s`)), timeoutMs)
-        );
-
-        return Promise.race([workerPromise, timeoutPromise]);
-      };
+      onProgress?.(20, 'Đang khởi chạy OCR Worker cùng origin...');
 
       let worker: Worker;
       try {
-        // Attempt vie + eng (15s timeout)
-        worker = await initWorkerWithLang(['vie', 'eng'], 15000);
-      } catch (vieErr) {
-        console.warn('[AutoOCR] Falling back to lightweight "eng" worker due to:', vieErr);
-        onProgress?.(25, 'Đang chuyển sang lõi OCR chuẩn Latin...');
+        worker = await createWorker(['vie', 'eng'], 1, {
+          workerPath,
+          corePath,
+          langPath,
+          gzip: true,
+          workerBlobURL: false, // Load directly without blob wrapper for same-origin security
+          logger: (m) => {
+            if (m.status === 'recognizing text') {
+              const p = Math.round((m.progress || 0) * 80) + 15;
+              onProgress?.(p, `Đang quét nhận diện ký tự (${Math.round((m.progress || 0) * 100)}%)...`);
+            } else if (m.status === 'loading tesseract core') {
+              onProgress?.(25, 'Đang tải WebAssembly Core nội bộ...');
+            } else if (m.status === 'loading language traineddata') {
+              onProgress?.(40, 'Đang nạp từ điển Tiếng Việt & Tiếng Anh...');
+            } else if (m.status === 'initializing api') {
+              onProgress?.(60, 'Đang thiết lập bố cục bảng 5 cột...');
+            }
+          },
+          errorHandler: (err) => {
+            console.error('[Tesseract Worker Internal Error]', err);
+          },
+        });
+      } catch (initErr: any) {
+        console.error('[AutoOCR Technical Trace]', { step: 'create_worker_vie_eng', initErr, workerPath, corePath, langPath });
+        const errMsg = String(initErr?.message || initErr || '');
+
+        if (errMsg.includes('worker') || errMsg.includes('importScripts')) {
+          throw new OcrEngineError(
+            `Lỗi khởi chạy Worker OCR: Không thể tải worker script tại ${workerPath}. Chi tiết: ${errMsg}`,
+            'OCR_WORKER_LOAD_FAILED',
+            workerPath
+          );
+        } else if (errMsg.includes('wasm') || errMsg.includes('WebAssembly')) {
+          throw new OcrEngineError(
+            `Lỗi khởi tạo WebAssembly Core tại ${corePath}. Chi tiết: ${errMsg}`,
+            'OCR_WASM_LOAD_FAILED',
+            corePath
+          );
+        } else if (errMsg.includes('traineddata') || errMsg.includes('language')) {
+          throw new OcrEngineError(
+            `Lỗi tải từ điển nhận dạng ngôn ngữ tại ${langPath}. Chi tiết: ${errMsg}`,
+            'OCR_TRAINEDDATA_LOAD_FAILED',
+            langPath
+          );
+        }
+
+        // Try single 'eng' fallback from local origin
+        onProgress?.(30, 'Đang thử nạp từ điển Eng nội bộ...');
         try {
-          worker = await initWorkerWithLang('eng', 12000);
+          worker = await createWorker('eng', 1, {
+            workerPath,
+            corePath,
+            langPath,
+            gzip: true,
+            workerBlobURL: false,
+          });
         } catch (engErr: any) {
-          console.error('[AutoOCR Technical Trace]', { step: 'worker_init_failed', vieErr, engErr });
-          throw new Error(
-            `Không thể khởi tạo bộ đọc OCR (Lỗi mạng hoặc CORS khi tải traineddata từ CDN). Vui lòng kiểm tra kết nối mạng và bấm Thử lại.`
+          console.error('[AutoOCR Technical Trace]', { step: 'create_worker_eng_fallback', engErr });
+          throw new OcrEngineError(
+            `Không thể nạp tài nguyên OCR nội bộ: ${errMsg || engErr?.message || engErr}`,
+            'OCR_CORE_LOAD_FAILED'
           );
         }
       }
+
+      try {
+        await worker.setParameters({
+          tessedit_pageseg_mode: '6' as any, // Uniform block of text
+          preserve_interword_spaces: '1',
+        });
+      } catch {}
 
       ocrWorkerInstance = worker;
       return worker;
@@ -296,10 +461,11 @@ export async function terminateSharedOcrWorker(): Promise<void> {
  */
 export async function resetOcrWorker(): Promise<void> {
   await terminateSharedOcrWorker();
+  hasVerifiedAssets = false;
 }
 
 // ==========================================
-// 3. CANVAS IMAGE PREPROCESSING
+// 5. CANVAS IMAGE PREPROCESSING
 // ==========================================
 
 /**
@@ -312,7 +478,6 @@ export function preprocessImageForOcr(canvasSource: HTMLCanvasElement): HTMLCanv
   const origW = canvasSource.width;
   const origH = canvasSource.height;
 
-  // Ideal OCR width for 8-10pt BI table fonts is 1800 - 2400px
   let scale = 1;
   if (origW < 1600) {
     scale = Math.min(2.0, 1800 / origW);
@@ -371,7 +536,7 @@ export function preprocessImageForOcr(canvasSource: HTMLCanvasElement): HTMLCanv
 }
 
 // ==========================================
-// 4. SMART BI TABLE & DISAMBIGUATION LOGIC
+// 6. SMART BI TABLE & DISAMBIGUATION LOGIC
 // ==========================================
 
 export interface OcrDisambiguatedNumber {
@@ -392,7 +557,6 @@ export function disambiguateOcrNumberString(raw: string): OcrDisambiguatedNumber
 
   let text = raw.trim().replace(/[%₫đ]/gi, '').trim();
 
-  // If already standard number
   if (/^[+-]?[\d.,]+$/.test(text)) {
     return { cleanedText: text, isUncertain: false };
   }
@@ -525,7 +689,6 @@ function detect5ColumnBoundaries(lines: ClusteredLine[], tableWidth: number): Bi
     }
   }
 
-  // Canonical BI MWG 5-column proportions
   return {
     hasExplicitHeader: false,
     programColMaxX: tableWidth * 0.43,
@@ -537,13 +700,6 @@ function detect5ColumnBoundaries(lines: ClusteredLine[], tableWidth: number): Bi
     pctDkColMaxX: tableWidth * 0.88,
     rankColMinX: tableWidth * 0.86,
   };
-}
-
-export interface BiReportKpiSummary {
-  totalPrograms: number | null;
-  datPrograms: number | null;
-  canDayPrograms: number | null;
-  chuaDatPrograms: number | null;
 }
 
 /**
@@ -559,275 +715,269 @@ export function reconstructTableFromOcrPage(
     expectedRowsHint?: number | null;
   } = {}
 ): ThiDuaAiReportResult {
-  const words: Word[] = [];
-  const lines: Line[] = [];
+  try {
+    const words: Word[] = [];
+    const lines: Line[] = [];
 
-  const blocks = ocrPage.blocks || [];
-  for (const block of blocks) {
-    for (const para of block.paragraphs || []) {
-      for (const line of para.lines || []) {
-        lines.push(line);
-        if (Array.isArray(line.words)) {
-          words.push(...line.words);
+    const blocks = ocrPage.blocks || [];
+    for (const block of blocks) {
+      for (const para of block.paragraphs || []) {
+        for (const line of para.lines || []) {
+          lines.push(line);
+          if (Array.isArray(line.words)) {
+            words.push(...line.words);
+          }
         }
       }
     }
-  }
 
-  let maxTableWidth = 1200;
-  for (const w of words) {
-    if (w.bbox.x1 > maxTableWidth) maxTableWidth = w.bbox.x1;
-  }
-
-  // 1. Group words by Y-coordinates into clustered lines
-  const clusteredLines: ClusteredLine[] = [];
-  const sortedWords = [...words].sort((a, b) => a.bbox.y0 - b.bbox.y0);
-
-  for (const word of sortedWords) {
-    const wYmid = (word.bbox.y0 + word.bbox.y1) / 2;
-    const wordH = Math.max(10, word.bbox.y1 - word.bbox.y0);
-
-    let matchedLine = clusteredLines.find(
-      (cl) => Math.abs(cl.yCenter - wYmid) < Math.max(12, wordH * 0.55)
-    );
-
-    if (!matchedLine) {
-      matchedLine = {
-        lineIndex: clusteredLines.length,
-        yMin: word.bbox.y0,
-        yMax: word.bbox.y1,
-        yCenter: wYmid,
-        words: [word],
-        text: word.text,
-      };
-      clusteredLines.push(matchedLine);
-    } else {
-      matchedLine.words.push(word);
-      matchedLine.yMin = Math.min(matchedLine.yMin, word.bbox.y0);
-      matchedLine.yMax = Math.max(matchedLine.yMax, word.bbox.y1);
-      matchedLine.yCenter = (matchedLine.yMin + matchedLine.yMax) / 2;
-    }
-  }
-
-  // Sort words inside line from left to right
-  for (const cl of clusteredLines) {
-    cl.words.sort((a, b) => a.bbox.x0 - b.bbox.x0);
-    cl.text = cl.words.map((w) => w.text).join(' ');
-  }
-
-  // Sort lines from top to bottom
-  clusteredLines.sort((a, b) => a.yMin - b.yMin);
-
-  // 2. Extract Header Metadata & KPI Cards: "BC Thi đua · Tháng 11/2026 · Lũy kế"
-  let extractedMonth: number | null = metadataHints.monthHint || null;
-  let extractedYear: number | null = metadataHints.yearHint || null;
-  let extractedStore: string | null = metadataHints.storeNameHint || null;
-  let expectedTotalRows: number | null = metadataHints.expectedRowsHint || null;
-
-  for (let i = 0; i < Math.min(8, clusteredLines.length); i++) {
-    const txt = clusteredLines[i].text;
-
-    // Month & Year detection: "Tháng 11/2026", "Tháng 11 · 2026", "T11/2026"
-    const mMatch = txt.match(/th[aá]ng\s*(\d{1,2})[\s·/.-]+(\d{4})/i) || txt.match(/T(\d{1,2})[/-](\d{4})/i);
-    if (mMatch) {
-      const m = Number(mMatch[1]);
-      const y = Number(mMatch[2]);
-      if (m >= 1 && m <= 12) extractedMonth = m;
-      if (y >= 2020 && y <= 2100) extractedYear = y;
+    let maxTableWidth = 1200;
+    for (const w of words) {
+      if (w.bbox.x1 > maxTableWidth) maxTableWidth = w.bbox.x1;
     }
 
-    // Store Name: "ĐML - 43751", "ĐMX...", "TGDD..."
-    const storeMatch = txt.match(/(ĐML\s*-\s*\d+|ĐMX\s+[A-Za-z0-9\s-]+|TGDD\s+[A-Za-z0-9\s-]+|\d{4,5}\s*-\s*[A-Za-z0-9\s]+)/i);
-    if (storeMatch && !extractedStore) {
-      extractedStore = storeMatch[1].trim();
-    }
+    // 1. Group words by Y-coordinates into clustered lines
+    const clusteredLines: ClusteredLine[] = [];
+    const sortedWords = [...words].sort((a, b) => a.bbox.y0 - b.bbox.y0);
 
-    // KPI Cards: e.g. "39 chương trình", "39 CT", "Tổng: 39"
-    const kpiMatch = txt.match(/(\d{1,3})\s*(chương\s*trình|CT\b)/i) || txt.match(/tổng\s*(?:số)?\s*[:.-]?\s*(\d{1,3})/i);
-    if (kpiMatch && !expectedTotalRows) {
-      const parsedKpiTotal = Number(kpiMatch[1]);
-      if (parsedKpiTotal > 0 && parsedKpiTotal <= 200) {
-        expectedTotalRows = parsedKpiTotal;
+    for (const word of sortedWords) {
+      const wYmid = (word.bbox.y0 + word.bbox.y1) / 2;
+      const wordH = Math.max(10, word.bbox.y1 - word.bbox.y0);
+
+      let matchedLine = clusteredLines.find(
+        (cl) => Math.abs(cl.yCenter - wYmid) < Math.max(12, wordH * 0.55)
+      );
+
+      if (!matchedLine) {
+        matchedLine = {
+          lineIndex: clusteredLines.length,
+          yMin: word.bbox.y0,
+          yMax: word.bbox.y1,
+          yCenter: wYmid,
+          words: [word],
+          text: word.text,
+        };
+        clusteredLines.push(matchedLine);
+      } else {
+        matchedLine.words.push(word);
+        matchedLine.yMin = Math.min(matchedLine.yMin, word.bbox.y0);
+        matchedLine.yMax = Math.max(matchedLine.yMax, word.bbox.y1);
+        matchedLine.yCenter = (matchedLine.yMin + matchedLine.yMax) / 2;
       }
     }
-  }
 
-  // Default fallback for target sample if detected in header context
-  if (!expectedTotalRows && clusteredLines.some((l) => l.text.includes('39'))) {
-    expectedTotalRows = 39;
-  }
+    for (const cl of clusteredLines) {
+      cl.words.sort((a, b) => a.bbox.x0 - b.bbox.x0);
+      cl.text = cl.words.map((w) => w.text).join(' ');
+    }
 
-  // 3. Detect 5-Column Boundaries
-  const cols = detect5ColumnBoundaries(clusteredLines, maxTableWidth);
+    clusteredLines.sort((a, b) => a.yMin - b.yMin);
 
-  // 4. Extract 5-Column Data Rows
-  const extractedRows: ThiDuaAiRow[] = [];
-  let headerSeen = cols.hasExplicitHeader ? false : true;
+    // 2. Extract Header Metadata & KPI Cards: "BC Thi đua · Tháng 11/2026 · Lũy kế"
+    let extractedMonth: number | null = metadataHints.monthHint || null;
+    let extractedYear: number | null = metadataHints.yearHint || null;
+    let extractedStore: string | null = metadataHints.storeNameHint || null;
+    let expectedTotalRows: number | null = metadataHints.expectedRowsHint || null;
 
-  for (const line of clusteredLines) {
-    const lineTextUpper = line.text.toUpperCase();
+    for (let i = 0; i < Math.min(8, clusteredLines.length); i++) {
+      const txt = clusteredLines[i].text;
 
-    // Check header line
-    if (!headerSeen) {
+      const mMatch = txt.match(/th[aá]ng\s*(\d{1,2})[\s·/.-]+(\d{4})/i) || txt.match(/T(\d{1,2})[/-](\d{4})/i);
+      if (mMatch) {
+        const m = Number(mMatch[1]);
+        const y = Number(mMatch[2]);
+        if (m >= 1 && m <= 12) extractedMonth = m;
+        if (y >= 2020 && y <= 2100) extractedYear = y;
+      }
+
+      const storeMatch = txt.match(/(ĐML\s*-\s*\d+|ĐMX\s+[A-Za-z0-9\s-]+|TGDD\s+[A-Za-z0-9\s-]+|\d{4,5}\s*-\s*[A-Za-z0-9\s]+)/i);
+      if (storeMatch && !extractedStore) {
+        extractedStore = storeMatch[1].trim();
+      }
+
+      const kpiMatch = txt.match(/(\d{1,3})\s*(chương\s*trình|CT\b)/i) || txt.match(/tổng\s*(?:số)?\s*[:.-]?\s*(\d{1,3})/i);
+      if (kpiMatch && !expectedTotalRows) {
+        const parsedKpiTotal = Number(kpiMatch[1]);
+        if (parsedKpiTotal > 0 && parsedKpiTotal <= 200) {
+          expectedTotalRows = parsedKpiTotal;
+        }
+      }
+    }
+
+    if (!expectedTotalRows && clusteredLines.some((l) => l.text.includes('39'))) {
+      expectedTotalRows = 39;
+    }
+
+    // 3. Detect 5-Column Boundaries
+    const cols = detect5ColumnBoundaries(clusteredLines, maxTableWidth);
+
+    // 4. Extract 5-Column Data Rows
+    const extractedRows: ThiDuaAiRow[] = [];
+    let headerSeen = cols.hasExplicitHeader ? false : true;
+
+    for (const line of clusteredLines) {
+      const lineTextUpper = line.text.toUpperCase();
+
+      if (!headerSeen) {
+        if (
+          (lineTextUpper.includes('CHƯƠNG') || lineTextUpper.includes('TRÌNH') || lineTextUpper.includes('CHUONG')) &&
+          (lineTextUpper.includes('THỰC') || lineTextUpper.includes('TARGET') || lineTextUpper.includes('HẠNG'))
+        ) {
+          headerSeen = true;
+          continue;
+        }
+      }
+
       if (
-        (lineTextUpper.includes('CHƯƠNG') || lineTextUpper.includes('TRÌNH') || lineTextUpper.includes('CHUONG')) &&
-        (lineTextUpper.includes('THỰC') || lineTextUpper.includes('TARGET') || lineTextUpper.includes('HẠNG'))
+        lineTextUpper.includes('BC THI ĐUA') ||
+        lineTextUpper.includes('LŨY KẾ') ||
+        lineTextUpper.includes('LUY KE') ||
+        (lineTextUpper.includes('ĐẠT') && lineTextUpper.includes('CẦN ĐẨY')) ||
+        lineTextUpper.includes('CHƯA ĐẠT') ||
+        lineTextUpper.includes('TRANG') ||
+        lineTextUpper.includes('TỔNG CỘNG') ||
+        lineTextUpper.includes('TONG CONG') ||
+        lineTextUpper.includes('IN NGÀY') ||
+        line.words.length < 2
       ) {
-        headerSeen = true;
         continue;
       }
-    }
 
-    // Skip summary / header / footer lines
-    if (
-      lineTextUpper.includes('BC THI ĐUA') ||
-      lineTextUpper.includes('LŨY KẾ') ||
-      lineTextUpper.includes('LUY KE') ||
-      lineTextUpper.includes('ĐẠT') && lineTextUpper.includes('CẦN ĐẨY') ||
-      lineTextUpper.includes('CHƯA ĐẠT') ||
-      lineTextUpper.includes('TRANG') ||
-      lineTextUpper.includes('TỔNG CỘNG') ||
-      lineTextUpper.includes('TONG CONG') ||
-      lineTextUpper.includes('IN NGÀY') ||
-      line.words.length < 2
-    ) {
-      continue;
-    }
+      const programWords: Word[] = [];
+      const numericWords: Array<{ word: Word; x: number; text: string }> = [];
 
-    // Separate program name words from numeric words
-    const programWords: Word[] = [];
-    const numericWords: Array<{ word: Word; x: number; text: string }> = [];
-
-    for (const w of line.words) {
-      const xMid = (w.bbox.x0 + w.bbox.x1) / 2;
-      if (xMid < cols.programColMaxX) {
-        programWords.push(w);
-      } else {
-        numericWords.push({ word: w, x: xMid, text: w.text });
-      }
-    }
-
-    const rawProgName = programWords.map((w) => w.text).join(' ').trim();
-    if (!rawProgName || rawProgName.length < 3 || /^\d+$/.test(rawProgName)) {
-      continue;
-    }
-
-    // Invariant: Check if program name is truncated by source UI with '...'
-    const { isTruncated, cleanedName } = checkProgramNameTruncated(rawProgName);
-    const finalProgramName = normalizeProgramName(cleanedName);
-
-    const uncertainFields = new Set<string>();
-    if (isTruncated) {
-      uncertainFields.add('ten_chuong_trinh');
-    }
-
-    // Sort numeric words by X position
-    numericWords.sort((a, b) => a.x - b.x);
-
-    let rawThucHien = '';
-    let rawTarget = '';
-    let rawPctDk = '';
-    let rawHang = '';
-
-    for (const nw of numericWords) {
-      const x = nw.x;
-      const cleanNum = disambiguateOcrNumberString(nw.text);
-
-      if (x >= cols.thucHienColMinX && x < cols.thucHienColMaxX) {
-        if (!rawThucHien) {
-          rawThucHien = cleanNum.cleanedText;
-          if (cleanNum.isUncertain || nw.word.confidence < 60) uncertainFields.add('thuc_hien');
-        }
-      } else if (x >= cols.targetColMinX && x < cols.targetColMaxX) {
-        if (!rawTarget) {
-          rawTarget = cleanNum.cleanedText;
-          if (cleanNum.isUncertain || nw.word.confidence < 60) uncertainFields.add('target');
-        }
-      } else if (x >= cols.pctDkColMinX && x < cols.rankColMinX) {
-        if (!rawPctDk) {
-          rawPctDk = cleanNum.cleanedText;
-          if (cleanNum.isUncertain || nw.word.confidence < 60) uncertainFields.add('ty_le_du_kien');
-        }
-      } else if (x >= cols.rankColMinX) {
-        if (!rawHang) {
-          rawHang = cleanNum.cleanedText;
-          if (cleanNum.isUncertain || nw.word.confidence < 60) uncertainFields.add('hang_cty');
+      for (const w of line.words) {
+        const xMid = (w.bbox.x0 + w.bbox.x1) / 2;
+        if (xMid < cols.programColMaxX) {
+          programWords.push(w);
+        } else {
+          numericWords.push({ word: w, x: xMid, text: w.text });
         }
       }
-    }
 
-    // Parse strictly using shared parser
-    const parsedTh = parseStrictBiNumber(rawThucHien);
-    const parsedTarget = parseStrictBiNumber(rawTarget);
-    const parsedPctDk = parseStrictBiNumber(rawPctDk, { isPercentage: true });
-    const parsedHang = parseStrictBiNumber(rawHang, { isIntegerRank: true });
-
-    // Derive Kênh (DT vs SL): large revenue numbers (>1000) default to DT, smaller numbers default to SL
-    let derivedKenh: ThiDuaKenh = 'DT';
-    const numForKenh = parsedTarget.value ?? parsedTh.value ?? 0;
-    if (numForKenh > 0 && numForKenh < 1000 && Number.isInteger(numForKenh)) {
-      derivedKenh = 'SL';
-    }
-
-    // Auto-calculate ty_le_thuc_hien from (thuc_hien / target) * 100 without confusing with ty_le_du_kien
-    let computedPctTh: number | null = null;
-    if (parsedTh.value !== null && parsedTarget.value !== null && parsedTarget.value > 0) {
-      computedPctTh = Math.round((parsedTh.value / parsedTarget.value) * 1000) / 10;
-    }
-
-    const validatedRow = validateThiDuaRow(
-      {
-        id: createRowId(extractedRows.length, pageIndex),
-        ten_chuong_trinh: finalProgramName,
-        kenh: derivedKenh,
-        thuc_hien: parsedTh.value,
-        target: parsedTarget.value,
-        ty_le_thuc_hien: computedPctTh,
-        ty_le_du_kien: parsedPctDk.value,
-        hang_cty: parsedHang.value,
-        uncertain_fields: Array.from(uncertainFields),
-        sourcePageIndex: pageIndex,
-        note: isTruncated ? 'Tên chương trình bị rút gọn bởi giao diện nguồn (...)' : undefined,
-      },
-      extractedRows.length,
-      pageIndex,
-      {
-        invalidThucHien: parsedTh.invalidToken,
-        invalidTarget: parsedTarget.invalidToken,
-        invalidTyLeDuKien: parsedPctDk.invalidToken,
-        invalidHangCty: parsedHang.invalidToken,
+      const rawProgName = programWords.map((w) => w.text).join(' ').trim();
+      if (!rawProgName || rawProgName.length < 3 || /^\d+$/.test(rawProgName)) {
+        continue;
       }
-    );
 
-    extractedRows.push(validatedRow);
-  }
+      const { isTruncated, cleanedName } = checkProgramNameTruncated(rawProgName);
+      const finalProgramName = normalizeProgramName(cleanedName);
 
-  const quality: 'GOOD' | 'BLURRY' | 'PARTIAL' =
-    extractedRows.length >= 20 ? 'GOOD' : extractedRows.length >= 5 ? 'PARTIAL' : 'BLURRY';
+      const uncertainFields = new Set<string>();
+      if (isTruncated) {
+        uncertainFields.add('ten_chuong_trinh');
+      }
 
-  const warnings: string[] = [];
-  if (extractedRows.length === 0) {
-    warnings.push('Chưa nhận diện được dòng chương trình nào. Ảnh có thể bị nghiêng hoặc mờ.');
-  } else if (expectedTotalRows && extractedRows.length !== expectedTotalRows) {
-    warnings.push(
-      `Báo cáo BI ghi nhận ${expectedTotalRows} chương trình, nhưng OCR trích xuất được ${extractedRows.length} dòng. Vui lòng rà soát danh sách trước khi lưu.`
+      numericWords.sort((a, b) => a.x - b.x);
+
+      let rawThucHien = '';
+      let rawTarget = '';
+      let rawPctDk = '';
+      let rawHang = '';
+
+      for (const nw of numericWords) {
+        const x = nw.x;
+        const cleanNum = disambiguateOcrNumberString(nw.text);
+
+        if (x >= cols.thucHienColMinX && x < cols.thucHienColMaxX) {
+          if (!rawThucHien) {
+            rawThucHien = cleanNum.cleanedText;
+            if (cleanNum.isUncertain || nw.word.confidence < 60) uncertainFields.add('thuc_hien');
+          }
+        } else if (x >= cols.targetColMinX && x < cols.targetColMaxX) {
+          if (!rawTarget) {
+            rawTarget = cleanNum.cleanedText;
+            if (cleanNum.isUncertain || nw.word.confidence < 60) uncertainFields.add('target');
+          }
+        } else if (x >= cols.pctDkColMinX && x < cols.rankColMinX) {
+          if (!rawPctDk) {
+            rawPctDk = cleanNum.cleanedText;
+            if (cleanNum.isUncertain || nw.word.confidence < 60) uncertainFields.add('ty_le_du_kien');
+          }
+        } else if (x >= cols.rankColMinX) {
+          if (!rawHang) {
+            rawHang = cleanNum.cleanedText;
+            if (cleanNum.isUncertain || nw.word.confidence < 60) uncertainFields.add('hang_cty');
+          }
+        }
+      }
+
+      const parsedTh = parseStrictBiNumber(rawThucHien);
+      const parsedTarget = parseStrictBiNumber(rawTarget);
+      const parsedPctDk = parseStrictBiNumber(rawPctDk, { isPercentage: true });
+      const parsedHang = parseStrictBiNumber(rawHang, { isIntegerRank: true });
+
+      let derivedKenh: ThiDuaKenh = 'DT';
+      const numForKenh = parsedTarget.value ?? parsedTh.value ?? 0;
+      if (numForKenh > 0 && numForKenh < 1000 && Number.isInteger(numForKenh)) {
+        derivedKenh = 'SL';
+      }
+
+      let computedPctTh: number | null = null;
+      if (parsedTh.value !== null && parsedTarget.value !== null && parsedTarget.value > 0) {
+        computedPctTh = Math.round((parsedTh.value / parsedTarget.value) * 1000) / 10;
+      }
+
+      const validatedRow = validateThiDuaRow(
+        {
+          id: createRowId(extractedRows.length, pageIndex),
+          ten_chuong_trinh: finalProgramName,
+          kenh: derivedKenh,
+          thuc_hien: parsedTh.value,
+          target: parsedTarget.value,
+          ty_le_thuc_hien: computedPctTh,
+          ty_le_du_kien: parsedPctDk.value,
+          hang_cty: parsedHang.value,
+          uncertain_fields: Array.from(uncertainFields),
+          sourcePageIndex: pageIndex,
+          note: isTruncated ? 'Tên chương trình bị rút gọn bởi giao diện nguồn (...)' : undefined,
+        },
+        extractedRows.length,
+        pageIndex,
+        {
+          invalidThucHien: parsedTh.invalidToken,
+          invalidTarget: parsedTarget.invalidToken,
+          invalidTyLeDuKien: parsedPctDk.invalidToken,
+          invalidHangCty: parsedHang.invalidToken,
+        }
+      );
+
+      extractedRows.push(validatedRow);
+    }
+
+    const quality: 'GOOD' | 'BLURRY' | 'PARTIAL' =
+      extractedRows.length >= 20 ? 'GOOD' : extractedRows.length >= 5 ? 'PARTIAL' : 'BLURRY';
+
+    const warnings: string[] = [];
+    if (extractedRows.length === 0) {
+      warnings.push('Chưa nhận diện được dòng chương trình nào. Ảnh có thể bị nghiêng hoặc mờ.');
+    } else if (expectedTotalRows && extractedRows.length !== expectedTotalRows) {
+      warnings.push(
+        `Báo cáo BI ghi nhận ${expectedTotalRows} chương trình, nhưng OCR trích xuất được ${extractedRows.length} dòng. Vui lòng rà soát danh sách trước khi lưu.`
+      );
+    }
+
+    return {
+      report_type: 'THI_DUA_LUY_KE',
+      month: extractedMonth,
+      year: extractedYear,
+      store_name: extractedStore,
+      expected_total_rows: expectedTotalRows,
+      image_quality: quality,
+      quality_warnings: warnings,
+      rows: extractedRows,
+    };
+  } catch (err: any) {
+    console.error('[AutoOCR Technical Trace]', { step: 'reconstruct_table', error: err });
+    throw new OcrEngineError(
+      `Lỗi trích xuất cấu trúc bảng BI: ${err?.message || err}`,
+      'OCR_PROCESSING_FAILED'
     );
   }
-
-  return {
-    report_type: 'THI_DUA_LUY_KE',
-    month: extractedMonth,
-    year: extractedYear,
-    store_name: extractedStore,
-    expected_total_rows: expectedTotalRows,
-    image_quality: quality,
-    quality_warnings: warnings,
-    rows: extractedRows,
-  };
 }
 
 // ==========================================
-// 5. MULTI-IMAGE AUTO OCR PIPELINE
+// 7. MULTI-IMAGE AUTO OCR PIPELINE
 // ==========================================
 
 export interface AutoOcrResult {
@@ -847,7 +997,7 @@ export interface AutoOcrResult {
  * Runs the end-to-end Auto-OCR pipeline on one or more images:
  * - Safely decodes any image source (File, Blob, object with previewUrl).
  * - Preprocesses each canvas.
- * - Executes Tesseract WebAssembly worker.
+ * - Executes Tesseract WebAssembly worker (100% same-origin).
  * - Extracts 5-column BI table.
  * - Reconciles total count against BI header summary (39 CT).
  * - Merges multiple pages cleanly.
@@ -881,19 +1031,20 @@ export async function runAutoOcrOnImages(
       `Đang nạp & tiền xử lý trang ${i + 1}/${images.length} (${fileName})...`
     );
 
-    // 1. Safe Image Decoding via Canvas
     let decodedCanvas: HTMLCanvasElement;
     try {
       decodedCanvas = await decodeImageToCanvas(item, fileName);
     } catch (decodeErr: any) {
       console.error('[AutoOCR Technical Trace]', { step: 'decode_image', error: decodeErr, fileName });
-      throw new Error(decodeErr?.message || `Không thể nạp ảnh ${fileName}.`);
+      if (decodeErr instanceof OcrEngineError) throw decodeErr;
+      throw new OcrEngineError(
+        decodeErr?.message || `Không thể nạp ảnh ${fileName}.`,
+        'OCR_IMAGE_DECODE_FAILED'
+      );
     }
 
-    // 2. Preprocess Canvas for High OCR Contrast
     const processedCanvas = preprocessImageForOcr(decodedCanvas);
 
-    // 3. Run OCR on processed canvas
     onProgress?.(
       Math.round((i / images.length) * 80) + 20,
       `Đang quét nhận diện chữ & số trang ${i + 1}/${images.length}...`
@@ -904,20 +1055,20 @@ export async function runAutoOcrOnImages(
       ocrResult = await worker.recognize(processedCanvas);
     } catch (recErr: any) {
       console.error('[AutoOCR Technical Trace]', { step: 'worker_recognize', error: recErr, fileName });
-      throw new Error(`Lỗi quét nhận diện ký tự trang ${i + 1}: ${recErr?.message || recErr}`);
+      throw new OcrEngineError(
+        `Lỗi quét nhận diện ký tự trang ${i + 1}: ${recErr?.message || recErr}`,
+        'OCR_PROCESSING_FAILED'
+      );
     }
 
-    // 4. Reconstruct 5-Column Table
     const pageReport = reconstructTableFromOcrPage(ocrResult.data, i + 1, metadataHints);
     pageReports.push(pageReport);
   }
 
   onProgress?.(95, 'Đang tổng hợp & đối chiếu bảng số liệu 5 cột...');
 
-  // 5. Merge multiple pages and deduplicate rows
   const { merged, duplicatesMerged, duplicatePrograms } = mergeMultiPageReports(pageReports);
 
-  // Compute confidence summary
   let validCount = 0;
   let uncertainCount = 0;
   let errorCount = 0;

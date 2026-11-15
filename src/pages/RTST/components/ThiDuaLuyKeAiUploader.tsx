@@ -402,7 +402,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
     } catch (err: any) {
       console.error('[ThiDuaAutoOcr Technical Trace]', err);
       setStatus('error');
-      setErrorCode(String(err?.errorCode || 'OCR_ERROR'));
+      setErrorCode(String(err?.code || err?.errorCode || 'OCR_ERROR'));
       setErrorMsg(err?.message || 'Lỗi khi tự động nhận diện ảnh bằng OCR.');
       setProgressText('');
     }
@@ -1061,12 +1061,42 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                   <AlertCircle size={14} className="shrink-0 mt-0.5 text-rose-600" />
                   <div className="space-y-1">
                     <div>{errorMsg}</div>
+                    {errorCode === 'OCR_WORKER_LOAD_FAILED' && (
+                      <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1 space-y-0.5">
+                        <div><strong>Lỗi khởi chạy OCR Worker:</strong> Không thể tải file <code>/ocr/worker.min.js</code> từ server. Vui lòng bấm <strong>Thử lại OCR</strong>.</div>
+                      </div>
+                    )}
+                    {errorCode === 'OCR_CORE_LOAD_FAILED' && (
+                      <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1 space-y-0.5">
+                        <div><strong>Lỗi tải lõi Tesseract Core:</strong> Không thể tải script lõi tại <code>/ocr/core/</code>. Vui lòng kiểm tra kết nối mạng và bấm <strong>Thử lại OCR</strong>.</div>
+                      </div>
+                    )}
+                    {errorCode === 'OCR_WASM_LOAD_FAILED' && (
+                      <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1 space-y-0.5">
+                        <div><strong>Lỗi khởi tạo WebAssembly:</strong> Trình duyệt hoặc server gặp lỗi khi nạp <code>/ocr/core/*.wasm</code>. Vui lòng thử lại.</div>
+                      </div>
+                    )}
+                    {errorCode === 'OCR_TRAINEDDATA_LOAD_FAILED' && (
+                      <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1 space-y-0.5">
+                        <div><strong>Lỗi từ điển ngôn ngữ:</strong> Không thể tải dữ liệu từ điển <code>/ocr/lang/vie.traineddata.gz</code> hoặc <code>eng.traineddata.gz</code>. Vui lòng bấm <strong>Thử lại OCR</strong>.</div>
+                      </div>
+                    )}
+                    {errorCode === 'OCR_IMAGE_DECODE_FAILED' && (
+                      <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1 space-y-0.5">
+                        <div><strong>Lỗi giải mã ảnh:</strong> Định dạng ảnh không tương thích hoặc file bị hỏng. Vui lòng kiểm tra file ảnh chụp PNG/JPG.</div>
+                      </div>
+                    )}
+                    {errorCode === 'OCR_PROCESSING_FAILED' && (
+                      <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1 space-y-0.5">
+                        <div><strong>Lỗi xử lý bảng dữ liệu:</strong> Quá trình quét ký tự hoặc phân tích cấu trúc cột gặp sự cố. Bấm <strong>Thử lại OCR</strong> hoặc bấm <strong>Dùng AI nâng cao (Dự phòng)</strong>.</div>
+                      </div>
+                    )}
                     {errorCode === 'OCR_ERROR' && (
                       <div className="text-[10.5px] font-medium text-rose-700 bg-white/80 rounded border border-rose-200 px-2 py-1 space-y-0.5">
                         <div>Ảnh chụp có thể chưa rõ hoặc bị nghiêng. Bạn có thể:</div>
                         <ul className="list-disc pl-4 space-y-0.5 text-[10px] text-slate-700">
-                          <li>Kiểm tra lại ảnh chụp bảng báo cáo BI (đủ các cột Tên CT, Kênh, Thực hiện, Target...).</li>
-                          <li>Bấm <strong>Đọc lại OCR</strong> hoặc bấm <strong>Dùng AI nâng cao (Dự phòng)</strong> để Cloudflare Gemini API phân tích thay thế.</li>
+                          <li>Kiểm tra lại ảnh chụp bảng báo cáo BI (đủ các cột Chương trình, Thực hiện, Target...).</li>
+                          <li>Bấm <strong>Thử lại OCR</strong> hoặc bấm <strong>Dùng AI nâng cao (Dự phòng)</strong>.</li>
                         </ul>
                       </div>
                     )}
