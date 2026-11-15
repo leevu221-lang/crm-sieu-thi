@@ -955,6 +955,122 @@ export function serializeThiDuaRowsToBiText(
 }
 
 /**
+ * Merges updated/valid ThiDua rows into existing BI text without deleting any unrelated existing programs!
+ * - When replaceMode is true or existingBiText is empty: returns serializeThiDuaRowsToBiText(newRows, options).
+ * - When replaceMode is false: updates matching programs (by name + channel), appends new ones, and keeps all other existing programs intact.
+ */
+export function mergeThiDuaRowsWithBiText(
+  existingBiText: string,
+  newRows: ThiDuaAiRow[],
+  options: {
+    storeLabel: string;
+    month?: number | null;
+    year?: number | null;
+    updatedAt?: Date;
+    replaceMode?: boolean;
+  }
+): string {
+  if (options.replaceMode || !existingBiText || !existingBiText.trim()) {
+    return serializeThiDuaRowsToBiText(newRows, options);
+  }
+
+  const rawLines = existingBiText.split('\n');
+  const storeLabel = (options.storeLabel || 'ĐML - SIÊU THỊ').trim();
+  const now = options.updatedAt || new Date();
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const yyyy = now.getFullYear();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const min = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  const periodStr =
+    options.month && options.year
+      ? `${String(options.month).padStart(2, '0')}/${options.year}`
+      : `${mm}/${yyyy}`;
+
+  // Parse existing program blocks
+  const programBlocks: Array<{
+    key: string;
+    progName: string;
+    headerLine: string;
+    dataLine: string;
+  }> = [];
+
+  for (let i = 0; i < rawLines.length; i++) {
+    const l = rawLines[i].trim();
+    if (!l) continue;
+    if (l.startsWith('Cập nhật lúc:')) {
+      continue;
+    }
+    const cols = l.split('\t');
+    const upperL = l.toUpperCase();
+    const isProgHeader =
+      cols.length >= 2 &&
+      (upperL.includes('TARGET') ||
+        upperL.includes('DTLK') ||
+        upperL.includes('SLLK') ||
+        upperL.includes('HẠNG CTY'));
+
+    if (isProgHeader && i + 1 < rawLines.length) {
+      const progName = cols[0].trim();
+      const dataLine = rawLines[i + 1].trim();
+      programBlocks.push({
+        key: normalizeProgramKey(progName),
+        progName,
+        headerLine: l,
+        dataLine,
+      });
+      i++; // skip dataLine
+    }
+  }
+
+  // Update or append newRows (only valid rows)
+  const validRows = newRows.filter(
+    (r) => r.ten_chuong_trinh && (!r.errors || r.errors.length === 0)
+  );
+
+  for (const row of validRows) {
+    const key = normalizeProgramKey(row.ten_chuong_trinh);
+    const metricCol = row.kenh === 'SL' ? 'SLLK' : 'DTLK';
+    const pctForParser = row.ty_le_du_kien ?? row.ty_le_thuc_hien ?? 0;
+    const pctThStr =
+      row.ty_le_thuc_hien !== null ? formatPlainBiPercent(row.ty_le_thuc_hien) : '-';
+    const rankStr =
+      row.hang_cty !== null && row.hang_cty !== undefined ? String(row.hang_cty) : '-';
+
+    const newHeader = `${normalizeProgramName(row.ten_chuong_trinh)}\t${metricCol}\tTARGET\t%HT\t%TH\tHẠNG CTY`;
+    const newData = `${storeLabel}\t${formatPlainBiNumber(row.thuc_hien)}\t${formatPlainBiNumber(
+      row.target
+    )}\t${formatPlainBiPercent(pctForParser)}\t${pctThStr}\t${rankStr}`;
+
+    const existingBlock = programBlocks.find((b) => b.key === key);
+    if (existingBlock) {
+      existingBlock.headerLine = newHeader;
+      existingBlock.dataLine = newData;
+      existingBlock.progName = row.ten_chuong_trinh;
+    } else {
+      programBlocks.push({
+        key,
+        progName: row.ten_chuong_trinh,
+        headerLine: newHeader,
+        dataLine: newData,
+      });
+    }
+  }
+
+  const outLines = [
+    `Cập nhật lúc: ${hh}:${min}:${ss} ${dd}/${mm}/${yyyy}\tNGUỒN: AI_VISION_BI\tKỲ: ${periodStr}`,
+  ];
+
+  for (const block of programBlocks) {
+    outLines.push(block.headerLine);
+    outLines.push(block.dataLine);
+  }
+
+  return outLines.join('\n');
+}
+
+/**
  * Computes a compact deterministic hash over normalized period + sorted rows
  * to warn Admins if they re-upload the exact same BI report.
  */

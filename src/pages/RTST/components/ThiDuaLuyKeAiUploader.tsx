@@ -2,12 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
+  Bookmark,
   Check,
   CheckCircle2,
   Clock,
   Cpu,
   Eye,
   FileSpreadsheet,
+  FileText,
   History,
   ImagePlus,
   Layers,
@@ -30,6 +32,7 @@ import {
   computeThiDuaReportHash,
   mergeMultiPageReports,
   serializeThiDuaRowsToBiText,
+  mergeThiDuaRowsWithBiText,
   type ThiDuaAiReportResult,
   type ThiDuaLkMeta,
   type ThiDuaLkUpdateHistoryEntry,
@@ -39,6 +42,14 @@ import {
   terminateSharedOcrWorker,
   resetOcrWorker,
 } from '../../../utils/thiDuaOcrEngine';
+import {
+  saveThiDuaDraft,
+  loadThiDuaDraft,
+  clearThiDuaDraft,
+  hasActiveDraft,
+  convertDraftToAiReport,
+  type ThiDuaDraftRecord,
+} from '../../../utils/thiDuaDraftStorage';
 import { ThiDuaLuyKeAiReviewModal } from './ThiDuaLuyKeAiReviewModal';
 
 interface SelectedImageItem {
@@ -188,6 +199,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
   const [copiedDebug, setCopiedDebug] = useState<boolean>(false);
 
   const [analyzedReport, setAnalyzedReport] = useState<ThiDuaAiReportResult | null>(null);
+  const [activeDraft, setActiveDraft] = useState<ThiDuaDraftRecord | null>(null);
   const [pageCountAnalyzed, setPageCountAnalyzed] = useState<number>(0);
   const [duplicatesMerged, setDuplicatesMerged] = useState<number>(0);
   const [duplicateProgramsOnMerge, setDuplicateProgramsOnMerge] = useState<string[]>([]);
@@ -336,6 +348,47 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
     return { year: now.getFullYear(), month: now.getMonth() + 1 };
   }, [selectedMonth]);
 
+  // Check for active uncommitted draft on mount or when store / period changes
+  useEffect(() => {
+    let isMounted = true;
+    const storeKey = resolvedStoreLabel || activeStore;
+    loadThiDuaDraft(storeKey, monthYearHints.month, monthYearHints.year).then((draft) => {
+      if (!isMounted) return;
+      if (draft && !draft.isCommitted && draft.rows.length > 0) {
+        setActiveDraft(draft);
+      } else {
+        setActiveDraft(null);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [resolvedStoreLabel, activeStore, monthYearHints.month, monthYearHints.year]);
+
+  const handleRestoreDraft = () => {
+    if (!activeDraft) return;
+    const report = convertDraftToAiReport(activeDraft);
+    setAnalyzedReport(report);
+    setPageCountAnalyzed(activeDraft.pageCount || 1);
+    setDuplicatesMerged(activeDraft.duplicatesMerged || 0);
+    setDuplicateProgramsOnMerge(activeDraft.duplicatePrograms || []);
+    setModelUsed(activeDraft.modelUsed || 'Bản nháp đã lưu');
+    setStatus('completed');
+    setIsReviewOpen(true);
+    showNotification(
+      `Đã khôi phục bản nháp OCR thành công (${activeDraft.rows.length} chương trình)!`,
+      'success'
+    );
+  };
+
+  const handleDismissDraft = async () => {
+    if (!activeDraft) return;
+    const storeKey = resolvedStoreLabel || activeStore;
+    await clearThiDuaDraft(storeKey, activeDraft.month, activeDraft.year);
+    setActiveDraft(null);
+    showNotification('Đã xóa bản nháp OCR.', 'info');
+  };
+
   /**
    * Tự động nhận diện dữ liệu bằng OCR Engine (Tesseract.js / WebAssembly) chạy trực tiếp trên Client
    * Không bắt buộc có GEMINI_API_KEY hay gọi backend trong quy trình thông thường
@@ -406,6 +459,29 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
       setProgressText(
         `Đã đọc tự động ${rows.length} chương trình từ ${targetImages.length} trang. Hãy bấm "KIỂM TRA VÀ XÁC NHẬN LƯU" để rà soát!`
       );
+
+      // Auto-save draft immediately upon OCR completion to guarantee multi-tier persistence
+      try {
+        const storeDocId = normalizeStoreId(resolvedStoreLabel);
+        saveThiDuaDraft({
+          storeId: storeDocId,
+          storeLabel: resolvedStoreLabel,
+          month: ocrResult.report.month || monthYearHints.month,
+          year: ocrResult.report.year || monthYearHints.year,
+          expected_total_rows: ocrResult.report.expected_total_rows,
+          rows: ocrResult.report.rows,
+          modelUsed: 'Auto-OCR WebAssembly (Client Engine)',
+          pageCount: targetImages.length,
+          duplicatesMerged: ocrResult.duplicatesMerged,
+          duplicatePrograms: ocrResult.duplicatePrograms,
+          savedBy: userProfile?.username || 'ADMIN',
+          isCommitted: false,
+        }).then((saved) => {
+          setActiveDraft(saved);
+        });
+      } catch (e) {
+        console.warn('[ThiDuaAutoOcr] Initial auto-save draft warning:', e);
+      }
     } catch (err: any) {
       console.error('[ThiDuaAutoOcr Technical Trace]', err);
       setStatus('error');
@@ -611,6 +687,30 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
       setProgressText(
         `Hoàn thành nhận diện ${merged.rows.length} chương trình. Chờ Admin xác nhận.`
       );
+
+      // Auto-save draft immediately upon AI completion to guarantee multi-tier persistence
+      try {
+        const storeDocId = normalizeStoreId(resolvedStoreLabel);
+        saveThiDuaDraft({
+          storeId: storeDocId,
+          storeLabel: resolvedStoreLabel,
+          month: merged.month || monthYearHints.month,
+          year: merged.year || monthYearHints.year,
+          expected_total_rows: merged.expected_total_rows,
+          rows: merged.rows,
+          modelUsed: latestModel,
+          pageCount: images.length,
+          duplicatesMerged: mergedCount,
+          duplicatePrograms,
+          savedBy: userProfile?.username || 'ADMIN',
+          isCommitted: false,
+        }).then((saved) => {
+          setActiveDraft(saved);
+        });
+      } catch (e) {
+        console.warn('[ThiDuaAi] Initial auto-save draft warning:', e);
+      }
+
       setIsReviewOpen(true);
     } catch (err: any) {
       setStatus('error');
@@ -721,9 +821,12 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
             ten_sieu_thi: targetStoreLabel,
             lk_nh_meta: nextMeta,
           });
+          // Clear active draft since full report is committed to official DB
+          await clearThiDuaDraft(storeDocId, finalReport.month, finalReport.year);
         }
       }
 
+      setActiveDraft(null);
       setIsReviewOpen(false);
       setAnalyzedReport(null);
       handleClearImages();
@@ -735,6 +838,184 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
       showNotification(err?.message || 'Lỗi khi lưu dữ liệu Luỹ kế thi đua.', 'error');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSaveValidOnly = async (
+    validReport: ThiDuaAiReportResult,
+    metaInfo: {
+      adminConfirmedWarnings: boolean;
+      duplicatesMerged: number;
+      pageCount: number;
+    }
+  ) => {
+    if (!hasUpdatePermission) {
+      showNotification('Tài khoản không có quyền lưu dữ liệu.', 'error');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const now = new Date();
+      const targetStoreLabel =
+        validReport.store_name && isValidStoreName(validReport.store_name) && activeStore === 'ALL'
+          ? validReport.store_name
+          : resolvedStoreLabel;
+
+      const validRows = validReport.rows.filter((r) => !r.errors || r.errors.length === 0);
+      const remainingErrorRows = validReport.rows.filter((r) => r.errors && r.errors.length > 0);
+
+      if (validRows.length === 0) {
+        showNotification('Không có dòng hợp lệ nào để lưu.', 'warning');
+        return;
+      }
+
+      // Merge ONLY valid rows with existing currentValue so existing 286 rows are 100% preserved!
+      const updatedBiText = mergeThiDuaRowsWithBiText(currentValue, validRows, {
+        storeLabel: targetStoreLabel,
+        month: validReport.month,
+        year: validReport.year,
+        updatedAt: now,
+        replaceMode: false,
+      });
+
+      try {
+        localStorage.removeItem('crm_field_cleared_rt_catlk');
+      } catch {}
+
+      onApplyBiText(updatedBiText);
+      await new Promise((resolve) => setTimeout(resolve, 140));
+      await onTriggerSavePipeline();
+
+      // Persist lightweight metadata
+      const mm = validReport.month
+        ? String(validReport.month).padStart(2, '0')
+        : String(now.getMonth() + 1).padStart(2, '0');
+      const yyyy = validReport.year || now.getFullYear();
+      const period = `${mm}/${yyyy}`;
+      const reportHash = computeThiDuaReportHash({
+        month: validReport.month,
+        year: validReport.year,
+        rows: validRows,
+      });
+
+      const newHistoryEntry: ThiDuaLkUpdateHistoryEntry = {
+        updatedAt: now.toISOString(),
+        updatedBy: userProfile?.username || 'ADMIN',
+        source: 'AI_VISION_BI (DÒNG HỢP LỆ)',
+        period,
+        rowCount: validRows.length,
+        expectedRowCount: validReport.expected_total_rows,
+        reportHash,
+      };
+
+      const nextHistory = [newHistoryEntry, ...(savedMeta?.history || [])].slice(0, 10);
+      const nextMeta: ThiDuaLkMeta = {
+        lastUpdatedAt: now.toISOString(),
+        lastUpdatedBy: userProfile?.username || 'ADMIN',
+        source: 'AI_VISION_BI',
+        period,
+        month: validReport.month,
+        year: validReport.year,
+        rowCount: validRows.length,
+        expectedRowCount: validReport.expected_total_rows,
+        reportHash,
+        pageCount: metaInfo.pageCount,
+        duplicatesMerged: metaInfo.duplicatesMerged,
+        uncertainConfirmed: metaInfo.adminConfirmedWarnings,
+        rowsSnapshot: validRows.map((r) => ({
+          ten_chuong_trinh: r.ten_chuong_trinh,
+          kenh: r.kenh || 'DT',
+          thuc_hien: r.thuc_hien ?? 0,
+          target: r.target ?? 0,
+          ty_le_thuc_hien: r.ty_le_thuc_hien,
+          ty_le_du_kien: r.ty_le_du_kien,
+          hang_cty: r.hang_cty,
+        })),
+        history: nextHistory,
+      };
+
+      setSavedMeta(nextMeta);
+      try {
+        localStorage.setItem(metaStorageKey, JSON.stringify(nextMeta));
+      } catch {}
+
+      const storeDocId = normalizeStoreId(targetStoreLabel);
+      if (storeDocId && storeDocId !== 'ALL') {
+        await supabase.from('store').upsert({
+          id: storeDocId,
+          warehouse_code: effectiveMaKho === 'GLOBAL' ? '' : effectiveMaKho,
+          ten_sieu_thi: targetStoreLabel,
+          lk_nh_meta: nextMeta,
+        });
+      }
+
+      // Update draft: keep all rows (including remaining error rows) so user can continue later!
+      const updatedDraft = await saveThiDuaDraft({
+        draftId: activeDraft?.draftId,
+        storeId: storeDocId,
+        storeLabel: targetStoreLabel,
+        month: validReport.month,
+        year: validReport.year,
+        expected_total_rows: validReport.expected_total_rows,
+        rows: validReport.rows,
+        modelUsed,
+        pageCount: pageCountAnalyzed,
+        duplicatesMerged,
+        duplicatePrograms: duplicateProgramsOnMerge,
+        adminConfirmedWarnings: metaInfo.adminConfirmedWarnings,
+        savedBy: userProfile?.username || 'ADMIN',
+        isCommitted: remainingErrorRows.length === 0,
+      });
+      setActiveDraft(updatedDraft);
+
+      showNotification(
+        `Đã lưu thành công ${validRows.length} dòng hợp lệ vào LUỸ KẾ THI ĐUA! ${
+          remainingErrorRows.length > 0
+            ? `Còn ${remainingErrorRows.length} dòng lỗi được giữ lại trong bản nháp để tiếp tục hoàn thiện.`
+            : ''
+        }`,
+        'success'
+      );
+    } catch (err: any) {
+      showNotification(err?.message || 'Lỗi khi lưu các dòng hợp lệ.', 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveDraftManual = async (
+    report: ThiDuaAiReportResult,
+    isManual = false
+  ) => {
+    try {
+      const storeDocId = normalizeStoreId(report.store_name || resolvedStoreLabel);
+      const saved = await saveThiDuaDraft({
+        draftId: activeDraft?.draftId,
+        storeId: storeDocId,
+        storeLabel: report.store_name || resolvedStoreLabel,
+        month: report.month,
+        year: report.year,
+        expected_total_rows: report.expected_total_rows,
+        rows: report.rows,
+        modelUsed,
+        pageCount: pageCountAnalyzed,
+        duplicatesMerged,
+        duplicatePrograms: duplicateProgramsOnMerge,
+        savedBy: userProfile?.username || 'ADMIN',
+        isCommitted: false,
+      });
+      setActiveDraft(saved);
+      if (isManual) {
+        showNotification(
+          `Đã lưu bản nháp thành công (${report.rows.length} chương trình, ${saved.validRowsCount} hợp lệ, ${saved.errorRowsCount} lỗi)!`,
+          'success'
+        );
+      }
+    } catch (err: any) {
+      if (isManual) {
+        showNotification(err?.message || 'Lỗi khi lưu bản nháp.', 'error');
+      }
     }
   };
 
@@ -855,6 +1136,57 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
                 <RotateCcw size={10} className={aiStatusState.loading ? 'animate-spin' : ''} />
                 <span>Kiểm tra lại</span>
               </button>
+            </div>
+          )}
+
+          {/* Active Draft Recovery Banner */}
+          {activeDraft && !activeDraft.isCommitted && !analyzedReport && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50/95 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-sm">
+              <div className="flex items-start gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5 border border-amber-300">
+                  <Bookmark size={16} />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-amber-950 flex flex-wrap items-center gap-1.5">
+                    <span>TÌM THẤY BẢN NHÁP OCR CHƯA LƯU</span>
+                    <span className="px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 text-[10px] font-extrabold">
+                      {activeDraft.totalRows} chương trình
+                    </span>
+                    <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[10px] font-extrabold border border-emerald-300">
+                      {activeDraft.validRowsCount} hợp lệ
+                    </span>
+                    {activeDraft.errorRowsCount > 0 && (
+                      <span className="px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 text-[10px] font-extrabold border border-rose-200">
+                        {activeDraft.errorRowsCount} cần sửa
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-amber-800 mt-0.5">
+                    Lưu lúc <strong>{new Date(activeDraft.savedAt).toLocaleString('vi-VN')}</strong> • Cơ sở: <strong>{activeDraft.storeLabel}</strong> • Kỳ: <strong>{activeDraft.month ? `${activeDraft.month}/${activeDraft.year}` : 'Hiện tại'}</strong>.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <button
+                  type="button"
+                  onClick={handleRestoreDraft}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white text-xs font-extrabold shadow-sm transition-all"
+                  title="Mở lại bản nháp để tiếp tục kiểm tra và xác nhận lưu"
+                >
+                  <RotateCcw size={12} />
+                  <span>Khôi phục bản nháp</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDismissDraft}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-300 bg-white hover:bg-amber-100 text-amber-900 text-xs font-semibold transition-all"
+                  title="Xóa bản nháp này"
+                >
+                  <Trash2 size={12} />
+                  <span>Xóa nháp</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -1495,6 +1827,7 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
         onClose={() => setIsReviewOpen(false)}
         initialReport={analyzedReport}
         storeLabel={resolvedStoreLabel}
+        storeId={normalizeStoreId(resolvedStoreLabel)}
         pageCount={pageCountAnalyzed}
         duplicatesMerged={duplicatesMerged}
         duplicateProgramsOnMerge={duplicateProgramsOnMerge}
@@ -1503,6 +1836,8 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
         hasUpdatePermission={hasUpdatePermission}
         isSaving={isSaving}
         onConfirmSave={handleConfirmAndSave}
+        onSaveValidOnly={handleSaveValidOnly}
+        onSaveDraft={handleSaveDraftManual}
       />
     </div>
   );

@@ -1,7 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Bookmark,
   CheckCircle2,
+  FileText,
   FileWarning,
   Lock,
   Plus,
@@ -25,12 +27,14 @@ import {
   type ThiDuaKenh,
   type ThiDuaLkMeta,
 } from '../../../utils/thiDuaAiParser';
+import { saveThiDuaDraft } from '../../../utils/thiDuaDraftStorage';
 
 interface ThiDuaLuyKeAiReviewModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialReport: ThiDuaAiReportResult | null;
   storeLabel: string;
+  storeId?: string;
   pageCount: number;
   duplicatesMerged: number;
   duplicateProgramsOnMerge: string[];
@@ -46,6 +50,18 @@ interface ThiDuaLuyKeAiReviewModalProps {
       pageCount: number;
     }
   ) => Promise<void>;
+  onSaveValidOnly?: (
+    validReport: ThiDuaAiReportResult,
+    metaInfo: {
+      adminConfirmedWarnings: boolean;
+      duplicatesMerged: number;
+      pageCount: number;
+    }
+  ) => Promise<void>;
+  onSaveDraft?: (
+    report: ThiDuaAiReportResult,
+    isManual?: boolean
+  ) => Promise<void>;
 }
 
 type FilterMode = 'ALL' | 'ISSUES' | 'UNCERTAIN' | 'MISSING' | 'UNDER_100' | 'OVER_100';
@@ -60,6 +76,7 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
   onClose,
   initialReport,
   storeLabel,
+  storeId,
   pageCount,
   duplicatesMerged,
   duplicateProgramsOnMerge,
@@ -68,6 +85,8 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
   hasUpdatePermission,
   isSaving,
   onConfirmSave,
+  onSaveValidOnly,
+  onSaveDraft,
 }) => {
   const [rows, setRows] = useState<ThiDuaAiRow[]>([]);
   const [month, setMonth] = useState<number | null>(null);
@@ -80,6 +99,9 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
   const [recheckBanner, setRecheckBanner] = useState<{ type: 'ok' | 'warn'; text: string } | null>(
     null
   );
+  const [draftStatus, setDraftStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('saved');
+  const [draftSavedAt, setDraftSavedAt] = useState<string>('');
+  const autoSaveTimerRef = useRef<any>(null);
 
   useEffect(() => {
     if (!isOpen || !initialReport) return;
@@ -96,6 +118,8 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
     setSearchQuery('');
     setAdminConfirmedWarnings(false);
     setRecheckBanner(null);
+    setDraftStatus('saved');
+    setDraftSavedAt(new Date().toLocaleTimeString('vi-VN'));
   }, [isOpen, initialReport]);
 
   const currentReport: ThiDuaAiReportResult = useMemo(() => {
@@ -144,6 +168,90 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
       return true;
     });
   }, [rows, searchQuery, filterMode]);
+
+  // Debounced auto-save on any change to rows or report metadata
+  useEffect(() => {
+    if (!isOpen || rows.length === 0) return;
+
+    setDraftStatus('saving');
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        await saveThiDuaDraft({
+          storeId,
+          storeLabel: currentReport.store_name || storeLabel,
+          month: currentReport.month,
+          year: currentReport.year,
+          expected_total_rows: currentReport.expected_total_rows,
+          rows: currentReport.rows,
+          modelUsed,
+          pageCount,
+          duplicatesMerged,
+          duplicatePrograms: duplicateProgramsOnMerge,
+          adminConfirmedWarnings,
+          isCommitted: false,
+        });
+        setDraftStatus('saved');
+        setDraftSavedAt(new Date().toLocaleTimeString('vi-VN'));
+        if (onSaveDraft) {
+          onSaveDraft(currentReport, false);
+        }
+      } catch (e) {
+        console.warn('[ThiDuaModal] Draft auto-save error:', e);
+        setDraftStatus('error');
+      }
+    }, 750);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [
+    isOpen,
+    rows,
+    month,
+    year,
+    expectedTotalText,
+    adminConfirmedWarnings,
+    storeId,
+    storeLabel,
+    modelUsed,
+    pageCount,
+    duplicatesMerged,
+    duplicateProgramsOnMerge,
+  ]);
+
+  const handleManualSaveDraft = async () => {
+    try {
+      setDraftStatus('saving');
+      await saveThiDuaDraft({
+        storeId,
+        storeLabel: currentReport.store_name || storeLabel,
+        month: currentReport.month,
+        year: currentReport.year,
+        expected_total_rows: currentReport.expected_total_rows,
+        rows: currentReport.rows,
+        modelUsed,
+        pageCount,
+        duplicatesMerged,
+        duplicatePrograms: duplicateProgramsOnMerge,
+        adminConfirmedWarnings,
+        isCommitted: false,
+      });
+      const timeStr = new Date().toLocaleTimeString('vi-VN');
+      setDraftStatus('saved');
+      setDraftSavedAt(timeStr);
+      if (onSaveDraft) {
+        await onSaveDraft(currentReport, true);
+      }
+    } catch (err: any) {
+      setDraftStatus('error');
+    }
+  };
 
   if (!isOpen || !initialReport) return null;
 
@@ -424,6 +532,51 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
               <span className="font-bold text-amber-700">&lt; 100%: {summary.under100Count} CT</span>
               {' • '}
               <span className="font-bold text-emerald-700">&ge; 100%: {summary.overOrEqual100Count} CT</span>
+            </div>
+          </div>
+
+          {/* Draft Auto-Save Status Bar */}
+          <div className="bg-white rounded-xl border border-slate-200 px-3 py-2 flex flex-wrap items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2">
+              {draftStatus === 'saving' && (
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[11px] font-bold border border-blue-200 animate-pulse">
+                  <RefreshCw size={12} className="animate-spin text-blue-600" />
+                  <span>Đang tự động lưu bản nháp...</span>
+                </span>
+              )}
+              {draftStatus === 'saved' && (
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[11px] font-bold border border-emerald-200">
+                  <CheckCircle2 size={13} className="text-emerald-600" />
+                  <span>Đã lưu bản nháp tự động {draftSavedAt ? `lúc ${draftSavedAt}` : ''} (An toàn khi F5 / đóng popup)</span>
+                </span>
+              )}
+              {draftStatus === 'error' && (
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[11px] font-bold border border-rose-200">
+                  <AlertTriangle size={12} className="text-rose-600" />
+                  <span>Lưu bản nháp thất bại</span>
+                </span>
+              )}
+              {draftStatus === 'idle' && (
+                <span className="text-[11px] text-slate-500 font-medium">
+                  Bản nháp được tự động lưu mỗi khi có thay đổi.
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 text-[11px]">
+              <span className="text-slate-600 hidden sm:inline">
+                Đang có: <strong className="text-emerald-700">{summary.validRows} hợp lệ</strong> • <strong className="text-rose-600">{summary.errorRows} cần kiểm tra</strong>
+              </span>
+              <button
+                type="button"
+                disabled={isSaving || rows.length === 0}
+                onClick={handleManualSaveDraft}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[10.5px] font-bold transition-colors"
+                title="Bấm để lưu bản nháp ngay lập tức"
+              >
+                <Bookmark size={11} className="text-slate-600" />
+                <span>Lưu nháp ngay</span>
+              </button>
             </div>
           </div>
 
@@ -844,8 +997,9 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
               onClick={onClose}
               disabled={isSaving}
               className="px-3 py-1.5 sm:py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+              title="Đóng cửa sổ (Bản nháp vẫn được tự động lưu an toàn)"
             >
-              Hủy / Không lưu
+              Đóng / Thoát
             </button>
 
             <button
@@ -853,11 +1007,54 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
               onClick={handleRecheck}
               disabled={isSaving}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+              title="Kiểm tra lại toàn bộ quy tắc dữ liệu"
             >
               <RefreshCw size={13} />
               <span>Kiểm tra lại</span>
             </button>
 
+            {/* ACTION A: LƯU BẢN NHÁP (LUÔN BẤM ĐƯỢC KHI CÓ DỮ LIỆU) */}
+            <button
+              type="button"
+              disabled={!hasUpdatePermission || isSaving || rows.length === 0}
+              onClick={handleManualSaveDraft}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 sm:py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-extrabold shadow-xs hover:border-slate-400 disabled:opacity-45 disabled:cursor-not-allowed transition-all"
+              title="Lưu toàn bộ các dòng hiện tại (kể cả có lỗi) vào bản nháp để không bị mất khi thoát hoặc chỉnh sửa sau"
+            >
+              <Bookmark size={13} className="text-slate-500" />
+              <span>LƯU BẢN NHÁP ({rows.length})</span>
+            </button>
+
+            {/* ACTION B: LƯU CÁC DÒNG HỢP LỆ (LƯU DÒNG CHUẨN VÀO DB, GIỮ DÒNG LỖI Ở NHÁP) */}
+            <button
+              type="button"
+              disabled={
+                !hasUpdatePermission ||
+                isSaving ||
+                summary.validRows === 0 ||
+                (summary.requiresAdminConfirmation && !adminConfirmedWarnings)
+              }
+              onClick={() => {
+                if (onSaveValidOnly) {
+                  onSaveValidOnly(currentReport, {
+                    adminConfirmedWarnings,
+                    duplicatesMerged,
+                    pageCount,
+                  });
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 sm:py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-extrabold shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              title={
+                summary.requiresAdminConfirmation && !adminConfirmedWarnings
+                  ? 'Vui lòng tích vào ô xác nhận đã đối chiếu ở trên để lưu các dòng hợp lệ'
+                  : `Lưu ngay ${summary.validRows} dòng hợp lệ vào Database; giữ ${summary.errorRows} dòng lỗi lại trong bản nháp`
+              }
+            >
+              <CheckCircle2 size={13} />
+              <span>LƯU DÒNG HỢP LỆ ({summary.validRows})</span>
+            </button>
+
+            {/* ACTION C: XÁC NHẬN LƯU TOÀN BỘ (CHỈ KHI TOÀN BỘ ĐÃ HỢP LỆ) */}
             <button
               type="button"
               disabled={!hasUpdatePermission || !summary.canConfirmSave || isSaving}
@@ -868,17 +1065,22 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
                   pageCount,
                 })
               }
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 sm:py-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-extrabold shadow-sm hover:from-orange-600 hover:to-amber-600 disabled:opacity-45 disabled:cursor-not-allowed transition-all"
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 sm:py-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white text-xs font-extrabold shadow-sm hover:from-emerald-700 hover:to-teal-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              title={
+                !summary.canConfirmSave
+                  ? summary.blockingReasons[0] || 'Cần xử lý hết các dòng lỗi trước khi lưu toàn bộ'
+                  : 'Xác nhận lưu toàn bộ chương trình vào LUỸ KẾ THI ĐUA'
+              }
             >
               {isSaving ? (
                 <>
                   <RefreshCw size={14} className="animate-spin" />
-                  <span>Đang lưu dữ liệu...</span>
+                  <span>Đang lưu...</span>
                 </>
               ) : (
                 <>
                   <Save size={14} />
-                  <span>XÁC NHẬN & LƯU DỮ LIỆU</span>
+                  <span>XÁC NHẬN LƯU TOÀN BỘ</span>
                 </>
               )}
             </button>
