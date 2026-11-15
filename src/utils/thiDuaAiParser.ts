@@ -54,7 +54,7 @@ export interface OcrDebugTrace {
   linesCount: number;
   wordsCount: number;
   detectedRowsCount: number;
-  parserMethod: 'SPATIAL_BBOX' | 'TEXT_STREAM' | 'HYBRID_MERGED';
+  parserMethod: 'SPATIAL_BBOX' | 'TEXT_STREAM' | 'HYBRID_MERGED' | 'COLUMN_GRID';
   spatialRowsCount: number;
   streamRowsCount: number;
   discardedLines: Array<{ lineText: string; reason: string }>;
