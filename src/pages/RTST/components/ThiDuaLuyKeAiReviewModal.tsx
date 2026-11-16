@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
+  AlertCircle,
   AlertTriangle,
   Bookmark,
   CheckCircle2,
@@ -142,6 +144,17 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
     setDraftStatus('saved');
     setDraftSavedAt(new Date().toLocaleTimeString('vi-VN'));
   }, [isOpen, initialReport]);
+
+  // Lock background body scroll when modal is open to ensure seamless mobile & desktop experience
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
 
   const currentReport: ThiDuaAiReportResult = useMemo(() => {
     const expNum = expectedTotalText.trim() ? Number(expectedTotalText.trim()) : null;
@@ -470,20 +483,22 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
 
   if (!isOpen || !initialReport) return null;
 
-  return (
+  const modalContent = (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-[2px] p-1.5 sm:p-4"
+      className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-0 sm:p-3 overflow-hidden"
       role="dialog"
       aria-modal="true"
       aria-label="Xác nhận dữ liệu AI Lũy kế thi đua"
     >
       <div
-        className={`bg-white rounded-2xl border border-slate-200 shadow-2xl w-[98vw] ${
-          isAdminDebugMode ? 'max-w-[98vw] h-[96vh]' : 'max-w-7xl max-h-[94vh]'
-        } flex flex-col overflow-hidden transition-all`}
+        className={`bg-white w-full sm:w-[98vw] ${
+          isAdminDebugMode
+            ? 'max-w-[98vw] h-[100dvh] sm:h-[96vh]'
+            : 'max-w-7xl h-[100dvh] sm:h-auto max-h-[100dvh] sm:max-h-[94vh]'
+        } rounded-none sm:rounded-2xl border-0 sm:border border-slate-200 shadow-2xl flex flex-col overflow-hidden transition-all`}
       >
         {/* Header */}
-        <div className="px-3 py-2.5 sm:px-5 sm:py-3.5 bg-gradient-to-r from-orange-50 via-amber-50/80 to-white border-b border-orange-200/70 flex flex-wrap items-center justify-between gap-2">
+        <div className="shrink-0 sticky top-0 z-20 px-3 py-2 sm:px-5 sm:py-3.5 bg-gradient-to-r from-orange-50 via-amber-50/80 to-white border-b border-orange-200/70 flex flex-wrap items-center justify-between gap-2 shadow-xs">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 text-white flex items-center justify-center shrink-0">
               <Sparkles size={17} />
@@ -881,8 +896,20 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
             <div className={isAdminDebugMode ? 'lg:col-span-7 xl:col-span-8' : 'w-full'}>
               {/* Editable Data Table */}
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-                <div className={`overflow-x-auto ${isAdminDebugMode ? 'max-h-[58vh]' : 'max-h-[44vh]'}`}>
-                  <table className="w-full min-w-[920px] border-collapse text-left">
+                <div className={`overflow-x-auto ${isAdminDebugMode ? 'max-h-[58vh]' : 'max-h-[50vh] sm:max-h-[46vh]'}`}>
+                  <table className="w-full min-w-[960px] border-collapse text-left table-fixed">
+                    <colgroup>
+                      <col style={{ width: '44px' }} />
+                      <col style={{ width: '230px' }} />
+                      <col style={{ width: '56px' }} />
+                      <col style={{ width: '92px' }} />
+                      <col style={{ width: '92px' }} />
+                      <col style={{ width: '84px' }} />
+                      <col style={{ width: '88px' }} />
+                      <col style={{ width: '70px' }} />
+                      <col style={{ width: '150px' }} />
+                      <col style={{ width: '44px' }} />
+                    </colgroup>
                     <thead className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200 text-[10px] sm:text-[11px] font-extrabold uppercase text-slate-600">
                       <tr>
                         <th className="px-2 py-2 w-12 text-center font-black">STT</th>
@@ -1328,8 +1355,8 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
         </div>
 
         {/* Footer */}
-        <div className="px-3 py-2.5 sm:px-5 sm:py-3.5 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-[11px] text-slate-500">
+        <div className="shrink-0 sticky bottom-0 z-20 bg-white border-t border-slate-200 px-3 py-2 sm:px-5 sm:py-3.5 pb-[max(0.6rem,env(safe-area-inset-bottom))] flex flex-wrap items-center justify-between gap-2 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
+          <div className="text-[11px] text-slate-500 max-w-full sm:max-w-md">
             {!hasUpdatePermission ? (
               <span className="inline-flex items-center gap-1 text-rose-600 font-bold">
                 <Lock size={13} /> Tài khoản hiện tại không có quyền ghi dữ liệu.
@@ -1337,22 +1364,22 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
             ) : summary.blockingReasons.length > 0 ? (
               <span className="inline-flex items-center gap-1 text-rose-600 font-semibold">
                 <ShieldAlert size={14} className="shrink-0" />
-                {summary.blockingReasons[0]}
+                <span className="truncate">{summary.blockingReasons[0]}</span>
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
                 <CheckCircle2 size={14} className="shrink-0" />
-                Đã chuẩn hóa {summary.validRows} chương trình. Sẵn sàng lưu toàn bộ dữ liệu.
+                <span>Đã chuẩn hóa {summary.validRows} chương trình. Sẵn sàng lưu toàn bộ dữ liệu.</span>
               </span>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 ml-auto">
+          <div className="flex flex-wrap items-center gap-2 ml-auto w-full sm:w-auto justify-end">
             <button
               type="button"
               onClick={onClose}
               disabled={isSaving}
-              className="px-3 py-1.5 sm:py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+              className="px-3 py-1.5 sm:py-2 min-h-[36px] rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
               title="Đóng cửa sổ (Bản nháp vẫn được tự động lưu an toàn)"
             >
               Đóng / Thoát
@@ -1362,7 +1389,7 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
               type="button"
               onClick={handleRecheck}
               disabled={isSaving}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 sm:py-2 min-h-[36px] rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors"
               title="Kiểm tra lại toàn bộ quy tắc dữ liệu"
             >
               <RefreshCw size={13} />
@@ -1374,11 +1401,11 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
               type="button"
               disabled={!hasUpdatePermission || isSaving || rows.length === 0}
               onClick={handleManualSaveDraft}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 sm:py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-extrabold shadow-xs hover:border-slate-400 disabled:opacity-45 disabled:cursor-not-allowed transition-all"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 sm:py-2 min-h-[36px] rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-extrabold shadow-xs hover:border-slate-400 disabled:opacity-45 disabled:cursor-not-allowed transition-all"
               title="Lưu toàn bộ các dòng hiện tại (kể cả có lỗi) vào bản nháp để không bị mất khi thoát hoặc chỉnh sửa sau"
             >
               <Bookmark size={13} className="text-slate-500" />
-              <span>LƯU BẢN NHÁP ({rows.length})</span>
+              <span>LƯU NHÁP ({rows.length})</span>
             </button>
 
             {/* ACTION B: LƯU CÁC DÒNG HỢP LỆ (LƯU DÒNG CHUẨN VÀO DB, GIỮ DÒNG LỖI Ở NHÁP) */}
@@ -1400,7 +1427,7 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
                   });
                 }
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 sm:py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-extrabold shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 sm:py-2 min-h-[36px] rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-extrabold shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               title={
                 summary.requiresAdminConfirmation && !adminConfirmedWarnings
                   ? 'Vui lòng tích vào ô xác nhận đã đối chiếu ở trên để lưu các dòng hợp lệ'
@@ -1408,7 +1435,7 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
               }
             >
               <CheckCircle2 size={13} />
-              <span>LƯU DÒNG HỢP LỆ ({summary.validRows})</span>
+              <span>LƯU HỢP LỆ ({summary.validRows})</span>
             </button>
 
             {/* ACTION C: XÁC NHẬN LƯU TOÀN BỘ (CHỈ KHI TOÀN BỘ ĐÃ HỢP LỆ) */}
@@ -1423,7 +1450,7 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
                   pageCount,
                 });
               }}
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 sm:py-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white text-xs font-extrabold shadow-sm hover:from-emerald-700 hover:to-teal-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-1.5 sm:py-2 min-h-[36px] rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white text-xs font-extrabold shadow-sm hover:from-emerald-700 hover:to-teal-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               title={
                 !summary.canConfirmSave
                   ? summary.blockingReasons[0] || 'Cần xử lý hết các dòng lỗi trước khi lưu toàn bộ'
@@ -1447,5 +1474,7 @@ export const ThiDuaLuyKeAiReviewModal: React.FC<ThiDuaLuyKeAiReviewModalProps> =
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
 

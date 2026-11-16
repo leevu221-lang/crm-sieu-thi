@@ -65,7 +65,7 @@ interface SelectedImageItem {
   height?: number;
 }
 
-type PipelineStatus = 'idle' | 'loading_images' | 'reading_ocr' | 'analyzing' | 'completed' | 'error';
+type PipelineStatus = 'idle' | 'loading_images' | 'reading_ocr' | 'analyzing' | 'saving_db' | 'completed' | 'error';
 
 interface ThiDuaLuyKeAiUploaderProps {
   currentValue: string;
@@ -211,6 +211,20 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+
+  // 6-stage OCR pipeline tracker & auto-save states
+  const [pipelineStep, setPipelineStep] = useState<number | null>(null);
+  const [pipelineStepLabel, setPipelineStepLabel] = useState<string>('');
+  const [autoSaveResult, setAutoSaveResult] = useState<{
+    status: 'saved' | 'unchanged';
+    totalPrograms: number;
+    savedCount: number;
+    updatedCount: number;
+    storeLabel: string;
+    period: string;
+    timestamp: string;
+  } | null>(null);
+
   const [aiStatusState, setAiStatusState] = useState<{
     loading: boolean;
     configured: boolean | null;
@@ -394,8 +408,159 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
   };
 
   /**
+   * Pipeline lưu dữ liệu chính thức vào Cơ sở dữ liệu và Luỹ Kế Thi Đua trung tâm
+   * Tái sử dụng cho cả Auto-Save an toàn và Xác nhận thủ công từ Review Modal
+   */
+  const executeThiDuaSavePipeline = async (
+    finalReport: ThiDuaAiReportResult,
+    metaInfo: {
+      adminConfirmedWarnings: boolean;
+      duplicatesMerged: number;
+      pageCount: number;
+    }
+  ) => {
+    const now = new Date();
+    // Ensure normalizeBIData runs immediately before saving
+    const normalizedReport = normalizeBIData(finalReport);
+    const targetStoreLabel =
+      normalizedReport.store_name && isValidStoreName(normalizedReport.store_name) && activeStore === 'ALL'
+        ? normalizedReport.store_name
+        : resolvedStoreLabel;
+
+    const storeDocId = normalizeStoreId(targetStoreLabel);
+    const mm = normalizedReport.month
+      ? String(normalizedReport.month).padStart(2, '0')
+      : String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = normalizedReport.year || now.getFullYear();
+    const period = `${mm}/${yyyy}`;
+
+    const batchId = `BATCH_${Date.now()}_${storeDocId || 'STORE'}_T${mm}_${yyyy}_${Math.random().toString(36).slice(2, 7)}`;
+    if (lastSavedBatchRef.current === batchId) {
+      return { targetStoreLabel, period, updatedCount: 0, addedCount: 0, normalizedReport };
+    }
+
+    // Merge ALL normalized programs with existing currentValue (100% protecting existing 286 rows)
+    const mergeResult = mergeThiDuaRowsWithBiText(currentValue, normalizedReport.rows, {
+      storeLabel: targetStoreLabel,
+      month: normalizedReport.month,
+      year: normalizedReport.year,
+      updatedAt: now,
+      batchId,
+      replaceMode: false,
+    });
+
+    try {
+      localStorage.removeItem('crm_field_cleared_rt_catlk');
+    } catch {}
+
+    // Apply merged text to shared React state and trigger existing LUỸ KẾ THI ĐUA save + sync pipeline
+    onApplyBiText(mergeResult.text);
+
+    // Wait briefly so LuykeDataContext useEffect syncs clusterCategoryInputRef before save
+    await new Promise((resolve) => setTimeout(resolve, 140));
+    await onTriggerSavePipeline();
+
+    // Persist lightweight metadata (source, timestamp, period, hash, compact snapshot, history, batch)
+    const reportHash = computeThiDuaReportHash({
+      month: normalizedReport.month,
+      year: normalizedReport.year,
+      rows: normalizedReport.rows,
+    });
+
+    const newHistoryEntry: ThiDuaLkUpdateHistoryEntry = {
+      updatedAt: now.toISOString(),
+      updatedBy: userProfile?.username || 'ADMIN',
+      source: 'AI_VISION_BI',
+      period,
+      rowCount: normalizedReport.rows.length,
+      expectedRowCount: normalizedReport.expected_total_rows,
+      reportHash,
+      batchId,
+      batchStatus: 'SAVED',
+      updatedCount: mergeResult.updatedCount,
+      addedCount: mergeResult.addedCount,
+    };
+
+    const nextHistory = [newHistoryEntry, ...(savedMeta?.history || [])].slice(0, 10);
+    const nextMeta: ThiDuaLkMeta = {
+      lastUpdatedAt: now.toISOString(),
+      lastUpdatedBy: userProfile?.username || 'ADMIN',
+      source: 'AI_VISION_BI',
+      period,
+      month: normalizedReport.month,
+      year: normalizedReport.year,
+      rowCount: normalizedReport.rows.length,
+      expectedRowCount: normalizedReport.expected_total_rows,
+      reportHash,
+      batchId,
+      batchStatus: 'SAVED',
+      updatedCount: mergeResult.updatedCount,
+      addedCount: mergeResult.addedCount,
+      pageCount: metaInfo.pageCount,
+      duplicatesMerged: metaInfo.duplicatesMerged,
+      uncertainConfirmed: metaInfo.adminConfirmedWarnings,
+      rowsSnapshot: normalizedReport.rows.map((r) => ({
+        ten_chuong_trinh: r.ten_chuong_trinh,
+        kenh: r.kenh || 'DT',
+        thuc_hien: r.thuc_hien ?? 0,
+        target: r.target ?? 0,
+        ty_le_thuc_hien: r.ty_le_thuc_hien,
+        ty_le_du_kien: r.ty_le_du_kien,
+        hang_cty: r.hang_cty,
+      })),
+      history: nextHistory,
+    };
+
+    setSavedMeta(nextMeta);
+    try {
+      localStorage.setItem(metaStorageKey, JSON.stringify(nextMeta));
+    } catch {}
+
+    // Persist to Central Competition Database Service (thi_dua_batches + store + realtime sync)
+    await thiDuaCentralService.saveCompetitionBatch({
+      storeId: storeDocId,
+      storeName: targetStoreLabel,
+      warehouseCode: effectiveMaKho === 'GLOBAL' ? '' : effectiveMaKho,
+      month: normalizedReport.month,
+      year: normalizedReport.year,
+      programs: normalizedReport.rows,
+      existingBiText: currentValue,
+      batchId,
+      sourceType: 'AI_VISION_BI',
+      username: userProfile?.username || 'ADMIN',
+      adminConfirmedWarnings: metaInfo.adminConfirmedWarnings,
+      pageCount: metaInfo.pageCount,
+      duplicatesMerged: metaInfo.duplicatesMerged,
+    });
+
+    if (targetStoreLabel && targetStoreLabel !== 'ALL' && isValidStoreName(targetStoreLabel)) {
+      if (storeDocId && storeDocId !== 'ALL') {
+        // Clear active draft ONLY after DB write confirmation
+        await clearThiDuaDraft(storeDocId, normalizedReport.month, normalizedReport.year);
+      }
+    }
+
+    lastSavedBatchRef.current = batchId;
+    setActiveDraft(null);
+
+    return {
+      targetStoreLabel,
+      period,
+      updatedCount: mergeResult.updatedCount,
+      addedCount: mergeResult.addedCount,
+      normalizedReport,
+    };
+  };
+
+  /**
    * Tự động nhận diện dữ liệu bằng OCR Engine (Tesseract.js / WebAssembly) chạy trực tiếp trên Client
-   * Không bắt buộc có GEMINI_API_KEY hay gọi backend trong quy trình thông thường
+   * 6 Giai đoạn tiến trình:
+   * 1. Đang tải ảnh
+   * 2. Đang phân tích cấu trúc bảng
+   * 3. Đang nhận diện dữ liệu
+   * 4. Đang kiểm tra 39 chương trình
+   * 5. Đang lưu Database (khi 100% hợp lệ)
+   * 6. Đã lưu thành công
    */
   const triggerAutoOcr = async (targetImages: SelectedImageItem[]) => {
     if (!hasUpdatePermission) {
@@ -405,6 +570,9 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
     if (targetImages.length === 0) {
       setAnalyzedReport(null);
       setOcrStats(null);
+      setPipelineStep(null);
+      setPipelineStepLabel('');
+      setAutoSaveResult(null);
       setStatus('idle');
       setProgressText('');
       return;
@@ -413,8 +581,10 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
     setStatus('reading_ocr');
     setErrorMsg('');
     setErrorCode('');
-    setOcrProgressPct(3);
-    setProgressText(`Khởi động bộ đọc OCR cho ${targetImages.length} ảnh...`);
+    setOcrProgressPct(5);
+    setPipelineStep(2);
+    setPipelineStepLabel('Đang phân tích cấu trúc bảng...');
+    setProgressText(`Bước 2/6: Đang phân tích cấu trúc bảng cho ${targetImages.length} ảnh...`);
 
     try {
       const hintTotal = expectedRowsHint.trim() ? Number(expectedRowsHint.trim()) : null;
@@ -429,6 +599,16 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
         onProgress: (p, stageText) => {
           setOcrProgressPct(p);
           setProgressText(stageText);
+          if (p < 25) {
+            setPipelineStep(2);
+            setPipelineStepLabel('Đang phân tích cấu trúc bảng...');
+          } else if (p < 90) {
+            setPipelineStep(3);
+            setPipelineStepLabel('Đang nhận diện dữ liệu...');
+          } else {
+            setPipelineStep(4);
+            setPipelineStepLabel(`Đang kiểm tra ${hintTotal || 39} chương trình...`);
+          }
         },
       });
 
@@ -458,10 +638,11 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
       setDuplicatesMerged(ocrResult.duplicatesMerged);
       setDuplicateProgramsOnMerge(ocrResult.duplicatePrograms);
       setModelUsed('Auto-OCR WebAssembly (Client Engine)');
-      setStatus('completed');
-      setProgressText(
-        `Đã đọc tự động ${rows.length} chương trình từ ${targetImages.length} trang. Hãy bấm "KIỂM TRA VÀ XÁC NHẬN LƯU" để rà soát!`
-      );
+
+      // Giai đoạn 4: Kiểm tra tính toàn vẹn và hợp lệ của các chương trình
+      setPipelineStep(4);
+      setPipelineStepLabel(`Đang kiểm tra ${rows.length} chương trình...`);
+      setProgressText(`Bước 4/6: Đang kiểm tra tính đầy đủ của ${rows.length} chương trình...`);
 
       // Auto-save draft immediately upon OCR completion to guarantee multi-tier persistence
       try {
@@ -485,9 +666,107 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
       } catch (e) {
         console.warn('[ThiDuaAutoOcr] Initial auto-save draft warning:', e);
       }
+
+      // ----------------------------------------------------
+      // AUTOMATIC DATABASE PERSISTENCE DECISION PIPELINE
+      // ----------------------------------------------------
+      const totalExpected = normalizedOcrReport.expected_total_rows || 39;
+      const isCountMatched = rows.length >= totalExpected;
+      const is100PercentValid =
+        rows.length >= 5 &&
+        isCountMatched &&
+        errorCount === 0 &&
+        missingDataCount === 0 &&
+        uncertainCount === 0 &&
+        hasUpdatePermission;
+
+      const currentReportHash = computeThiDuaReportHash({
+        month: normalizedOcrReport.month,
+        year: normalizedOcrReport.year,
+        rows: normalizedOcrReport.rows,
+      });
+
+      // Anti-duplication check: Avoid redundant writes when data is identical to last save
+      if (savedMeta?.reportHash && savedMeta.reportHash === currentReportHash) {
+        setPipelineStep(6);
+        setPipelineStepLabel('Dữ liệu đã đồng bộ – Không thay đổi');
+        setStatus('completed');
+        setProgressText('Dữ liệu ảnh trùng khớp 100% với lần lưu gần nhất. Không có thay đổi.');
+        setAutoSaveResult({
+          status: 'unchanged',
+          totalPrograms: rows.length,
+          savedCount: 0,
+          updatedCount: 0,
+          storeLabel: resolvedStoreLabel,
+          period: `${String(normalizedOcrReport.month || monthYearHints.month).padStart(2, '0')}/${normalizedOcrReport.year || monthYearHints.year}`,
+          timestamp: new Date().toLocaleTimeString('vi-VN'),
+        });
+        showNotification('Dữ liệu không thay đổi so với lần lưu gần nhất.', 'info');
+        return;
+      }
+
+      if (is100PercentValid) {
+        // Giai đoạn 5: Tự động lưu toàn bộ dữ liệu vào Database
+        setPipelineStep(5);
+        setPipelineStepLabel('Đang lưu Database...');
+        setStatus('saving_db');
+        setProgressText(`Bước 5/6: Đang tự động lưu ${rows.length} chương trình vào Database...`);
+
+        try {
+          const saveRes = await executeThiDuaSavePipeline(normalizedOcrReport, {
+            adminConfirmedWarnings: true,
+            duplicatesMerged: ocrResult.duplicatesMerged,
+            pageCount: targetImages.length,
+          });
+
+          // Giai đoạn 6: Đã lưu thành công
+          setPipelineStep(6);
+          setPipelineStepLabel('Đã lưu thành công');
+          setStatus('completed');
+          setProgressText(`Bước 6/6: ĐÃ TỰ ĐỘNG LƯU DỮ LIỆU LŨY KẾ THI ĐUA THÀNH CÔNG (${rows.length} CT)!`);
+
+          setAutoSaveResult({
+            status: 'saved',
+            totalPrograms: rows.length,
+            savedCount: saveRes.addedCount,
+            updatedCount: saveRes.updatedCount,
+            storeLabel: saveRes.targetStoreLabel,
+            period: saveRes.period,
+            timestamp: new Date().toLocaleTimeString('vi-VN'),
+          });
+
+          showNotification(
+            `ĐÃ TỰ ĐỘNG LƯU DỮ LIỆU LŨY KẾ THI ĐUA THÀNH CÔNG (${rows.length} CT)!`,
+            'success'
+          );
+        } catch (saveErr: any) {
+          console.error('[ThiDuaAutoSave] Auto save error:', saveErr);
+          setPipelineStep(4);
+          setStatus('completed');
+          setIsReviewOpen(true);
+          showNotification(
+            `Lỗi khi tự động lưu Database: ${saveErr?.message || 'Vui lòng kiểm tra lại'}.`,
+            'error'
+          );
+        }
+      } else {
+        // Nếu có dòng nào cần kiểm tra lại (còn nghi vấn, missing, hoặc lỗi), mở popup để người dùng rà soát
+        setPipelineStep(4);
+        setPipelineStepLabel(`Cần kiểm tra: ${rows.length} chương trình (${errorCount} lỗi, ${uncertainCount} nghi vấn)`);
+        setStatus('completed');
+        setProgressText(
+          `Đã nhận diện ${rows.length} chương trình. Vui lòng rà soát các dòng cần kiểm tra trước khi lưu.`
+        );
+        setIsReviewOpen(true);
+        showNotification(
+          `Đã nhận diện ${rows.length} chương trình. Cần rà soát ${errorCount + uncertainCount + missingDataCount} vấn đề.`,
+          'warning'
+        );
+      }
     } catch (err: any) {
       console.error('[ThiDuaAutoOcr Technical Trace]', err);
       setStatus('error');
+      setPipelineStep(null);
       setErrorCode(String(err?.code || err?.errorCode || 'OCR_ERROR'));
       setErrorMsg(err?.message || 'Lỗi khi tự động nhận diện ảnh bằng OCR.');
       setProgressText('');
@@ -524,7 +803,10 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
     }
 
     setStatus('loading_images');
-    setProgressText(`Đang tải ${validFiles.length} ảnh xem trước...`);
+    setPipelineStep(1);
+    setPipelineStepLabel('Đang tải ảnh...');
+    setProgressText(`Bước 1/6: Đang tải ${validFiles.length} ảnh xem trước...`);
+    setAutoSaveResult(null);
     setErrorMsg('');
     setErrorCode('');
 
@@ -585,6 +867,9 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
     setOcrStats(null);
     setOcrProgressPct(0);
     setOcrNeedsAiFallback(false);
+    setPipelineStep(null);
+    setPipelineStepLabel('');
+    setAutoSaveResult(null);
     setStatus('idle');
     setProgressText('');
     setErrorMsg('');
@@ -689,6 +974,8 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
       setDuplicateProgramsOnMerge(duplicatePrograms);
       setModelUsed(latestModel);
       setStatus('completed');
+      setPipelineStep(4);
+      setPipelineStepLabel(`Đã phân tích ${normalizedMerged.rows.length} chương trình qua AI`);
       setProgressText(
         `Hoàn thành nhận diện ${normalizedMerged.rows.length} chương trình. Chờ Admin xác nhận.`
       );
@@ -739,135 +1026,30 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
     }
 
     setIsSaving(true);
+    setPipelineStep(5);
+    setPipelineStepLabel('Đang lưu Database...');
     try {
-      const now = new Date();
-      // Ensure normalizeBIData runs immediately before saving
-      const normalizedReport = normalizeBIData(finalReport);
-      const targetStoreLabel =
-        normalizedReport.store_name && isValidStoreName(normalizedReport.store_name) && activeStore === 'ALL'
-          ? normalizedReport.store_name
-          : resolvedStoreLabel;
+      const saveRes = await executeThiDuaSavePipeline(finalReport, metaInfo);
 
-      const storeDocId = normalizeStoreId(targetStoreLabel);
-      const mm = normalizedReport.month
-        ? String(normalizedReport.month).padStart(2, '0')
-        : String(now.getMonth() + 1).padStart(2, '0');
-      const yyyy = normalizedReport.year || now.getFullYear();
-      const period = `${mm}/${yyyy}`;
-
-      const batchId = `BATCH_${Date.now()}_${storeDocId || 'STORE'}_T${mm}_${yyyy}_${Math.random().toString(36).slice(2, 7)}`;
-      if (lastSavedBatchRef.current === batchId) {
-        return;
-      }
-
-      // Merge ALL normalized programs with existing currentValue (100% protecting existing 286 rows)
-      const mergeResult = mergeThiDuaRowsWithBiText(currentValue, normalizedReport.rows, {
-        storeLabel: targetStoreLabel,
-        month: normalizedReport.month,
-        year: normalizedReport.year,
-        updatedAt: now,
-        batchId,
-        replaceMode: false,
-      });
-
-      try {
-        localStorage.removeItem('crm_field_cleared_rt_catlk');
-      } catch {}
-
-      // Apply merged text to shared React state and trigger existing LUỸ KẾ THI ĐUA save + sync pipeline
-      onApplyBiText(mergeResult.text);
-
-      // Wait briefly so LuykeDataContext useEffect syncs clusterCategoryInputRef before save
-      await new Promise((resolve) => setTimeout(resolve, 140));
-      await onTriggerSavePipeline();
-
-      // Persist lightweight metadata (source, timestamp, period, hash, compact snapshot, history, batch)
-      const reportHash = computeThiDuaReportHash({
-        month: normalizedReport.month,
-        year: normalizedReport.year,
-        rows: normalizedReport.rows,
-      });
-
-      const newHistoryEntry: ThiDuaLkUpdateHistoryEntry = {
-        updatedAt: now.toISOString(),
-        updatedBy: userProfile?.username || 'ADMIN',
-        source: 'AI_VISION_BI',
-        period,
-        rowCount: normalizedReport.rows.length,
-        expectedRowCount: normalizedReport.expected_total_rows,
-        reportHash,
-        batchId,
-        batchStatus: 'SAVED',
-        updatedCount: mergeResult.updatedCount,
-        addedCount: mergeResult.addedCount,
-      };
-
-      const nextHistory = [newHistoryEntry, ...(savedMeta?.history || [])].slice(0, 10);
-      const nextMeta: ThiDuaLkMeta = {
-        lastUpdatedAt: now.toISOString(),
-        lastUpdatedBy: userProfile?.username || 'ADMIN',
-        source: 'AI_VISION_BI',
-        period,
-        month: normalizedReport.month,
-        year: normalizedReport.year,
-        rowCount: normalizedReport.rows.length,
-        expectedRowCount: normalizedReport.expected_total_rows,
-        reportHash,
-        batchId,
-        batchStatus: 'SAVED',
-        updatedCount: mergeResult.updatedCount,
-        addedCount: mergeResult.addedCount,
-        pageCount: metaInfo.pageCount,
-        duplicatesMerged: metaInfo.duplicatesMerged,
-        uncertainConfirmed: metaInfo.adminConfirmedWarnings,
-        rowsSnapshot: normalizedReport.rows.map((r) => ({
-          ten_chuong_trinh: r.ten_chuong_trinh,
-          kenh: r.kenh || 'DT',
-          thuc_hien: r.thuc_hien ?? 0,
-          target: r.target ?? 0,
-          ty_le_thuc_hien: r.ty_le_thuc_hien,
-          ty_le_du_kien: r.ty_le_du_kien,
-          hang_cty: r.hang_cty,
-        })),
-        history: nextHistory,
-      };
-
-      setSavedMeta(nextMeta);
-      try {
-        localStorage.setItem(metaStorageKey, JSON.stringify(nextMeta));
-      } catch {}
-
-      // Persist to Central Competition Database Service (thi_dua_batches + store + realtime sync)
-      await thiDuaCentralService.saveCompetitionBatch({
-        storeId: storeDocId,
-        storeName: targetStoreLabel,
-        warehouseCode: effectiveMaKho === 'GLOBAL' ? '' : effectiveMaKho,
-        month: normalizedReport.month,
-        year: normalizedReport.year,
-        programs: normalizedReport.rows,
-        existingBiText: currentValue,
-        batchId,
-        sourceType: 'AI_VISION_BI',
-        username: userProfile?.username || 'ADMIN',
-        adminConfirmedWarnings: metaInfo.adminConfirmedWarnings,
-        pageCount: metaInfo.pageCount,
-        duplicatesMerged: metaInfo.duplicatesMerged,
-      });
-
-      if (targetStoreLabel && targetStoreLabel !== 'ALL' && isValidStoreName(targetStoreLabel)) {
-        if (storeDocId && storeDocId !== 'ALL') {
-          // Clear active draft ONLY after DB write confirmation
-          await clearThiDuaDraft(storeDocId, normalizedReport.month, normalizedReport.year);
-        }
-      }
-
-      lastSavedBatchRef.current = batchId;
-      setActiveDraft(null);
+      setPipelineStep(6);
+      setPipelineStepLabel('Đã lưu thành công');
+      setStatus('completed');
       setIsReviewOpen(false);
       setAnalyzedReport(null);
       handleClearImages();
+
+      setAutoSaveResult({
+        status: 'saved',
+        totalPrograms: saveRes.normalizedReport.rows.length,
+        savedCount: saveRes.addedCount,
+        updatedCount: saveRes.updatedCount,
+        storeLabel: saveRes.targetStoreLabel,
+        period: saveRes.period,
+        timestamp: new Date().toLocaleTimeString('vi-VN'),
+      });
+
       showNotification(
-        `Đã lưu thành công ${normalizedReport.rows.length}/${normalizedReport.rows.length} chương trình vào Database. (Cập nhật: ${mergeResult.updatedCount}, Thêm mới: ${mergeResult.addedCount})`,
+        `Đã lưu thành công ${saveRes.normalizedReport.rows.length} chương trình vào Database. (Cập nhật: ${saveRes.updatedCount}, Thêm mới: ${saveRes.addedCount})`,
         'success'
       );
     } catch (err: any) {
@@ -1019,6 +1201,18 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
         isCommitted: remainingErrorRows.length === 0,
       });
       setActiveDraft(updatedDraft);
+
+      setAutoSaveResult({
+        status: 'saved',
+        totalPrograms: validRows.length,
+        savedCount: mergeResult.addedCount,
+        updatedCount: mergeResult.updatedCount,
+        storeLabel: targetStoreLabel,
+        period,
+        timestamp: new Date().toLocaleTimeString('vi-VN'),
+      });
+      setPipelineStep(6);
+      setPipelineStepLabel(`Đã lưu ${validRows.length} dòng hợp lệ thành công`);
 
       showNotification(
         `Đã lưu thành công ${validRows.length} dòng hợp lệ vào LUỸ KẾ THI ĐUA! ${
@@ -1412,25 +1606,156 @@ export const ThiDuaLuyKeAiUploader: React.FC<ThiDuaLuyKeAiUploaderProps> = ({
             </div>
           )}
 
-          {/* Auto-OCR Running Progress Feedback */}
-          {status === 'reading_ocr' && (
-            <div className="rounded-xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-3 space-y-2">
-              <div className="flex items-center justify-between text-[11px] font-bold text-orange-900">
-                <span className="inline-flex items-center gap-2">
-                  <Scan size={14} className="animate-pulse text-orange-600" />
-                  <span>ĐANG ĐỌC ẢNH TỰ ĐỘNG (AUTO OCR CLIENT)...</span>
+          {/* 6-Stage OCR Pipeline Progress Tracker */}
+          {pipelineStep !== null && status !== 'idle' && (
+            <div className="rounded-xl border border-orange-200 bg-gradient-to-r from-orange-50/90 via-amber-50/80 to-white p-3 space-y-2.5 shadow-xs">
+              <div className="flex items-center justify-between text-[11px] sm:text-xs font-bold text-orange-950">
+                <span className="flex items-center gap-2">
+                  {pipelineStep < 6 && status !== 'error' ? (
+                    <Loader2 size={14} className="animate-spin text-orange-600 shrink-0" />
+                  ) : pipelineStep === 6 ? (
+                    <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle size={15} className="text-rose-600 shrink-0" />
+                  )}
+                  <span className="font-extrabold uppercase tracking-wide">
+                    TIẾN TRÌNH NHẬN DIỆN & TỰ ĐỘNG LƯU (BƯỚC {pipelineStep}/6)
+                  </span>
                 </span>
-                <span className="text-orange-700 font-extrabold">{ocrProgressPct}%</span>
+                <span className="text-orange-700 font-black">
+                  {pipelineStep === 6 ? '100%' : `${ocrProgressPct}%`}
+                </span>
               </div>
-              <div className="w-full bg-orange-100 rounded-full h-2 overflow-hidden">
-                <div
-                  className="bg-gradient-to-r from-orange-500 to-amber-500 h-2 rounded-full transition-all duration-300 ease-out"
-                  style={{ width: `${Math.max(4, ocrProgressPct)}%` }}
-                />
+
+              {/* Step pills grid (2 cols on mobile, 3 cols on sm, 6 cols on lg) */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 text-[10px] sm:text-[10.5px] font-bold">
+                {[
+                  { step: 1, label: '1. Đang tải ảnh' },
+                  { step: 2, label: '2. Cấu trúc bảng' },
+                  { step: 3, label: '3. Đọc dữ liệu' },
+                  { step: 4, label: `4. Kiểm tra ${ocrStats?.total || 39} CT` },
+                  { step: 5, label: '5. Lưu Database' },
+                  { step: 6, label: '6. Hoàn tất' },
+                ].map((s) => {
+                  const isDone = pipelineStep > s.step || (pipelineStep === 6 && s.step === 6);
+                  const isCurrent = pipelineStep === s.step && pipelineStep < 6;
+                  return (
+                    <div
+                      key={s.step}
+                      className={`px-2 py-1.5 rounded-lg border flex items-center gap-1.5 transition-all ${
+                        isDone
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                          : isCurrent
+                          ? 'bg-orange-500 border-orange-600 text-white shadow-xs font-black ring-2 ring-orange-200'
+                          : 'bg-white/70 border-slate-200 text-slate-400'
+                      }`}
+                    >
+                      {isDone ? (
+                        <Check size={11} className="shrink-0 text-emerald-600 stroke-[3]" />
+                      ) : isCurrent ? (
+                        <span className="w-2 h-2 rounded-full bg-white animate-ping shrink-0" />
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                      )}
+                      <span className="truncate">{s.label}</span>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="flex items-center justify-between text-[10.5px] text-slate-600">
-                <span className="truncate">{progressText || 'Đang nhận diện dữ liệu...'}</span>
-                <span className="text-slate-400 shrink-0">WebAssembly Engine</span>
+
+              {/* Progress bar during active OCR */}
+              {status === 'reading_ocr' && (
+                <div className="w-full bg-orange-100 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-orange-500 to-amber-500 h-2 rounded-full transition-all duration-300 ease-out"
+                    style={{ width: `${Math.max(4, ocrProgressPct)}%` }}
+                  />
+                </div>
+              )}
+
+              {/* Stage description text */}
+              <div className="flex items-center justify-between text-[11px] text-slate-600 pt-0.5">
+                <span className="font-semibold text-slate-700 truncate">{progressText || pipelineStepLabel}</span>
+                <span className="text-[10px] text-slate-400 shrink-0 ml-2">
+                  {pipelineStep === 5 ? 'Đang ghi Firestore & Central DB' : pipelineStep === 6 ? 'Đã đồng bộ' : 'WebAssembly Engine'}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Prominent Success Summary Card after Auto-Save or Manual Confirm */}
+          {autoSaveResult && (
+            <div className="rounded-2xl border-2 border-emerald-400 bg-gradient-to-br from-emerald-50 via-teal-50/60 to-white p-3.5 sm:p-4 space-y-3 shadow-md animate-in fade-in duration-300">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-emerald-200">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <CheckCircle2 size={20} />
+                  </div>
+                  <div>
+                    <div className="text-xs sm:text-sm font-black text-emerald-950 uppercase tracking-wide">
+                      {autoSaveResult.status === 'unchanged'
+                        ? 'DỮ LIỆU ĐÃ ĐỒNG BỘ – KHÔNG CÓ THAY ĐỔI'
+                        : 'ĐÃ TỰ ĐỘNG LƯU DỮ LIỆU LŨY KẾ THI ĐUA THÀNH CÔNG'}
+                    </div>
+                    <div className="text-[11px] text-emerald-800 font-medium">
+                      {autoSaveResult.status === 'unchanged'
+                        ? 'Dữ liệu ảnh vừa OCR trùng khớp 100% với lần lưu gần nhất. Không tạo bản ghi trùng lặp.'
+                        : 'Toàn bộ dữ liệu chương trình đã được lưu chính thức vào Cơ sở dữ liệu và Luỹ Kế Thi Đua.'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                  {analyzedReport && (
+                    <button
+                      type="button"
+                      onClick={() => setIsReviewOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 text-xs font-bold transition-all shadow-2xs"
+                    >
+                      <Eye size={13} />
+                      <span>Xem lại bảng ({autoSaveResult.totalPrograms} CT)</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setAutoSaveResult(null)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                    title="Đóng thông báo"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Metrics Grid (Dual-platform Desktop & Mobile optimized) */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="rounded-xl border border-emerald-200 bg-white/90 p-2 sm:p-2.5 shadow-2xs">
+                  <span className="text-[10px] font-extrabold text-slate-500 uppercase block">Tổng chương trình</span>
+                  <span className="text-base sm:text-lg font-black text-emerald-700 mt-0.5 block">
+                    {autoSaveResult.totalPrograms} CT
+                  </span>
+                </div>
+
+                <div className="rounded-xl border border-emerald-200 bg-white/90 p-2 sm:p-2.5 shadow-2xs">
+                  <span className="text-[10px] font-extrabold text-slate-500 uppercase block">Cập nhật / Thêm mới</span>
+                  <span className="text-base sm:text-lg font-black text-slate-800 mt-0.5 block">
+                    {autoSaveResult.updatedCount} / {autoSaveResult.savedCount}
+                  </span>
+                </div>
+
+                <div className="rounded-xl border border-emerald-200 bg-white/90 p-2 sm:p-2.5 shadow-2xs">
+                  <span className="text-[10px] font-extrabold text-slate-500 uppercase block">Cơ sở & Kỳ</span>
+                  <span className="text-xs sm:text-sm font-extrabold text-slate-700 mt-1 block truncate" title={autoSaveResult.storeLabel}>
+                    {autoSaveResult.storeLabel} • {autoSaveResult.period}
+                  </span>
+                </div>
+
+                <div className="rounded-xl border border-emerald-200 bg-white/90 p-2 sm:p-2.5 shadow-2xs">
+                  <span className="text-[10px] font-extrabold text-slate-500 uppercase block">Thời gian lưu</span>
+                  <span className="text-xs sm:text-sm font-extrabold text-slate-700 mt-1 block">
+                    {autoSaveResult.timestamp}
+                  </span>
+                </div>
               </div>
             </div>
           )}
