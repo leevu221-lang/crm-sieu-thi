@@ -251,7 +251,21 @@ export const STANDARD_BI_PROGRAM_CATALOG: StandardBiProgramEntry[] = [
   {
     name: 'Sim DMX',
     channel: 'SL',
-    aliases: ['sim dmx', 'simdmx', 'sim đmx'],
+    aliases: [
+      'sim dmx',
+      'simdmx',
+      'sim đmx',
+      'simđmx',
+      'simomx',
+      'sim d mx',
+      'sim-dmx',
+      'sim0mx',
+      'simdmx sl',
+      'sim đmx sl',
+      'sim dmx sl',
+      't11 - sim dmx',
+      't11 - sim đmx',
+    ],
     priority: 75,
   },
   {
@@ -448,9 +462,9 @@ export function removeVietnameseDiacritics(str: string): string {
   return str
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
+    .replace(/[đĐðÐd]+/g, 'd')
     .toLowerCase()
+    .replace(/[iìíỉĩị|l]+/g, 'i')
     .replace(/[^a-z0-9]/g, '');
 }
 

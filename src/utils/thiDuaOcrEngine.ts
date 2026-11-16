@@ -636,7 +636,8 @@ export function reconcileBiNumbers(
   barPctVal: number | null,
   rawTh: string = '',
   rawTgt: string = '',
-  pctDkVal: number | null = null
+  pctDkVal: number | null = null,
+  kenhHint: ThiDuaKenh | null = null
 ): { th: number | null; tgt: number | null; pct: number | null; wasReconciled: boolean } {
   let th = thVal;
   let tgt = tgtVal;
@@ -700,13 +701,57 @@ export function reconcileBiNumbers(
     pct = 0;
   }
 
-  // 5. Deduce missing field if one is null but other two are known
-  if (th === null && tgt !== null && tgt > 0 && pct !== null && pct > 0) {
-    th = Math.round(((tgt * pct) / 100) * 100) / 100;
+  // 5. Deduce missing field if one is null:
+  // (Thực hiện / Target) * 100 ≈ % Hoàn thành
+  const isKenhSl = kenhHint === 'SL';
+
+  // 5a. If % HT is 0 or % DK is 0 -> TH is 0
+  if (th === null && (pct === 0 || (pct === null && pctDkVal === 0))) {
+    th = 0;
     wasReconciled = true;
-  } else if (tgt === null && th !== null && th > 0 && pct !== null && pct > 0) {
-    tgt = Math.round(((th / pct) * 100) * 100) / 100;
+  }
+
+  // 5b. Deduce TH when Target & % HT are known
+  if (th === null && tgt !== null && tgt > 0 && pct !== null && pct >= 0) {
+    const calcTh = (tgt * pct) / 100;
+    if (isKenhSl || Math.abs(calcTh - Math.round(calcTh)) < 0.06) {
+      th = Math.round(calcTh);
+    } else {
+      th = Math.round(calcTh * 100) / 100;
+    }
     wasReconciled = true;
+  }
+
+  // 5c. Deduce Target when TH & % HT are known
+  if (tgt === null && th !== null && th > 0 && pct !== null && pct > 0) {
+    const calcTgt = (th / pct) * 100;
+    if (isKenhSl || Math.abs(calcTgt - Math.round(calcTgt)) < 0.06) {
+      tgt = Math.round(calcTgt);
+    } else {
+      tgt = Math.round(calcTgt * 100) / 100;
+    }
+    wasReconciled = true;
+  }
+
+  // 5d. Deduce integer SL pair if BOTH th and tgt were null but pct is known (and > 0)
+  if (th === null && tgt === null && pct !== null && pct > 0 && isKenhSl) {
+    let bestPair: { a: number; b: number; diff: number } | null = null;
+    for (let b = 1; b <= 120; b++) {
+      for (let a = 1; a < b; a++) {
+        const ratio = (a / b) * 100;
+        const diff = Math.abs(ratio - pct);
+        if (diff < 0.06) {
+          if (!bestPair || diff < bestPair.diff - 0.001) {
+            bestPair = { a, b, diff };
+          }
+        }
+      }
+    }
+    if (bestPair) {
+      th = bestPair.a;
+      tgt = bestPair.b;
+      wasReconciled = true;
+    }
   }
 
   return { th, tgt, pct, wasReconciled };
@@ -779,11 +824,12 @@ export function extractProgramNameAndKenh(raw: string): {
   text = text.replace(/[-–—:,\s]+$/, '').trim();
 
   // 6. Normalize common OCR variations of T11 - ...
-  text = text.replace(/^[1I|]11\s*[-–—:]?\s*/i, 'T11 - ');
+  text = text.replace(/^[Tt1I|l]{1,2}[1I|l]\s*[-–—:]?\s*/i, 'T11 - ');
   text = text.replace(/^1T11\s*[-–—:]?\s*/i, 'T11 - ');
   text = text.replace(/^T1\s*[-–—:]?\s*Sim/i, 'T11 - Sim');
   text = text.replace(/^T(\d{1,2})\s*[-–—:]?\s*/i, 'T$1 - ');
   text = text.replace(/\bCELG\b/i, 'CE LG');
+  text = text.replace(/S[iìíỉĩịI|l]+m\s*[đĐðÐdD0O]+MX/i, 'Sim ĐMX');
 
   const { isTruncated, cleanedName } = checkProgramNameTruncated(text);
   const cleanProg = cleanedName.replace(/[-–—:,\s]+$/, '').trim();
@@ -1545,6 +1591,33 @@ export function cropCanvas(
   return canvas;
 }
 
+/**
+ * Applies high-contrast binarization to clean up faint diagonal watermarks
+ * (e.g. "43751 Linh Võ Vũ") and make single-digit/two-digit numbers crisp black on white.
+ */
+export function binarizeCanvas(canvasSource: HTMLCanvasElement, threshold = 165): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvasSource.width;
+  canvas.height = canvasSource.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return canvasSource;
+
+  ctx.drawImage(canvasSource, 0, 0);
+  try {
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      const val = lum > threshold ? 255 : 0;
+      d[i] = val;
+      d[i + 1] = val;
+      d[i + 2] = val;
+    }
+    ctx.putImageData(imgData, 0, 0);
+  } catch {}
+  return canvas;
+}
+
 export interface OcrWordCoord {
   text: string;
   left: number;
@@ -1701,6 +1774,108 @@ export function extractPercentageFromBarWords(words: OcrWordCoord[]): {
   }
 
   return { value: null, rawText: words.map((w) => w.text).join(' '), confidence: 0 };
+}
+
+/**
+ * Reads a single table cell number with targeted multi-pass extraction:
+ * Pass 1: Raw micro-crop with PSM 7 (single line) & numeric whitelist.
+ * Pass 2: Binarized micro-crop (threshold 165) to eliminate faint diagonal watermarks.
+ * Pass 3: Right-aligned subzone (right 55% of the cell where digits sit in BI tables).
+ */
+export async function recognizeCellNumber(
+  canvas: HTMLCanvasElement,
+  rect: { x: number; y: number; w: number; h: number },
+  worker: Worker,
+  options: { isPercentage?: boolean; isIntegerRank?: boolean } = {}
+): Promise<{ value: number | null; rawText: string; confidence: number; isUncertain: boolean }> {
+  const microCanvas = cropCanvas(canvas, rect);
+
+  // 1. Pass 1: Raw micro-crop with PSM 7 & digits whitelist
+  try {
+    const res = await worker.recognize(
+      microCanvas,
+      {
+        tessedit_pageseg_mode: '7' as any,
+        tessedit_char_whitelist: '0123456789.,-— ',
+      } as any,
+      { tsv: true, text: true }
+    );
+    const words = parseTsvToWords(res.data.tsv || '', rect.x, rect.y);
+    const parsed = extractNumericValueFromWords(words, options);
+    if (parsed.value !== null) {
+      return parsed;
+    }
+    const cleanDisambig = disambiguateOcrNumberString(res.data.text || '');
+    const directParse = parseStrictBiNumber(cleanDisambig.cleanedText, options);
+    if (directParse.value !== null) {
+      return {
+        value: directParse.value,
+        rawText: res.data.text.trim(),
+        confidence: 85,
+        isUncertain: cleanDisambig.isUncertain,
+      };
+    }
+  } catch {}
+
+  // 2. Pass 2: Binarized micro-crop (threshold 165 to wipe watermark)
+  try {
+    const binCanvas = binarizeCanvas(microCanvas, 165);
+    const res = await worker.recognize(
+      binCanvas,
+      {
+        tessedit_pageseg_mode: '7' as any,
+        tessedit_char_whitelist: '0123456789.,-— ',
+      } as any,
+      { tsv: true, text: true }
+    );
+    const words = parseTsvToWords(res.data.tsv || '', rect.x, rect.y);
+    const parsed = extractNumericValueFromWords(words, options);
+    if (parsed.value !== null) {
+      return parsed;
+    }
+    const cleanDisambig = disambiguateOcrNumberString(res.data.text || '');
+    const directParse = parseStrictBiNumber(cleanDisambig.cleanedText, options);
+    if (directParse.value !== null) {
+      return {
+        value: directParse.value,
+        rawText: res.data.text.trim(),
+        confidence: 85,
+        isUncertain: cleanDisambig.isUncertain,
+      };
+    }
+  } catch {}
+
+  // 3. Pass 3: Right-aligned subzone (right 55% of the cell where digits sit in BI tables)
+  try {
+    const rightRect = {
+      x: rect.x + Math.round(rect.w * 0.45),
+      y: rect.y,
+      w: Math.round(rect.w * 0.55),
+      h: rect.h,
+    };
+    const rightCanvas = cropCanvas(canvas, rightRect);
+    const rightBinCanvas = binarizeCanvas(rightCanvas, 165);
+    const res = await worker.recognize(
+      rightBinCanvas,
+      {
+        tessedit_pageseg_mode: '7' as any,
+        tessedit_char_whitelist: '0123456789.,-— ',
+      } as any,
+      { tsv: true, text: true }
+    );
+    const cleanDisambig = disambiguateOcrNumberString(res.data.text || '');
+    const directParse = parseStrictBiNumber(cleanDisambig.cleanedText, options);
+    if (directParse.value !== null) {
+      return {
+        value: directParse.value,
+        rawText: res.data.text.trim(),
+        confidence: 90,
+        isUncertain: cleanDisambig.isUncertain,
+      };
+    }
+  } catch {}
+
+  return { value: null, rawText: '', confidence: 0, isUncertain: true };
 }
 
 /**
@@ -1936,7 +2111,7 @@ export async function recognizeBiColumnsGrid(
   };
 
   // 7. For each row cluster, extract fields across the 6 columns
-  const yMatchWindow = Math.max(34, Math.round(H * 0.011)); // ~38px on 3458px image
+  const yMatchWindow = Math.max(42, Math.round(H * 0.0125)); // ~45-48px on standard upscaled image
   const extractedRows: ThiDuaAiRow[] = [];
 
   for (let idx = 0; idx < rowClusters.length; idx++) {
@@ -1956,15 +2131,25 @@ export async function recognizeBiColumnsGrid(
     if (!programName || programName.length < 2) continue;
 
     // Col 2: THỰC HIỆN
-    const thWords = wordsTh
+    let thWords = wordsTh
       .filter((w) => Math.abs(w.yCenter - rc.yCenter) < yMatchWindow)
       .sort((a, b) => a.left - b.left);
+    if (thWords.length === 0) {
+      thWords = wordsTh
+        .filter((w) => Math.abs(w.yCenter - rc.yCenter) < yMatchWindow + 12)
+        .sort((a, b) => a.left - b.left);
+    }
     let parsedTh = extractNumericValueFromWords(thWords);
 
     // Col 3: TARGET
-    const tgtWords = wordsTgt
+    let tgtWords = wordsTgt
       .filter((w) => Math.abs(w.yCenter - rc.yCenter) < yMatchWindow)
       .sort((a, b) => a.left - b.left);
+    if (tgtWords.length === 0) {
+      tgtWords = wordsTgt
+        .filter((w) => Math.abs(w.yCenter - rc.yCenter) < yMatchWindow + 12)
+        .sort((a, b) => a.left - b.left);
+    }
     let parsedTgt = extractNumericValueFromWords(tgtWords);
 
     // Col 4: % THỰC HIỆN TRÊN THANH TIẾN ĐỘ
@@ -1990,38 +2175,33 @@ export async function recognizeBiColumnsGrid(
     const cellTop = Math.max(0, Math.round(rc.yCenter - rowH / 2));
 
     if (parsedTh.value === null) {
-      const microCanvas = cropCanvas(canvas, {
+      const cellRectTh = {
         x: Math.max(0, rectTh.x - 12),
         y: cellTop,
         w: rectTh.w + 24,
         h: rowH,
-      });
-      try {
-        const microRes = await worker.recognize(microCanvas, {}, { tsv: true, text: true });
-        const microWords = parseTsvToWords(microRes.data.tsv || '', Math.max(0, rectTh.x - 12), cellTop);
-        const microParsed = extractNumericValueFromWords(microWords);
-        if (microParsed.value !== null) {
-          parsedTh = microParsed;
-        }
-      } catch {}
+      };
+      const cellParsed = await recognizeCellNumber(canvas, cellRectTh, worker);
+      if (cellParsed.value !== null) {
+        parsedTh = cellParsed;
+      }
     }
 
     if (parsedTgt.value === null) {
-      const microCanvas = cropCanvas(canvas, {
+      const cellRectTgt = {
         x: Math.max(0, rectTgt.x - 12),
         y: cellTop,
         w: rectTgt.w + 24,
         h: rowH,
-      });
-      try {
-        const microRes = await worker.recognize(microCanvas, {}, { tsv: true, text: true });
-        const microWords = parseTsvToWords(microRes.data.tsv || '', Math.max(0, rectTgt.x - 12), cellTop);
-        const microParsed = extractNumericValueFromWords(microWords);
-        if (microParsed.value !== null) {
-          parsedTgt = microParsed;
-        }
-      } catch {}
+      };
+      const cellParsed = await recognizeCellNumber(canvas, cellRectTgt, worker);
+      if (cellParsed.value !== null) {
+        parsedTgt = cellParsed;
+      }
     }
+
+    // Channel validation: Only assign DT or SL if detected from badge. Never guess.
+    const finalKenh: ThiDuaKenh | null = kenh;
 
     // Mathematical Cross-Validation: (Thực hiện / Target) * 100 ≈ % Hoàn thành
     const reconciled = reconcileBiNumbers(
@@ -2030,7 +2210,8 @@ export async function recognizeBiColumnsGrid(
       parsedPctTh.value,
       parsedTh.rawText,
       parsedTgt.rawText,
-      parsedPctDk.value
+      parsedPctDk.value,
+      finalKenh
     );
 
     const finalTh = reconciled.th;
@@ -2038,9 +2219,6 @@ export async function recognizeBiColumnsGrid(
     const finalPctTh = reconciled.pct;
     const finalPctDk = parsedPctDk.value;
     const finalRank = parsedRank.value;
-
-    // Channel validation: Only assign DT or SL if detected from badge. Never guess.
-    const finalKenh: ThiDuaKenh | null = kenh;
 
     const uncertainList: string[] = [];
     if (isTruncated) uncertainList.push('ten_chuong_trinh');
@@ -2078,7 +2256,7 @@ export async function recognizeBiColumnsGrid(
       },
       thuc_hien: {
         bbox: thMeta.bbox,
-        rawValue: parsedTh.rawText,
+        rawValue: parsedTh.rawText || (finalTh !== null ? String(finalTh) : ''),
         parsedValue: finalTh,
         confidence: finalTh !== null ? (reconciled.wasReconciled ? 95 : parsedTh.confidence || thMeta.conf) : 0,
         status:
@@ -2090,7 +2268,7 @@ export async function recognizeBiColumnsGrid(
       },
       target: {
         bbox: tgtMeta.bbox,
-        rawValue: parsedTgt.rawText,
+        rawValue: parsedTgt.rawText || (finalTgt !== null ? String(finalTgt) : ''),
         parsedValue: finalTgt,
         confidence: finalTgt !== null ? (reconciled.wasReconciled ? 95 : parsedTgt.confidence || tgtMeta.conf) : 0,
         status:
