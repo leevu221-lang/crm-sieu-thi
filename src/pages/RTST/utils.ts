@@ -18,7 +18,7 @@ export const removeAccents = (str: string): string => {
     .toLowerCase();
 };
 
-const CANONICAL_CATEGORY_ALIASES: Record<string, string> = {
+export const CANONICAL_CATEGORY_ALIASES: Record<string, string> = {
   simmobifonevinaphonesimdmx: 'simmobifonesimdmx',
   simdmx: 'simmobifonesimdmx',
   sim: 'simtong',
@@ -41,6 +41,10 @@ const CANONICAL_CATEGORY_ALIASES: Record<string, string> = {
   fecreditshinhansamsungfinance: 'trachamfecreditshinhansamsungfinance',
   trachamfecreditsamsungfshinhanmcredit: 'trachamfecreditshinhansamsungfinance',
   fecreditsamsungfshinhanmcredit: 'trachamfecreditshinhansamsungfinance',
+  trachamfecreditsamsung: 'trachamfecreditshinhansamsungfinance',
+  trachamfecredit: 'trachamfecreditshinhansamsungfinance',
+  fecreditsamsung: 'trachamfecreditshinhansamsungfinance',
+  fecredit: 'trachamfecreditshinhansamsungfinance',
   tulanhmaygiatmaylanhpanasonic: 'panasonic',
   binhnuocnongferrolirapido: 'maynuocnong',
   binhnuocnong: 'maynuocnong',
@@ -52,14 +56,32 @@ const CANONICAL_CATEGORY_ALIASES: Record<string, string> = {
   tabletandroidvamaydocsach: 'tabletandroidmaydocsach',
   mothetindungtpbankevovavpbankmwg: 'mothetindungtpbankevovpbankmwg',
   mothetindungvpbankmwgtpbankevo: 'mothetindungtpbankevovpbankmwg',
+  mothetindungvpbank: 'mothetindungtpbankevovpbankmwg',
+  mothetindungvpbankmwg: 'mothetindungtpbankevovpbankmwg',
+  mothetindung: 'mothetindungtpbankevovpbankmwg',
+  mothetindungtpbank: 'mothetindungtpbankevovpbankmwg',
+  mothetindungtpbankevo: 'mothetindungtpbankevovpbankmwg',
   trachamdienmayvagd: 'trachamdienmaygd',
   trachamdienmayvagiadung: 'trachamdienmaygd',
   loa: 'audio',
+  loapk: 'audio',
+  loaphukien: 'audio',
+  loavapk: 'audio',
   mangoplusicallme: 'ottmangoicallme',
   mangoicallme: 'ottmangoicallme',
+  ott: 'ottmangoicallme',
   bhthoict: 'bhtho',
   baohiemthoict: 'bhtho',
   bhthotgdd: 'bhtho',
+  baobhteng: 'bhtong',
+  baobaohiemteng: 'bhtong',
+  bhteng: 'bhtong',
+  baohiemteng: 'bhtong',
+  baobaohiemtong: 'bhtong',
+  dientusamsung: 'dientusamsung',
+  tivisamsung: 'dientusamsung',
+  dennangluong: 'dennangluongmattroi',
+  dennlmt: 'dennangluongmattroi',
   laptoptruapple: 'laptop',
   noicom: 'noicomnoichien',
 };
@@ -2213,12 +2235,21 @@ export const inferCategoryTypeFromName = (name: string): 'SL' | 'DT' => {
   const norm = normalize(name);
   if (
     norm.includes('may lanh') ||
+    norm.includes('may nuoc nong') ||
+    norm.includes('binh nuoc nong') ||
+    norm.includes('den nang luong') ||
+    norm.includes('den nlmt') ||
     norm.includes('nap rut') ||
     norm.includes('thu ho') ||
     norm.includes('sim') ||
     /\bvas\b/.test(norm) ||
     norm.includes('mo the') ||
     norm.includes('the tin dung') ||
+    norm.includes('vpbank') ||
+    norm.includes('tpbank') ||
+    norm.includes('ott') ||
+    norm.includes('mango') ||
+    norm.includes('icallme') ||
     norm.includes('tu dien') ||
     norm.includes('sllk') ||
     norm.includes('so luong')
@@ -2548,9 +2579,10 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
       
       const extractedName = cleanExtractedCatName(currentCatName);
       if (extractedName && !isNonCategoryNoiseLine(extractedName)) {
-        const effectiveType: 'SL' | 'DT' = currentCatType === 'ALL'
-          ? inferCategoryTypeFromName(extractedName)
-          : currentCatType;
+        const inferredType = inferCategoryTypeFromName(extractedName);
+        const effectiveType: 'SL' | 'DT' = inferredType === 'SL'
+          ? 'SL'
+          : (currentCatType === 'ALL' ? inferredType : currentCatType);
         const normExtracted = normalize(extractedName);
         const normMarket = normalize(currentMarketName);
 

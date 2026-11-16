@@ -6373,7 +6373,18 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
       'cat_simmobifonesimdmx',
       'cat_mothetindungtpbankevovpbankmwg',
       'cat_ottmangoicallme',
-      'cat_maylanh'
+      'cat_maylanh',
+      'cat_maynuocnong',
+      'cat_dennangluongmattroi',
+      'napruttientaikhoannganhang',
+      'simtong',
+      'vas',
+      'simmobifonesimdmx',
+      'mothetindungtpbankevovpbankmwg',
+      'ottmangoicallme',
+      'maylanh',
+      'maynuocnong',
+      'dennangluongmattroi'
     ]);
     if (idLower && SL_MASTER_IDS.has(idLower)) return 'SL';
 
@@ -6391,10 +6402,15 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
       cleaned.startsWith('simmobifone') ||
       cleaned === 'vas' ||
       cleaned.includes('mothetindung') ||
+      cleaned.includes('thetindung') ||
       cleaned.includes('ott') ||
       cleaned.includes('mango') ||
       cleaned.includes('icallme') ||
-      cleaned === 'maylanh'
+      cleaned === 'maylanh' ||
+      cleaned.includes('maynuocnong') ||
+      cleaned.includes('binhnuocnong') ||
+      cleaned.includes('dennangluong') ||
+      cleaned.includes('dennlmt')
     ) {
       return 'SL';
     }
@@ -6423,7 +6439,7 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
         return;
       }
       const masterId = resolved.item?.id || resolved.id;
-      const canonicalKey = resolved.canonicalKey || getCanonicalCategoryKey(rawName, categoryConfig);
+      const canonicalKey = resolved.canonicalKey || getCanonicalCategoryKey(rawName, categoryConfig) || masterId || cleanCategoryName(rawName);
       if (resolved.isMapped && !resolved.isAmbiguous) {
         if (masterId) matchedMasterIds.add(masterId);
         if (canonicalKey) matchedMasterIds.add(canonicalKey);
@@ -6433,7 +6449,9 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
           ? resolved.displayName
           : (resolved.displayName || getCategoryDisplayName(rawName, categoryConfig) || rawName);
       const orderIndex = resolved.orderIndex ?? getCategoryOrderIndex(rawName, categoryConfig);
-      const key = `${canonicalKey}_${cat.type}`;
+      const effectiveType = inferMasterCategoryMetricType(displayName, canonicalKey);
+      const key = resolved.isAmbiguous ? `ambig:${normalize(rawName)}` : canonicalKey;
+
       if (!aggregated[key]) {
         aggregated[key] = {
           ...cat,
@@ -6442,6 +6460,7 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
           rawName,
           name: displayName,
           canonicalKey,
+          type: effectiveType,
           order: resolved.order,
           orderIndex,
           group: resolved.group,
@@ -6451,9 +6470,13 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
           _firstIdx: idx
         };
       } else {
-        aggregated[key].target += cat.target;
-        aggregated[key].actual = (aggregated[key].actual || 0) + (cat.actual || 0);
-        aggregated[key].revenue = (aggregated[key].revenue || 0) + (cat.revenue || 0);
+        aggregated[key].target = Math.max(aggregated[key].target || 0, cat.target || 0);
+        aggregated[key].actual = Math.max(aggregated[key].actual || 0, cat.actual || 0);
+        aggregated[key].revenue = Math.max(aggregated[key].revenue || 0, cat.revenue || 0);
+        if (cat.actual > 0) {
+          aggregated[key].rawName = rawName;
+          aggregated[key].name = displayName;
+        }
       }
     });
 
@@ -6465,17 +6488,20 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
         const masterRes = resolveCategoryMaster(masterItem.name, categoryConfig);
         const masterId = masterItem.id || masterRes.id;
         const canonicalKey = masterRes.canonicalKey || masterId;
-        if (matchedMasterIds.has(masterId) || matchedMasterIds.has(canonicalKey)) {
+        if (
+          matchedMasterIds.has(masterId) ||
+          matchedMasterIds.has(canonicalKey) ||
+          aggregated[canonicalKey] ||
+          aggregated[masterId]
+        ) {
           continue;
         }
         const inferredType = inferMasterCategoryMetricType(masterItem.name, masterId);
-        const key = `${canonicalKey}_${inferredType}`;
-        if (aggregated[key]) continue;
         matchedMasterIds.add(masterId);
         matchedMasterIds.add(canonicalKey);
 
         const orderVal = typeof masterItem.order === 'number' ? masterItem.order : idx;
-        aggregated[key] = {
+        aggregated[canonicalKey] = {
           id: masterId,
           masterId,
           rawName: masterItem.name,
@@ -6513,13 +6539,13 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
       });
   }, [processedData.categories, marketFilter, categoryConfig, inferMasterCategoryMetricType]);
 
-  // Raw lists for SL & DT in BC Ngày > Tổng quan
+  // Raw lists for SL & DT in BC Ngày > Tổng quan (strictly mutually exclusive: SL vs DT)
   const rawCategoriesSL = useMemo(() => {
-    return filteredCategories.filter((c: any) => c.type === 'SL' || c.type === 'ALL');
+    return filteredCategories.filter((c: any) => c.type === 'SL');
   }, [filteredCategories]);
 
   const rawCategoriesDT = useMemo(() => {
-    return filteredCategories.filter((c: any) => c.type === 'DT' || c.type === 'ALL');
+    return filteredCategories.filter((c: any) => c.type === 'DT');
   }, [filteredCategories]);
 
   // Filtered lists with hidden items removed ONLY for BC NGÀY > TỔNG QUAN
@@ -6759,9 +6785,9 @@ function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, 
   };
 
   const generateAndCopyComment = (type: 'SL' | 'DT') => {
-    const categories = processedData.categories
-      .filter(c => c.type === type)
-      .sort((a, b) => (b.rate || 0) - (a.rate || 0));
+    const categories = (type === 'SL' ? visibleCategoriesSL : visibleCategoriesDT)
+      .filter((c: any) => (Number(c.target) || 0) > 0 || (Number(c.revenue) || 0) > 0)
+      .sort((a: any, b: any) => (b.rate || 0) - (a.rate || 0));
 
     if (categories.length === 0) return;
 

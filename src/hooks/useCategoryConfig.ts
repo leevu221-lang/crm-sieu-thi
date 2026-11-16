@@ -870,6 +870,15 @@ export function resolveCategoryMaster(
     }
   }
 
+  // 5.5. Fallback đối chiếu với danh mục chuẩn mặc định (DEFAULT_TNB_LEADER_CATEGORIES)
+  // để nhận diện các ngành hàng chuẩn hệ thống (như cat_dientusamsung) khi cấu hình tuỳ chỉnh chưa bổ sung
+  if (list !== DEFAULT_TNB_LEADER_CATEGORIES) {
+    const fallbackRes = resolveCategoryMaster(rawName, DEFAULT_TNB_LEADER_CATEGORIES, { recordUnmapped: false });
+    if (fallbackRes.isMapped && !fallbackRes.isAmbiguous && fallbackRes.masterItem) {
+      return buildResolved(fallbackRes.masterItem, fallbackRes.matchedBy);
+    }
+  }
+
   // 6. Chưa tồn tại trong TNB LEADER → CẤU HÌNH: Bảo toàn nguyên vẹn tên gốc và số liệu
   if (options?.recordUnmapped) {
     recordUnmappedCategory(trimmed, options.source || 'BI_DATA');
