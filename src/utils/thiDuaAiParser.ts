@@ -927,6 +927,26 @@ export function validateThiDuaRow(
   };
 }
 
+export function isHeaderOrSummaryRow(name: string): boolean {
+  const clean = String(name || '').trim().toLowerCase();
+  return (
+    !clean ||
+    clean === 'tổng cộng' ||
+    clean === 'tong cong' ||
+    clean === 'tổng' ||
+    clean === 'tong' ||
+    clean === 'total' ||
+    clean === 'chương trình' ||
+    clean === 'chuong trinh' ||
+    clean === 'tên chương trình' ||
+    clean === 'ten chuong trinh' ||
+    clean === 'stt' ||
+    clean === 'kpi' ||
+    clean === 'thực hiện' ||
+    clean === 'target'
+  );
+}
+
 /**
  * Normalizes all BI rows with Default Zero semantics:
  * - Truly blank or dash ('-') numeric metrics -> 0 (thuc_hien, target, ty_le_thuc_hien, ty_le_du_kien)
@@ -937,7 +957,9 @@ export function validateThiDuaRow(
  */
 export function normalizeBIData<T extends ThiDuaAiReportResult | ThiDuaAiRow[]>(input: T): T {
   if (Array.isArray(input)) {
-    return (input as ThiDuaAiRow[]).map((r, idx) =>
+    return (input as ThiDuaAiRow[])
+      .filter((r) => r && r.ten_chuong_trinh && !isHeaderOrSummaryRow(r.ten_chuong_trinh))
+      .map((r, idx) =>
       validateThiDuaRow(
         {
           ...r,
@@ -984,7 +1006,10 @@ export function normalizeBIData<T extends ThiDuaAiReportResult | ThiDuaAiRow[]>(
   }
 
   const report = input as ThiDuaAiReportResult;
-  const normalizedRows = (report.rows || []).map((r, idx) =>
+  const filteredInputRows = (report.rows || []).filter(
+    (r) => r && r.ten_chuong_trinh && !isHeaderOrSummaryRow(r.ten_chuong_trinh)
+  );
+  const normalizedRows = filteredInputRows.map((r, idx) =>
     validateThiDuaRow(
       {
         ...r,
@@ -1059,7 +1084,12 @@ export function normalizeRawAiReport(
     ? raw.quality_warnings.map((w) => String(w).trim()).filter(Boolean)
     : [];
 
-  const rawRows: ThiDuaAiRawRow[] = Array.isArray(raw.rows) ? raw.rows : [];
+  const rawRows: ThiDuaAiRawRow[] = Array.isArray(raw.rows)
+    ? raw.rows.filter((item) => {
+        const name = String(item?.ten_chuong_trinh || '').trim();
+        return name && !isHeaderOrSummaryRow(name);
+      })
+    : [];
 
   const rows = rawRows.map((item, idx) => {
     const parsedTh = parseStrictBiNumber(item?.thuc_hien);
